@@ -1,20 +1,27 @@
 <script lang="ts">
-  let editing = $state(false);
-  
-  function toggleEdit() {
-    editing = !editing;
-  }
-  
-  export function setEditing(value: boolean) {
-    editing = value;
-  }
+  let { 
+    editing = false, 
+    darkMode = true,
+    onToggleEdit = () => {},
+    onToggleTheme = () => {}
+  }: { 
+    editing?: boolean;
+    darkMode?: boolean;
+    onToggleEdit?: () => void;
+    onToggleTheme?: () => void;
+  } = $props();
 </script>
 
 <header>
   <h1>Nästa</h1>
-  <button class="edit-btn" onclick={toggleEdit} aria-label="Redigera rutter">
-    {editing ? 'Klar' : 'Redigera'}
-  </button>
+  <div class="actions">
+    <button class="theme-btn" onclick={onToggleTheme} aria-label="Toggle theme">
+      {darkMode ? '☀️' : '🌙'}
+    </button>
+    <button class="edit-btn" onclick={onToggleEdit} aria-label="Redigera rutter">
+      {editing ? 'Klar' : 'Redigera'}
+    </button>
+  </div>
 </header>
 
 <style>
@@ -28,9 +35,28 @@
   }
 
   h1 {
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .theme-btn {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .theme-btn:hover {
+    background: #1a1a1a;
   }
 
   .edit-btn {

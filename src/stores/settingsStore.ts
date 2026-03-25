@@ -14,6 +14,13 @@ function createSettingsStore() {
         return updated;
       });
     },
+    toggleDarkMode: () => {
+      update(settings => {
+        const updated = { ...settings, darkMode: !settings.darkMode };
+        saveSettings(updated);
+        return updated;
+      });
+    },
     setRefreshInterval: (interval: number) => {
       update(settings => {
         const updated = { ...settings, refreshInterval: interval };

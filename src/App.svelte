@@ -43,6 +43,10 @@
     }
   }
   
+  function toggleTheme() {
+    settingsStore.toggleDarkMode();
+  }
+  
   function handleRemoveStop(stopId: string) {
     if (route) {
       routeStore.removeStop(route.id, stopId);
@@ -70,7 +74,12 @@
 </script>
 
 <main class:dark={settings.darkMode}>
-  <Header />
+  <Header 
+    {editing}
+    darkMode={settings.darkMode}
+    onToggleEdit={toggleEdit}
+    onToggleTheme={toggleTheme}
+  />
   
   <RouteSelector onSelect={handleRouteSelect} />
   
@@ -96,10 +105,11 @@
 
   :global(body) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #000;
-    color: #fff;
+    background: #fff;
+    color: #000;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    transition: background 0.3s, color 0.3s;
   }
 
   main {
@@ -111,5 +121,23 @@
 
   main.dark {
     background: #000;
+    color: #fff;
+  }
+
+  main.dark :global(button),
+  main.dark :global(input) {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #fff;
+  }
+
+  main.dark :global(.stop-item),
+  main.dark :global(.route-editor) {
+    background: #111;
+  }
+
+  main.dark :global(.travel-time),
+  main.dark :global(.travel-input input) {
+    background: #222;
   }
 </style>
