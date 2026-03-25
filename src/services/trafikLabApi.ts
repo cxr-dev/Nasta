@@ -2,8 +2,9 @@ import type { Departure, SiteSearchResult } from '../types/departure';
 import type { TransportType } from '../types/route';
 
 const TRAFIKLAB_BASE = 'https://transport.trafiklab.se/api2/v1';
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
-const API_BASE = WORKER_URL ? `${WORKER_URL}/api` : TRAFIKLAB_BASE;
+
+const STOPS_KEY = '0c550026cea14ec981c7b0c440f459ff';
+const REALTIME_KEY = '6cd9fc5c2f6d477684a99be7eaa4962b';
 
 function getTransportType(mode?: string): TransportType {
   switch (mode?.toUpperCase()) {
@@ -18,7 +19,7 @@ function getTransportType(mode?: string): TransportType {
 export async function searchStops(query: string): Promise<SiteSearchResult[]> {
   if (!query || query.length < 2) return [];
   
-  const url = `${API_BASE}/stops/name/${encodeURIComponent(query)}`;
+  const url = `${TRAFIKLAB_BASE}/stops/name/${encodeURIComponent(query)}?key=${STOPS_KEY}`;
   
   const response = await fetch(url);
   if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -35,7 +36,7 @@ export async function searchStops(query: string): Promise<SiteSearchResult[]> {
 }
 
 export async function getDepartures(stopId: string): Promise<Departure[]> {
-  const url = `${API_BASE}/timetable/${encodeURIComponent(stopId)}`;
+  const url = `${TRAFIKLAB_BASE}/timetable/${encodeURIComponent(stopId)}?key=${REALTIME_KEY}`;
   
   const response = await fetch(url);
   if (!response.ok) throw new Error(`API error: ${response.status}`);

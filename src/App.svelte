@@ -33,7 +33,7 @@
   }
   
   let route = $derived($selectedRoute);
-  let routes = $derived($routeStore);
+  let routes = $derived($routeStore ?? []);
   let hasNoRoutes = $derived(!routes || routes.length === 0);
   
   function loadDepartures() {

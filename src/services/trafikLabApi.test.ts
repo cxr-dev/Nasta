@@ -34,7 +34,7 @@ describe('trafikLabApi', () => {
       const result = await searchStops('stockholm');
       
       expect(fetch).toHaveBeenCalledWith(
-        'https://transport.trafiklab.se/api2/v1/stops/name/stockholm'
+        'https://transport.trafiklab.se/api2/v1/stops/name/stockholm?key=0c550026cea14ec981c7b0c440f459ff'
       );
       expect(result).toHaveLength(2);
       expect(result[0].siteId).toBe('1001');
@@ -72,7 +72,7 @@ describe('trafikLabApi', () => {
       const result = await getDepartures('1001');
       
       expect(fetch).toHaveBeenCalledWith(
-        'https://transport.trafiklab.se/api2/v1/timetable/1001'
+        'https://transport.trafiklab.se/api2/v1/timetable/1001?key=6cd9fc5c2f6d477684a99be7eaa4962b'
       );
       expect(result).toHaveLength(1);
       expect(result[0].line).toBe('42');

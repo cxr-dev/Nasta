@@ -39,8 +39,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          VITE_WORKER_URL: https://nasta-proxy.yivihe6505.workers.dev
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
