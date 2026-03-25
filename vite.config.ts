@@ -33,10 +33,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
+            urlPattern: /^https:\/\/nasta-proxy\.yivihe6505\.workers\.dev\/.*/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'sl-api-cache',
+              cacheName: 'trafiklab-cache',
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 60
