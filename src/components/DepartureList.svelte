@@ -71,15 +71,14 @@
   .departure-list {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 8px;
   }
 
   .stop-item {
     position: relative;
     padding: 16px;
-    background: var(--surface, #111);
-    border-radius: 12px;
-    margin-bottom: 8px;
+    background: var(--surface);
+    border-radius: 8px;
   }
 
   .remove-btn {
@@ -90,8 +89,8 @@
     height: 24px;
     border-radius: 50%;
     border: none;
-    background: var(--border, #333);
-    color: var(--text-primary, #fff);
+    background: var(--border);
+    color: var(--text);
     font-size: 18px;
     cursor: pointer;
     display: flex;
@@ -100,14 +99,14 @@
   }
 
   .remove-btn:hover {
-    background: var(--danger, #c00);
+    background: var(--danger);
   }
 
   .stop-name {
     font-size: 16px;
     font-weight: 600;
     margin-bottom: 8px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .departures {
@@ -124,36 +123,36 @@
   }
 
   .line {
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     min-width: 70px;
   }
 
   .minutes {
     font-weight: 600;
     font-size: 18px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .delay {
-    color: var(--danger, #f44);
+    color: var(--danger);
     font-size: 12px;
   }
 
   .travel-time {
     position: absolute;
     left: 50%;
-    bottom: -14px;
+    bottom: -12px;
     transform: translateX(-50%);
-    background: var(--input-bg, #222);
+    background: var(--border);
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 11px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     z-index: 1;
   }
 
   .no-departures {
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
     font-size: 13px;
     font-style: italic;
   }
@@ -161,12 +160,12 @@
   .empty-state {
     text-align: center;
     padding: 40px 20px;
-    color: var(--text-secondary, #666);
+    color: var(--text-secondary);
   }
 
   .hint {
     font-size: 13px;
     margin-top: 8px;
-    color: var(--text-secondary, #444);
+    color: var(--text-secondary);
   }
 </style>

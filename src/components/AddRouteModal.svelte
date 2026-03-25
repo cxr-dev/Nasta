@@ -83,7 +83,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: var(--overlay, rgba(0, 0, 0, 0.6));
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -92,9 +92,9 @@
   }
 
   .modal {
-    background: var(--surface, #1a1a1a);
-    border: 1px solid var(--border, #333);
-    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 24px;
     width: 100%;
     max-width: 360px;
@@ -104,7 +104,7 @@
     font-size: 20px;
     font-weight: 600;
     margin-bottom: 20px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .field {
@@ -115,23 +115,23 @@
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     margin-bottom: 6px;
   }
 
   input, select {
     width: 100%;
     padding: 12px;
-    background: var(--input-bg, #222);
-    border: 1px solid var(--border, #333);
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
     font-size: 15px;
   }
 
   input:focus, select:focus {
     outline: none;
-    border-color: var(--border-focus, #666);
+    border-color: var(--accent);
   }
 
   .actions {
@@ -152,23 +152,23 @@
 
   .cancel-btn {
     background: transparent;
-    border: 1px solid var(--border, #444);
-    color: var(--text-secondary, #888);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
   }
 
   .cancel-btn:hover {
-    border-color: var(--border-hover, #666);
-    color: var(--text-primary, #fff);
+    border-color: var(--text-secondary);
+    color: var(--text);
   }
 
   .submit-btn {
-    background: var(--btn-primary-bg, #fff);
+    background: var(--accent);
     border: none;
-    color: var(--btn-primary-text, #000);
+    color: #fff;
   }
 
   .submit-btn:hover:not(:disabled) {
-    background: var(--btn-primary-hover, #eee);
+    opacity: 0.9;
   }
 
   .submit-btn:disabled {

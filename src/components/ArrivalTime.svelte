@@ -14,9 +14,9 @@
 
 <style>
   .arrival-box {
-    background: var(--surface, linear-gradient(135deg, #1a1a1a 0%, #111 100%));
-    border: 1px solid var(--border, #333);
-    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 20px;
     text-align: center;
     margin-top: 16px;
@@ -26,7 +26,7 @@
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--text-secondary, #666);
+    color: var(--text-secondary);
     margin-bottom: 4px;
   }
 
@@ -34,12 +34,12 @@
     font-size: 36px;
     font-weight: 700;
     letter-spacing: -1px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .minutes {
     font-size: 14px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     margin-top: 4px;
   }
 </style>

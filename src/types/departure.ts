@@ -10,5 +10,7 @@ export interface SiteSearchResult {
   siteId: string;
   name: string;
   type: 'stop' | 'station';
-  transportModes?: string[];
+  note?: string;
+  lat?: number;
+  lon?: number;
 }

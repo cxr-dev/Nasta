@@ -8,6 +8,7 @@ import { searchSites, getDepartures } from './slApi';
 describe('slApi service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   describe('searchSites', () => {
@@ -17,20 +18,17 @@ describe('slApi service', () => {
     });
 
     it('returns search results', async () => {
-      const mockResponse = {
-        locations: [
-          { id: '9091001000009001', name: 'Test stop', type: 'stop', productClasses: [0] }
-        ]
-      };
+      const mockSites = [
+        { id: 9001, name: 'Test stop', note: '', lat: 59.3, lon: 18.1, stop_areas: [9001] }
+      ];
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => mockResponse
+        json: async () => mockSites
       });
 
       const results = await searchSites('test');
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe('Test stop');
-      expect(results[0].transportModes).toContain('bus');
     });
 
     it('throws on API error', async () => {

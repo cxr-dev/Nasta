@@ -27,7 +27,7 @@
 <div class="route-editor">
   <h2>Redigera: {route.name}</h2>
   
-  <StopSearch onSelect={addStop} transportMode={route.transportType} />
+  <StopSearch onSelect={addStop} />
   
   <div class="stops">
     {#each route.stops as stop, index (stop.id)}
@@ -69,8 +69,8 @@
 
 <style>
   .route-editor {
-    background: var(--surface, #111);
-    border-radius: 16px;
+    background: var(--surface);
+    border-radius: 12px;
     padding: 20px;
     margin-top: 16px;
   }
@@ -79,7 +79,7 @@
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 16px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .stops {
@@ -89,8 +89,8 @@
   }
 
   .stop-row {
-    background: var(--input-bg, #1a1a1a);
-    border-radius: 10px;
+    background: var(--bg);
+    border-radius: 8px;
     padding: 12px;
   }
 
@@ -102,7 +102,7 @@
 
   .stop-name {
     font-size: 15px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .remove-btn {
@@ -110,20 +110,20 @@
     height: 28px;
     border-radius: 50%;
     border: none;
-    background: var(--border, #333);
-    color: var(--text-primary, #fff);
+    background: var(--border);
+    color: var(--text);
     font-size: 18px;
     cursor: pointer;
   }
 
   .remove-btn:hover {
-    background: var(--danger, #c00);
+    background: var(--danger);
   }
 
   .travel-input {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid var(--border, #222);
+    border-top: 1px solid var(--border);
   }
 
   .travel-input label {
@@ -131,23 +131,23 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   .travel-input input {
     width: 50px;
     padding: 4px 8px;
-    background: var(--input-bg, #222);
-    border: 1px solid var(--border, #333);
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 6px;
-    color: var(--text-primary, #fff);
+    color: var(--text);
     font-size: 14px;
     text-align: center;
   }
 
   .empty {
     text-align: center;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
     font-size: 14px;
     padding: 20px;
   }

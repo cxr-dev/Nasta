@@ -1,67 +1,113 @@
 import type { Departure, SiteSearchResult } from '../types/departure';
 
-const JOURNEY_PLANNER_URL = 'https://journeyplanner.integration.sl.se/v2';
 const TRANSPORT_URL = 'https://transport.integration.sl.se/v1';
 
-const TRANSPORT_MODE_MAP: Record<number, string> = {
-  0: 'bus',
-  1: 'metro',
-  2: 'train',
-  3: 'tram',
-  4: 'ship',
-  5: 'ferry'
-};
+const STORAGE_KEY = 'nasta_stations';
+const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
-function mapProductClasses(classes: number[]): string[] {
-  const modes = new Set<string>();
-  for (const c of classes) {
-    const mode = TRANSPORT_MODE_MAP[c];
-    if (mode) modes.add(mode);
-  }
-  return modes.size > 0 ? Array.from(modes) : ['bus'];
+interface CachedData {
+  stations: SiteSearchResult[];
+  timestamp: number;
 }
 
-export async function searchSites(query: string, transportMode?: string): Promise<SiteSearchResult[]> {
-  if (!query || query.length < 2) return [];
+function fuzzyMatch(text: string, searchTerm: string): boolean {
+  const normalizedText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
-  const params = new URLSearchParams({
-    name_sf: query,
-    any_obj_filter_sf: '2',
-    type_sf: 'any'
-  });
+  if (normalizedText.includes(normalizedSearch)) return true;
   
-  const response = await fetch(`${JOURNEY_PLANNER_URL}/stop-finder?${params}`);
+  let searchIdx = 0;
+  for (let i = 0; i < normalizedText.length && searchIdx < normalizedSearch.length; i++) {
+    if (normalizedText[i] === normalizedSearch[searchIdx]) {
+      searchIdx++;
+    }
+  }
+  return searchIdx === normalizedSearch.length;
+}
+
+function filterStations(stations: SiteSearchResult[], query: string): SiteSearchResult[] {
+  const q = query.toLowerCase();
+  
+  const exact = stations.filter(s => s.name.toLowerCase().includes(q));
+  const partial = stations.filter(s => !exact.includes(s) && fuzzyMatch(s.name, query));
+  const fuzzy = stations.filter(s => !exact.includes(s) && !partial.includes(s));
+  
+  return [...exact, ...partial, ...fuzzy].slice(0, 12);
+}
+
+function getCachedStations(): SiteSearchResult[] | null {
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (!cached) return null;
+    
+    const data: CachedData = JSON.parse(cached);
+    if (Date.now() - data.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return data.stations;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedStations(stations: SiteSearchResult[]) {
+  try {
+    const data: CachedData = {
+      stations,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // localStorage not available
+  }
+}
+
+export async function loadStations(): Promise<SiteSearchResult[]> {
+  const cached = getCachedStations();
+  if (cached) return cached;
+  
+  const response = await fetch(`${TRANSPORT_URL}/sites?expand=true`);
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   
   const data = await response.json();
   
-  let results = (data.locations || []).map((loc: any) => ({
-    siteId: loc.id,
-    name: loc.name || loc.desc,
-    type: loc.type === 'stop' ? 'stop' : 'station',
-    transportModes: mapProductClasses(loc.productClasses || [])
+  const stations: SiteSearchResult[] = data.map((site: any) => ({
+    siteId: String(site.id),
+    name: site.name,
+    note: site.note || '',
+    type: 'stop' as const,
+    lat: site.lat,
+    lon: site.lon
   }));
   
-  if (transportMode && transportMode !== 'all') {
-    results = results.filter((r: SiteSearchResult) => 
-      r.transportModes?.includes(transportMode)
-    );
-  }
+  setCachedStations(stations);
+  return stations;
+}
+
+export async function searchSites(query: string): Promise<SiteSearchResult[]> {
+  if (!query || query.length < 2) return [];
   
-  return results.slice(0, 15);
+  const stations = await loadStations();
+  return filterStations(stations, query);
 }
 
 export async function getDepartures(siteId: string): Promise<Departure[]> {
-  const numericId = siteId.replace(/^\d{3}/, '').replace(/^9/, '');
-  const response = await fetch(`${TRANSPORT_URL}/sites/${numericId}/departures`);
+  const response = await fetch(`${TRANSPORT_URL}/sites/${siteId}/departures`);
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   
   const data = await response.json();
-  return (data.departures || []).map((dep: any) => ({
-    line: dep.line?.designation || dep.line?.name || '',
-    destination: dep.destination || '',
-    minutes: dep.timeToDeparture ?? dep.expected ? Math.max(0, Math.floor((new Date(dep.expected || dep.scheduled).getTime() - Date.now()) / 60000)) : 0,
-    time: dep.scheduled || dep.expected || '',
-    deviation: dep.deviation || dep.deviations?.[0]?.importance_level
-  }));
+  return (data.departures || []).map((dep: any) => {
+    let minutes = dep.timeToDeparture;
+    if (minutes === undefined && dep.expected) {
+      minutes = Math.max(0, Math.floor((new Date(dep.expected).getTime() - Date.now()) / 60000));
+    }
+    return {
+      line: dep.line?.designation || dep.line?.name || '',
+      destination: dep.destination || '',
+      minutes: minutes ?? 0,
+      time: dep.scheduled || dep.expected || '',
+      deviation: dep.deviation
+    };
+  });
 }

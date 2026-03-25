@@ -143,11 +143,10 @@
 
   :global(body) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg, #fff);
-    color: var(--text-primary, #000);
+    background: var(--bg);
+    color: var(--text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
-    transition: background 0.3s, color 0.3s;
   }
 
   main {
@@ -157,58 +156,53 @@
     min-height: 100vh;
   }
 
+  /* Dark theme */
   main.dark {
     --bg: #000;
-    --text-primary: #fff;
+    --text: #fff;
     --text-secondary: #888;
-    --text-secondary-hover: #ccc;
-    --surface: #1a1a1a;
-    --surface-active: #fff;
+    --surface: #111;
     --border: #333;
-    --border-hover: #555;
-    --border-focus: #666;
-    --border-active: #fff;
-    --input-bg: #222;
-    --overlay: rgba(0, 0, 0, 0.6);
-    --btn-primary-bg: #fff;
-    --btn-primary-text: #000;
-    --btn-primary-hover: #eee;
+    --accent: #4DA6FF;
     --danger: #e53935;
-    --danger-text: #fff;
-    background: var(--bg);
-    color: var(--text-primary);
   }
 
+  /* Light theme */
   :global(body:not(.dark)) {
     --bg: #fff;
-    --text-primary: #000;
+    --text: #1A1A1A;
     --text-secondary: #666;
-    --text-secondary-hover: #333;
     --surface: #f5f5f5;
-    --surface-active: #000;
     --border: #ddd;
-    --border-hover: #bbb;
-    --border-focus: #888;
-    --border-active: #000;
-    --input-bg: #fff;
-    --overlay: rgba(0, 0, 0, 0.3);
-    --btn-primary-bg: #000;
-    --btn-primary-text: #fff;
-    --btn-primary-hover: #333;
+    --accent: #0066CC;
     --danger: #d32f2f;
-    --danger-text: #fff;
   }
 
   main:not(.dark) {
     background: var(--bg);
-    color: var(--text-primary);
+    color: var(--text);
   }
 
-  main:not(.dark) :global(button),
-  main:not(.dark) :global(input) {
-    background: var(--input-bg);
+  /* Global element styles */
+  main.dark :global(input),
+  main.dark :global(button),
+  main.dark :global(select) {
+    background: var(--surface);
     border-color: var(--border);
-    color: var(--text-primary);
+    color: var(--text);
+  }
+
+  main.dark :global(.stop-item),
+  main.dark :global(.route-editor) {
+    background: var(--surface);
+  }
+
+  main:not(.dark) :global(input),
+  main:not(.dark) :global(button),
+  main:not(.dark) :global(select) {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
   }
 
   main:not(.dark) :global(.stop-item),
@@ -216,15 +210,10 @@
     background: var(--surface);
   }
 
-  main:not(.dark) :global(.travel-time),
-  main:not(.dark) :global(.travel-input input) {
-    background: var(--input-bg);
-  }
-
   .empty-state {
     text-align: center;
     padding: 48px 16px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   .empty-state p {
@@ -233,8 +222,8 @@
   }
 
   .empty-cta {
-    background: var(--btn-primary-bg, #fff);
-    color: var(--btn-primary-text, #000);
+    background: var(--accent);
+    color: #fff;
     border: none;
     padding: 12px 24px;
     border-radius: 8px;
