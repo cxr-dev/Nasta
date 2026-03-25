@@ -10,7 +10,7 @@
 </script>
 
 <div class="segment-list">
-  {#if route.segments.length === 0}
+  {#if !route.segments || route.segments.length === 0}
     <p class="empty">Lägg till resesegment nedan</p>
   {:else}
     {#each route.segments as segment, index (segment.id)}

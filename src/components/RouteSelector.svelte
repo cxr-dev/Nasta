@@ -12,7 +12,7 @@
     onDeleteRoute?: (routeId: string) => void;
   } = $props();
   
-  let routes = $derived($routeStore);
+  let routes = $derived($routeStore ?? []);
   let selected = $derived($selectedRouteId);
   
   function selectRoute(id: string) {

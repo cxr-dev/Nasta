@@ -8,7 +8,7 @@ export default defineConfig({
     svelte(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'robots.txt', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'robots.txt', 'icons/*.svg'],
       manifest: {
         name: 'Nästa - Commute Dashboard',
         short_name: 'Nästa',
