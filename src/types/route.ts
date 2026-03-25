@@ -1,16 +1,26 @@
 export type TransportType = 'bus' | 'train' | 'metro' | 'boat';
 
+export type Direction = 'toWork' | 'fromWork';
+
 export interface Stop {
   id: string;
   name: string;
   siteId: string;
-  line?: string;
-  travelMinutesToNext?: number;
+}
+
+export interface Segment {
+  id: string;
+  line: string;
+  lineName: string;
+  directionText: string;
+  fromStop: Stop;
+  toStop: Stop;
+  transportType: TransportType;
 }
 
 export interface Route {
   id: string;
   name: string;
-  transportType: TransportType;
-  stops: Stop[];
+  direction: Direction;
+  segments: Segment[];
 }

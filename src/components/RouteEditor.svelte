@@ -1,69 +1,41 @@
 <script lang="ts">
-  import type { Route, Stop } from '../types/route';
-  import type { SiteSearchResult } from '../types/departure';
+  import type { Route, TransportType, Stop } from '../types/route';
   import { routeStore } from '../stores/routeStore';
-  import StopSearch from './StopSearch.svelte';
+  import SegmentSearch from './SegmentSearch.svelte';
+  import SegmentList from './SegmentList.svelte';
   
   let { route }: { route: Route } = $props();
   
-  function addStop(site: SiteSearchResult) {
-    const newStop: Stop = {
-      id: crypto.randomUUID(),
-      name: site.name,
-      siteId: site.siteId
-    };
-    routeStore.addStop(route.id, newStop);
-  }
-  
-  function removeStop(stopId: string) {
-    routeStore.removeStop(route.id, stopId);
-  }
-  
-  function updateTravelTime(stopIndex: number, minutes: number) {
-    routeStore.setTravelTime(route.id, stopIndex, minutes);
+  function addSegment(
+    line: string,
+    lineName: string,
+    directionText: string,
+    fromStop: Stop,
+    toStop: Stop,
+    transportType: TransportType
+  ) {
+    routeStore.addSegment(route.id, {
+      line,
+      lineName,
+      directionText,
+      fromStop,
+      toStop,
+      transportType
+    });
   }
 </script>
 
 <div class="route-editor">
   <h2>Redigera: {route.name}</h2>
+  <p class="direction-hint">
+    {route.direction === 'toWork' ? 'Till arbetet' : 'Hem från arbetet'}
+  </p>
   
-  <StopSearch onSelect={addStop} />
+  <SegmentList {route} />
   
-  <div class="stops">
-    {#each route.stops as stop, index (stop.id)}
-      <div class="stop-row">
-        <div class="stop-info">
-          <span class="stop-name">{stop.name}</span>
-          <button 
-            class="remove-btn" 
-            onclick={() => removeStop(stop.id)}
-            aria-label="Ta bort"
-          >
-            ×
-          </button>
-        </div>
-        
-        {#if index < route.stops.length - 1}
-          <div class="travel-input">
-            <label>
-              Restid:
-              <input
-                type="number"
-                min="0"
-                max="60"
-                value={stop.travelMinutesToNext || 0}
-                onchange={(e) => updateTravelTime(index, parseInt((e.target as HTMLInputElement).value) || 0)}
-              />
-              min
-            </label>
-          </div>
-        {/if}
-      </div>
-    {/each}
-    
-    {#if route.stops.length === 0}
-      <p class="empty">Lägg till hållplatser ovan</p>
-    {/if}
+  <div class="add-segment">
+    <h3>Lägg till segment</h3>
+    <SegmentSearch onSelect={addSegment} />
   </div>
 </div>
 
@@ -78,77 +50,26 @@
   h2 {
     font-size: 18px;
     font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .direction-hint {
+    font-size: 14px;
+    color: var(--text-secondary);
     margin-bottom: 16px;
-    color: var(--text);
   }
 
-  .stops {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .stop-row {
-    background: var(--bg);
-    border-radius: 8px;
-    padding: 12px;
-  }
-
-  .stop-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .stop-name {
-    font-size: 15px;
-    color: var(--text);
-  }
-
-  .remove-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    background: var(--border);
-    color: var(--text);
-    font-size: 18px;
-    cursor: pointer;
-  }
-
-  .remove-btn:hover {
-    background: var(--danger);
-  }
-
-  .travel-input {
-    margin-top: 8px;
-    padding-top: 8px;
+  .add-segment {
+    margin-top: 24px;
+    padding-top: 16px;
     border-top: 1px solid var(--border);
   }
 
-  .travel-input label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .travel-input input {
-    width: 50px;
-    padding: 4px 8px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
+  h3 {
     font-size: 14px;
-    text-align: center;
-  }
-
-  .empty {
-    text-align: center;
+    font-weight: 500;
     color: var(--text-secondary);
-    font-size: 14px;
-    padding: 20px;
+    margin-bottom: 12px;
   }
 </style>

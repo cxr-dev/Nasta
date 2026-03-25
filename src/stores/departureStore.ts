@@ -43,3 +43,4 @@ function createDepartureStore() {
 }
 
 export const departureStore = createDepartureStore();
+export type { Departure };

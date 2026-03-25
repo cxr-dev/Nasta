@@ -13,7 +13,12 @@ describe('storage service', () => {
     });
 
     it('returns stored routes', () => {
-      const routes = [{ id: '1', name: 'Jobb', transportType: 'bus' as const, stops: [] }];
+      const routes = [{ 
+        id: '1', 
+        name: 'Arbete', 
+        direction: 'toWork' as const, 
+        segments: [] 
+      }];
       localStorage.setItem('nasta_routes', JSON.stringify(routes));
       expect(loadRoutes()).toEqual(routes);
     });
@@ -24,7 +29,12 @@ describe('storage service', () => {
     });
 
     it('saves routes to localStorage', () => {
-      const routes = [{ id: '1', name: 'Hem', transportType: 'bus' as const, stops: [] }];
+      const routes = [{ 
+        id: '1', 
+        name: 'Hem', 
+        direction: 'fromWork' as const, 
+        segments: [] 
+      }];
       saveRoutes(routes);
       expect(localStorage.getItem('nasta_routes')).toBe(JSON.stringify(routes));
     });

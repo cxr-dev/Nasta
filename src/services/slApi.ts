@@ -1,4 +1,5 @@
 import type { Departure, SiteSearchResult } from '../types/departure';
+import type { TransportType } from '../types/route';
 
 const TRANSPORT_URL = 'https://transport.integration.sl.se/v1';
 
@@ -8,6 +9,16 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000;
 interface CachedData {
   stations: SiteSearchResult[];
   timestamp: number;
+}
+
+function getTransportType(mode?: string): TransportType {
+  switch (mode?.toLowerCase()) {
+    case 'bus': return 'bus';
+    case 'train': case 'rail': return 'train';
+    case 'metro': return 'metro';
+    case 'boat': case 'ferry': return 'boat';
+    default: return 'bus';
+  }
 }
 
 function fuzzyMatch(text: string, searchTerm: string): boolean {
@@ -104,10 +115,13 @@ export async function getDepartures(siteId: string): Promise<Departure[]> {
     }
     return {
       line: dep.line?.designation || dep.line?.name || '',
+      lineName: dep.line?.name || '',
       destination: dep.destination || '',
+      directionText: dep.direction || '',
       minutes: minutes ?? 0,
       time: dep.scheduled || dep.expected || '',
-      deviation: dep.deviation
+      deviation: dep.deviation,
+      transportType: getTransportType(dep.line?.transportMode)
     };
   });
 }

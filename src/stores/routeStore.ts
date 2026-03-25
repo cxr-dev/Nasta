@@ -1,100 +1,141 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Route, Stop, TransportType } from '../types/route';
+import type { Route, Segment, Direction, TransportType, Stop } from '../types/route';
 import { loadRoutes, saveRoutes } from '../services/storage';
 
 function createRouteStore() {
-  const { subscribe, set, update } = writable<Route[]>(loadRoutes());
+  const initial = loadRoutes();
+  const { subscribe, set, update } = writable<Route[]>(initial);
 
   return {
     subscribe,
-    addRoute: (name: string, transportType: TransportType = 'bus') => {
+    getAll: () => get({ subscribe }),
+
+    addRoute: (name: string, direction: Direction) => {
       const newRoute: Route = {
         id: crypto.randomUUID(),
         name,
-        transportType,
-        stops: []
+        direction,
+        segments: []
       };
+
       update(routes => {
         const updated = [...routes, newRoute];
+
+        if (direction === 'toWork') {
+          const reverseRoute: Route = {
+            id: crypto.randomUUID(),
+            name,
+            direction: 'fromWork',
+            segments: []
+          };
+          updated.push(reverseRoute);
+        }
+
         saveRoutes(updated);
         return updated;
       });
     },
+
     removeRoute: (id: string) => {
       update(routes => {
+        const routeToRemove = routes.find(r => r.id === id);
         const updated = routes.filter(r => r.id !== id);
+
+        if (routeToRemove && routeToRemove.direction === 'toWork') {
+          const remaining = updated.filter(r => r.name !== routeToRemove.name || r.direction !== 'fromWork');
+          saveRoutes(remaining);
+          return remaining;
+        }
+
         saveRoutes(updated);
         return updated;
       });
     },
-    updateRouteTransport: (id: string, transportType: TransportType) => {
-      update(routes => {
-        const updated = routes.map(r => 
-          r.id === id ? { ...r, transportType } : r
-        );
-        saveRoutes(updated);
-        return updated;
-      });
-    },
-    addStop: (routeId: string, stop: Stop) => {
-      update(routes => {
-        const updated = routes.map(route => {
-          if (route.id === routeId) {
-            return { ...route, stops: [...route.stops, stop] };
-          }
-          return route;
-        });
-        saveRoutes(updated);
-        return updated;
-      });
-    },
-    removeStop: (routeId: string, stopId: string) => {
+
+    addSegment: (routeId: string, segment: Omit<Segment, 'id'>) => {
+      const newSegment: Segment = {
+        ...segment,
+        id: crypto.randomUUID()
+      };
+
       update(routes => {
         const updated = routes.map(route => {
           if (route.id === routeId) {
-            return { ...route, stops: route.stops.filter(s => s.id !== stopId) };
+            return { ...route, segments: [...route.segments, newSegment] };
           }
           return route;
         });
+
+        const route = routes.find(r => r.id === routeId);
+        if (route && route.direction === 'toWork') {
+          updated.forEach(r => {
+            if (r.direction === 'fromWork' && r.name === route.name) {
+              const newReversed: Segment = {
+                id: crypto.randomUUID(),
+                line: segment.line,
+                lineName: segment.lineName,
+                directionText: segment.directionText,
+                fromStop: segment.fromStop,
+                toStop: segment.toStop,
+                transportType: segment.transportType
+              };
+              const reversedSegments = [newReversed, ...r.segments];
+              r.segments = reversedSegments;
+            }
+          });
+        }
+
         saveRoutes(updated);
         return updated;
       });
     },
-    reorderStops: (routeId: string, stops: Stop[]) => {
+
+    removeSegment: (routeId: string, segmentId: string) => {
       update(routes => {
-        const updated = routes.map(route => {
-          if (route.id === routeId) {
-            return { ...route, stops };
+        const route = routes.find(r => r.id === routeId);
+        const updated = routes.map(r => {
+          if (r.id === routeId) {
+            return {
+              ...r,
+              segments: r.segments.filter(s => s.id !== segmentId)
+            };
           }
-          return route;
+          return r;
         });
+
+        if (route && route.direction === 'toWork') {
+          const segmentIndex = route.segments.findIndex(s => s.id === segmentId);
+          if (segmentIndex >= 0) {
+            updated.forEach(r => {
+              if (r.direction === 'fromWork' && r.name === route.name) {
+                r.segments = r.segments.filter((_, i) => i !== segmentIndex);
+              }
+            });
+          }
+        }
+
         saveRoutes(updated);
         return updated;
       });
     },
-    setTravelTime: (routeId: string, stopIndex: number, minutes: number) => {
-      update(routes => {
-        const updated = routes.map(route => {
-          if (route.id === routeId) {
-            const newStops = [...route.stops];
-            newStops[stopIndex] = { ...newStops[stopIndex], travelMinutesToNext: minutes };
-            return { ...route, stops: newStops };
-          }
-          return route;
-        });
-        saveRoutes(updated);
-        return updated;
-      });
-    },
+
     initialize: () => {
       const stored = loadRoutes();
       if (stored.length === 0) {
-        const defaultRoutes: Route[] = [
-          { id: crypto.randomUUID(), name: 'Jobb', transportType: 'metro', stops: [] },
-          { id: crypto.randomUUID(), name: 'Hem', transportType: 'bus', stops: [] }
-        ];
-        set(defaultRoutes);
-        saveRoutes(defaultRoutes);
+        const toWork: Route = {
+          id: crypto.randomUUID(),
+          name: 'Arbete',
+          direction: 'toWork',
+          segments: []
+        };
+        const fromWork: Route = {
+          id: crypto.randomUUID(),
+          name: 'Arbete',
+          direction: 'fromWork',
+          segments: []
+        };
+        set([toWork, fromWork]);
+        saveRoutes([toWork, fromWork]);
       }
     }
   };

@@ -1,9 +1,14 @@
+import type { TransportType } from './route';
+
 export interface Departure {
   line: string;
+  lineName: string;
   destination: string;
+  directionText: string;
   minutes: number;
   time: string;
-  deviation?: number;
+  deviation?: string;
+  transportType: TransportType;
 }
 
 export interface SiteSearchResult {

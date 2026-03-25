@@ -1,31 +1,54 @@
 import { describe, it, expect } from 'vitest';
-import type { Route, Stop } from './route';
+import type { Route, Segment, Direction, TransportType } from './route';
 
 describe('Route type', () => {
-  it('should accept valid route object', () => {
+  it('should accept valid route object with segments', () => {
     const route: Route = {
       id: '1',
-      name: 'Jobb',
-      transportType: 'metro',
-      stops: [
-        { id: '1', name: 'Lindarängsvägen', siteId: '9001' }
+      name: 'Arbete',
+      direction: 'toWork',
+      segments: [
+        {
+          id: 's1',
+          line: '76',
+          lineName: 'Buss 76',
+          directionText: 'mot Norra Hammarbyhamnen',
+          fromStop: { id: '1', name: 'Lindarängsvägen', siteId: '9001' },
+          toStop: { id: '2', name: 'Kungsträdgården', siteId: '9002' },
+          transportType: 'bus'
+        }
       ]
     };
     expect(route.id).toBe('1');
-    expect(route.name).toBe('Jobb');
-    expect(route.transportType).toBe('metro');
-    expect(route.stops).toHaveLength(1);
+    expect(route.name).toBe('Arbete');
+    expect(route.direction).toBe('toWork');
+    expect(route.segments).toHaveLength(1);
   });
 
-  it('should allow optional stop properties', () => {
-    const stop: Stop = {
+  it('should allow empty segments', () => {
+    const route: Route = {
       id: '1',
-      name: 'Test',
-      siteId: '9001',
-      line: '76',
-      travelMinutesToNext: 5
+      name: 'Hem',
+      direction: 'fromWork',
+      segments: []
     };
-    expect(stop.line).toBe('76');
-    expect(stop.travelMinutesToNext).toBe(5);
+    expect(route.segments).toHaveLength(0);
+  });
+
+  it('should support both directions', () => {
+    const toWork: Route = {
+      id: '1',
+      name: 'Arbete',
+      direction: 'toWork',
+      segments: []
+    };
+    const fromWork: Route = {
+      id: '2',
+      name: 'Arbete',
+      direction: 'fromWork',
+      segments: []
+    };
+    expect(toWork.direction).toBe('toWork');
+    expect(fromWork.direction).toBe('fromWork');
   });
 });

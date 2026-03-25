@@ -8,7 +8,7 @@ import { searchStops, getDepartures } from './trafikLabApi';
 describe('trafikLabApi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv('VITE_TRAFIKLAB_API_KEY', 'test-key');
+    vi.stubEnv('VITE_WORKER_URL', '');
   });
 
   describe('searchStops', () => {
@@ -34,15 +34,10 @@ describe('trafikLabApi', () => {
       const result = await searchStops('stockholm');
       
       expect(fetch).toHaveBeenCalledWith(
-        'https://transport.trafiklab.se/api2/v1/stops/name/stockholm?key=test-key'
+        'https://transport.trafiklab.se/api2/v1/stops/name/stockholm'
       );
       expect(result).toHaveLength(2);
       expect(result[0].siteId).toBe('1001');
-    });
-
-    it('should throw error when API key not configured', async () => {
-      vi.stubEnv('VITE_TRAFIKLAB_API_KEY', '');
-      await expect(searchStops('test')).rejects.toThrow('VITE_TRAFIKLAB_API_KEY not configured');
     });
 
     it('should throw on API error', async () => {
@@ -77,7 +72,7 @@ describe('trafikLabApi', () => {
       const result = await getDepartures('1001');
       
       expect(fetch).toHaveBeenCalledWith(
-        'https://transport.trafiklab.se/api2/v1/timetable/1001?key=test-key'
+        'https://transport.trafiklab.se/api2/v1/timetable/1001'
       );
       expect(result).toHaveLength(1);
       expect(result[0].line).toBe('42');
