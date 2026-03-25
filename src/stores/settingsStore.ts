@@ -1,0 +1,27 @@
+import { writable, get } from 'svelte/store';
+import type { Settings } from '../services/storage';
+import { loadSettings, saveSettings } from '../services/storage';
+
+function createSettingsStore() {
+  const { subscribe, set, update } = writable<Settings>(loadSettings());
+
+  return {
+    subscribe,
+    setDarkMode: (darkMode: boolean) => {
+      update(settings => {
+        const updated = { ...settings, darkMode };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setRefreshInterval: (interval: number) => {
+      update(settings => {
+        const updated = { ...settings, refreshInterval: interval };
+        saveSettings(updated);
+        return updated;
+      });
+    }
+  };
+}
+
+export const settingsStore = createSettingsStore();
