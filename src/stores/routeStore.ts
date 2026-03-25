@@ -145,5 +145,8 @@ export const routeStore = createRouteStore();
 export const selectedRouteId = writable<string | null>(null);
 export const selectedRoute = derived(
   [routeStore, selectedRouteId],
-  ([$routes, $selectedId]) => $selectedId ? $routes.find(r => r.id === $selectedId) : $routes[0]
+  ([$routes, $selectedId]) => {
+    if (!$routes || $routes.length === 0) return null;
+    return $selectedId ? $routes.find(r => r.id === $selectedId) : $routes[0];
+  }
 );
