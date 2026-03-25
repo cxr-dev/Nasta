@@ -1,37 +1,24 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
+  import { departureStore } from './stores/departureStore';
   import Header from './components/Header.svelte';
   import RouteSelector from './components/RouteSelector.svelte';
-  import DepartureList from './components/DepartureList.svelte';
-  import ArrivalTime from './components/ArrivalTime.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
-  import AddRouteModal from './components/AddRouteModal.svelte';
-  import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
-  import { settingsStore } from './stores/settingsStore';
-  import { departureStore } from './stores/departureStore';
-  import { calculateArrival } from './services/arrivalCalculator';
+  import SegmentDepartures from './components/SegmentDepartures.svelte';
   
   let editing = $state(false);
-  let showAddRouteModal = $state(false);
-  let addRouteBtnRef = $state<HTMLButtonElement | null>(null);
   
   let route = $derived($selectedRoute);
   let routes = $derived($routeStore);
-  let departures = $derived($departureStore);
-  let settings = $derived($settingsStore);
   let hasNoRoutes = $derived(routes.length === 0);
   
-  let arrivalInfo = $derived.by(() => {
-    if (route && departures) {
-      return calculateArrival(route.stops, departures);
-    }
-    return null;
-  });
-  
   function loadDepartures() {
-    if (route && route.stops.length > 0) {
-      const siteIds = route.stops.map(s => s.siteId);
-      departureStore.startAutoRefresh(siteIds, settings.refreshInterval);
+    if (route && route.segments.length > 0) {
+      const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
+      if (siteIds.length > 0) {
+        departureStore.startAutoRefresh(siteIds, 30000);
+      }
     }
   }
   
@@ -48,18 +35,6 @@
     }
   }
   
-  function toggleTheme() {
-    settingsStore.toggleDarkMode();
-  }
-
-  function openAddRouteModal() {
-    showAddRouteModal = true;
-  }
-
-  function closeAddRouteModal() {
-    showAddRouteModal = false;
-  }
-  
   function handleDeleteRoute(routeId: string) {
     routeStore.removeRoute(routeId);
     if ($selectedRouteId === routeId) {
@@ -67,12 +42,6 @@
       if (routes.length > 0) {
         selectedRouteId.set(routes[0].id);
       }
-    }
-  }
-  
-  function handleRemoveStop(stopId: string) {
-    if (route) {
-      routeStore.removeStop(route.id, stopId);
     }
   }
   
@@ -86,7 +55,8 @@
     
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && route) {
-        departureStore.refresh(route.stops.map(s => s.siteId));
+        const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
+        departureStore.refresh(siteIds);
       }
     });
   });
@@ -96,14 +66,10 @@
   });
 </script>
 
-<main class:dark={settings.darkMode}>
+<main>
   <Header 
     {editing}
-    darkMode={settings.darkMode}
     onToggleEdit={toggleEdit}
-    onToggleTheme={toggleTheme}
-    onAddRoute={openAddRouteModal}
-    bind:addRouteBtnRef
   />
   
   <RouteSelector 
@@ -115,24 +81,23 @@
   {#if hasNoRoutes}
     <div class="empty-state">
       <p>Inga rutter ännu</p>
-      <button class="empty-cta" onclick={openAddRouteModal}>Lägg till din första rutt</button>
+      <button class="empty-cta" onclick={toggleEdit}>Skapa din första rutt</button>
     </div>
   {:else if editing && route}
     <RouteEditor {route} />
+  {:else if route && route.segments.length > 0}
+    <SegmentDepartures {route} />
   {:else if route}
-    <DepartureList 
-      stops={route.stops} 
-      {departures} 
-      {editing}
-      onRemoveStop={handleRemoveStop}
-    />
-    <ArrivalTime arrival={arrivalInfo} />
-  {/if}
-  
-  {#if showAddRouteModal}
-    <AddRouteModal onClose={closeAddRouteModal} triggerRef={addRouteBtnRef} />
+    <div class="empty-segments">
+      <p>Inga segment i denna rutt</p>
+      <button class="empty-cta" onclick={toggleEdit}>Lägg till segment</button>
+    </div>
   {/if}
 </main>
+
+<footer class="attribution">
+  Transit data from <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab.se</a>
+</footer>
 
 <style>
   :global(*) {
@@ -154,69 +119,45 @@
     margin: 0 auto;
     padding: 16px;
     min-height: 100vh;
+    --bg: #FAFBFC;
+    --text: #1F2937;
+    --text-secondary: #6B7280;
+    --surface: #FFFFFF;
+    --border: #E5E7EB;
+    --accent: #2563EB;
+    --accent-light: #DBEAFE;
+    --to-work: #2563EB;
+    --to-work-light: #DBEAFE;
+    --from-work: #059669;
+    --from-work-light: #D1FAE5;
+    --danger: #DC2626;
   }
 
-  /* Dark theme */
-  main.dark {
-    --bg: #000;
-    --text: #fff;
-    --text-secondary: #888;
-    --surface: #111;
-    --border: #333;
-    --accent: #4DA6FF;
-    --danger: #e53935;
-  }
-
-  /* Light theme */
-  :global(body:not(.dark)) {
-    --bg: #fff;
-    --text: #1A1A1A;
-    --text-secondary: #666;
-    --surface: #f5f5f5;
-    --border: #ddd;
-    --accent: #0066CC;
-    --danger: #d32f2f;
-  }
-
-  main:not(.dark) {
+  :global(body) {
     background: var(--bg);
     color: var(--text);
   }
 
-  /* Global element styles */
-  main.dark :global(input),
-  main.dark :global(button),
-  main.dark :global(select) {
+  :global(input),
+  :global(button),
+  :global(select) {
     background: var(--surface);
     border-color: var(--border);
     color: var(--text);
   }
 
-  main.dark :global(.stop-item),
-  main.dark :global(.route-editor) {
+  :global(.segment),
+  :global(.route-editor) {
     background: var(--surface);
   }
 
-  main:not(.dark) :global(input),
-  main:not(.dark) :global(button),
-  main:not(.dark) :global(select) {
-    background: var(--surface);
-    border-color: var(--border);
-    color: var(--text);
-  }
-
-  main:not(.dark) :global(.stop-item),
-  main:not(.dark) :global(.route-editor) {
-    background: var(--surface);
-  }
-
-  .empty-state {
+  .empty-state, .empty-segments {
     text-align: center;
     padding: 48px 16px;
     color: var(--text-secondary);
   }
 
-  .empty-state p {
+  .empty-state p, .empty-segments p {
     font-size: 16px;
     margin-bottom: 16px;
   }
@@ -230,5 +171,18 @@
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
+  }
+
+  .attribution {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border);
+    margin-top: 24px;
+  }
+  .attribution a {
+    color: var(--text-secondary);
+    text-decoration: underline;
   }
 </style>
