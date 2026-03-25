@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ArrivalInfo } from '../services/arrivalCalculator';
   
-  export let arrival: ArrivalInfo | null;
+  let { arrival }: { arrival: ArrivalInfo | null } = $props();
 </script>
 
 {#if arrival}

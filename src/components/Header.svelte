@@ -1,5 +1,5 @@
 <script lang="ts">
-  let editing = false;
+  let editing = $state(false);
   
   function toggleEdit() {
     editing = !editing;
@@ -12,7 +12,7 @@
 
 <header>
   <h1>Nästa</h1>
-  <button class="edit-btn" on:click={toggleEdit} aria-label="Redigera rutter">
+  <button class="edit-btn" onclick={toggleEdit} aria-label="Redigera rutter">
     {editing ? 'Klar' : 'Redigera'}
   </button>
 </header>

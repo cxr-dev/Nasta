@@ -10,16 +10,18 @@
   import { departureStore } from './stores/departureStore';
   import { calculateArrival } from './services/arrivalCalculator';
   
-  let editing = false;
-  let arrivalInfo: ReturnType<typeof calculateArrival> = null;
+  let editing = $state(false);
   
-  $: route = $selectedRoute;
-  $: departures = $departureStore;
-  $: settings = $settingsStore;
+  let route = $derived($selectedRoute);
+  let departures = $derived($departureStore);
+  let settings = $derived($settingsStore);
   
-  $: if (route && departures) {
-    arrivalInfo = calculateArrival(route.stops, departures);
-  }
+  let arrivalInfo = $derived.by(() => {
+    if (route && departures) {
+      return calculateArrival(route.stops, departures);
+    }
+    return null;
+  });
   
   function loadDepartures() {
     if (route && route.stops.length > 0) {

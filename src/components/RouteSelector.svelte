@@ -1,10 +1,10 @@
 <script lang="ts">
   import { routeStore, selectedRouteId } from '../stores/routeStore';
   
-  export let onSelect: (routeId: string) => void = () => {};
+  let { onSelect = () => {} }: { onSelect?: (routeId: string) => void } = $props();
   
-  $: routes = $routeStore;
-  $: selected = $selectedRouteId;
+  let routes = $derived($routeStore);
+  let selected = $derived($selectedRouteId);
   
   function selectRoute(id: string) {
     selectedRouteId.set(id);
@@ -17,7 +17,7 @@
     <button 
       class="route-tab"
       class:active={selected === route.id}
-      on:click={() => selectRoute(route.id)}
+      onclick={() => selectRoute(route.id)}
     >
       {route.name}
     </button>

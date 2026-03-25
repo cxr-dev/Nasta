@@ -2,10 +2,17 @@
   import type { Stop } from '../types/route';
   import type { Departure } from '../types/departure';
   
-  export let stops: Stop[];
-  export let departures: Map<string, Departure[]>;
-  export let editing: boolean = false;
-  export let onRemoveStop: (stopId: string) => void = () => {};
+  let { 
+    stops, 
+    departures, 
+    editing = false,
+    onRemoveStop = () => {}
+  }: { 
+    stops: Stop[];
+    departures: Map<string, Departure[]>;
+    editing?: boolean;
+    onRemoveStop?: (stopId: string) => void;
+  } = $props();
   
   function getDeparturesForStop(siteId: string): Departure[] {
     return departures.get(siteId) || [];
@@ -18,7 +25,7 @@
       {#if editing}
         <button 
           class="remove-btn" 
-          on:click={() => onRemoveStop(stop.id)}
+          onclick={() => onRemoveStop(stop.id)}
           aria-label="Ta bort stopp"
         >
           ×

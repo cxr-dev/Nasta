@@ -2,12 +2,12 @@
   import { searchSites } from '../services/slApi';
   import type { SiteSearchResult } from '../types/departure';
   
-  export let onSelect: (site: SiteSearchResult) => void = () => {};
+  let { onSelect = () => {} }: { onSelect?: (site: SiteSearchResult) => void } = $props();
   
-  let query = '';
-  let results: SiteSearchResult[] = [];
-  let loading = false;
-  let showResults = false;
+  let query = $state('');
+  let results = $state<SiteSearchResult[]>([]);
+  let loading = $state(false);
+  let showResults = $state(false);
   let debounceTimer: ReturnType<typeof setTimeout>;
   
   async function handleInput() {
@@ -48,9 +48,9 @@
   <input
     type="text"
     bind:value={query}
-    on:input={handleInput}
-    on:focus={() => query.length >= 2 && (showResults = true)}
-    on:blur={handleBlur}
+    oninput={handleInput}
+    onfocus={() => query.length >= 2 && (showResults = true)}
+    onblur={handleBlur}
     placeholder="Sök hållplats..."
     class="search-input"
   />
@@ -63,7 +63,7 @@
         {#each results as site}
           <button 
             class="result-item"
-            on:mousedown={() => selectSite(site)}
+            onmousedown={() => selectSite(site)}
           >
             <span class="site-name">{site.name}</span>
             <span class="site-type">{site.type}</span>

@@ -4,7 +4,7 @@
   import { routeStore } from '../stores/routeStore';
   import StopSearch from './StopSearch.svelte';
   
-  export let route: Route;
+  let { route }: { route: Route } = $props();
   
   function addStop(site: SiteSearchResult) {
     const newStop: Stop = {
@@ -36,7 +36,7 @@
           <span class="stop-name">{stop.name}</span>
           <button 
             class="remove-btn" 
-            on:click={() => removeStop(stop.id)}
+            onclick={() => removeStop(stop.id)}
             aria-label="Ta bort"
           >
             ×
@@ -52,7 +52,7 @@
                 min="0"
                 max="60"
                 value={stop.travelMinutesToNext || 0}
-                on:change={(e) => updateTravelTime(index, parseInt(e.currentTarget.value) || 0)}
+                onchange={(e) => updateTravelTime(index, parseInt((e.target as HTMLInputElement).value) || 0)}
               />
               min
             </label>
