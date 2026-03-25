@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Route, Stop } from '../types/route';
+import type { Route, Stop, TransportType } from '../types/route';
 import { loadRoutes, saveRoutes } from '../services/storage';
 
 function createRouteStore() {
@@ -7,10 +7,11 @@ function createRouteStore() {
 
   return {
     subscribe,
-    addRoute: (name: string) => {
+    addRoute: (name: string, transportType: TransportType = 'bus') => {
       const newRoute: Route = {
         id: crypto.randomUUID(),
         name,
+        transportType,
         stops: []
       };
       update(routes => {
@@ -22,6 +23,15 @@ function createRouteStore() {
     removeRoute: (id: string) => {
       update(routes => {
         const updated = routes.filter(r => r.id !== id);
+        saveRoutes(updated);
+        return updated;
+      });
+    },
+    updateRouteTransport: (id: string, transportType: TransportType) => {
+      update(routes => {
+        const updated = routes.map(r => 
+          r.id === id ? { ...r, transportType } : r
+        );
         saveRoutes(updated);
         return updated;
       });
@@ -80,8 +90,8 @@ function createRouteStore() {
       const stored = loadRoutes();
       if (stored.length === 0) {
         const defaultRoutes: Route[] = [
-          { id: crypto.randomUUID(), name: 'Jobb', stops: [] },
-          { id: crypto.randomUUID(), name: 'Hem', stops: [] }
+          { id: crypto.randomUUID(), name: 'Jobb', transportType: 'metro', stops: [] },
+          { id: crypto.randomUUID(), name: 'Hem', transportType: 'bus', stops: [] }
         ];
         set(defaultRoutes);
         saveRoutes(defaultRoutes);

@@ -6,12 +6,14 @@ describe('Route type', () => {
     const route: Route = {
       id: '1',
       name: 'Jobb',
+      transportType: 'metro',
       stops: [
         { id: '1', name: 'Lindarängsvägen', siteId: '9001' }
       ]
     };
     expect(route.id).toBe('1');
     expect(route.name).toBe('Jobb');
+    expect(route.transportType).toBe('metro');
     expect(route.stops).toHaveLength(1);
   });
 

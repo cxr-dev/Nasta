@@ -1,3 +1,5 @@
+export type TransportType = 'bus' | 'train' | 'metro' | 'boat';
+
 export interface Stop {
   id: string;
   name: string;
@@ -9,5 +11,6 @@ export interface Stop {
 export interface Route {
   id: string;
   name: string;
+  transportType: TransportType;
   stops: Stop[];
 }

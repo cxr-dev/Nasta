@@ -5,12 +5,15 @@
   import DepartureList from './components/DepartureList.svelte';
   import ArrivalTime from './components/ArrivalTime.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
+  import AddRouteModal from './components/AddRouteModal.svelte';
   import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
   import { settingsStore } from './stores/settingsStore';
   import { departureStore } from './stores/departureStore';
   import { calculateArrival } from './services/arrivalCalculator';
   
   let editing = $state(false);
+  let showAddRouteModal = $state(false);
+  let addRouteBtnRef = $state<HTMLButtonElement | null>(null);
   
   let route = $derived($selectedRoute);
   let departures = $derived($departureStore);
@@ -46,6 +49,24 @@
   function toggleTheme() {
     settingsStore.toggleDarkMode();
   }
+
+  function openAddRouteModal() {
+    showAddRouteModal = true;
+  }
+
+  function closeAddRouteModal() {
+    showAddRouteModal = false;
+  }
+  
+  function handleDeleteRoute(routeId: string) {
+    routeStore.removeRoute(routeId);
+    if ($selectedRouteId === routeId) {
+      const routes = $routeStore;
+      if (routes.length > 0) {
+        selectedRouteId.set(routes[0].id);
+      }
+    }
+  }
   
   function handleRemoveStop(stopId: string) {
     if (route) {
@@ -79,9 +100,15 @@
     darkMode={settings.darkMode}
     onToggleEdit={toggleEdit}
     onToggleTheme={toggleTheme}
+    onAddRoute={openAddRouteModal}
+    bind:addRouteBtnRef
   />
   
-  <RouteSelector onSelect={handleRouteSelect} />
+  <RouteSelector 
+    onSelect={handleRouteSelect} 
+    editing={editing}
+    onDeleteRoute={handleDeleteRoute}
+  />
   
   {#if editing && route}
     <RouteEditor {route} />
@@ -93,6 +120,10 @@
       onRemoveStop={handleRemoveStop}
     />
     <ArrivalTime arrival={arrivalInfo} />
+  {/if}
+  
+  {#if showAddRouteModal}
+    <AddRouteModal onClose={closeAddRouteModal} triggerRef={addRouteBtnRef} />
   {/if}
 </main>
 
