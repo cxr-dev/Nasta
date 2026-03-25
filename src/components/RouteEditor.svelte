@@ -27,7 +27,7 @@
 <div class="route-editor">
   <h2>Redigera: {route.name}</h2>
   
-  <StopSearch onSelect={addStop} />
+  <StopSearch onSelect={addStop} transportMode={route.transportType} />
   
   <div class="stops">
     {#each route.stops as stop, index (stop.id)}

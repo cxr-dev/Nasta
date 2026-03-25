@@ -10,4 +10,5 @@ export interface SiteSearchResult {
   siteId: string;
   name: string;
   type: 'stop' | 'station';
+  transportModes?: string[];
 }

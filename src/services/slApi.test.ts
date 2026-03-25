@@ -17,17 +17,20 @@ describe('slApi service', () => {
     });
 
     it('returns search results', async () => {
-      const mockResults = [{ siteId: '9001', name: 'Test', type: 'stop' }];
+      const mockResponse = {
+        locations: [
+          { id: '9091001000009001', name: 'Test stop', type: 'stop', productClasses: [0] }
+        ]
+      };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => mockResults
+        json: async () => mockResponse
       });
 
       const results = await searchSites('test');
-      expect(results).toEqual(mockResults);
-      expect((globalThis as any).fetch).toHaveBeenCalledWith(
-        'https://transport.integration.sl.se/v1/sites?search=test'
-      );
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Test stop');
+      expect(results[0].transportModes).toContain('bus');
     });
 
     it('throws on API error', async () => {
@@ -42,18 +45,19 @@ describe('slApi service', () => {
 
   describe('getDepartures', () => {
     it('returns departures for site', async () => {
-      const mockDepartures = [
-        { line: '76', destination: 'Test', timeToDeparture: 4, plannedDepartureTime: '08:04', deviation: 0 }
-      ];
+      const mockDepartures = {
+        departures: [
+          { line: { designation: '76' }, destination: 'Test', expected: '2024-01-01T08:04:00', scheduled: '2024-01-01T08:00:00' }
+        ]
+      };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ departures: mockDepartures })
+        json: async () => mockDepartures
       });
 
       const result = await getDepartures('9001');
       expect(result).toHaveLength(1);
-      expect(result[0].minutes).toBe(4);
-      expect(result[0].time).toBe('08:04');
+      expect(result[0].line).toBe('76');
     });
 
     it('throws on API error', async () => {

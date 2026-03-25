@@ -2,44 +2,21 @@
   import { searchSites } from '../services/slApi';
   import type { SiteSearchResult } from '../types/departure';
   
-  let { onSelect = () => {} }: { onSelect?: (site: SiteSearchResult) => void } = $props();
+  let { onSelect = () => {}, transportMode = 'all' }: { 
+    onSelect?: (site: SiteSearchResult) => void;
+    transportMode?: string;
+  } = $props();
   
   let query = $state('');
-  let allResults = $state<SiteSearchResult[]>([]);
   let results = $state<SiteSearchResult[]>([]);
   let loading = $state(false);
   let showResults = $state(false);
   let debounceTimer: ReturnType<typeof setTimeout>;
   
-  function fuzzyMatch(text: string, searchTerm: string): boolean {
-    const normalizedText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    
-    if (normalizedText.includes(normalizedSearch)) return true;
-    
-    let searchIdx = 0;
-    for (let i = 0; i < normalizedText.length && searchIdx < normalizedSearch.length; i++) {
-      if (normalizedText[i] === normalizedSearch[searchIdx]) {
-        searchIdx++;
-      }
-    }
-    return searchIdx === normalizedSearch.length;
-  }
-  
-  function filterResults(apiResults: SiteSearchResult[], searchTerm: string): SiteSearchResult[] {
-    if (!searchTerm) return apiResults;
-    
-    const exact = apiResults.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const fuzzy = apiResults.filter(r => !exact.includes(r) && fuzzyMatch(r.name, searchTerm));
-    
-    return [...exact, ...fuzzy];
-  }
-  
   async function handleInput() {
     clearTimeout(debounceTimer);
     
     if (query.length < 2) {
-      allResults = [];
       results = [];
       return;
     }
@@ -48,11 +25,9 @@
       loading = true;
       showResults = true;
       try {
-        allResults = await searchSites(query);
-        results = filterResults(allResults, query).slice(0, 10);
+        results = await searchSites(query, transportMode);
       } catch (e) {
         console.error('Search failed:', e);
-        allResults = [];
         results = [];
       } finally {
         loading = false;
@@ -64,12 +39,21 @@
     onSelect(site);
     query = '';
     results = [];
-    allResults = [];
     showResults = false;
   }
   
   function handleBlur() {
     setTimeout(() => showResults = false, 200);
+  }
+  
+  function getTransportIcon(mode?: string): string {
+    if (!mode) return 'M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1 .55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.31-2.69-6-6-6S4 2.69 4 6v10zm9 0c0 .88-.39 1.67-1 2.22V20c0 .55-.45 1-1 1-.55 0-1-.45-1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.31 2.69-6 6-6s6 2.69 6 6v10zm-9-10v10';
+    switch (mode) {
+      case 'metro': return 'M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-4-4-8-4z';
+      case 'train': return 'M4 15c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8H4v7zm8-5h-2v2h2v-2zm0 3h-2v2h2v-2zm0 3h-2v2h2v-2zM7.5 6h9v1h-9V6z';
+      case 'ship': return 'M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v2h2c1.38 0 2.74-.35 4-.99 2.52 1.29 5.48 1.29 8 0 1.26.65 2.62.99 4 .99h2v-2h-2zM3.95 19H4c1.6 0 3.02-.88 4-2 .98 1.12 2.4 2 4 2s3.02-.88 4-2c.98 1.12 2.4 2 4 2h.05l1.89-6.68c.08-.26.06-.54-.06-.78s-.34-.42-.6-.5L20 10.62V6c0-1.1-.9-2-2-2h-3V1H9v3H6c-1.1 0-2 .9-2 2v4.62l-1.29.42c-.26.08-.48.26-.6.5s-.15.52-.06.78L3.95 19z';
+      default: return 'M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1 .55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.31-2.69-6-6-6S4 2.69 4 6v10zm9 0c0 .88-.39 1.67-1 2.22V20c0 .55-.45 1-1 1-.55 0-1-.45-1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.31 2.69-6 6-6s6 2.69 6 6v10zm-9-10v10';
+    }
   }
 </script>
 
@@ -96,8 +80,10 @@
             class="result-item"
             onmousedown={() => selectSite(site)}
           >
+            <svg class="transport-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d={getTransportIcon(site.transportModes?.[0])} />
+            </svg>
             <span class="site-name">{site.name}</span>
-            <span class="site-type">{site.type}</span>
           </button>
         {/each}
       {/if}
@@ -153,8 +139,8 @@
 
   .result-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 12px;
     width: 100%;
     padding: 12px 16px;
     background: transparent;
@@ -169,13 +155,14 @@
     background: var(--surface-hover, #252525);
   }
 
-  .site-name {
-    font-size: 15px;
+  .transport-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--text-secondary, #888);
   }
 
-  .site-type {
-    font-size: 12px;
-    color: var(--text-secondary, #666);
-    text-transform: uppercase;
+  .site-name {
+    font-size: 15px;
   }
 </style>
