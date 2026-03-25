@@ -31,6 +31,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 3000000,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/nasta-proxy\.yivihe6505\.workers\.dev\/.*/i,
@@ -41,7 +42,10 @@ export default defineConfig({
                 maxEntries: 50,
                 maxAgeSeconds: 60
               },
-              networkTimeoutSeconds: 10
+              networkTimeoutSeconds: 10,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
             }
           }
         ]

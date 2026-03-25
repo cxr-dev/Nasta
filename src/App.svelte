@@ -8,6 +8,29 @@
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   
   let editing = $state(false);
+  let updateAvailable = $state(false);
+  
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('updatefound', () => {
+      const reg = navigator.serviceWorker.ready;
+      reg.then((registration) => {
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                updateAvailable = true;
+              }
+            });
+          }
+        });
+      });
+    });
+  }
+  
+  function reloadApp() {
+    window.location.reload();
+  }
   
   let route = $derived($selectedRoute);
   let routes = $derived($routeStore);
@@ -67,6 +90,12 @@
 </script>
 
 <main>
+  {#if updateAvailable}
+    <div class="update-banner">
+      <span>Ny version tillgänglig!</span>
+      <button onclick={reloadApp}>Ladda om</button>
+    </div>
+  {/if}
   <Header 
     {editing}
     onToggleEdit={toggleEdit}
@@ -170,6 +199,31 @@
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
+    cursor: pointer;
+  }
+
+  .update-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--accent);
+    color: #fff;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9999;
+    font-size: 14px;
+  }
+
+  .update-banner button {
+    background: #fff;
+    color: var(--accent);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
     cursor: pointer;
   }
 
