@@ -47,7 +47,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 0;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border, #333);
     margin-bottom: 16px;
   }
 
@@ -55,6 +55,7 @@
     font-size: 28px;
     font-weight: 800;
     letter-spacing: -1px;
+    color: var(--text-primary, #fff);
   }
 
   .actions {
@@ -64,8 +65,8 @@
 
   .add-btn, .theme-btn {
     background: transparent;
-    border: 1px solid #444;
-    color: #fff;
+    border: 1px solid var(--border, #444);
+    color: var(--text-primary, #fff);
     width: 36px;
     height: 36px;
     border-radius: 8px;
@@ -82,14 +83,14 @@
   }
 
   .add-btn:hover, .theme-btn:hover {
-    background: #1a1a1a;
-    border-color: #666;
+    background: var(--surface, #1a1a1a);
+    border-color: var(--border-hover, #666);
   }
 
   .edit-btn {
     background: transparent;
-    border: 1px solid #444;
-    color: #fff;
+    border: 1px solid var(--border, #444);
+    color: var(--text-primary, #fff);
     padding: 8px 16px;
     border-radius: 8px;
     font-size: 14px;
@@ -98,7 +99,7 @@
   }
 
   .edit-btn:hover {
-    background: #1a1a1a;
-    border-color: #666;
+    background: var(--surface, #1a1a1a);
+    border-color: var(--border-hover, #666);
   }
 </style>
