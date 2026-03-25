@@ -12,7 +12,7 @@
   }
   
   onMount(() => {
-    if (route.segments.length > 0) {
+    if (route.segments && route.segments.length > 0) {
       const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(siteIds, 30000);
@@ -27,15 +27,17 @@
   });
   
   onDestroy(() => {
-    const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-    if (siteIds.length > 0) {
-      departureStore.stopAutoRefresh();
+    if (route.segments) {
+      const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
+      if (siteIds.length > 0) {
+        departureStore.stopAutoRefresh();
+      }
     }
   });
 </script>
 
 <div class="segments-view">
-  {#each route.segments as segment, index (segment.id)}
+  {#each (route.segments || []) as segment, index (segment.id)}
     {@const deps = getDeparturesForSegment(segment)}
     {@const nextDep = deps.find(d => d.line === segment.line)}
     <div class="segment-card" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>

@@ -38,7 +38,7 @@
   function handleDeleteRoute(routeId: string) {
     routeStore.removeRoute(routeId);
     if ($selectedRouteId === routeId) {
-      const routes = $routeStore;
+      const routes = $routeStore ?? [];
       if (routes.length > 0) {
         selectedRouteId.set(routes[0].id);
       }
@@ -47,14 +47,14 @@
   
   onMount(() => {
     routeStore.initialize();
-    const routes = $routeStore;
+    const routes = $routeStore ?? [];
     if (routes.length > 0 && !$selectedRouteId) {
       selectedRouteId.set(routes[0].id);
     }
     loadDepartures();
     
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && route) {
+      if (!document.hidden && route && route.segments) {
         const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
         departureStore.refresh(siteIds);
       }
