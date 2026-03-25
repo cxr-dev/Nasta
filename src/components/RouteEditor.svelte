@@ -69,7 +69,7 @@
 
 <style>
   .route-editor {
-    background: #111;
+    background: var(--surface, #111);
     border-radius: 16px;
     padding: 20px;
     margin-top: 16px;
@@ -79,6 +79,7 @@
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 16px;
+    color: var(--text-primary, #fff);
   }
 
   .stops {
@@ -88,7 +89,7 @@
   }
 
   .stop-row {
-    background: #1a1a1a;
+    background: var(--input-bg, #1a1a1a);
     border-radius: 10px;
     padding: 12px;
   }
@@ -101,6 +102,7 @@
 
   .stop-name {
     font-size: 15px;
+    color: var(--text-primary, #fff);
   }
 
   .remove-btn {
@@ -108,20 +110,20 @@
     height: 28px;
     border-radius: 50%;
     border: none;
-    background: #333;
-    color: #fff;
+    background: var(--border, #333);
+    color: var(--text-primary, #fff);
     font-size: 18px;
     cursor: pointer;
   }
 
   .remove-btn:hover {
-    background: #c00;
+    background: var(--danger, #c00);
   }
 
   .travel-input {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #222;
+    border-top: 1px solid var(--border, #222);
   }
 
   .travel-input label {
@@ -129,23 +131,23 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #888;
+    color: var(--text-secondary, #888);
   }
 
   .travel-input input {
     width: 50px;
     padding: 4px 8px;
-    background: #222;
-    border: 1px solid #333;
+    background: var(--input-bg, #222);
+    border: 1px solid var(--border, #333);
     border-radius: 6px;
-    color: #fff;
+    color: var(--text-primary, #fff);
     font-size: 14px;
     text-align: center;
   }
 
   .empty {
     text-align: center;
-    color: #555;
+    color: var(--text-secondary, #555);
     font-size: 14px;
     padding: 20px;
   }

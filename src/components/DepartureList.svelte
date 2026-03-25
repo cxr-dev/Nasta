@@ -77,7 +77,7 @@
   .stop-item {
     position: relative;
     padding: 16px;
-    background: #111;
+    background: var(--surface, #111);
     border-radius: 12px;
     margin-bottom: 8px;
   }
@@ -90,8 +90,8 @@
     height: 24px;
     border-radius: 50%;
     border: none;
-    background: #333;
-    color: #fff;
+    background: var(--border, #333);
+    color: var(--text-primary, #fff);
     font-size: 18px;
     cursor: pointer;
     display: flex;
@@ -100,13 +100,14 @@
   }
 
   .remove-btn:hover {
-    background: #c00;
+    background: var(--danger, #c00);
   }
 
   .stop-name {
     font-size: 16px;
     font-weight: 600;
     margin-bottom: 8px;
+    color: var(--text-primary, #fff);
   }
 
   .departures {
@@ -123,17 +124,18 @@
   }
 
   .line {
-    color: #888;
+    color: var(--text-secondary, #888);
     min-width: 70px;
   }
 
   .minutes {
     font-weight: 600;
     font-size: 18px;
+    color: var(--text-primary, #fff);
   }
 
   .delay {
-    color: #f44;
+    color: var(--danger, #f44);
     font-size: 12px;
   }
 
@@ -142,16 +144,16 @@
     left: 50%;
     bottom: -14px;
     transform: translateX(-50%);
-    background: #222;
+    background: var(--input-bg, #222);
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 11px;
-    color: #888;
+    color: var(--text-secondary, #888);
     z-index: 1;
   }
 
   .no-departures {
-    color: #555;
+    color: var(--text-secondary, #555);
     font-size: 13px;
     font-style: italic;
   }
@@ -159,12 +161,12 @@
   .empty-state {
     text-align: center;
     padding: 40px 20px;
-    color: #666;
+    color: var(--text-secondary, #666);
   }
 
   .hint {
     font-size: 13px;
     margin-top: 8px;
-    color: #444;
+    color: var(--text-secondary, #444);
   }
 </style>
