@@ -1,128 +1,124 @@
 <script lang="ts">
-  import type { Route, Segment } from '../types/route';
+  import type { Route, Segment, TransportType } from '../types/route';
   import { departureStore, type Departure } from '../stores/departureStore';
   import { onMount, onDestroy } from 'svelte';
-  import { fly, fade } from 'svelte/transition';
   import { transportIcons } from '../icons/transport';
-  
+
   let { route }: { route: Route } = $props();
-  
+
   let departureData = $state<Map<string, Departure[]>>(new Map());
-  let visibleCards = $state<Set<string>>(new Set());
-  
+
   const UNSUBSCRIBERS: Array<() => void> = [];
-  
+
   function getDeparturesForSegment(segment: Segment): Departure[] {
-    const allDeps = departureData.get(segment.fromStop.siteId) || [];
-    return allDeps.filter(dep => 
-      dep.line === segment.line && 
+    const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
+    return allDeps.filter(dep =>
+      dep.line === segment.line &&
       dep.destination === segment.directionText
     );
   }
-  
-  function getTransportIcon(type: string): string {
-    return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
-  }
-  
-  function getMinutesClass(minutes: number): string {
-    if (minutes <= 2) return 'urgent';
-    if (minutes <= 5) return 'soon';
-    return 'normal';
-  }
-  
-  function getDelayBadge(departure: Departure): string | null {
-    if (departure.deviation && parseInt(departure.deviation) > 0) {
-      return `+${departure.deviation} min`;
+
+  function getLineBadge(transportType: TransportType, line: string): string {
+    switch (transportType) {
+      case 'metro': return `T${line}`;
+      case 'train': return `J${line}`;
+      default: return line;
     }
-    return null;
   }
 
-  function getTravelTime(segment: Segment): string {
-    const walkTime = Math.floor(Math.random() * 8) + 2;
-    const rideTime = Math.floor(Math.random() * 15) + 10;
-    return `${walkTime + rideTime} min`;
+  function getTransportIcon(type: TransportType): string {
+    return transportIcons[type] ?? transportIcons.bus;
   }
-  
+
+  function formatSedan(deps: Departure[]): string | null {
+    const subsequent = deps.slice(1, 3).filter(Boolean);
+    if (subsequent.length === 0) return null;
+    return 'sedan ' + subsequent.map(d => `${d.minutes} min`).join(' · ');
+  }
+
+  // Strip gradient per transport type
+  const STRIP_COLORS: Record<TransportType, { from: string; to: string }> = {
+    metro: { from: '#1E40AF', to: '#3B82F6' },
+    bus:   { from: '#065F46', to: '#10B981' },
+    train: { from: '#713F12', to: '#D97706' },
+    boat:  { from: '#0E7490', to: '#06B6D4' }
+  };
+
+  // Badge colors per transport type
+  const BADGE_COLORS: Record<TransportType, { bg: string; text: string }> = {
+    metro: { bg: '#EFF3FF', text: '#2563EB' },
+    bus:   { bg: '#F0FDF4', text: '#059669' },
+    train: { bg: '#FFFBEB', text: '#D97706' },
+    boat:  { bg: '#ECFEFF', text: '#0891B2' }
+  };
+
   onMount(() => {
-    if (route.segments && route.segments.length > 0) {
-      const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-      const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
-      if (siteIds.length > 0) {
-        const unsub = departureStore.subscribe(data => {
-          departureData = data;
-        });
-        UNSUBSCRIBERS.push(unsub);
-      }
-    }
+    const unsub = departureStore.subscribe(data => {
+      departureData = data;
+    });
+    UNSUBSCRIBERS.push(unsub);
   });
-  
+
   onDestroy(() => {
     UNSUBSCRIBERS.forEach(fn => fn());
   });
-
-  const getTransportColor = (type: string, direction: string): string => {
-    const baseColor = direction === 'toWork' ? 'var(--to-work)' : 'var(--from-work)';
-    return baseColor;
-  };
 </script>
 
 <div class="segments-view">
-  {#each (route.segments || []) as segment, index (segment.id)}
+  {#each (route.segments ?? []) as segment, index (segment.id)}
     {@const deps = getDeparturesForSegment(segment)}
-    {@const delayBadge = deps[0] ? getDelayBadge(deps[0]) : null}
-    <div 
-      class="departure-card"
-      class:to-work={route.direction === 'toWork'} 
-      class:from-work={route.direction === 'fromWork'}
-      class:delayed={delayBadge !== null}
-      in:fly={{ y: 30, duration: 350, delay: index * 80, easing: (x) => 1 - Math.pow(1 - x, 3) }}
+    {@const strip = STRIP_COLORS[segment.transportType] ?? STRIP_COLORS.bus}
+    {@const badge = BADGE_COLORS[segment.transportType] ?? BADGE_COLORS.bus}
+    {@const sedan = formatSedan(deps)}
+
+    <div
+      class="card"
+      style="--delay: {index * 60}ms"
     >
-      <div class="card-left">
-        <div 
-          class="transport-pill"
-          style="background: {getTransportColor(segment.transportType, route.direction || 'toWork')}"
-        >
-          <svg viewBox="0 0 24 24" class="transport-icon">
+      <!-- Left strip -->
+      <div
+        class="strip"
+        style="background: linear-gradient(175deg, {strip.from}, {strip.to})"
+      >
+        <div class="strip-icon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
             <g>{@html getTransportIcon(segment.transportType)}</g>
           </svg>
         </div>
       </div>
-      
-      <div class="card-center">
-        <div class="line-destination">
-          <span class="line-number">{segment.line}</span>
-          <span class="destination">{segment.directionText}</span>
-        </div>
-        <div class="route-info">
-          <span class="stop-name">{segment.fromStop.name}</span>
-          <svg class="arrow" viewBox="0 0 24 24" width="14" height="14">
-            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z" fill="currentColor"/>
-          </svg>
-          <span class="stop-name">{segment.toStop.name}</span>
-          <span class="travel-time">{getTravelTime(segment)}</span>
-        </div>
-      </div>
-      
-      <div class="card-right">
-        {#if deps.length > 0 && deps[0]}
-          <div class="departure-primary {getMinutesClass(deps[0].minutes)}" class:delayed={delayBadge !== null}>
-            <span class="minutes">{deps[0].minutes}</span>
-            <span class="min-label">min</span>
+
+      <!-- Card body -->
+      <div class="body">
+        <div class="row1">
+          <div class="meta">
+            <div class="transport-name">{segment.lineName}</div>
+            <div class="direction">→ {segment.directionText}</div>
+            <div
+              class="badge"
+              style="background: {badge.bg}; color: {badge.text}"
+            >{getLineBadge(segment.transportType, segment.line)}</div>
           </div>
-          {#if delayBadge}
-            <span class="delay-badge">{delayBadge}</span>
-          {/if}
-          {#if deps[1]}
-            <div class="departure-secondary">
-              <span class="next-time">{deps[1].minutes} min</span>
-              <span class="planned-time">({deps[1].time})</span>
+
+          {#if deps.length > 0 && deps[0]}
+            <div class="departure">
+              <span class="dep-num">{deps[0].minutes}</span>
+              <span class="dep-unit">min</span>
+            </div>
+          {:else}
+            <div class="departure">
+              <span class="dep-num no-dep">--</span>
             </div>
           {/if}
-        {:else}
-          <div class="no-departures">
-            <span class="dash">--</span>
-          </div>
-        {/if}
+        </div>
+
+        <div class="row2">
+          {#if deps[0]}
+            <span class="clock">{deps[0].time}</span>
+          {/if}
+          {#if sedan}
+            <span class="sedan">{sedan}</span>
+          {/if}
+        </div>
       </div>
     </div>
   {/each}
@@ -132,250 +128,142 @@
   .segments-view {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 4px 0;
+    gap: 10px;
+    padding: 4px 0 8px;
   }
 
-  .departure-card {
-    background: var(--surface, #FFFFFF);
-    border: 1px solid var(--border, #E5E7EB);
-    border-radius: 20px;
-    padding: 16px;
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
     display: flex;
-    align-items: center;
-    gap: 14px;
-    transition: all 0.2s ease-out;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    position: relative;
     overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.06);
+    animation: cardIn 300ms ease both;
+    animation-delay: var(--delay, 0ms);
   }
 
-  .departure-card::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  .departure-card.to-work::before {
-    background: var(--to-work, #2563EB);
-  }
-
-  .departure-card.from-work::before {
-    background: var(--from-work, #059669);
-  }
-
-  .departure-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  }
-
-  .departure-card.delayed {
-    animation: softGlow 2.5s ease-in-out infinite;
-  }
-
-  @keyframes softGlow {
-    0%, 100% {
-      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
-    }
-    50% {
-      box-shadow: 0 2px 16px rgba(220, 38, 38, 0.2);
-    }
-  }
-
-  .card-left {
+  /* Strip */
+  .strip {
+    width: 40px;
     flex-shrink: 0;
-  }
-
-  .transport-pill {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
-  .transport-pill .transport-icon {
-    width: 24px;
-    height: 24px;
-    fill: #fff;
+  .strip-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .card-center {
+  /* Body */
+  .body {
     flex: 1;
+    padding: 13px 14px 11px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     min-width: 0;
+  }
+
+  .row1 {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 6px;
   }
 
-  .line-destination {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .meta {
+    min-width: 0;
+    flex: 1;
   }
 
-  .line-number {
-    background: var(--text, #1F2937);
-    color: var(--surface, #FFFFFF);
-    font-size: 14px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 8px;
-    min-width: 32px;
-    text-align: center;
-  }
-
-  .destination {
-    font-size: 16px;
+  .transport-name {
+    font-size: 12px;
     font-weight: 600;
-    color: var(--text, #1F2937);
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .route-info {
-    font-size: 13px;
-    color: var(--text-secondary, #6B7280);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .stop-name {
+  .direction {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 80px;
   }
 
-  .arrow {
-    color: var(--text-secondary, #6B7280);
-    opacity: 0.5;
-    flex-shrink: 0;
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 2px 6px;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
   }
 
-  .travel-time {
-    margin-left: auto;
-    font-size: 11px;
-    color: var(--text-secondary, #6B7280);
-    background: var(--border, #E5E7EB);
-    padding: 2px 8px;
-    border-radius: 10px;
-    white-space: nowrap;
-  }
-
-  .card-right {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    min-width: 70px;
-    position: relative;
-  }
-
-  .departure-primary {
+  /* Departure number */
+  .departure {
     display: flex;
     align-items: baseline;
     gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .dep-num {
+    font-size: 52px;
+    font-weight: 800;
     line-height: 1;
+    letter-spacing: -2.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
   }
 
-  .departure-primary.urgent .minutes {
-    color: #DC2626;
+  .dep-num.no-dep {
+    font-size: 36px;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0;
   }
 
-  .departure-primary.soon .minutes {
-    color: #F59E0B;
-  }
-
-  .departure-primary.normal .minutes {
-    color: var(--text, #1F2937);
-  }
-
-  .minutes {
-    font-size: 48px;
-    font-weight: 700;
-    letter-spacing: -3px;
-    line-height: 1;
-  }
-
-  .min-label {
-    font-size: 14px;
+  .dep-unit {
+    font-size: 13px;
     font-weight: 500;
-    color: var(--text-secondary, #6B7280);
+    color: var(--text-muted);
+    padding-bottom: 6px;
   }
 
-  .delay-badge {
-    position: absolute;
-    top: 0;
-    right: 0;
-    background: #DC2626;
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 10px;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
-  }
-
-  .departure-secondary {
+  /* Row 2 */
+  .row2 {
     display: flex;
-    align-items: baseline;
-    gap: 4px;
+    align-items: center;
+    justify-content: space-between;
     margin-top: 2px;
   }
 
-  .next-time {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-secondary, #6B7280);
-  }
-
-  .planned-time {
+  .clock {
     font-size: 12px;
-    color: var(--text-secondary, #6B7280);
-    opacity: 0.7;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
   }
 
-  .no-departures {
-    text-align: right;
-  }
-
-  .dash {
-    font-size: 36px;
-    font-weight: 300;
-    color: var(--text-secondary, #6B7280);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .departure-card {
-      animation: none;
-      transition: none;
-    }
-  }
-
-  @media (max-width: 380px) {
-    .minutes {
-      font-size: 40px;
-    }
-    
-    .transport-pill {
-      width: 42px;
-      height: 42px;
-    }
-    
-    .transport-pill .transport-icon {
-      width: 20px;
-      height: 20px;
-    }
+  .sedan {
+    font-size: 11px;
+    color: var(--text-secondary);
   }
 </style>
