@@ -7,12 +7,14 @@ export interface Settings {
   darkMode: boolean;
   refreshInterval: number;
   funMode: boolean;
+  hasSwipedRoutes: boolean;
 }
 
 const defaultSettings: Settings = {
   darkMode: true,
   refreshInterval: 30000,
-  funMode: true
+  funMode: true,
+  hasSwipedRoutes: false
 };
 
 export function loadRoutes(): Route[] {

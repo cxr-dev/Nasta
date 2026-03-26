@@ -42,7 +42,7 @@ describe('storage service', () => {
 
   describe('settings', () => {
     it('returns default settings when none stored', () => {
-      expect(loadSettings()).toEqual({ darkMode: true, refreshInterval: 30000 });
+      expect(loadSettings()).toEqual({ darkMode: true, refreshInterval: 30000, funMode: true, hasSwipedRoutes: false });
     });
 
     it('returns stored settings', () => {
@@ -53,7 +53,7 @@ describe('storage service', () => {
     });
 
     it('saves settings to localStorage', () => {
-      const settings = { darkMode: false, refreshInterval: 60000 };
+      const settings = { darkMode: false, refreshInterval: 60000, funMode: false, hasSwipedRoutes: true };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));
     });

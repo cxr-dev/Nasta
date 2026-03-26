@@ -34,6 +34,13 @@ function createSettingsStore() {
         saveSettings(updated);
         return updated;
       });
+    },
+    markSwiped: () => {
+      update(settings => {
+        const updated = { ...settings, hasSwipedRoutes: true };
+        saveSettings(updated);
+        return updated;
+      });
     }
   };
 }

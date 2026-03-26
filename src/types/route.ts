@@ -16,6 +16,7 @@ export interface Segment {
   fromStop: Stop;
   toStop: Stop;
   transportType: TransportType;
+  travelTimeMinutes?: number;
 }
 
 export interface Route {
