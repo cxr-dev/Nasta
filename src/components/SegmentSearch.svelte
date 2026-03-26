@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { searchStops, getDepartures } from '../services/trafikLabApi';
+  import { searchSites, getDepartures } from '../services/slApi';
   import type { SiteSearchResult, Departure } from '../types/departure';
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons, transportLabels } from '../icons/transport';
@@ -36,7 +36,7 @@
     debounceTimer = setTimeout(async () => {
       loading = true;
       try {
-        stations = await searchStops(query);
+        stations = await searchSites(query);
       } catch (e) {
         console.error('Search failed:', e);
         stations = [];
