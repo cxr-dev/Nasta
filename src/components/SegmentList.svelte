@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Route, Segment } from '../types/route';
+  import type { Route, Segment, TransportType } from '../types/route';
   import { routeStore } from '../stores/routeStore';
   import { transportIcons } from '../icons/transport';
   
@@ -69,6 +69,21 @@
   function getIcon(type: string): string {
     return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
   }
+
+  function getLineBadge(transportType: TransportType, line: string): string {
+    switch (transportType) {
+      case 'metro': return `T${line}`;
+      case 'train': return `J${line}`;
+      default: return line;
+    }
+  }
+
+  const BADGE_COLORS: Record<TransportType, { bg: string; text: string }> = {
+    metro: { bg: '#EFF3FF', text: '#2563EB' },
+    bus:   { bg: '#F0FDF4', text: '#059669' },
+    train: { bg: '#FFFBEB', text: '#D97706' },
+    boat:  { bg: '#ECFEFF', text: '#0891B2' }
+  };
 </script>
 
 <div class="segment-list">
@@ -98,7 +113,13 @@
           </svg>
         </div>
         <div class="segment-info">
-          <div class="segment-line">{segment.lineName}</div>
+          <div class="segment-line">
+            {segment.lineName}
+            <span
+              class="seg-badge"
+              style="background: {BADGE_COLORS[segment.transportType]?.bg ?? '#F1F5F9'}; color: {BADGE_COLORS[segment.transportType]?.text ?? '#475569'}"
+            >{getLineBadge(segment.transportType, segment.line)}</span>
+          </div>
           <div class="segment-route">
             {segment.fromStop.name} → {segment.toStop.name}
           </div>
@@ -222,5 +243,14 @@
 
   .remove-btn:hover {
     background: var(--danger);
+  }
+
+  .seg-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 2px 6px;
+    margin-left: 6px;
   }
 </style>
