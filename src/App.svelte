@@ -381,11 +381,6 @@
     animation: slideDown 0.3s ease-out;
   }
 
-  main.sunlight .leave-now-banner {
-    background: linear-gradient(135deg, #451A03 0%, #78350F 100%);
-    color: #FDE68A;
-  }
-
   .leave-icon {
     font-size: 18px;
   }
