@@ -113,15 +113,21 @@ export async function getDepartures(siteId: string): Promise<Departure[]> {
     if (minutes === undefined && dep.expected) {
       minutes = Math.max(0, Math.floor((new Date(dep.expected).getTime() - Date.now()) / 60000));
     }
+    const scheduledTime = dep.scheduled || dep.expected || '';
+    const formattedTime = scheduledTime ? formatTime(new Date(scheduledTime)) : '';
     return {
       line: dep.line?.designation || dep.line?.name || '',
       lineName: dep.line?.name || '',
       destination: dep.destination || '',
       directionText: dep.direction || '',
       minutes: minutes ?? 0,
-      time: dep.scheduled || dep.expected || '',
+      time: formattedTime,
       deviation: dep.deviation,
       transportType: getTransportType(dep.line?.transportMode)
     };
   });
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 }

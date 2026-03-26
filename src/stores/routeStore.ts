@@ -75,8 +75,8 @@ function createRouteStore() {
                 line: segment.line,
                 lineName: segment.lineName,
                 directionText: segment.directionText,
-                fromStop: segment.fromStop,
-                toStop: segment.toStop,
+                fromStop: segment.toStop,
+                toStop: segment.fromStop,
                 transportType: segment.transportType
               };
               const reversedSegments = [newReversed, ...r.segments];

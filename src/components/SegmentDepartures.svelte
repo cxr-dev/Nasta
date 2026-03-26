@@ -81,7 +81,7 @@
             {#each deps.slice(0, 2) as dep}
               <div class="dep-time">
                 <span class="minutes">{dep.minutes} min</span>
-                <span class="time">({dep.time.substring(0, 5)})</span>
+                <span class="time">({dep.time})</span>
               </div>
             {/each}
           </div>
