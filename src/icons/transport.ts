@@ -22,6 +22,6 @@ export const transportOptions: { value: TransportType; label: string; icon: stri
 ];
 
 export const directionIcons = {
-  toWork: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  toWork: 'M12 7V3H2v20h20V17h-4v-2h6V7h-6v4h-2V7h4zm-2 14v-4h4v-2h-6v4h-4v6h6v-4h2zm2-2h4v2h-4v-2zm-6 2h4v2h-4v-2zm0-6h10v2H8v-2z',
   fromWork: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'
 };

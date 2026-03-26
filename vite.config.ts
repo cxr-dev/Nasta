@@ -33,6 +33,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 3000000,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
@@ -41,9 +43,9 @@ export default defineConfig({
               cacheName: 'sl-api-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60
+                maxAgeSeconds: 30
               },
-              networkTimeoutSeconds: 10,
+              networkTimeoutSeconds: 5,
               cacheableResponse: {
                 statuses: [0, 200]
               }

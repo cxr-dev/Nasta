@@ -10,11 +10,9 @@
 
 <header>
   <h1>Nästa</h1>
-  <div class="actions">
-    <button class="edit-btn" onclick={onToggleEdit} aria-label="Redigera rutter">
-      {editing ? 'Klar' : 'Redigera'}
-    </button>
-  </div>
+  <button class="edit-btn" onclick={onToggleEdit} aria-label="Redigera rutter">
+    {editing ? 'Klar' : 'Redigera'}
+  </button>
 </header>
 
 <style>
@@ -22,36 +20,36 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
     margin-bottom: 16px;
   }
 
   h1 {
-    font-size: 28px;
+    font-size: 36px;
     font-weight: 800;
     letter-spacing: -1px;
     color: var(--text);
-  }
-
-  .actions {
-    display: flex;
-    gap: 8px;
+    text-align: center;
+    flex: 1;
   }
 
   .edit-btn {
+    position: absolute;
+    top: 16px;
+    right: 0;
     background: transparent;
     border: 1px solid var(--border);
-    color: var(--text);
+    color: var(--text-secondary);
     padding: 8px 16px;
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
+    transition: all 0.2s;
   }
 
   .edit-btn:hover {
     background: var(--surface);
     border-color: var(--text-secondary);
+    color: var(--text);
   }
 </style>

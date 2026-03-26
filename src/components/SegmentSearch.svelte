@@ -1,5 +1,6 @@
 <script lang="ts">
   import { searchSites, getDepartures } from '../services/slApi';
+  import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
   import type { SiteSearchResult, Departure } from '../types/departure';
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons, transportLabels } from '../icons/transport';
@@ -37,6 +38,19 @@
       loading = true;
       try {
         stations = await searchSites(query);
+        
+        if (isSjostadstrafikenStop(query)) {
+          const staticDeps = getNextDepartures(query, 3);
+          if (staticDeps.length > 0) {
+            const sjostadStation: SiteSearchResult = {
+              siteId: 'sjostad-' + query.toLowerCase().replace(/\s+/g, '-'),
+              name: query,
+              type: 'stop',
+              note: 'Sjöstadstrafiken'
+            };
+            stations = [sjostadStation, ...stations];
+          }
+        }
       } catch (e) {
         console.error('Search failed:', e);
         stations = [];
@@ -52,7 +66,11 @@
     loadingDeps = true;
     
     try {
-      departures = await getDepartures(station.siteId);
+      if (station.note === 'Sjöstadstrafiken') {
+        departures = getNextDepartures(station.name, 5);
+      } else {
+        departures = await getDepartures(station.siteId);
+      }
       const seen = new Set<string>();
       departures = departures.filter(d => {
         const key = `${d.line}-${d.destination}`;
