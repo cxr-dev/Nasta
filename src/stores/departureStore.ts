@@ -1,17 +1,20 @@
 import { writable, get } from 'svelte/store';
 import type { Departure } from '../types/departure';
-import { getDepartures } from '../services/slApi';
+import { getDepartures } from '../services/departureService';
 
 function createDepartureStore() {
   const { subscribe, set, update } = writable<Map<string, Departure[]>>(new Map());
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let stopNamesMap = new Map<string, string>();
 
-  const fetchAll = async (siteIds: string[]) => {
+  const fetchAll = async (siteIds: string[], stopNames: Map<string, string>) => {
+    stopNamesMap = stopNames;
     const results = new Map<string, Departure[]>();
     await Promise.all(
       siteIds.map(async (siteId) => {
         try {
-          const departures = await getDepartures(siteId);
+          const stopName = stopNames.get(siteId) || '';
+          const departures = await getDepartures(stopName, siteId);
           results.set(siteId, departures);
         } catch (e) {
           console.error(`Failed to fetch departures for ${siteId}:`, e);
@@ -25,10 +28,10 @@ function createDepartureStore() {
   return {
     subscribe,
     fetchForSites: fetchAll,
-    startAutoRefresh: (siteIds: string[], interval: number) => {
+    startAutoRefresh: (siteIds: string[], stopNames: Map<string, string>, interval: number) => {
       if (refreshTimer) clearInterval(refreshTimer);
-      fetchAll(siteIds);
-      refreshTimer = setInterval(() => fetchAll(siteIds), interval);
+      fetchAll(siteIds, stopNames);
+      refreshTimer = setInterval(() => fetchAll(siteIds, stopNames), interval);
     },
     stopAutoRefresh: () => {
       if (refreshTimer) {
@@ -36,8 +39,8 @@ function createDepartureStore() {
         refreshTimer = null;
       }
     },
-    refresh: async (siteIds: string[]) => {
-      await fetchAll(siteIds);
+    refresh: async (siteIds: string[], stopNames: Map<string, string>) => {
+      await fetchAll(siteIds, stopNames);
     }
   };
 }

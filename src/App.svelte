@@ -39,8 +39,9 @@
   function loadDepartures() {
     if (route && route.segments.length > 0) {
       const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
+      const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
       if (siteIds.length > 0) {
-        departureStore.startAutoRefresh(siteIds, 30000);
+        departureStore.startAutoRefresh(siteIds, stopNames, 30000);
       }
     }
   }
@@ -79,7 +80,8 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && route && route.segments) {
         const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-        departureStore.refresh(siteIds);
+        const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+        departureStore.refresh(siteIds, stopNames);
       }
     });
   });
