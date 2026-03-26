@@ -15,18 +15,15 @@
       <circle cx="32" cy="20" r="3" fill="currentColor"/>
     </svg>
   </div>
-  <button class="edit-btn" onclick={onToggleEdit} aria-label="Redigera rutter">
-    {editing ? 'Klar' : 'Redigera'}
-  </button>
 </header>
 
 <style>
   header {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     padding: 20px 0;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
   }
 
   .logo {
@@ -39,25 +36,5 @@
     width: 40px;
     height: 40px;
     color: var(--accent);
-  }
-
-  .edit-btn {
-    position: absolute;
-    top: 16px;
-    right: 0;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .edit-btn:hover {
-    background: var(--surface);
-    border-color: var(--text-secondary);
-    color: var(--text);
   }
 </style>

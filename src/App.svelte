@@ -98,10 +98,7 @@
       <button onclick={reloadApp}>Ladda om</button>
     </div>
   {/if}
-  <Header 
-    {editing}
-    onToggleEdit={toggleEdit}
-  />
+  <Header />
   
   <RouteSelector 
     onSelect={handleRouteSelect} 
@@ -123,6 +120,12 @@
       <p>Inga segment i denna rutt</p>
       <button class="empty-cta" onclick={toggleEdit}>Lägg till segment</button>
     </div>
+  {/if}
+  
+  {#if !hasNoRoutes}
+    <button class="edit-btn" onclick={toggleEdit}>
+      {editing ? 'Klar' : 'Redigera'}
+    </button>
   {/if}
 </main>
 
@@ -151,6 +154,7 @@
     margin: 0 auto;
     padding: 16px;
     padding-top: 80px;
+    padding-bottom: 72px;
     min-height: 100vh;
     --bg: #FAFBFC;
     --text: #1F2937;
@@ -242,5 +246,26 @@
   .attribution a {
     color: var(--text-secondary);
     text-decoration: underline;
+  }
+
+  .edit-btn {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 100;
+  }
+
+  .edit-btn:hover {
+    background: #1d4ed8;
   }
 </style>

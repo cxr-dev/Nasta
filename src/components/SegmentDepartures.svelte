@@ -59,28 +59,12 @@
           <span class="line-num-header">{segment.line}</span>
         </div>
         <div class="segment-title">
-          <span class="line">{segment.lineName}</span>
-          <span class="direction">{segment.directionText}</span>
+          <span class="from-to">{segment.fromStop.name} → {segment.toStop.name}</span>
         </div>
-      </div>
-      
-      <div class="segment-route">
-        <span class="from">{segment.fromStop.name}</span>
-        <span class="arrow">→</span>
-        <span class="to">{segment.toStop.name}</span>
       </div>
       
       <div class="departure-info">
         {#if deps.length > 0}
-          <div class="dep-header">
-            <svg viewBox="0 0 24 24" class="transport-icon-header">
-              <g>{@html getTransportIcon(segment.transportType)}</g>
-            </svg>
-            <span class="line-num">{segment.line}</span>
-            {#if isSjostadstrafikenStop(segment.fromStop.name)}
-              <span class="badge">Sjöstadstrafiken</span>
-            {/if}
-          </div>
           <div class="dep-times">
             {#if deps[0]}
               <div class="dep-next">
@@ -131,19 +115,19 @@
   .segment-header {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 16px;
   }
 
   .segment-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 2px;
     flex-direction: column;
+    flex-shrink: 0;
   }
 
   .segment-icon.to-work {
@@ -155,89 +139,35 @@
   }
 
   .segment-icon .transport-icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     fill: #fff;
   }
 
   .segment-icon .line-num-header {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     color: #fff;
   }
 
   .segment-title {
     flex: 1;
+    min-width: 0;
   }
 
-  .line {
-    display: block;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.3px;
-  }
-
-  .direction {
-    display: block;
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-  }
-
-  .segment-route {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 15px;
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-    padding: 12px;
-    background: var(--bg);
-    border-radius: 8px;
-  }
-
-  .arrow {
-    color: var(--text-secondary);
+  .from-to {
+    font-size: 16px;
     font-weight: 600;
+    color: var(--text);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .departure-info {
-    padding-top: 14px;
+    padding-top: 16px;
     border-top: 1px solid var(--border);
-  }
-
-  .dep-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-  }
-
-  .transport-icon-header {
-    width: 20px;
-    height: 20px;
-    fill: var(--text);
-  }
-
-  .transport-icon {
-    font-size: 18px;
-  }
-
-  .line-num {
-    font-weight: 600;
-    font-size: 16px;
-    color: var(--text);
-  }
-
-  .badge {
-    font-size: 11px;
-    background: #0077B6;
-    color: #fff;
-    padding: 2px 8px;
-    border-radius: 10px;
-    margin-left: auto;
   }
 
   .dep-times {
@@ -254,23 +184,23 @@
   }
 
   .minutes-large {
-    font-size: 48px;
+    font-size: 56px;
     font-weight: 700;
     color: var(--text);
-    line-height: 1;
+    line-height: 0.9;
+    letter-spacing: -2px;
   }
 
   .min-label {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 16px;
+    font-weight: 600;
     color: var(--text-secondary);
-    margin-left: 2px;
   }
 
   .minutes-small {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 500;
-    color: var(--text);
+    color: var(--text-secondary);
     line-height: 1;
   }
 
@@ -278,13 +208,13 @@
     font-size: 12px;
     font-weight: 400;
     color: var(--text-secondary);
-    margin-left: 2px;
   }
 
   .time-subtle {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 400;
     color: var(--text-secondary);
+    opacity: 0.7;
   }
 
   .no-departures {
