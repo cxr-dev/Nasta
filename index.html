@@ -3,11 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Nästa - Minimalist personal commute dashboard" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="description" content="Nästa - Swedish public transit commute tracker" />
     <link rel="manifest" href="/manifest.json" />
     <title>Nästa</title>
+    <style>
+      /* Prevent pull-to-refresh and overscroll */
+      html, body {
+        overscroll-behavior: none;
+      }
+      /* Ensure inputs don't zoom on iOS */
+      input, select, textarea {
+        font-size: 16px;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

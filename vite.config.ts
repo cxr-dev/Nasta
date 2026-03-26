@@ -12,10 +12,11 @@ export default defineConfig({
       manifest: {
         name: 'Nästa - Commute Dashboard',
         short_name: 'Nästa',
-        description: 'Minimalist personal commute dashboard for Stockholm public transport',
-        theme_color: '#000000',
-        background_color: '#000000',
+        description: 'Swedish public transit commute tracker',
+        theme_color: '#1a1a2e',
+        background_color: '#1a1a2e',
         display: 'standalone',
+        orientation: 'portrait',
         icons: [
           {
             src: 'icons/icon-192.svg',
@@ -34,10 +35,10 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3000000,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/nasta-proxy\.yivihe6505\.workers\.dev\/.*/i,
+            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'trafiklab-cache',
+              cacheName: 'sl-api-cache',
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 60
