@@ -8,7 +8,7 @@ export default defineConfig({
     svelte(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'robots.txt', 'icons/*.svg'],
+      includeAssets: ['favicon.svg', 'robots.txt'],
       manifest: {
         name: 'Nästa - Commute Dashboard',
         short_name: 'Nästa',
@@ -17,16 +17,20 @@ export default defineConfig({
         background_color: '#1a1a2e',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: './',
+        scope: './',
         icons: [
           {
-            src: 'icons/icon-192.svg',
+            src: './icons/icon-192.svg',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any'
           },
           {
-            src: 'icons/icon-512.svg',
+            src: './icons/icon-512.svg',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any'
           }
         ]
       },
@@ -35,14 +39,18 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3000000,
         skipWaiting: true,
         clientsClaim: true,
-        navigateFallback: '/',
-        manifestTransforms: [
-          async (manifest) => {
-            const timestamp = Date.now();
-            manifest.forEach((entry) => {
-              entry.url += `?v=${timestamp}`;
-            });
-            return { manifest, warnings: [] };
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.trafiklab\.se\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60
+              },
+              networkTimeoutSeconds: 10
+            }
           }
         ]
       }

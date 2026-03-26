@@ -184,6 +184,7 @@ export const selectedRoute = derived(
   [routeStore, selectedRouteId],
   ([$routes, $selectedId]) => {
     if (!$routes || $routes.length === 0) return null;
-    return $selectedId ? $routes.find(r => r.id === $selectedId) : $routes[0];
+    if (!$selectedId) return $routes[0] ?? null;
+    return $routes.find(r => r.id === $selectedId) ?? $routes[0] ?? null;
   }
 );
