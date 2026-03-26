@@ -128,7 +128,7 @@
       bind:value={query}
       oninput={handleInput}
       placeholder="Sök hållplats..."
-      class="input"
+      class="search-input"
     />
     
     {#if loading}
@@ -189,18 +189,19 @@
     margin-bottom: 16px;
   }
 
-  .input {
+  .search-input {
     width: 100%;
-    padding: 14px 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
+    padding: 12px 14px;
     font-size: 16px;
+    font-family: inherit;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
     outline: none;
   }
 
-  .input:focus {
+  .search-input:focus {
     border-color: var(--accent);
   }
 
