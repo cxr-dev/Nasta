@@ -81,8 +81,6 @@
   inset: 0;
   z-index: 100;
   pointer-events: none;
-  max-width: 480px;
-  margin: 0 auto;
 }
 
 .editor-overlay.open {
@@ -92,6 +90,8 @@
 .editor-sheet {
   position: absolute;
   inset: 0;
+  max-width: 480px;
+  margin: 0 auto;
   background: var(--bg);
   transform: translateY(100%);
   transition: transform 200ms ease-out;
