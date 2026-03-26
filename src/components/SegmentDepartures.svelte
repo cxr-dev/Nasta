@@ -8,8 +8,12 @@
   
   let departureData = $state<Map<string, Departure[]>>(new Map());
   
-  function getDeparturesForSegment(segment: Segment) {
-    return departureData.get(segment.fromStop.siteId) || [];
+  function getDeparturesForSegment(segment: Segment): Departure[] {
+    const allDeps = departureData.get(segment.fromStop.siteId) || [];
+    return allDeps.filter(dep => 
+      dep.line === segment.line && 
+      dep.destination === segment.directionText
+    );
   }
   
   function getTransportIcon(type: string): string {
