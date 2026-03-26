@@ -7,3 +7,6 @@ dist/
 .env
 .env.local
 .env.*.local
+.superpowers/
+.claude/settings.local.json
+docs/superpowers/

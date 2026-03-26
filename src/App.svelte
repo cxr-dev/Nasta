@@ -154,7 +154,6 @@
     margin: 0 auto;
     padding: 16px;
     padding-top: 80px;
-    padding-bottom: 72px;
     min-height: 100vh;
     --bg: #FAFBFC;
     --text: #1F2937;
