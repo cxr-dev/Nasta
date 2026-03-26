@@ -94,7 +94,7 @@
         <div class="drag-handle">⋮⋮</div>
         <div class="segment-icon" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
           <svg viewBox="0 0 24 24" class="transport-icon">
-            {@html getIcon(segment.transportType)}
+            <g>{@html getIcon(segment.transportType)}</g>
           </svg>
         </div>
         <div class="segment-info">

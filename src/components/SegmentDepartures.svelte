@@ -54,7 +54,7 @@
       <div class="segment-header">
         <div class="segment-icon" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
           <svg viewBox="0 0 24 24" class="transport-icon">
-            {@html getTransportIcon(segment.transportType)}
+            <g>{@html getTransportIcon(segment.transportType)}</g>
           </svg>
           <span class="line-num-header">{segment.line}</span>
         </div>
@@ -73,7 +73,9 @@
       <div class="departure-info">
         {#if deps.length > 0}
           <div class="dep-header">
-            <span class="transport-icon">{getTransportIcon(segment.transportType)}</span>
+            <svg viewBox="0 0 24 24" class="transport-icon-header">
+              <g>{@html getTransportIcon(segment.transportType)}</g>
+            </svg>
             <span class="line-num">{segment.line}</span>
             {#if isSjostadstrafikenStop(segment.fromStop.name)}
               <span class="badge">Sjöstadstrafiken</span>
@@ -211,6 +213,12 @@
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 8px;
+  }
+
+  .transport-icon-header {
+    width: 20px;
+    height: 20px;
+    fill: var(--text);
   }
 
   .transport-icon {
