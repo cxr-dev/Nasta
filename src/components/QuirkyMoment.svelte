@@ -87,7 +87,8 @@
 </script>
 
 <svelte:window on:change={(e) => {
-  if (e.media) prefersReducedMotion = e.media.matches;
+  const mql = e as unknown as MediaQueryListEvent;
+  if (mql.media) prefersReducedMotion = mql.matches;
 }} />
 
 <div class="quirky-container">

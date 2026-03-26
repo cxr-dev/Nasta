@@ -33,7 +33,7 @@ describe('computeArrivalTime', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T08:37:00'));
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => { vi.useRealTimers(); });
 
   it('computes wait + travel time', () => {
     const deps = new Map([['1001', [dep]]]);
