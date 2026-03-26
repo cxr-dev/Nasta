@@ -2,13 +2,18 @@
   import { onMount, onDestroy } from 'svelte';
   import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
   import { departureStore } from './stores/departureStore';
+  import { timeOfDay, weatherIcon } from './lib/stores/timeOfDay';
   import Header from './components/Header.svelte';
   import RouteSelector from './components/RouteSelector.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
+  import FloatingEditButton from './components/FloatingEditButton.svelte';
+  import QuirkyMoment from './components/QuirkyMoment.svelte';
   
   let editing = $state(false);
   let updateAvailable = $state(false);
+  let lastRefreshTime = $state(Date.now());
+  let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
   
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('updatefound', () => {
@@ -35,6 +40,7 @@
   let route = $derived($selectedRoute);
   let routes = $derived($routeStore ?? []);
   let hasNoRoutes = $derived(!routes || routes.length === 0);
+  let timeState = $derived($timeOfDay);
   
   function loadDepartures() {
     if (route && route.segments.length > 0) {
@@ -42,6 +48,7 @@
       const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(siteIds, stopNames, 30000);
+        lastRefreshTime = Date.now();
       }
     }
   }
@@ -69,7 +76,12 @@
     }
   }
   
+  function getSecondsSinceRefresh(): number {
+    return Math.floor((Date.now() - lastRefreshTime) / 1000);
+  }
+  
   onMount(() => {
+    timeOfDay.start();
     routeStore.initialize();
     const routes = $routeStore ?? [];
     if (routes.length > 0 && !$selectedRouteId) {
@@ -77,17 +89,24 @@
     }
     loadDepartures();
     
+    lastRefreshInterval = setInterval(() => {
+      lastRefreshTime = Date.now();
+    }, 1000);
+    
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && route && route.segments) {
         const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
         const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
         departureStore.refresh(siteIds, stopNames);
+        lastRefreshTime = Date.now();
       }
     });
   });
   
   onDestroy(() => {
+    timeOfDay.stop();
     departureStore.stopAutoRefresh();
+    if (lastRefreshInterval) clearInterval(lastRefreshInterval);
   });
 </script>
 
@@ -98,6 +117,22 @@
       <button onclick={reloadApp}>Ladda om</button>
     </div>
   {/if}
+  
+  <div class="status-bar">
+    <div class="status-left">
+      <span class="route-name">{route?.name || 'Välj rutt'}</span>
+    </div>
+    <div class="status-center">
+      <span class="next-arrival">Nästa: {timeState.formattedTime}</span>
+    </div>
+    <div class="status-right">
+      <span class="weather">{weatherIcon}</span>
+      <span class="refresh-time">{getSecondsSinceRefresh()} s</span>
+    </div>
+  </div>
+  
+  <QuirkyMoment />
+  
   <Header />
   
   <RouteSelector 
@@ -106,26 +141,26 @@
     onDeleteRoute={handleDeleteRoute}
   />
   
-  {#if hasNoRoutes}
-    <div class="empty-state">
-      <p>Inga rutter ännu</p>
-      <button class="empty-cta" onclick={toggleEdit}>Skapa din första rutt</button>
-    </div>
-  {:else if editing && route}
-    <RouteEditor {route} />
-  {:else if route && route.segments.length > 0}
-    <SegmentDepartures {route} />
-  {:else if route}
-    <div class="empty-segments">
-      <p>Inga segment i denna rutt</p>
-      <button class="empty-cta" onclick={toggleEdit}>Lägg till segment</button>
-    </div>
-  {/if}
+  <div class="scroll-container">
+    {#if hasNoRoutes}
+      <div class="empty-state">
+        <p>Inga rutter ännu</p>
+        <button class="empty-cta" onclick={toggleEdit}>Skapa din första rutt</button>
+      </div>
+    {:else if editing && route}
+      <RouteEditor {route} />
+    {:else if route && route.segments.length > 0}
+      <SegmentDepartures {route} />
+    {:else if route}
+      <div class="empty-segments">
+        <p>Inga segment i denna rutt</p>
+        <button class="empty-cta" onclick={toggleEdit}>Lägg till segment</button>
+      </div>
+    {/if}
+  </div>
   
   {#if !hasNoRoutes}
-    <button class="edit-btn" onclick={toggleEdit}>
-      {editing ? 'Klar' : 'Redigera'}
-    </button>
+    <FloatingEditButton {editing} onclick={toggleEdit} />
   {/if}
 </main>
 
@@ -146,6 +181,7 @@
     color: var(--text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior: contain;
   }
 
   main {
@@ -153,7 +189,7 @@
     max-width: 480px;
     margin: 0 auto;
     padding: 16px;
-    padding-top: 80px;
+    padding-top: 60px;
     min-height: 100vh;
     --bg: #FAFBFC;
     --text: #1F2937;
@@ -187,6 +223,73 @@
     background: var(--surface);
   }
 
+  .status-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: 480px;
+    margin: 0 auto;
+    height: 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 12px;
+    z-index: 100;
+  }
+
+  .status-left,
+  .status-center,
+  .status-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-left {
+    flex: 1;
+  }
+
+  .status-center {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .status-right {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .route-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .next-arrival {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .weather {
+    font-size: 14px;
+  }
+
+  .refresh-time {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .scroll-container {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: 80px;
+  }
+
   .empty-state, .empty-segments {
     text-align: center;
     padding: 48px 16px;
@@ -211,9 +314,11 @@
 
   .update-banner {
     position: fixed;
-    top: 0;
+    top: 32px;
     left: 0;
     right: 0;
+    max-width: 480px;
+    margin: 0 auto;
     background: var(--accent);
     color: #fff;
     padding: 12px 16px;
@@ -245,26 +350,5 @@
   .attribution a {
     color: var(--text-secondary);
     text-decoration: underline;
-  }
-
-  .edit-btn {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    padding: 16px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    z-index: 100;
-  }
-
-  .edit-btn:hover {
-    background: #1d4ed8;
   }
 </style>
