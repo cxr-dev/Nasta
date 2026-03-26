@@ -35,23 +35,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3000000,
         skipWaiting: true,
         clientsClaim: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'sl-api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 30
-              },
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        navigateFallback: '/',
+        runtimeCaching: []
       }
     })
   ],
