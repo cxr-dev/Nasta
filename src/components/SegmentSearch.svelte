@@ -40,11 +40,20 @@
         stations = await searchSites(query);
         
         if (isSjostadstrafikenStop(query)) {
-          const staticDeps = getNextDepartures(query, 3);
+          const staticStopKeys: Record<string, string> = {
+            'luma': 'Luma brygga',
+            'barn': 'Barnängen',
+            'henrik': 'Henriksdal'
+          };
+          const actualName = Object.entries(staticStopKeys).find(([k]) => 
+            query.toLowerCase().includes(k)
+          )?.[1] || query;
+          
+          const staticDeps = getNextDepartures(actualName, 3);
           if (staticDeps.length > 0) {
             const sjostadStation: SiteSearchResult = {
-              siteId: 'sjostad-' + query.toLowerCase().replace(/\s+/g, '-'),
-              name: query,
+              siteId: 'sjostad-' + actualName.toLowerCase().replace(/\s+/g, '-'),
+              name: actualName,
               type: 'stop',
               note: 'Sjöstadstrafiken'
             };

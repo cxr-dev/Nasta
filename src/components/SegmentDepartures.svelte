@@ -3,6 +3,7 @@
   import { departureStore, type Departure } from '../stores/departureStore';
   import { onMount, onDestroy } from 'svelte';
   import { isSjostadstrafikenStop } from '../services/staticTimetable';
+  import { transportIcons } from '../icons/transport';
   
   let { route }: { route: Route } = $props();
   
@@ -17,13 +18,7 @@
   }
   
   function getTransportIcon(type: string): string {
-    switch (type) {
-      case 'bus': return '🚌';
-      case 'train': return '🚆';
-      case 'metro': return '🚇';
-      case 'boat': return '🚢';
-      default: return '🚌';
-    }
+    return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
   }
   
   onMount(() => {
@@ -57,7 +52,12 @@
     {@const deps = getDeparturesForSegment(segment)}
     <div class="segment-card" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
       <div class="segment-header">
-        <div class="segment-num" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>{index + 1}</div>
+        <div class="segment-icon" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
+          <svg viewBox="0 0 24 24" class="transport-icon">
+            {@html getTransportIcon(segment.transportType)}
+          </svg>
+          <span class="line-num-header">{segment.line}</span>
+        </div>
         <div class="segment-title">
           <span class="line">{segment.lineName}</span>
           <span class="direction">{segment.directionText}</span>
@@ -133,24 +133,35 @@
     margin-bottom: 14px;
   }
 
-  .segment-num {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+  .segment-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
+    gap: 2px;
+    flex-direction: column;
   }
 
-  .segment-num.to-work {
+  .segment-icon.to-work {
     background: var(--to-work);
   }
 
-  .segment-num.from-work {
+  .segment-icon.from-work {
     background: var(--from-work);
+  }
+
+  .segment-icon .transport-icon {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+  }
+
+  .segment-icon .line-num-header {
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
   }
 
   .segment-title {

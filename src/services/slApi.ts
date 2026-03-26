@@ -38,12 +38,16 @@ function fuzzyMatch(text: string, searchTerm: string): boolean {
 
 function filterStations(stations: SiteSearchResult[], query: string): SiteSearchResult[] {
   const q = query.toLowerCase();
+  const normalizedQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
-  const exact = stations.filter(s => s.name.toLowerCase().includes(q));
-  const partial = stations.filter(s => !exact.includes(s) && fuzzyMatch(s.name, query));
-  const fuzzy = stations.filter(s => !exact.includes(s) && !partial.includes(s));
+  const exact = stations.filter(s => s.name.toLowerCase() === q);
+  const startsWith = stations.filter(s => !exact.includes(s) && s.name.toLowerCase().startsWith(q));
+  const exactPartial = stations.filter(s => !exact.includes(s) && !startsWith.includes(s) && s.name.toLowerCase().includes(q));
+  const partialNormalized = stations.filter(s => !exact.includes(s) && !startsWith.includes(s) && !exactPartial.includes(s) && 
+    s.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(normalizedQ));
+  const fuzzy = stations.filter(s => !exact.includes(s) && !startsWith.includes(s) && !exactPartial.includes(s) && !partialNormalized.includes(s) && fuzzyMatch(s.name, query));
   
-  return [...exact, ...partial, ...fuzzy].slice(0, 12);
+  return [...exact, ...startsWith, ...exactPartial, ...partialNormalized, ...fuzzy].slice(0, 12);
 }
 
 function getCachedStations(): SiteSearchResult[] | null {

@@ -9,7 +9,12 @@
 </script>
 
 <header>
-  <h1>Nästa</h1>
+  <div class="logo">
+    <svg viewBox="0 0 40 40" class="logo-icon">
+      <path d="M8 20h24l-4 4m0-4l4 4" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="20" r="3" fill="currentColor"/>
+    </svg>
+  </div>
   <button class="edit-btn" onclick={onToggleEdit} aria-label="Redigera rutter">
     {editing ? 'Klar' : 'Redigera'}
   </button>
@@ -24,13 +29,16 @@
     margin-bottom: 16px;
   }
 
-  h1 {
-    font-size: 36px;
-    font-weight: 800;
-    letter-spacing: -1px;
-    color: var(--text);
-    text-align: center;
-    flex: 1;
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    color: var(--accent);
   }
 
   .edit-btn {

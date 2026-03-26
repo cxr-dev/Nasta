@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Route, Segment } from '../types/route';
   import { routeStore } from '../stores/routeStore';
+  import { transportIcons } from '../icons/transport';
   
   let { route }: { route: Route } = $props();
   
@@ -64,6 +65,10 @@
     draggingIndex = null;
     dragOverIndex = null;
   }
+  
+  function getIcon(type: string): string {
+    return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
+  }
 </script>
 
 <div class="segment-list">
@@ -87,7 +92,11 @@
         ontouchend={handleTouchEnd}
       >
         <div class="drag-handle">⋮⋮</div>
-        <div class="segment-num">{index + 1}</div>
+        <div class="segment-icon" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
+          <svg viewBox="0 0 24 24" class="transport-icon">
+            {@html getIcon(segment.transportType)}
+          </svg>
+        </div>
         <div class="segment-info">
           <div class="segment-line">{segment.lineName}</div>
           <div class="segment-route">
@@ -151,18 +160,28 @@
     padding: 4px;
   }
 
-  .segment-num {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--to-work);
-    color: #fff;
+  .segment-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    font-weight: 600;
     flex-shrink: 0;
+  }
+
+  .segment-icon.to-work {
+    background: var(--to-work);
+  }
+
+  .segment-icon.from-work {
+    background: var(--from-work);
+  }
+
+  .segment-icon .transport-icon {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
   }
 
   .segment-info {

@@ -128,9 +128,12 @@ function createRouteStore() {
         const [moved] = segments.splice(fromIndex, 1);
         segments.splice(toIndex, 0, moved);
         
-        route.segments = segments;
-        
-        const updated = routes.map(r => r.id === routeId ? route : r);
+        const updated = routes.map(r => {
+          if (r.id === routeId) {
+            return { ...r, segments };
+          }
+          return r;
+        });
         
         if (route.direction === 'toWork') {
           const otherRoute = updated.find(r => r.direction === 'fromWork' && r.name === route.name);
@@ -138,7 +141,13 @@ function createRouteStore() {
             const otherSegments = [...otherRoute.segments];
             const [otherMoved] = otherSegments.splice(fromIndex, 1);
             otherSegments.splice(toIndex, 0, otherMoved);
-            otherRoute.segments = otherSegments;
+            
+            return updated.map(r => {
+              if (r.id === otherRoute.id) {
+                return { ...r, segments: otherSegments };
+              }
+              return r;
+            });
           }
         }
         
