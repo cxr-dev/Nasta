@@ -4,8 +4,65 @@
   
   let { route }: { route: Route } = $props();
   
+  let draggingIndex = $state<number | null>(null);
+  let dragOverIndex = $state<number | null>(null);
+  
   function removeSegment(segmentId: string) {
     routeStore.removeSegment(route.id, segmentId);
+  }
+  
+  function handleDragStart(e: DragEvent, index: number) {
+    draggingIndex = index;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  }
+  
+  function handleDragOver(e: DragEvent, index: number) {
+    e.preventDefault();
+    dragOverIndex = index;
+  }
+  
+  function handleDrop(e: DragEvent, toIndex: number) {
+    e.preventDefault();
+    if (draggingIndex !== null && draggingIndex !== toIndex) {
+      routeStore.reorderSegments(route.id, draggingIndex, toIndex);
+    }
+    draggingIndex = null;
+    dragOverIndex = null;
+  }
+  
+  function handleDragEnd() {
+    draggingIndex = null;
+    dragOverIndex = null;
+  }
+  
+  function handleTouchStart(e: TouchEvent, index: number) {
+    draggingIndex = index;
+  }
+  
+  function handleTouchMove(e: TouchEvent) {
+    if (draggingIndex === null) return;
+    
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (element) {
+      const item = element.closest('[data-drag-index]');
+      if (item) {
+        const newIndex = parseInt(item.getAttribute('data-drag-index') || '0', 10);
+        if (!isNaN(newIndex) && newIndex !== dragOverIndex) {
+          dragOverIndex = newIndex;
+        }
+      }
+    }
+  }
+  
+  function handleTouchEnd() {
+    if (draggingIndex !== null && dragOverIndex !== null && draggingIndex !== dragOverIndex) {
+      routeStore.reorderSegments(route.id, draggingIndex, dragOverIndex);
+    }
+    draggingIndex = null;
+    dragOverIndex = null;
   }
 </script>
 
@@ -14,7 +71,22 @@
     <p class="empty">Lägg till resesegment nedan</p>
   {:else}
     {#each route.segments as segment, index (segment.id)}
-      <div class="segment">
+      <div 
+        class="segment"
+        class:dragging={draggingIndex === index}
+        class:drag-over={dragOverIndex === index}
+        data-drag-index={index}
+        draggable="true"
+        role="listitem"
+        ondragstart={(e) => handleDragStart(e, index)}
+        ondragover={(e) => handleDragOver(e, index)}
+        ondrop={(e) => handleDrop(e, index)}
+        ondragend={handleDragEnd}
+        ontouchstart={(e) => handleTouchStart(e, index)}
+        ontouchmove={handleTouchMove}
+        ontouchend={handleTouchEnd}
+      >
+        <div class="drag-handle">⋮⋮</div>
         <div class="segment-num">{index + 1}</div>
         <div class="segment-info">
           <div class="segment-line">{segment.lineName}</div>
@@ -57,6 +129,26 @@
     background: var(--bg);
     border-radius: 10px;
     border: 1px solid var(--border);
+    cursor: grab;
+    touch-action: none;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  }
+
+  .segment.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+
+  .segment.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .drag-handle {
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: grab;
+    padding: 4px;
   }
 
   .segment-num {
@@ -70,10 +162,12 @@
     justify-content: center;
     font-size: 14px;
     font-weight: 600;
+    flex-shrink: 0;
   }
 
   .segment-info {
     flex: 1;
+    min-width: 0;
   }
 
   .segment-line {
@@ -85,6 +179,9 @@
   .segment-route {
     font-size: 13px;
     color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .segment-dir {
@@ -101,6 +198,7 @@
     color: var(--text);
     font-size: 18px;
     cursor: pointer;
+    flex-shrink: 0;
   }
 
   .remove-btn:hover {

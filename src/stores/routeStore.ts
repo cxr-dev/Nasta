@@ -119,6 +119,34 @@ function createRouteStore() {
       });
     },
 
+    reorderSegments: (routeId: string, fromIndex: number, toIndex: number) => {
+      update(routes => {
+        const route = routes.find(r => r.id === routeId);
+        if (!route) return routes;
+        
+        const segments = [...route.segments];
+        const [moved] = segments.splice(fromIndex, 1);
+        segments.splice(toIndex, 0, moved);
+        
+        route.segments = segments;
+        
+        const updated = routes.map(r => r.id === routeId ? route : r);
+        
+        if (route.direction === 'toWork') {
+          const otherRoute = updated.find(r => r.direction === 'fromWork' && r.name === route.name);
+          if (otherRoute) {
+            const otherSegments = [...otherRoute.segments];
+            const [otherMoved] = otherSegments.splice(fromIndex, 1);
+            otherSegments.splice(toIndex, 0, otherMoved);
+            otherRoute.segments = otherSegments;
+          }
+        }
+        
+        saveRoutes(updated);
+        return updated;
+      });
+    },
+
     initialize: () => {
       const stored = loadRoutes();
       if (stored.length === 0) {
