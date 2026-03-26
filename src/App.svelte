@@ -228,33 +228,44 @@
     overscroll-behavior: contain;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    :global(*),
+    :global(*::before),
+    :global(*::after) {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   main {
     position: relative;
     max-width: 480px;
     margin: 0 auto;
-    padding: 16px;
-    padding-top: 60px;
     min-height: 100vh;
-    --bg: #FAFBFC;
-    --text: #1F2937;
-    --text-secondary: #6B7280;
-    --surface: #FFFFFF;
-    --border: #E5E7EB;
-    --accent: #2563EB;
-    --accent-light: #DBEAFE;
-    --to-work: #2563EB;
-    --to-work-light: #DBEAFE;
-    --from-work: #059669;
-    --from-work-light: #D1FAE5;
-    --danger: #DC2626;
-  }
+    padding: 0;
 
-  main.sunlight {
-    --bg: #000000;
-    --text: #FFFFFF;
-    --text-secondary: #A0A0A0;
-    --surface: #0A0A0A;
-    --border: #333333;
+    /* Core */
+    --bg:              #F0F2F7;
+    --surface:         #FFFFFF;
+    --border:          #E8EBF2;
+    --border-subtle:   #D8DCE6;
+
+    /* Text */
+    --text:            #0F172A;
+    --text-secondary:  #475569;
+    --text-muted:      #94A3B8;
+    --text-ghost:      #C0C8D8;
+
+    /* Brand */
+    --brand-muted:     #94A3B8;
+
+    /* Route identity */
+    --route-work:      #1E3A8A;
+    --route-home:      #065F46;
+
+    /* Actions */
+    --accent:          #2563EB;
+    --danger:          #DC2626;
   }
 
   :global(body) {
@@ -292,11 +303,6 @@
     font-size: 12px;
     z-index: 100;
     gap: 8px;
-  }
-
-  .ambient-status-bar.sunlight {
-    background: #000;
-    border-bottom-color: #333;
   }
 
   .status-left,
