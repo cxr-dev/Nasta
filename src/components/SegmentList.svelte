@@ -192,11 +192,11 @@
   }
 
   .segment-icon.to-work {
-    background: var(--to-work);
+    background: var(--route-work);
   }
 
   .segment-icon.from-work {
-    background: var(--from-work);
+    background: var(--route-home);
   }
 
   .segment-icon .transport-icon {

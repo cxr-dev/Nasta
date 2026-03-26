@@ -88,6 +88,11 @@
     swipeStartY = e.touches[0].clientY;
   }
 
+  function handleTouchCancel() {
+    swipeStartX = 0;
+    swipeStartY = 0;
+  }
+
   function handleTouchEnd(e: TouchEvent) {
     if (editing) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
@@ -102,6 +107,9 @@
       handleRouteSwitch(allRoutes[currentIdx + 1].id);
     } else if (dx > 0 && currentIdx > 0) {
       handleRouteSwitch(allRoutes[currentIdx - 1].id);
+    }
+    if (!settings.hasSwipedRoutes) {
+      settingsStore.markSwiped();
     }
   }
 
@@ -125,16 +133,20 @@
       lastRefreshTime = Date.now();
     }, 1000);
 
-    document.addEventListener('visibilitychange', () => {
+    const onVisibility = () => {
       if (!document.hidden && route?.segments) {
         const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
         const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
         departureStore.refresh(siteIds, stopNames);
         lastRefreshTime = Date.now();
       }
-    });
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
-    return () => unsub();
+    return () => {
+      unsub();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   });
 
   onDestroy(() => {
@@ -150,6 +162,7 @@
   <main
     ontouchstart={handleTouchStart}
     ontouchend={handleTouchEnd}
+    ontouchcancel={handleTouchCancel}
   >
     {#if updateAvailable}
       <div class="update-banner">
