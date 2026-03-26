@@ -128,6 +128,11 @@
       <div class="results">
         {#each stations as station}
           <button class="item" onmousedown={() => selectStation(station)}>
+            {#if station.note === 'Sjöstadstrafiken'}
+              <span class="sjostad-badge">🚢 Sjöstadstrafiken</span>
+            {:else}
+              <span class="transport-icon">🚌</span>
+            {/if}
             <span class="name">{station.name}</span>
             <span class="arrow">→</span>
           </button>
@@ -225,6 +230,24 @@
 
   .arrow {
     color: var(--accent);
+  }
+
+  .sjostad-badge {
+    font-size: 11px;
+    background: #0077B6;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 8px;
+    margin-right: 8px;
+  }
+
+  .item .transport-icon {
+    font-size: 16px;
+    margin-right: 8px;
+  }
+
+  .item .name {
+    flex: 1;
   }
 
   .departures-view {
