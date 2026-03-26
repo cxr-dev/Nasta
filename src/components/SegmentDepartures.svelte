@@ -72,22 +72,28 @@
       
       <div class="departure-info">
         {#if deps.length > 0}
-          {@const headerDep = deps[0]}
           <div class="dep-header">
-            <span class="transport-icon">{getTransportIcon(headerDep.transportType)}</span>
-            <span class="line-num">{headerDep.line}</span>
-            <span class="dest">→ {headerDep.destination}</span>
+            <span class="transport-icon">{getTransportIcon(segment.transportType)}</span>
+            <span class="line-num">{segment.line}</span>
             {#if isSjostadstrafikenStop(segment.fromStop.name)}
               <span class="badge">Sjöstadstrafiken</span>
             {/if}
           </div>
           <div class="dep-times">
-            {#each deps.slice(0, 2) as dep}
-              <div class="dep-time">
-                <span class="minutes">{dep.minutes} min</span>
-                <span class="time">({dep.time})</span>
+            {#if deps[0]}
+              <div class="dep-next">
+                <span class="minutes-large">{deps[0].minutes}</span>
+                <span class="min-label">MIN</span>
+                <span class="time-subtle">({deps[0].time})</span>
               </div>
-            {/each}
+            {/if}
+            {#if deps[1]}
+              <div class="dep-second">
+                <span class="minutes-small">{deps[1].minutes}</span>
+                <span class="min-label-small">MIN</span>
+                <span class="time-subtle">({deps[1].time})</span>
+              </div>
+            {/if}
           </div>
         {:else}
           <span class="no-departures">Ingen avgång</span>
@@ -206,11 +212,6 @@
     color: var(--text);
   }
 
-  .dest {
-    font-size: 14px;
-    color: var(--text-secondary);
-  }
-
   .badge {
     font-size: 11px;
     background: #0077B6;
@@ -222,23 +223,48 @@
 
   .dep-times {
     display: flex;
-    gap: 24px;
+    gap: 32px;
+    align-items: baseline;
   }
 
-  .dep-time {
+  .dep-next,
+  .dep-second {
     display: flex;
-    flex-direction: column;
+    align-items: baseline;
+    gap: 4px;
   }
 
-  .minutes {
-    font-size: 28px;
+  .minutes-large {
+    font-size: 48px;
     font-weight: 700;
     color: var(--text);
-    letter-spacing: -0.5px;
+    line-height: 1;
   }
 
-  .time {
+  .min-label {
     font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-left: 2px;
+  }
+
+  .minutes-small {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .min-label-small {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 2px;
+  }
+
+  .time-subtle {
+    font-size: 12px;
+    font-weight: 400;
     color: var(--text-secondary);
   }
 
