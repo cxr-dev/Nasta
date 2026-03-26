@@ -17,7 +17,7 @@ User Action → Svelte Store → Service → API/Storage
 ### Stores
 
 - `routeStore`: Manages routes and stops
-- `settingsStore`: Manages app settings (dark mode, refresh interval)
+- `settingsStore`: Manages app settings (refresh interval)
 - `departureStore`: Manages departure data and auto-refresh
 
 ### Services
