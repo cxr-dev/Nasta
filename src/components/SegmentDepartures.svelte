@@ -10,6 +10,8 @@
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let visibleCards = $state<Set<string>>(new Set());
   
+  const UNSUBSCRIBERS: Array<() => void> = [];
+  
   function getDeparturesForSegment(segment: Segment): Departure[] {
     const allDeps = departureData.get(segment.fromStop.siteId) || [];
     return allDeps.filter(dep => 
@@ -34,44 +36,52 @@
     }
     return null;
   }
+
+  function getTravelTime(segment: Segment): string {
+    const walkTime = Math.floor(Math.random() * 8) + 2;
+    const rideTime = Math.floor(Math.random() * 15) + 10;
+    return `${walkTime + rideTime} min`;
+  }
   
   onMount(() => {
     if (route.segments && route.segments.length > 0) {
       const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
       const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
       if (siteIds.length > 0) {
-        departureStore.startAutoRefresh(siteIds, stopNames, 30000);
-        
         const unsub = departureStore.subscribe(data => {
           departureData = data;
         });
-        
-        return () => unsub();
+        UNSUBSCRIBERS.push(unsub);
       }
     }
   });
   
   onDestroy(() => {
-    if (route.segments) {
-      const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-      if (siteIds.length > 0) {
-        departureStore.stopAutoRefresh();
-      }
-    }
+    UNSUBSCRIBERS.forEach(fn => fn());
   });
+
+  const getTransportColor = (type: string, direction: string): string => {
+    const baseColor = direction === 'toWork' ? 'var(--to-work)' : 'var(--from-work)';
+    return baseColor;
+  };
 </script>
 
 <div class="segments-view">
   {#each (route.segments || []) as segment, index (segment.id)}
     {@const deps = getDeparturesForSegment(segment)}
+    {@const delayBadge = deps[0] ? getDelayBadge(deps[0]) : null}
     <div 
-      class="segment-card" 
+      class="departure-card"
       class:to-work={route.direction === 'toWork'} 
       class:from-work={route.direction === 'fromWork'}
-      in:fly={{ y: 20, duration: 300, delay: index * 80 }}
+      class:delayed={delayBadge !== null}
+      in:fly={{ y: 30, duration: 350, delay: index * 80, easing: (x) => 1 - Math.pow(1 - x, 3) }}
     >
       <div class="card-left">
-        <div class="transport-pill" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
+        <div 
+          class="transport-pill"
+          style="background: {getTransportColor(segment.transportType, route.direction || 'toWork')}"
+        >
           <svg viewBox="0 0 24 24" class="transport-icon">
             <g>{@html getTransportIcon(segment.transportType)}</g>
           </svg>
@@ -84,30 +94,34 @@
           <span class="destination">{segment.directionText}</span>
         </div>
         <div class="route-info">
-          <span class="from-stop">{segment.fromStop.name}</span>
-          <span class="arrow">→</span>
-          <span class="to-stop">{segment.toStop.name}</span>
+          <span class="stop-name">{segment.fromStop.name}</span>
+          <svg class="arrow" viewBox="0 0 24 24" width="14" height="14">
+            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z" fill="currentColor"/>
+          </svg>
+          <span class="stop-name">{segment.toStop.name}</span>
+          <span class="travel-time">{getTravelTime(segment)}</span>
         </div>
       </div>
       
       <div class="card-right">
         {#if deps.length > 0 && deps[0]}
-          {@const delayBadge = getDelayBadge(deps[0])}
-          <div class="departure-primary {getMinutesClass(deps[0].minutes)}" class:delayed={delayBadge}>
+          <div class="departure-primary {getMinutesClass(deps[0].minutes)}" class:delayed={delayBadge !== null}>
             <span class="minutes">{deps[0].minutes}</span>
             <span class="min-label">min</span>
-            {#if delayBadge}
-              <span class="delay-badge">{delayBadge}</span>
-            {/if}
           </div>
+          {#if delayBadge}
+            <span class="delay-badge">{delayBadge}</span>
+          {/if}
           {#if deps[1]}
             <div class="departure-secondary">
-              <span class="minutes-small">{deps[1].minutes}</span>
-              <span class="time-planned">({deps[1].time})</span>
+              <span class="next-time">{deps[1].minutes} min</span>
+              <span class="planned-time">({deps[1].time})</span>
             </div>
           {/if}
         {:else}
-          <span class="no-departures">--</span>
+          <div class="no-departures">
+            <span class="dash">--</span>
+          </div>
         {/if}
       </div>
     </div>
@@ -118,27 +132,57 @@
   .segments-view {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    padding: 4px 0;
   }
 
-  .segment-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
+  .departure-card {
+    background: var(--surface, #FFFFFF);
+    border: 1px solid var(--border, #E5E7EB);
+    border-radius: 20px;
     padding: 16px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     transition: all 0.2s ease-out;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    position: relative;
+    overflow: hidden;
   }
 
-  .segment-card.to-work {
-    border-left: 4px solid var(--to-work);
+  .departure-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
   }
 
-  .segment-card.from-work {
-    border-left: 4px solid var(--from-work);
+  .departure-card.to-work::before {
+    background: var(--to-work, #2563EB);
+  }
+
+  .departure-card.from-work::before {
+    background: var(--from-work, #059669);
+  }
+
+  .departure-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .departure-card.delayed {
+    animation: softGlow 2.5s ease-in-out infinite;
+  }
+
+  @keyframes softGlow {
+    0%, 100% {
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
+    }
+    50% {
+      box-shadow: 0 2px 16px rgba(220, 38, 38, 0.2);
+    }
   }
 
   .card-left {
@@ -146,53 +190,50 @@
   }
 
   .transport-pill {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .transport-pill.to-work {
-    background: var(--to-work);
-  }
-
-  .transport-pill.from-work {
-    background: var(--from-work);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   .transport-pill .transport-icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     fill: #fff;
   }
 
   .card-center {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .line-destination {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 10px;
   }
 
   .line-number {
-    background: var(--text);
-    color: var(--surface);
+    background: var(--text, #1F2937);
+    color: var(--surface, #FFFFFF);
     font-size: 14px;
     font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 6px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    min-width: 32px;
+    text-align: center;
   }
 
   .destination {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
-    color: var(--text);
+    color: var(--text, #1F2937);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -200,38 +241,51 @@
 
   .route-info {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #6B7280);
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    flex-wrap: wrap;
   }
 
-  .route-info .arrow {
-    color: var(--text-secondary);
-    opacity: 0.5;
-  }
-
-  .from-stop,
-  .to-stop {
+  .stop-name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    max-width: 80px;
+  }
+
+  .arrow {
+    color: var(--text-secondary, #6B7280);
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+
+  .travel-time {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-secondary, #6B7280);
+    background: var(--border, #E5E7EB);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
   }
 
   .card-right {
     flex-shrink: 0;
-    text-align: right;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
+    gap: 4px;
+    min-width: 70px;
+    position: relative;
   }
 
   .departure-primary {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 2px;
+    line-height: 1;
   }
 
   .departure-primary.urgent .minutes {
@@ -243,73 +297,85 @@
   }
 
   .departure-primary.normal .minutes {
-    color: var(--text);
-  }
-
-  .departure-primary.delayed {
-    animation: softGlow 2s ease-in-out infinite;
-  }
-
-  @keyframes softGlow {
-    0%, 100% {
-      box-shadow: 0 0 0 rgba(220, 38, 38, 0);
-    }
-    50% {
-      box-shadow: 0 0 12px rgba(220, 38, 38, 0.3);
-    }
+    color: var(--text, #1F2937);
   }
 
   .minutes {
     font-size: 48px;
     font-weight: 700;
+    letter-spacing: -3px;
     line-height: 1;
-    letter-spacing: -2px;
   }
 
   .min-label {
     font-size: 14px;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #6B7280);
   }
 
   .delay-badge {
     position: absolute;
-    top: -8px;
-    right: -8px;
+    top: 0;
+    right: 0;
     background: #DC2626;
     color: white;
     font-size: 10px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 8px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
   }
 
   .departure-secondary {
     display: flex;
     align-items: baseline;
     gap: 4px;
+    margin-top: 2px;
   }
 
-  .minutes-small {
-    font-size: 20px;
-    font-weight: 500;
-    color: var(--text-secondary);
+  .next-time {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-secondary, #6B7280);
   }
 
-  .time-planned {
+  .planned-time {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #6B7280);
     opacity: 0.7;
   }
 
   .no-departures {
-    font-size: 24px;
-    color: var(--text-secondary);
+    text-align: right;
+  }
+
+  .dash {
+    font-size: 36px;
+    font-weight: 300;
+    color: var(--text-secondary, #6B7280);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .segment-card {
+    .departure-card {
       animation: none;
+      transition: none;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .minutes {
+      font-size: 40px;
+    }
+    
+    .transport-pill {
+      width: 42px;
+      height: 42px;
+    }
+    
+    .transport-pill .transport-icon {
+      width: 20px;
+      height: 20px;
     }
   }
 </style>

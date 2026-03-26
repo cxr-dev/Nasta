@@ -6,11 +6,13 @@ const SETTINGS_KEY = 'nasta_settings';
 export interface Settings {
   darkMode: boolean;
   refreshInterval: number;
+  funMode: boolean;
 }
 
 const defaultSettings: Settings = {
   darkMode: true,
-  refreshInterval: 30000
+  refreshInterval: 30000,
+  funMode: true
 };
 
 export function loadRoutes(): Route[] {

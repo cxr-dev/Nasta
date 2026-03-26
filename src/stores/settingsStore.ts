@@ -27,6 +27,13 @@ function createSettingsStore() {
         saveSettings(updated);
         return updated;
       });
+    },
+    toggleFunMode: () => {
+      update(settings => {
+        const updated = { ...settings, funMode: !settings.funMode };
+        saveSettings(updated);
+        return updated;
+      });
     }
   };
 }
