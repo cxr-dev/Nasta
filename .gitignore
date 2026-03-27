@@ -10,3 +10,4 @@ dist/
 .superpowers/
 .claude/settings.local.json
 docs/superpowers/
+.claude/settings.json
