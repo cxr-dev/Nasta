@@ -13,6 +13,28 @@ function getTransportType(mode?: string): TransportType {
   }
 }
 
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function rankByRelevance(stations: SiteSearchResult[], query: string): SiteSearchResult[] {
+  const q = query.toLowerCase().trim();
+  const nq = norm(query);
+  return stations
+    .map(s => {
+      const name = s.name.toLowerCase();
+      const nname = norm(s.name);
+      let score: number;
+      if (name === q || nname === nq)                              score = 4; // exact
+      else if (name.startsWith(q) || nname.startsWith(nq))        score = 3; // prefix
+      else if (name.includes(q) || nname.includes(nq))            score = 2; // contains
+      else                                                         score = 1; // API fuzzy match
+      return { s, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(({ s }) => s);
+}
+
 export async function searchSites(query: string): Promise<SiteSearchResult[]> {
   if (!query || query.length < 2) return [];
 
@@ -22,7 +44,7 @@ export async function searchSites(query: string): Promise<SiteSearchResult[]> {
   if (!response.ok) throw new Error(`API error: ${response.status}`);
 
   const data = await response.json();
-  return (Array.isArray(data) ? data : []).map((site: any) => ({
+  const stations: SiteSearchResult[] = (Array.isArray(data) ? data : []).map((site: any) => ({
     siteId: String(site.id),
     name: site.name,
     note: site.note || '',
@@ -30,6 +52,8 @@ export async function searchSites(query: string): Promise<SiteSearchResult[]> {
     lat: site.lat,
     lon: site.lon
   }));
+
+  return rankByRelevance(stations, query);
 }
 
 export async function getDepartures(siteId: string): Promise<Departure[]> {
