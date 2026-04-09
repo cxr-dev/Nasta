@@ -66,7 +66,7 @@ export default defineConfig({
                 maxEntries: 20,
                 maxAgeSeconds: 60
               },
-              networkTimeoutSeconds: 3
+              networkTimeoutSeconds: 5
             }
           }
         ]

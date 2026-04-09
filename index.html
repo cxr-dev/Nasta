@@ -15,10 +15,18 @@
     <meta name="apple-mobile-web-app-title" content="Nästa" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- Fonts: Neue Machina for display, Satoshi for body -->
+    <!-- SL departure API — prefetch DNS before JS loads -->
+    <link rel="dns-prefetch" href="https://transport.integration.sl.se">
+    <link rel="preconnect" href="https://transport.integration.sl.se">
+
+    <!-- Fonts: Neue Machina for display, Satoshi for body — async, non-blocking -->
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-    <link rel="preload" as="style" href="https://api.fontshare.com/v2/css?f[]=neue-machina@700,800&f[]=satoshi@400,500,700&display=swap">
-    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=neue-machina@700,800&f[]=satoshi@400,500,700&display=swap">
+    <link rel="preload" as="style"
+      href="https://api.fontshare.com/v2/css?f[]=neue-machina@700,800&f[]=satoshi@400,500,700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+      <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=neue-machina@700,800&f[]=satoshi@400,500,700&display=swap">
+    </noscript>
 
     <title>Nästa</title>
     <style>

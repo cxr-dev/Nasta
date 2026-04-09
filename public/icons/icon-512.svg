@@ -4,12 +4,16 @@
       <stop offset="0" stop-color="#635BFF"/>
       <stop offset="1" stop-color="#00E5E5"/>
     </linearGradient>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="8" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
   <rect width="512" height="512" rx="115" fill="url(#bg)"/>
-  <path d="M148 100 L148 412 L210 412 L210 222 L302 412 L364 412 L364 100 L302 100 L302 290 L210 100 Z"
-        fill="#FFFFFF" filter="url(#glow)"/>
+  <!-- Train body -->
+  <rect x="96" y="120" width="320" height="280" rx="40" fill="white" fill-opacity="0.95"/>
+  <!-- Windshield — gradient shows through -->
+  <rect x="136" y="160" width="240" height="90" rx="12" fill="url(#bg)"/>
+  <!-- Left headlight -->
+  <circle cx="176" cy="316" r="32" fill="url(#bg)"/>
+  <!-- Right headlight -->
+  <circle cx="336" cy="316" r="32" fill="url(#bg)"/>
+  <!-- Buffer bar -->
+  <rect x="116" y="368" width="280" height="18" rx="9" fill="url(#bg)"/>
 </svg>

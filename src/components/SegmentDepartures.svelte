@@ -45,6 +45,11 @@
     return subsequent.map(d => `${getLiveMinutes(d)}`).join(' · ');
   }
 
+  // Recomputes only when departureData or route.segments changes — not on every clock tick
+  let segmentDeps = $derived(
+    (route.segments ?? []).map(seg => getDeparturesForSegment(seg))
+  );
+
   onMount(() => {
     const unsub = departureStore.subscribe(data => {
       departureData = data;
@@ -52,11 +57,12 @@
     UNSUBSCRIBERS.push(unsub);
 
     clockTimer = setInterval(() => {
+      if (document.hidden) return;
       now = Date.now();
       // Trigger immediate refresh if any leading departure has hit 0
       const segments = route.segments ?? [];
-      const needsRefresh = segments.some(segment => {
-        const deps = getDeparturesForSegment(segment);
+      const needsRefresh = segments.some((segment, i) => {
+        const deps = segmentDeps[i] ?? [];
         return deps.length > 0 && deps[0].expectedAt !== undefined && getLiveMinutes(deps[0]) === 0;
       });
       if (needsRefresh) {
@@ -75,7 +81,7 @@
 
 <div class="departures-list">
   {#each (route.segments ?? []) as segment, index (segment.id)}
-    {@const deps = getDeparturesForSegment(segment)}
+    {@const deps = segmentDeps[index] ?? []}
     {@const subsequent = formatSubsequent(deps)}
     {@const hasDeparture = deps.length > 0 && deps[0]}
     {@const liveMinutes = hasDeparture ? getLiveMinutes(deps[0]) : 0}

@@ -7,22 +7,30 @@ function createDepartureStore() {
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let stopNamesMap = new Map<string, string>();
 
+  let isFetching = false;
+
   const fetchAll = async (siteIds: string[], stopNames: Map<string, string>) => {
+    if (isFetching) return;
+    isFetching = true;
     stopNamesMap = stopNames;
     const results = new Map<string, Departure[]>();
-    await Promise.all(
-      siteIds.map(async (siteId) => {
-        try {
-          const stopName = stopNames.get(siteId) || '';
-          const departures = await getDepartures(stopName, siteId);
-          results.set(siteId, departures);
-        } catch (e) {
-          console.error(`Failed to fetch departures for ${siteId}:`, e);
-          results.set(siteId, []);
-        }
-      })
-    );
-    set(results);
+    try {
+      await Promise.all(
+        siteIds.map(async (siteId) => {
+          try {
+            const stopName = stopNames.get(siteId) || '';
+            const departures = await getDepartures(stopName, siteId);
+            results.set(siteId, departures);
+          } catch (e) {
+            console.error(`Failed to fetch departures for ${siteId}:`, e);
+            results.set(siteId, []);
+          }
+        })
+      );
+      set(results);
+    } finally {
+      isFetching = false;
+    }
   };
 
   return {
