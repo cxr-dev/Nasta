@@ -24,7 +24,6 @@
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
 
-  // Service worker update detection
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('updatefound', () => {
       navigator.serviceWorker.ready.then(registration => {
@@ -81,7 +80,6 @@
     }
   }
 
-  // Swipe gesture — horizontal swipe on main container switches routes
   function handleTouchStart(e: TouchEvent) {
     if (editing) return;
     swipeStartX = e.touches[0].clientX;
@@ -97,8 +95,8 @@
     if (editing) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
-    if (Math.abs(dy) > Math.abs(dx)) return; // vertical scroll — ignore
-    if (Math.abs(dx) < 48) return; // below threshold
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) < 48) return;
 
     const allRoutes = $routeStore ?? [];
     if (allRoutes.length < 2) return;
@@ -126,7 +124,6 @@
     }
     loadDepartures();
 
-    // Subscribe to departures for arrival time computation
     const unsub = departureStore.subscribe(data => { departures = data; });
 
     lastRefreshInterval = setInterval(() => {
@@ -179,24 +176,43 @@
       />
     {/if}
 
-    <QuirkyMoment />
-
     <div class="scroll-container">
       {#if hasNoRoutes}
         <div class="empty-state">
-          <div class="empty-icon">🚇</div>
-          <p>Inga rutter ännu</p>
-          <p class="empty-subtitle">Skapa din första rutt för att se avgångar</p>
-          <button class="empty-cta" onclick={toggleEdit}>Skapa din första rutt</button>
+          <div class="empty-illustration">
+            <svg viewBox="0 0 120 120" fill="none">
+              <circle cx="60" cy="60" r="50" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+              <path d="M40 60h40M60 40v40" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
+            </svg>
+          </div>
+          <h2>Inga rutter ännu</h2>
+          <p>Skapa din första rutt för att se avgångar</p>
+          <button class="empty-cta" onclick={toggleEdit}>
+            <span>Skapa rutt</span>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 4v12M4 10h12"/>
+            </svg>
+          </button>
         </div>
       {:else if route && route.segments.length > 0}
         <SegmentDepartures {route} />
       {:else if route}
         <div class="empty-segments">
-          <div class="empty-icon">📍</div>
-          <p>Inga segment i denna rutt</p>
-          <p class="empty-subtitle">Lägg till avgångar för att komma igång</p>
-          <button class="empty-cta" onclick={toggleEdit}>Lägg till segment</button>
+          <div class="empty-illustration small">
+            <svg viewBox="0 0 80 80" fill="none">
+              <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+              <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2>Inga segment</h2>
+          <p>Lägg till avgångar för att komma igång</p>
+          <button class="empty-cta" onclick={toggleEdit}>
+            <span>Lägg till</span>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 4v12M4 10h12"/>
+            </svg>
+          </button>
         </div>
       {/if}
     </div>
@@ -210,7 +226,6 @@
       />
     {/if}
 
-    <!-- RouteEditor: always in DOM, overlay via CSS transform -->
     {#if !hasNoRoutes && route}
       <RouteEditor
         {routes}
@@ -224,143 +239,173 @@
 {/if}
 
 <footer class="attribution">
-  Transit data from <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab.se</a>
+  Transit data via <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
 </footer>
 
 <style>
-:global(*) {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-:global(body) {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  overscroll-behavior: contain;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :global(*),
-  :global(*::before),
-  :global(*::after) {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+  :global(*) {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
-}
 
-main {
-  position: relative;
-  max-width: 480px;
-  margin: 0 auto;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  :global(body) {
+    font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: contain;
+  }
 
-  --bg:              #F0F2F7;
-  --surface:         #FFFFFF;
-  --border:          #E8EBF2;
-  --border-subtle:   #D8DCE6;
-  --text:            #0F172A;
-  --text-secondary:  #475569;
-  --text-muted:      #94A3B8;
-  --text-ghost:      #C0C8D8;
-  --brand-muted:     #94A3B8;
-  --route-work:      #1E3A8A;
-  --route-home:      #065F46;
-  --accent:          #2563EB;
-  --danger:          #DC2626;
-}
+  @media (prefers-reduced-motion: reduce) {
+    :global(*),
+    :global(*::before),
+    :global(*::after) {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 
-.scroll-container {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 4px 14px calc(env(safe-area-inset-bottom) + 140px);
-}
+  main {
+    position: relative;
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 
-.update-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  max-width: 480px;
-  margin: 0 auto;
-  background: var(--accent);
-  color: #fff;
-  padding: 10px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 9999;
-  font-size: 14px;
-}
+    --bg:              #FAFAF9;
+    --surface:         #FFFFFF;
+    --border:          #E5E5E5;
+    --border-subtle:   #D4D4D4;
+    --text:            #171717;
+    --text-secondary:  #525252;
+    --text-muted:      #A3A3A3;
+    --text-ghost:      #D4D4D4;
+    --accent:          #E11D48;
+    --accent-subtle:   #FFE4E6;
+    --route-work:      #2563EB;
+    --route-home:      #059669;
+  }
 
-.update-banner button {
-  background: #fff;
-  color: var(--accent);
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-}
+  .scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 4px 20px calc(env(safe-area-inset-bottom) + 140px);
+  }
 
-.empty-state,
-.empty-segments {
-  text-align: center;
-  padding: 48px 16px;
-  color: var(--text-secondary);
-}
+  .update-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9999;
+    font-size: 14px;
+    font-weight: 500;
+  }
 
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
+  .update-banner button {
+    background: #fff;
+    color: var(--accent);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+  }
 
-.empty-state p,
-.empty-segments p {
-  font-size: 16px;
-  margin-bottom: 8px;
-}
+  .empty-state,
+  .empty-segments {
+    text-align: center;
+    padding: 80px 20px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
 
-.empty-subtitle {
-  font-size: 14px !important;
-  color: var(--text-secondary);
-  opacity: 0.7;
-  margin-bottom: 20px !important;
-}
+  .empty-illustration {
+    width: 100px;
+    height: 100px;
+    color: var(--text-ghost);
+    margin-bottom: 8px;
+  }
 
-.empty-cta {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: 14px 28px;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
+  .empty-illustration.small {
+    width: 64px;
+    height: 64px;
+  }
 
-.attribution {
-  text-align: center;
-  padding: 16px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border);
-  margin-top: 24px;
-  max-width: 480px;
-  margin-left: auto;
-  margin-right: auto;
-}
+  .empty-state h2,
+  .empty-segments h2 {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
 
-.attribution a {
-  color: var(--text-secondary);
-  text-decoration: underline;
-}
+  .empty-state p,
+  .empty-segments p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 240px;
+  }
+
+  .empty-cta {
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .empty-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+  }
+
+  .empty-cta:active {
+    transform: translateY(0);
+  }
+
+  .empty-cta svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .attribution {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .attribution a {
+    color: var(--text-muted);
+    text-decoration: underline;
+  }
 </style>

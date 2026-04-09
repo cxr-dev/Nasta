@@ -23,10 +23,10 @@
 
   function getLabel(route: Route | undefined): string {
     if (!route) return '';
-    return route.direction === 'toWork' ? 'Till jobbet' : 'Hem';
+    return route.direction === 'toWork' ? 'TILL JOBBET' : 'HEM';
   }
 
-  function getActiveColor(route: Route | undefined): string {
+  function getColor(route: Route | undefined): string {
     if (!route) return 'var(--text)';
     return route.direction === 'toWork' ? 'var(--route-work)' : 'var(--route-home)';
   }
@@ -62,17 +62,21 @@
     <span class="wordmark">NÄSTA</span>
     <span class="clock">{currentTime}</span>
   </div>
-  <div class="route-row">
-    <span
-      class="active-name"
-      style="color: {getActiveColor(activeRoute)}"
-    >{getLabel(activeRoute)}</span>
+  
+  <div class="route-display">
+    <h1 
+      class="route-title"
+      style="color: {getColor(activeRoute)}"
+    >
+      {getLabel(activeRoute)}
+    </h1>
     {#if inactiveRoute}
-      <button class="inactive-name" onclick={handleSwitch}>
+      <button class="switch-link" onclick={handleSwitch}>
         {getLabel(inactiveRoute)} →
       </button>
     {/if}
   </div>
+  
   {#if showSwipeHint}
     <p class="swipe-hint">{getSwipeHint(activeRoute)}</p>
   {/if}
@@ -80,7 +84,7 @@
 
 <style>
   .route-header {
-    padding: 14px 16px 10px;
+    padding: 14px 20px 16px;
     padding-top: calc(14px + env(safe-area-inset-top));
     background: var(--bg);
   }
@@ -89,59 +93,65 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 16px;
   }
 
   .wordmark {
+    font-family: 'Neue Machina', sans-serif;
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 800;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--brand-muted);
+    color: var(--text-ghost);
   }
 
   .clock {
-    font-size: 11px;
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--brand-muted);
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
 
-  .route-row {
+  .route-display {
     display: flex;
     align-items: baseline;
     gap: 12px;
+    flex-wrap: wrap;
   }
 
-  .active-name {
-    font-size: 28px;
+  .route-title {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 36px;
     font-weight: 800;
-    letter-spacing: -1px;
-    line-height: 1.1;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin: 0;
     transition: color 200ms ease;
   }
 
-  .inactive-name {
+  .switch-link {
+    font-family: 'Neue Machina', sans-serif;
     font-size: 18px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     color: var(--text-ghost);
     background: none;
     border: none;
     padding: 0;
     cursor: pointer;
     font-family: inherit;
-    letter-spacing: -0.5px;
     transition: color 150ms ease;
   }
 
-  .inactive-name:hover {
+  .switch-link:hover {
     color: var(--text-muted);
   }
 
   .swipe-hint {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-ghost);
-    margin-top: 3px;
+    margin-top: 10px;
     font-weight: 500;
   }
 </style>
