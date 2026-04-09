@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { Route, TransportType, Stop } from '../types/route';
   import { routeStore } from '../stores/routeStore';
+  import { settingsStore } from '../stores/settingsStore';
+  import { THEMES } from '../themes';
+  import { t } from '../stores/localeStore';
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
 
@@ -21,9 +24,17 @@
   let route = $derived(routes.find(r => r.id === activeRouteId));
   let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
+  let settings = $derived($settingsStore);
 
   function getRouteLabel(r: Route): string {
-    return r.direction === 'toWork' ? 'Till jobbet' : 'Hem';
+    return r.direction === 'toWork' ? $t.toWork : $t.home;
+  }
+
+  function isLightColor(hex: string): boolean {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 >= 0.5;
   }
 
   function addSegment(
@@ -39,13 +50,13 @@
 <div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen}>
   <div class="editor-sheet">
     <div class="sheet-header">
-      <button class="back-btn" onclick={onClose} aria-label="Stäng redigering">
+      <button class="back-btn" onclick={onClose} aria-label={$t.closeEditor}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
         </svg>
       </button>
       <span class="sheet-title">
-        Redigera: {route ? getRouteLabel(route) : ''}
+        {$t.editingRoute}: {route ? getRouteLabel(route) : ''}
       </span>
     </div>
 
@@ -54,14 +65,14 @@
         <div class="search-container">
           <SegmentSearch onSelect={addSegment} />
           <button class="cancel-search-btn" onclick={() => showSearch = false}>
-            Avbryt
+            {$t.cancel}
           </button>
         </div>
       {:else}
         <div class="segment-area">
           <SegmentList route={route} />
           <button class="add-btn" onclick={() => showSearch = true}>
-            + Lägg till segment
+            {$t.addSegment}
           </button>
         </div>
       {/if}
@@ -69,9 +80,74 @@
 
     {#if otherRoute}
       <button class="switch-route-btn" onclick={() => onSwitchRoute(otherRoute!.id)}>
-        Byt till: {getRouteLabel(otherRoute)}
+        {$t.switchTo}: {getRouteLabel(otherRoute)}
       </button>
     {/if}
+
+    <div class="settings-section">
+      <h2 class="settings-title">{$t.settings}</h2>
+
+      <label class="toggle-row">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.showNotifications}</span>
+          <span class="toggle-desc">{$t.notificationsDesc}</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.showNotifications ?? true}
+          onclick={() => settingsStore.toggleNotifications()}
+          aria-label="Visa notiser"
+          role="switch"
+          aria-checked={settings.showNotifications ?? true}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
+      <div class="theme-section">
+        <h3 class="theme-title">{$t.theme}</h3>
+        <div class="theme-list">
+          {#each THEMES as palette}
+            {@const activeTheme = settings.theme ?? 'default'}
+            {@const activeVariant = settings.themeVariant ?? 'A'}
+            {@const isActiveA = activeTheme === palette.id && activeVariant === 'A'}
+            {@const isActiveB = activeTheme === palette.id && activeVariant === 'B'}
+            <div class="palette-card">
+              <!-- Left half = variant A -->
+              <button
+                class="palette-half"
+                class:active={isActiveA}
+                style="background:{palette.colorA}"
+                onclick={() => settingsStore.setTheme(palette.id, 'A')}
+                aria-label="{palette.name}, ljus variant"
+                aria-pressed={isActiveA}
+              >
+                <span class="ph-name" style="color:{isLightColor(palette.colorA) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)'}">{palette.name}</span>
+                <span class="ph-dot" style="background:{palette.colorB}; box-shadow: 0 0 0 2px {isLightColor(palette.colorA) ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.25)'}"></span>
+                {#if isActiveA}
+                  <span class="ph-check" style="color:{isLightColor(palette.colorA) ? '#000' : '#fff'}">✓</span>
+                {/if}
+              </button>
+              <!-- Right half = variant B -->
+              <button
+                class="palette-half"
+                class:active={isActiveB}
+                style="background:{palette.colorB}"
+                onclick={() => settingsStore.setTheme(palette.id, 'B')}
+                aria-label="{palette.name}, mörk variant"
+                aria-pressed={isActiveB}
+              >
+                <span class="ph-name" style="color:{isLightColor(palette.colorB) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)'}">{palette.name}</span>
+                <span class="ph-dot" style="background:{palette.colorA}; box-shadow: 0 0 0 2px {isLightColor(palette.colorB) ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.25)'}"></span>
+                {#if isActiveB}
+                  <span class="ph-check" style="color:{isLightColor(palette.colorB) ? '#000' : '#fff'}">✓</span>
+                {/if}
+              </button>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -205,5 +281,154 @@
 .switch-route-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Settings section */
+.settings-section {
+  margin: 0 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toggle-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toggle-btn {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  border: none;
+  background: var(--border);
+  cursor: pointer;
+  transition: background 200ms ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.toggle-btn.on {
+  background: var(--accent);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 200ms ease;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-btn.on .toggle-knob {
+  transform: translateX(18px);
+}
+
+.theme-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.theme-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Single card = two clickable halves side by side */
+.palette-card {
+  display: flex;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 68px;
+}
+
+.palette-half {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: filter 80ms ease;
+  text-align: left;
+}
+
+.palette-half:active {
+  filter: brightness(0.88);
+}
+
+/* Inset glow ring when selected */
+.palette-half.active {
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,0.55), inset 0 0 0 5px rgba(0,0,0,0.15);
+}
+
+.ph-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ph-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ph-check {
+  font-size: 13px;
+  font-weight: 900;
+  flex-shrink: 0;
 }
 </style>

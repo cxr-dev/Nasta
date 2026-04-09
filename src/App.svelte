@@ -4,13 +4,14 @@
   import { departureStore } from './stores/departureStore';
   import { settingsStore } from './stores/settingsStore';
   import { timeOfDay, weatherEmoji, isSunlightMode } from './lib/stores/timeOfDay';
+  import { applyTheme } from './themes';
   import { computeArrivalTime } from './lib/arrivalTime';
   import RouteHeader from './components/RouteHeader.svelte';
   import BottomBar from './components/BottomBar.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
-  import QuirkyMoment from './components/QuirkyMoment.svelte';
   import Onboarding from './components/Onboarding.svelte';
+  import { t } from './stores/localeStore';
 
   let editing = $state(false);
   let updateAvailable = $state(false);
@@ -54,6 +55,10 @@
   let settings = $derived($settingsStore);
   let departures = $state<Map<string, import('./stores/departureStore').Departure[]>>(new Map());
   let arrivalTime = $derived(route ? computeArrivalTime(route, departures) : null);
+
+  $effect(() => {
+    applyTheme($settingsStore.theme ?? 'default', $settingsStore.themeVariant ?? 'A');
+  });
 
   function loadDepartures() {
     if (route && route.segments.length > 0) {
@@ -163,8 +168,8 @@
   >
     {#if updateAvailable}
       <div class="update-banner">
-        <span>Ny version tillgänglig!</span>
-        <button onclick={reloadApp}>Ladda om</button>
+        <span>{$t.updateAvailable}</span>
+        <button onclick={reloadApp}>{$t.reload}</button>
       </div>
     {/if}
 
@@ -186,10 +191,10 @@
               <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
             </svg>
           </div>
-          <h2>Inga rutter ännu</h2>
-          <p>Skapa din första rutt för att se avgångar</p>
+          <h2>{$t.noRoutes}</h2>
+          <p>{$t.noRoutesDesc}</p>
           <button class="empty-cta" onclick={toggleEdit}>
-            <span>Skapa rutt</span>
+            <span>{$t.createRoute}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
             </svg>
@@ -205,10 +210,10 @@
               <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
-          <h2>Inga segment</h2>
-          <p>Lägg till avgångar för att komma igång</p>
+          <h2>{$t.noSegments}</h2>
+          <p>{$t.noSegmentsDesc}</p>
           <button class="empty-cta" onclick={toggleEdit}>
-            <span>Lägg till</span>
+            <span>{$t.add}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
             </svg>
@@ -239,7 +244,7 @@
 {/if}
 
 <footer class="attribution">
-  Transit data via <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
+  {$t.attribution} <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
 </footer>
 
 <style>
@@ -267,6 +272,22 @@
     }
   }
 
+  /* Default theme tokens — overridden at runtime by applyTheme() on :root */
+  :global(:root) {
+    --bg:              #FAFAF9;
+    --surface:         #FFFFFF;
+    --border:          rgba(0,0,0,0.08);
+    --border-subtle:   rgba(0,0,0,0.14);
+    --text:            #171717;
+    --text-secondary:  rgba(0,0,0,0.55);
+    --text-muted:      rgba(0,0,0,0.35);
+    --text-ghost:      rgba(0,0,0,0.13);
+    --accent:          #171717;
+    --accent-subtle:   rgba(23,23,23,0.10);
+    --route-work:      #2563EB;
+    --route-home:      #059669;
+  }
+
   main {
     position: relative;
     max-width: 480px;
@@ -274,19 +295,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-
-    --bg:              #FAFAF9;
-    --surface:         #FFFFFF;
-    --border:          #E5E5E5;
-    --border-subtle:   #D4D4D4;
-    --text:            #171717;
-    --text-secondary:  #525252;
-    --text-muted:      #A3A3A3;
-    --text-ghost:      #D4D4D4;
-    --accent:          #E11D48;
-    --accent-subtle:   #FFE4E6;
-    --route-work:      #2563EB;
-    --route-home:      #059669;
+    touch-action: manipulation;
   }
 
   .scroll-container {

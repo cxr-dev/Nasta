@@ -1,4 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="24" fill="#000"/>
-  <text x="96" y="130" text-anchor="middle" fill="#fff" font-size="100" font-weight="bold">N</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#635BFF"/>
+      <stop offset="1" stop-color="#00E5E5"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="192" height="192" rx="43" fill="url(#bg)"/>
+  <path d="M55 37 L55 155 L79 155 L79 83 L113 155 L137 155 L137 37 L113 37 L113 109 L79 37 Z"
+        fill="#FFFFFF" filter="url(#glow)"/>
 </svg>

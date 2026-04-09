@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/svelte';
-import { afterEach } from 'vitest';
 import BottomBar from './BottomBar.svelte';
+import { locale } from '../stores/localeStore';
 
+beforeEach(() => locale.set('sv'));
 afterEach(cleanup);
 
 describe('BottomBar', () => {
@@ -21,11 +22,11 @@ describe('BottomBar', () => {
     expect(queryByText('Anländer')).toBeNull();
   });
 
-  it('shows "Klar" when editing', () => {
+  it('shows "Spara" when editing', () => {
     const { getByRole } = render(BottomBar, {
       props: { arrivalTime: null, editing: true, onclick: vi.fn(), activeRouteDirection: 'toWork' }
     });
-    expect(getByRole('button').textContent).toBe('Klar');
+    expect(getByRole('button').textContent?.trim()).toBe('Spara');
   });
 
   it('fires onclick when Redigera is clicked', async () => {

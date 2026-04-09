@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../stores/localeStore';
+
   let {
     arrivalTime,
     editing,
@@ -15,7 +17,7 @@
 <div class="bottom-bar">
   {#if arrivalTime && !editing}
     <div class="arrival-info">
-      <span class="arrival-label">Anländer</span>
+      <span class="arrival-label">{$t.arriving}</span>
       <span class="arrival-time">{arrivalTime}</span>
     </div>
   {/if}
@@ -23,19 +25,19 @@
     class="action-btn"
     class:is-editing={editing}
     {onclick}
-    aria-label={editing ? 'Spara ändringar' : 'Redigera rutter'}
+    aria-label={editing ? $t.saveAriaLabel : $t.editAriaLabel}
   >
     {#if editing}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M16.707 3.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 11.586 14.293 5.293a1 1 0 011.414 0z"/>
         <path d="M4 16v2h12v-2"/>
       </svg>
-      <span>Spara</span>
+      <span>{$t.save}</span>
     {:else}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 3h5M12 8h5M12 13h5M7 3l-4 4M7 8l-4 4M7 13l-4 4"/>
       </svg>
-      <span>Redigera</span>
+      <span>{$t.edit}</span>
     {/if}
   </button>
 </div>
@@ -85,12 +87,12 @@
   .action-btn {
     width: 100%;
     padding: 14px 20px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--accent-subtle);
+    border: 1px solid transparent;
     border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: var(--text);
+    color: var(--accent);
     cursor: pointer;
     font-family: inherit;
     display: flex;
@@ -107,17 +109,16 @@
   }
 
   .action-btn:hover {
-    border-color: var(--text-muted);
+    opacity: 0.80;
   }
 
   .action-btn.is-editing {
-    background: #059669;
-    border-color: #059669;
-    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
   }
 
   .action-btn.is-editing:hover {
-    background: #047857;
-    border-color: #047857;
+    opacity: 0.88;
   }
 </style>

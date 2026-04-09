@@ -41,6 +41,20 @@ function createSettingsStore() {
         saveSettings(updated);
         return updated;
       });
+    },
+    toggleNotifications: () => {
+      update(settings => {
+        const updated = { ...settings, showNotifications: !settings.showNotifications };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setTheme: (theme: string, themeVariant: 'A' | 'B') => {
+      update(settings => {
+        const updated = { ...settings, theme, themeVariant };
+        saveSettings(updated);
+        return updated;
+      });
     }
   };
 }

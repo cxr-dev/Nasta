@@ -4,6 +4,7 @@
   import type { SiteSearchResult, Departure } from '../types/departure';
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons, transportLabels } from '../icons/transport';
+  import { t } from '../stores/localeStore';
   
   let { 
     onSelect = (line: string, lineName: string, directionText: string, fromStop: Stop, toStop: Stop, transportType: TransportType) => {}
@@ -127,12 +128,12 @@
       type="text"
       bind:value={query}
       oninput={handleInput}
-      placeholder="Sök hållplats..."
+      placeholder={$t.searchPlaceholder}
       class="search-input"
     />
     
     {#if loading}
-      <div class="msg">Söker...</div>
+      <div class="msg">{$t.searching}</div>
     {:else if stations.length > 0}
       <div class="results">
         {#each stations as station}
@@ -148,19 +149,19 @@
         {/each}
       </div>
     {:else if query.length >= 2}
-      <div class="msg">Inga hållplatser hittades</div>
+      <div class="msg">{$t.noStops}</div>
     {/if}
   {:else}
     <div class="departures-view">
       <button class="back" onmousedown={goBack}>
-        ← Tillbaka
+        {$t.back}
       </button>
       <h3>{selectedStation?.name}</h3>
       
       {#if loadingDeps}
-        <div class="msg">Laddar avgångar...</div>
+        <div class="msg">{$t.loadingDepartures}</div>
       {:else if departures.length === 0}
-        <div class="msg">Inga avgångar hittades</div>
+        <div class="msg">{$t.noDepartures}</div>
       {:else}
         <div class="departures-list">
           {#each departures as dep}
@@ -175,7 +176,7 @@
                 <span class="dep-dest">{dep.destination}</span>
                 <span class="dep-dir">{dep.directionText}</span>
               </div>
-              <div class="dep-select">Välj →</div>
+              <div class="dep-select">{$t.select}</div>
             </button>
           {/each}
         </div>
@@ -321,17 +322,17 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: var(--border);
+    background: var(--accent-subtle);
   }
 
   .transport-icon {
     width: 18px;
     height: 18px;
-    fill: var(--text-secondary);
+    fill: var(--accent);
   }
 
   .transport-icon.boat {
-    fill: #0077B6;
+    fill: var(--accent);
   }
 
   .dep-info {

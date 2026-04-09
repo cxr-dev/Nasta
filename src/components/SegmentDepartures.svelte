@@ -7,8 +7,10 @@
   let { route }: { route: Route } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
+  let now = $state(Date.now());
 
   const UNSUBSCRIBERS: Array<() => void> = [];
+  let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   function getDeparturesForSegment(segment: Segment): Departure[] {
     const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
@@ -22,6 +24,13 @@
     );
   }
 
+  function getLiveMinutes(dep: Departure): number {
+    if (dep.expectedAt !== undefined) {
+      return Math.max(0, Math.floor((dep.expectedAt - now) / 60000));
+    }
+    return dep.minutes;
+  }
+
   function getTransportIcon(type: TransportType): string {
     return transportIcons[type] ?? transportIcons.bus;
   }
@@ -33,7 +42,7 @@
   function formatSubsequent(deps: Departure[]): string | null {
     const subsequent = deps.slice(1, 3).filter(Boolean);
     if (subsequent.length === 0) return null;
-    return subsequent.map(d => `${d.minutes}`).join(' · ');
+    return subsequent.map(d => `${getLiveMinutes(d)}`).join(' · ');
   }
 
   onMount(() => {
@@ -41,10 +50,26 @@
       departureData = data;
     });
     UNSUBSCRIBERS.push(unsub);
+
+    clockTimer = setInterval(() => {
+      now = Date.now();
+      // Trigger immediate refresh if any leading departure has hit 0
+      const segments = route.segments ?? [];
+      const needsRefresh = segments.some(segment => {
+        const deps = getDeparturesForSegment(segment);
+        return deps.length > 0 && deps[0].expectedAt !== undefined && getLiveMinutes(deps[0]) === 0;
+      });
+      if (needsRefresh) {
+        const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
+        const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+        departureStore.refresh(siteIds, stopNames);
+      }
+    }, 1000);
   });
 
   onDestroy(() => {
     UNSUBSCRIBERS.forEach(fn => fn());
+    if (clockTimer) clearInterval(clockTimer);
   });
 </script>
 
@@ -53,8 +78,9 @@
     {@const deps = getDeparturesForSegment(segment)}
     {@const subsequent = formatSubsequent(deps)}
     {@const hasDeparture = deps.length > 0 && deps[0]}
+    {@const liveMinutes = hasDeparture ? getLiveMinutes(deps[0]) : 0}
 
-    <div class="departure-row" style="--delay: {index * 40}ms">
+    <div class="departure-row" style="--delay: {Math.min(index, 3) * 40}ms">
       <div class="row-left">
         <div class="transport-badge" data-type={segment.transportType}>
           <svg viewBox="0 0 24 24" fill="currentColor">
@@ -74,7 +100,7 @@
         {#if hasDeparture}
           <div class="time-stack">
             <div class="primary-time">
-              <span class="minutes">{deps[0].minutes}</span>
+              <span class="minutes">{liveMinutes}</span>
               <span class="unit">min</span>
             </div>
             <div class="secondary-time">
@@ -107,6 +133,7 @@
     border-bottom: 1px solid var(--border);
     animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--delay, 0ms);
+    contain: layout paint style;
   }
 
   @keyframes rowIn {
@@ -143,24 +170,9 @@
     height: 20px;
   }
 
-  .transport-badge[data-type="bus"] {
-    background: #10B981;
-    color: #ffffff;
-  }
-
-  .transport-badge[data-type="metro"] {
-    background: #3B82F6;
-    color: #ffffff;
-  }
-
-  .transport-badge[data-type="train"] {
-    background: #F59E0B;
-    color: #ffffff;
-  }
-
-  .transport-badge[data-type="boat"] {
-    background: #06B6D4;
-    color: #ffffff;
+  .transport-badge {
+    background: var(--accent-subtle);
+    color: var(--accent);
   }
 
   .line-details {
@@ -211,14 +223,15 @@
     font-size: 68px;
     font-weight: 800;
     letter-spacing: -4px;
-    color: var(--text);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
   }
 
   .unit {
     font-size: 16px;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--accent);
+    opacity: 0.5;
     padding-bottom: 10px;
   }
 

@@ -126,6 +126,7 @@ export async function getDepartures(siteId: string): Promise<Departure[]> {
       directionText: dep.direction || '',
       minutes: minutes ?? 0,
       time: formattedTime,
+      expectedAt: dep.expected ? new Date(dep.expected).getTime() : undefined,
       deviation: dep.deviation,
       transportType: getTransportType(dep.line?.transportMode)
     };

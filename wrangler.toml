@@ -1,9 +1,0 @@
-name = "nasta-proxy"
-main = "workers/proxy/index.js"
-compatibility_date = "2024-01-01"
-
-[vars]
-# Optional: default values for local development
-
-# Secrets (set via: wrangler secret put TRAFIKLAB_STOPS_KEY)
-# Secrets (set via: wrangler secret put TRAFIKLAB_REALTIME_KEY)

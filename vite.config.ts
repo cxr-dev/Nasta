@@ -13,24 +13,30 @@ export default defineConfig({
         name: 'Nästa - Commute Dashboard',
         short_name: 'Nästa',
         description: 'Swedish public transit commute tracker',
-        theme_color: '#1a1a2e',
-        background_color: '#1a1a2e',
+        theme_color: '#635BFF',
+        background_color: '#635BFF',
         display: 'standalone',
         orientation: 'portrait',
         start_url: './',
         scope: './',
         icons: [
           {
-            src: './icons/icon-192.svg',
+            src: './icons/icon-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: './icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'any'
           },
           {
             src: './icons/icon-512.svg',
-            sizes: '512x512',
+            sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'any'
+            purpose: 'maskable'
           }
         ]
       },
@@ -41,15 +47,26 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/api\.trafiklab\.se\/.*/i,
+            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/v1\/sites.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'sl-sites-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 86400
+              }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache',
+              cacheName: 'sl-api-cache',
               expiration: {
-                maxEntries: 10,
+                maxEntries: 20,
                 maxAgeSeconds: 60
               },
-              networkTimeoutSeconds: 10
+              networkTimeoutSeconds: 3
             }
           }
         ]

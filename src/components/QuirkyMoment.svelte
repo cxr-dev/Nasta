@@ -12,6 +12,7 @@
   
   let prefersReducedMotion = $state(false);
   let funMode = $derived($settingsStore.funMode ?? true);
+  let notificationsEnabled = $derived($settingsStore.showNotifications ?? true);
   
   let weatherCondition = $derived($timeOfDay.weatherCondition);
   let period = $derived($timeOfDay.period);
@@ -32,15 +33,23 @@
     'Punktligast i stan! 🏆'
   ];
 
+  function notificationDuration(text: string): number {
+    return Math.max(2000, Math.min(6000, text.length * 60));
+  }
+
+  let quirkyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let rareTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   function checkRareEvent() {
-    if (!funMode) return;
+    if (!funMode || !notificationsEnabled) return;
     const random = Math.random();
     if (random < 0.02 && !showRare) {
       showRare = true;
       rareMessage = rareMessages[Math.floor(Math.random() * rareMessages.length)];
-      setTimeout(() => {
+      if (rareTimeoutId) clearTimeout(rareTimeoutId);
+      rareTimeoutId = setTimeout(() => {
         showRare = false;
-      }, 4000);
+      }, notificationDuration(rareMessage));
     }
   }
 
@@ -50,22 +59,27 @@
   }
 
   function shouldShowQuirky(): boolean {
-    if (!funMode) return false;
-    return period === 'morning' || 
-           period === 'evening' || 
+    if (!funMode || !notificationsEnabled) return false;
+    return period === 'morning' ||
+           period === 'evening' ||
            (dayType === 'friday' && hour >= 15 && hour <= 17) ||
            dayType === 'weekend';
   }
 
   onMount(() => {
     prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    
+
     const unsub = timeOfDay.subscribe((state) => {
-      showQuirky = shouldShowQuirky();
-      
-      setTimeout(() => {
+      const shouldShow = shouldShowQuirky();
+      if (shouldShow) {
+        showQuirky = true;
+        if (quirkyTimeoutId) clearTimeout(quirkyTimeoutId);
+        quirkyTimeoutId = setTimeout(() => {
+          showQuirky = false;
+        }, notificationDuration($quirkyMessage));
+      } else {
         showQuirky = false;
-      }, 5000);
+      }
     });
 
     const interval = setInterval(() => {
@@ -75,6 +89,8 @@
     return () => {
       unsub();
       clearInterval(interval);
+      if (quirkyTimeoutId) clearTimeout(quirkyTimeoutId);
+      if (rareTimeoutId) clearTimeout(rareTimeoutId);
     };
   });
 
@@ -92,7 +108,7 @@
 }} />
 
 <div class="quirky-container">
-  {#if showRare && funMode}
+  {#if showRare && funMode && notificationsEnabled}
     <div 
       class="rare-event"
       class:barrel-roll={rareTrain}
@@ -104,7 +120,7 @@
     </div>
   {/if}
 
-  {#if showQuirky && funMode}
+  {#if showQuirky && funMode && notificationsEnabled}
     <div 
       class="quirky-badge"
       in:fly={{ y: -10, duration: prefersReducedMotion ? 0 : 400 }}
@@ -114,7 +130,7 @@
     </div>
   {/if}
 
-  {#if checkConfetti() && funMode && !showConfetti}
+  {#if checkConfetti() && funMode && notificationsEnabled && !showConfetti}
     <button 
       class="confetti-trigger"
       onclick={() => {
@@ -127,7 +143,7 @@
     </button>
   {/if}
 
-  {#if showConfetti && funMode}
+  {#if showConfetti && funMode && notificationsEnabled}
     <div 
       class="confetti-burst"
       in:scale={{ duration: prefersReducedMotion ? 0 : 200, start: 0 }}

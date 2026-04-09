@@ -2,6 +2,7 @@
   import type { Route, Segment, TransportType } from '../types/route';
   import { routeStore } from '../stores/routeStore';
   import { transportIcons } from '../icons/transport';
+  import { t } from '../stores/localeStore';
   
   let { route }: { route: Route } = $props();
   
@@ -78,17 +79,11 @@
     }
   }
 
-  const BADGE_COLORS: Record<TransportType, { bg: string; text: string }> = {
-    metro: { bg: '#EFF3FF', text: '#2563EB' },
-    bus:   { bg: '#F0FDF4', text: '#059669' },
-    train: { bg: '#FFFBEB', text: '#D97706' },
-    boat:  { bg: '#ECFEFF', text: '#0891B2' }
-  };
 </script>
 
 <div class="segment-list">
   {#if !route.segments || route.segments.length === 0}
-    <p class="empty">Lägg till resesegment nedan</p>
+    <p class="empty">{$t.addSegmentHint}</p>
   {:else}
     {#each route.segments as segment, index (segment.id)}
       <div 
@@ -115,10 +110,7 @@
         <div class="segment-info">
           <div class="segment-line">
             {segment.lineName}
-            <span
-              class="seg-badge"
-              style="background: {BADGE_COLORS[segment.transportType]?.bg ?? '#F1F5F9'}; color: {BADGE_COLORS[segment.transportType]?.text ?? '#475569'}"
-            >{getLineBadge(segment.transportType, segment.line)}</span>
+            <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
           </div>
           <div class="segment-route">
             {segment.fromStop.name} → {segment.toStop.name}
@@ -128,7 +120,7 @@
         <button 
           class="remove-btn" 
           onclick={() => removeSegment(segment.id)}
-          aria-label="Ta bort"
+          aria-label={$t.remove}
         >
           ×
         </button>
@@ -191,26 +183,14 @@
     flex-shrink: 0;
   }
 
-  .segment-icon[data-type="bus"] {
-    background: #10B981;
-  }
-
-  .segment-icon[data-type="metro"] {
-    background: #3B82F6;
-  }
-
-  .segment-icon[data-type="train"] {
-    background: #F59E0B;
-  }
-
-  .segment-icon[data-type="boat"] {
-    background: #06B6D4;
+  .segment-icon {
+    background: var(--accent-subtle);
   }
 
   .segment-icon .transport-icon {
     width: 18px;
     height: 18px;
-    fill: #fff;
+    fill: var(--accent);
   }
 
   .segment-info {
@@ -260,5 +240,7 @@
     border-radius: 5px;
     padding: 2px 6px;
     margin-left: 6px;
+    background: var(--accent-subtle);
+    color: var(--accent);
   }
 </style>

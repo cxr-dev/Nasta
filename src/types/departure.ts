@@ -7,6 +7,7 @@ export interface Departure {
   directionText: string;
   minutes: number;
   time: string;
+  expectedAt?: number;
   deviation?: string;
   transportType: TransportType;
 }
