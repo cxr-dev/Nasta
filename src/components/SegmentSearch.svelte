@@ -138,9 +138,9 @@
         {#each stations as station}
           <button class="item" onmousedown={() => selectStation(station)}>
             {#if station.note === 'Sjöstadstrafiken'}
-              <span class="sjostad-badge">🚢 Sjöstadstrafiken</span>
+              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
             {:else}
-              <span class="transport-icon">🚌</span>
+              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.bus}</g></svg>
             {/if}
             <span class="name">{station.name}</span>
             <span class="arrow">→</span>
@@ -166,7 +166,7 @@
           {#each departures as dep}
             <button class="dep-item" onmousedown={() => handleSelect(dep)}>
               <div class="dep-transport">
-                <svg viewBox="0 0 24 24" class="transport-icon" class:boat={dep.transportType === 'boat'}>
+                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
                   {@html transportIcons[dep.transportType]}
                 </svg>
               </div>

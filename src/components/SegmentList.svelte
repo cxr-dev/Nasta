@@ -107,9 +107,9 @@
         ontouchend={handleTouchEnd}
       >
         <div class="drag-handle">⋮⋮</div>
-        <div class="segment-icon" class:to-work={route.direction === 'toWork'} class:from-work={route.direction === 'fromWork'}>
-          <svg viewBox="0 0 24 24" class="transport-icon">
-            <g>{@html getIcon(segment.transportType)}</g>
+        <div class="segment-icon" data-type={segment.transportType}>
+          <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
+            {@html getIcon(segment.transportType)}
           </svg>
         </div>
         <div class="segment-info">
@@ -191,12 +191,20 @@
     flex-shrink: 0;
   }
 
-  .segment-icon.to-work {
-    background: var(--route-work);
+  .segment-icon[data-type="bus"] {
+    background: #10B981;
   }
 
-  .segment-icon.from-work {
-    background: var(--route-home);
+  .segment-icon[data-type="metro"] {
+    background: #3B82F6;
+  }
+
+  .segment-icon[data-type="train"] {
+    background: #F59E0B;
+  }
+
+  .segment-icon[data-type="boat"] {
+    background: #06B6D4;
   }
 
   .segment-icon .transport-icon {
