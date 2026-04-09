@@ -11,3 +11,5 @@ dist/
 .claude/settings.local.json
 docs/superpowers/
 .claude/settings.json
+skills
+skills-lock.json
