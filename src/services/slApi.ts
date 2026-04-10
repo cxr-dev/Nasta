@@ -80,7 +80,7 @@ export async function getDepartures(siteId: string, forecast = 240): Promise<Dep
       time: formattedTime,
       expectedAt: dep.expected ? new Date(dep.expected).getTime() : undefined,
       deviation: dep.deviation,
-      transportType: getTransportType(dep.line?.transportMode),
+      transportType: getTransportType(dep.line?.transport_mode),
       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
       journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
     };
