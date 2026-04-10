@@ -63,7 +63,7 @@
     align-items: baseline;
     justify-content: space-between;
     padding: 12px 16px;
-    background: var(--surface);
+    background: var(--bg);
     border-radius: 8px;
     border: 1px solid var(--border);
   }
