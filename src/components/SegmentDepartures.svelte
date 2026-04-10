@@ -4,11 +4,25 @@
   import { getPredictedDepartures } from '../services/timetableCache';
   import { onMount, onDestroy } from 'svelte';
   import { transportIcons, transportLabels } from '../icons/transport';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+  import DepartureStrip from './DepartureStrip.svelte';
 
   let { route }: { route: Route } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let now = $state(Date.now());
+  let expandedIndex = $state<number | null>(null);
+
+  // Collapse when route changes
+  $effect(() => {
+    route.id;
+    expandedIndex = null;
+  });
+
+  function toggleExpanded(index: number) {
+    expandedIndex = expandedIndex === index ? null : index;
+  }
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -97,18 +111,30 @@
 <div class="departures-list">
   {#each (route.segments ?? []) as segment, index (segment.id)}
     {@const deps = segmentDeps[index] ?? []}
+    {@const departure = deps[0]}
     {@const subsequent = formatSubsequent(deps)}
-    {@const hasDeparture = deps.length > 0 && deps[0]}
-    {@const liveMinutes = hasDeparture ? getLiveMinutes(deps[0]) : 0}
+    {@const hasDeparture = deps.length > 0 && !!departure}
+    {@const liveMinutes = hasDeparture ? getLiveMinutes(departure) : 0}
+    {@const isExpanded = expandedIndex === index}
 
-    <div class="departure-row" style="--delay: {Math.min(index, 3) * 40}ms">
+    <div
+      class="departure-row"
+      class:expandable={hasDeparture}
+      class:expanded={isExpanded}
+      role={hasDeparture ? 'button' : undefined}
+      aria-expanded={hasDeparture ? isExpanded : undefined}
+      tabindex={hasDeparture ? 0 : undefined}
+      onclick={hasDeparture ? () => toggleExpanded(index) : undefined}
+      onkeydown={hasDeparture ? (e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpanded(index); } : undefined}
+      style="--delay: {Math.min(index, 3) * 40}ms"
+    >
       <div class="row-left">
         <div class="transport-badge" data-type={segment.transportType}>
           <svg viewBox="0 0 24 24" fill="currentColor">
             <g>{@html getTransportIcon(segment.transportType)}</g>
           </svg>
         </div>
-        
+
         <div class="line-details">
           <span class="line-info">{segment.lineName || segment.line}</span>
           <span class="stop-route">
@@ -119,7 +145,7 @@
 
       <div class="row-right">
         {#if hasDeparture}
-          {@const isPredicted = deps[0].predicted === true}
+          {@const isPredicted = departure.predicted === true}
           <div class="time-stack" class:predicted={isPredicted}>
             <div class="primary-time">
               {#if isPredicted}<span class="tilde">~</span>{/if}
@@ -127,7 +153,7 @@
               <span class="unit">min</span>
             </div>
             <div class="secondary-time">
-              <span class="clock">{deps[0].time}</span>
+              <span class="clock">{departure.time}</span>
               {#if subsequent}
                 <span class="more">· {subsequent}</span>
               {/if}
@@ -138,6 +164,17 @@
         {/if}
       </div>
     </div>
+
+    <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
+    {#if isExpanded && hasDeparture}
+      <div transition:slide={{ duration: 280, easing: cubicOut }}>
+        <DepartureStrip
+          {departure}
+          {segment}
+          onError={() => { expandedIndex = null; }}
+        />
+      </div>
+    {/if}
   {/each}
 </div>
 
@@ -157,6 +194,21 @@
     animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--delay, 0ms);
     contain: layout paint style;
+  }
+
+  .departure-row.expandable {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 120ms ease;
+  }
+
+  .departure-row.expandable:active {
+    opacity: 0.7;
+  }
+
+  /* Remove bottom border when strip is open below */
+  .departure-row.expanded {
+    border-bottom: none;
   }
 
   @keyframes rowIn {
