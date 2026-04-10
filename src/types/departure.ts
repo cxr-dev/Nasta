@@ -12,6 +12,8 @@ export interface Departure {
   transportType: TransportType;
   /** True when computed from cached timetable rather than confirmed by live API. */
   predicted?: boolean;
+  /** SL journey reference, used to fetch the stop sequence for the progress strip. */
+  journeyRef?: string;
 }
 
 export interface SiteSearchResult {

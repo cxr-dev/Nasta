@@ -63,6 +63,7 @@ export async function getDepartures(siteId: string, forecast = 240): Promise<Dep
   
   const data = await response.json();
   learnFromApiResponse(siteId, data.departures || []);
+
   return (data.departures || []).map((dep: any) => {
     let minutes = dep.timeToDeparture;
     if (minutes === undefined && dep.expected) {
@@ -79,7 +80,9 @@ export async function getDepartures(siteId: string, forecast = 240): Promise<Dep
       time: formattedTime,
       expectedAt: dep.expected ? new Date(dep.expected).getTime() : undefined,
       deviation: dep.deviation,
-      transportType: getTransportType(dep.line?.transportMode)
+      transportType: getTransportType(dep.line?.transportMode),
+      // SL API exposes journey.id — used for vehicle position estimation in the progress strip
+      journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
     };
   });
 }
