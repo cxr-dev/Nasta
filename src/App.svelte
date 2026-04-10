@@ -368,6 +368,7 @@
     display: flex;
     flex-direction: column;
     touch-action: pan-x pan-y; /* allow scroll + swipe; JS handles PTR */
+    background: var(--bg);
   }
 
   .pull-indicator {
@@ -411,6 +412,7 @@
   .scroll-container {
     flex: 1;
     overflow-y: auto;
+    background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding: 4px 20px calc(env(safe-area-inset-bottom) + 140px);
