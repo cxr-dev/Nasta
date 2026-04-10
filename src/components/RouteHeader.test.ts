@@ -34,10 +34,10 @@ describe('RouteHeader', () => {
     expect(onSwitch).toHaveBeenCalledWith('r2');
   });
 
-  it('shows NÄSTA wordmark', () => {
-    const { getByText } = render(RouteHeader, {
+  it('does not show NÄSTA wordmark or clock', () => {
+    const { queryByText } = render(RouteHeader, {
       props: { activeRouteId: 'r1', routes: [toWork, fromWork], onSwitch: vi.fn() }
     });
-    expect(getByText('NÄSTA')).toBeTruthy();
+    expect(queryByText('NÄSTA')).toBeNull();
   });
 });

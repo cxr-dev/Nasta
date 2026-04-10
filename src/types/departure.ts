@@ -10,6 +10,8 @@ export interface Departure {
   expectedAt?: number;
   deviation?: string;
   transportType: TransportType;
+  /** True when computed from cached timetable rather than confirmed by live API. */
+  predicted?: boolean;
 }
 
 export interface SiteSearchResult {

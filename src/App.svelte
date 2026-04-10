@@ -21,21 +21,39 @@
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
+  let scrollContainer = $state<HTMLElement | null>(null);
+
+  // Pull-to-refresh state
+  const PULL_THRESHOLD = 64;
+  const PULL_MAX = 90;
+  let pullDistance = $state(0);
+  let isRefreshing = $state(false);
+  let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
 
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
 
+  // PWA auto-update: reload page when a new service worker takes control.
+  // skipWaiting + clientsClaim in vite.config.ts means a new SW activates
+  // immediately on deploy; controllerchange fires and we reload transparently.
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('updatefound', () => {
-      navigator.serviceWorker.ready.then(registration => {
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                updateAvailable = true;
-              }
-            });
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+
+    // Fallback banner for browsers where controllerchange doesn't fire
+    navigator.serviceWorker.ready.then(registration => {
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        updateAvailable = true;
+      }
+      registration.addEventListener('updatefound', () => {
+        const w = registration.installing;
+        w?.addEventListener('statechange', () => {
+          if (w.state === 'installed' && navigator.serviceWorker.controller) {
+            updateAvailable = true;
           }
         });
       });
@@ -89,17 +107,42 @@
     if (editing) return;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
+    pullTriggered = false;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (editing || isRefreshing) return;
+    const dy = e.touches[0].clientY - swipeStartY;
+    const dx = e.touches[0].clientX - swipeStartX;
+    const atTop = !scrollContainer || scrollContainer.scrollTop === 0;
+    if (atTop && dy > 0 && dy > Math.abs(dx) * 1.2) {
+      pullDistance = Math.min(dy * 0.55, PULL_MAX);
+    } else if (pullDistance > 0) {
+      pullDistance = 0;
+    }
   }
 
   function handleTouchCancel() {
     swipeStartX = 0;
     swipeStartY = 0;
+    pullDistance = 0;
+    pullTriggered = false;
   }
 
-  function handleTouchEnd(e: TouchEvent) {
+  async function handleTouchEnd(e: TouchEvent) {
     if (editing) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
+
+    // Pull-to-refresh takes priority over horizontal swipe
+    if (pullDistance >= PULL_THRESHOLD) {
+      pullTriggered = true;
+      pullDistance = 0;
+      await triggerManualRefresh();
+      return;
+    }
+    pullDistance = 0;
+
     if (Math.abs(dy) > Math.abs(dx)) return;
     if (Math.abs(dx) < 48) return;
 
@@ -113,6 +156,19 @@
     }
     if (!settings.hasSwipedRoutes) {
       settingsStore.markSwiped();
+    }
+  }
+
+  async function triggerManualRefresh() {
+    if (!route?.segments || isRefreshing) return;
+    isRefreshing = true;
+    const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
+    const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+    try {
+      await departureStore.refresh(siteIds, stopNames);
+      lastRefreshTime = Date.now();
+    } finally {
+      isRefreshing = false;
     }
   }
 
@@ -163,6 +219,7 @@
 {:else}
   <main
     ontouchstart={handleTouchStart}
+    ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
     ontouchcancel={handleTouchCancel}
   >
@@ -181,7 +238,22 @@
       />
     {/if}
 
-    <div class="scroll-container">
+    <div
+      class="pull-indicator"
+      class:refreshing={isRefreshing}
+      style="--pull: {pullDistance}px; --progress: {Math.min(pullDistance / PULL_THRESHOLD, 1)}"
+    >
+      {#if isRefreshing}
+        <div class="ptr-spinner"></div>
+      {:else}
+        <svg class="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <polyline points="19 12 12 19 5 12"/>
+        </svg>
+      {/if}
+    </div>
+
+    <div class="scroll-container" bind:this={scrollContainer}>
       {#if hasNoRoutes}
         <div class="empty-state">
           <div class="empty-illustration">
@@ -295,7 +367,45 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    touch-action: manipulation;
+    touch-action: pan-x pan-y; /* allow scroll + swipe; JS handles PTR */
+  }
+
+  .pull-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--pull, 0px);
+    overflow: hidden;
+    transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: height;
+    flex-shrink: 0;
+  }
+
+  .pull-indicator.refreshing {
+    height: 52px;
+    transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .ptr-arrow {
+    width: 22px;
+    height: 22px;
+    color: var(--accent);
+    opacity: var(--progress, 0);
+    transform: rotate(calc(var(--progress, 0) * 180deg));
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+
+  .ptr-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--accent-subtle);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ptr-spin 0.65s linear infinite;
+  }
+
+  @keyframes ptr-spin {
+    to { transform: rotate(360deg); }
   }
 
   .scroll-container {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Route, Segment, TransportType } from '../types/route';
   import { departureStore, type Departure } from '../stores/departureStore';
+  import { getPredictedDepartures } from '../services/timetableCache';
   import { onMount, onDestroy } from 'svelte';
   import { transportIcons, transportLabels } from '../icons/transport';
 
@@ -14,14 +15,28 @@
 
   function getDeparturesForSegment(segment: Segment): Departure[] {
     const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    // For buses, lineName might be empty so match by line number only
-    if (!segment.lineName || segment.lineName.trim() === '') {
-      return allDeps.filter(dep => dep.line === segment.line);
-    }
-    return allDeps.filter(dep =>
-      dep.line === segment.line &&
-      dep.destination === segment.directionText
+    const live = !segment.lineName || segment.lineName.trim() === ''
+      ? allDeps.filter(dep => dep.line === segment.line)
+      : allDeps.filter(dep =>
+          dep.line === segment.line &&
+          dep.directionText === segment.directionText
+        );
+
+    if (live.length >= 3) return live;
+
+    // Supplement sparse/empty live data with cached timetable predictions
+    const predicted = getPredictedDepartures(
+      segment.fromStop.siteId, segment.line, segment.directionText, 3
     );
+    if (!predicted.length) return live;
+
+    // Exclude predictions that duplicate a live departure (same minute bucket)
+    const liveMinutes = new Set(live.map(d => Math.round((d.expectedAt ?? 0) / 60_000)));
+    const fresh = predicted.filter(p => !liveMinutes.has(Math.round(p.expectedAt / 60_000)));
+
+    return [...live, ...fresh]
+      .sort((a, b) => (a.expectedAt ?? 0) - (b.expectedAt ?? 0))
+      .slice(0, 5);
   }
 
   function getLiveMinutes(dep: Departure): number {
@@ -40,9 +55,9 @@
   }
 
   function formatSubsequent(deps: Departure[]): string | null {
-    const subsequent = deps.slice(1, 3).filter(Boolean);
+    const subsequent = deps.slice(1, 3).filter(d => d.time);
     if (subsequent.length === 0) return null;
-    return subsequent.map(d => `${getLiveMinutes(d)}`).join(' · ');
+    return subsequent.map(d => d.time).join(' · ');
   }
 
   // Recomputes only when departureData or route.segments changes — not on every clock tick
@@ -104,8 +119,10 @@
 
       <div class="row-right">
         {#if hasDeparture}
-          <div class="time-stack">
+          {@const isPredicted = deps[0].predicted === true}
+          <div class="time-stack" class:predicted={isPredicted}>
             <div class="primary-time">
+              {#if isPredicted}<span class="tilde">~</span>{/if}
               <span class="minutes">{liveMinutes}</span>
               <span class="unit">min</span>
             </div>
@@ -239,6 +256,24 @@
     color: var(--accent);
     opacity: 0.5;
     padding-bottom: 10px;
+  }
+
+  /* Predicted (timetable) departures are muted — not live-confirmed */
+  .time-stack.predicted .minutes,
+  .time-stack.predicted .unit {
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  .tilde {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    padding-bottom: 12px;
+    margin-right: -4px;
+    letter-spacing: 0;
   }
 
   .secondary-time {

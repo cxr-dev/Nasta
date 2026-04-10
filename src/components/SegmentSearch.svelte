@@ -1,6 +1,7 @@
 <script lang="ts">
   import { searchSites, getDepartures } from '../services/slApi';
   import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
+  import { getKnownRoutes } from '../services/timetableCache';
   import type { SiteSearchResult, Departure } from '../types/departure';
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons, transportLabels } from '../icons/transport';
@@ -79,15 +80,27 @@
       if (station.note === 'Sjöstadstrafiken') {
         departures = getNextDepartures(station.name, 5);
       } else {
-        departures = await getDepartures(station.siteId);
+        departures = await getDepartures(station.siteId, 240);
       }
       const seen = new Set<string>();
       departures = departures.filter(d => {
-        const key = `${d.line}-${d.destination}`;
+        const key = `${d.line}-${d.directionText}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
+
+      // Supplement with routes known from timetable cache (covers overnight / off-peak)
+      const cachedRoutes = getKnownRoutes(station.siteId);
+      for (const route of cachedRoutes) {
+        const key = `${route.line}-${route.directionText}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          departures.push({
+            ...route, lineName: route.lineName, minutes: -1, time: '', predicted: true
+          });
+        }
+      }
     } catch (e) {
       console.error('Failed to load departures:', e);
       departures = [];
@@ -165,7 +178,7 @@
       {:else}
         <div class="departures-list">
           {#each departures as dep}
-            <button class="dep-item" onmousedown={() => handleSelect(dep)}>
+            <button class="dep-item" class:dep-cached={dep.predicted} onmousedown={() => handleSelect(dep)}>
               <div class="dep-transport">
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
                   {@html transportIcons[dep.transportType]}
@@ -176,7 +189,9 @@
                 <span class="dep-dest">{dep.destination}</span>
                 <span class="dep-dir">{dep.directionText}</span>
               </div>
-              <div class="dep-select">{$t.select}</div>
+              <div class="dep-select" class:dep-schedule={dep.predicted}>
+                {dep.predicted ? $t.schedule ?? 'Tidtabell' : $t.select}
+              </div>
             </button>
           {/each}
         </div>
@@ -355,5 +370,15 @@
     color: var(--accent);
     font-size: 14px;
     font-weight: 500;
+  }
+
+  .dep-cached {
+    opacity: 0.7;
+  }
+
+  .dep-schedule {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 400;
   }
 </style>

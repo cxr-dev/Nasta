@@ -37,6 +37,7 @@ const sv = {
   noDepartures: 'Inga avgångar hittades',
   back: '← Tillbaka',
   select: 'Välj →',
+  schedule: 'Tidtabell',
 
   // App empty states
   noRoutes: 'Inga rutter ännu',
@@ -86,6 +87,7 @@ const en: typeof sv = {
   noDepartures: 'No departures found',
   back: '← Back',
   select: 'Select →',
+  schedule: 'Timetable',
 
   noRoutes: 'No routes yet',
   noRoutesDesc: 'Create your first route to see departures',

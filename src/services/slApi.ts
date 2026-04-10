@@ -1,5 +1,6 @@
 import type { Departure, SiteSearchResult } from '../types/departure';
 import type { TransportType } from '../types/route';
+import { learnFromApiResponse } from './timetableCache';
 
 const TRANSPORT_URL = 'https://transport.integration.sl.se/v1';
 
@@ -56,11 +57,12 @@ export async function searchSites(query: string): Promise<SiteSearchResult[]> {
   return rankByRelevance(stations, query);
 }
 
-export async function getDepartures(siteId: string): Promise<Departure[]> {
-  const response = await fetch(`${TRANSPORT_URL}/sites/${siteId}/departures`);
+export async function getDepartures(siteId: string, forecast = 240): Promise<Departure[]> {
+  const response = await fetch(`${TRANSPORT_URL}/sites/${siteId}/departures?forecast=${forecast}`);
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   
   const data = await response.json();
+  learnFromApiResponse(siteId, data.departures || []);
   return (data.departures || []).map((dep: any) => {
     let minutes = dep.timeToDeparture;
     if (minutes === undefined && dep.expected) {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import type { Route } from '../types/route';
   import { settingsStore } from '../stores/settingsStore';
   import { t } from '../stores/localeStore';
@@ -13,9 +12,6 @@
     routes: Route[];
     onSwitch: (routeId: string) => void;
   } = $props();
-
-  let currentTime = $state('');
-  let timeInterval: ReturnType<typeof setInterval>;
 
   let settings = $derived($settingsStore);
   let activeRoute = $derived(routes.find(r => r.id === activeRouteId));
@@ -35,24 +31,9 @@
     }
   }
 
-  function updateTime() {
-    const now = new Date();
-    currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  }
-
-  onMount(() => {
-    updateTime();
-    timeInterval = setInterval(updateTime, 10000);
-    return () => clearInterval(timeInterval);
-  });
 </script>
 
 <header class="route-header">
-  <div class="header-top">
-    <span class="wordmark">NÄSTA</span>
-    <span class="clock">{currentTime}</span>
-  </div>
-
   <div class="route-block">
     <h1 class="route-name">{getLabel(activeRoute)}</h1>
 
@@ -81,30 +62,6 @@
     padding-top: calc(14px + env(safe-area-inset-top));
     background: var(--bg);
     position: relative;
-  }
-
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-  }
-
-  .wordmark {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.22em;
-    color: var(--text-ghost);
-  }
-
-  .clock {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
   }
 
   .route-block {
