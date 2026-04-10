@@ -1,19 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#635BFF"/>
-      <stop offset="1" stop-color="#00E5E5"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
-  <!-- Train body -->
-  <rect x="96" y="120" width="320" height="280" rx="40" fill="white" fill-opacity="0.95"/>
-  <!-- Windshield — gradient shows through -->
-  <rect x="136" y="160" width="240" height="90" rx="12" fill="url(#bg)"/>
-  <!-- Left headlight -->
-  <circle cx="176" cy="316" r="32" fill="url(#bg)"/>
-  <!-- Right headlight -->
-  <circle cx="336" cy="316" r="32" fill="url(#bg)"/>
-  <!-- Buffer bar -->
-  <rect x="116" y="368" width="280" height="18" rx="9" fill="url(#bg)"/>
+  <!-- Background: deep midnight -->
+  <rect width="512" height="512" fill="#0A0B1A"/>
+
+  <!-- Amber gold border frame (16px = 1 pixel on 32×32 grid) -->
+  <rect x="0"   y="0"   width="512" height="16"  fill="#FFBE0B"/>
+  <rect x="0"   y="496" width="512" height="16"  fill="#FFBE0B"/>
+  <rect x="0"   y="0"   width="16"  height="512" fill="#FFBE0B"/>
+  <rect x="496" y="0"   width="16"  height="512" fill="#FFBE0B"/>
+
+  <!--
+    N letterform — 5×7 pixel grid, 40px per block
+    Centered: x_start=156, y_start=116
+    Columns: col0=156, col1=196, col2=236, col3=276, col4=316
+    Rows:    row0=116, row1=156, row2=196, row3=236, row4=276, row5=316, row6=356
+
+    Left column  (red   #E63946): rows 0–6 at col0
+    Diagonal     (amber #FFBE0B): col1 rows 1–2, col2 row 3, col3 rows 4–5
+    Right column (blue  #3A86FF): rows 0–6 at col4
+  -->
+
+  <!-- Left column — red -->
+  <rect x="156" y="116" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="156" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="196" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="236" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="276" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="316" width="40" height="40" fill="#E63946"/>
+  <rect x="156" y="356" width="40" height="40" fill="#E63946"/>
+
+  <!-- Diagonal — amber gold -->
+  <rect x="196" y="156" width="40" height="40" fill="#FFBE0B"/>
+  <rect x="196" y="196" width="40" height="40" fill="#FFBE0B"/>
+  <rect x="236" y="236" width="40" height="40" fill="#FFBE0B"/>
+  <rect x="276" y="276" width="40" height="40" fill="#FFBE0B"/>
+  <rect x="276" y="316" width="40" height="40" fill="#FFBE0B"/>
+
+  <!-- Right column — blue -->
+  <rect x="316" y="116" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="156" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="196" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="236" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="276" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="316" width="40" height="40" fill="#3A86FF"/>
+  <rect x="316" y="356" width="40" height="40" fill="#3A86FF"/>
 </svg>

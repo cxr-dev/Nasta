@@ -4,8 +4,8 @@
   "description": "Swedish public transit commute tracker",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#635BFF",
-  "theme_color": "#635BFF",
+  "background_color": "#0A0B1A",
+  "theme_color": "#0A0B1A",
   "orientation": "portrait",
   "icons": [
     {
