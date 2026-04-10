@@ -212,7 +212,7 @@
     font-family: inherit;
     border: 1.5px solid var(--border);
     border-radius: 12px;
-    background: var(--surface);
+    background: var(--bg);
     color: var(--text);
     outline: none;
   }
@@ -228,7 +228,7 @@
   }
 
   .results {
-    background: var(--surface);
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     margin-top: 4px;
@@ -277,7 +277,7 @@
   }
 
   .departures-view {
-    background: var(--surface);
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
