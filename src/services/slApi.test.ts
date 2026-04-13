@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { searchSites, getDepartures } from './slApi';
 
 (globalThis as any).fetch = vi.fn();
@@ -9,6 +9,10 @@ describe('slApi service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('searchSites', () => {
@@ -56,6 +60,26 @@ describe('slApi service', () => {
       const result = await getDepartures('9001');
       expect(result).toHaveLength(1);
       expect(result[0].line).toBe('76');
+      expect(result[0].time).toBe('08:04');
+    });
+
+    it('falls back to scheduled time when expected is absent', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-01-01T08:00:30'));
+
+      const mockDepartures = {
+        departures: [
+          { line: { designation: '76' }, destination: 'Test', scheduled: '2024-01-01T08:04:00' }
+        ]
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures
+      });
+
+      const result = await getDepartures('9001');
+      expect(result[0].time).toBe('08:04');
+      expect(result[0].minutes).toBe(3);
     });
 
     it('throws on API error', async () => {

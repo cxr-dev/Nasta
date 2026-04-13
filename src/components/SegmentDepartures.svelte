@@ -2,6 +2,7 @@
   import type { Route, Segment, TransportType } from '../types/route';
   import { departureStore, type Departure } from '../stores/departureStore';
   import { getPredictedDepartures } from '../services/timetableCache';
+  import { getLiveMinutes, mergeDeparturesWithPredictions } from '../lib/departureDisplay';
   import { onMount, onDestroy } from 'svelte';
   import { transportIcons, transportLabels } from '../icons/transport';
   import { slide } from 'svelte/transition';
@@ -44,20 +45,7 @@
     );
     if (!predicted.length) return live;
 
-    // Exclude predictions that duplicate a live departure (same minute bucket)
-    const liveMinutes = new Set(live.map(d => Math.round((d.expectedAt ?? 0) / 60_000)));
-    const fresh = predicted.filter(p => !liveMinutes.has(Math.round(p.expectedAt / 60_000)));
-
-    return [...live, ...fresh]
-      .sort((a, b) => (a.expectedAt ?? 0) - (b.expectedAt ?? 0))
-      .slice(0, 5);
-  }
-
-  function getLiveMinutes(dep: Departure): number {
-    if (dep.expectedAt !== undefined) {
-      return Math.max(0, Math.floor((dep.expectedAt - now) / 60000));
-    }
-    return dep.minutes;
+    return mergeDeparturesWithPredictions(live, predicted, 5);
   }
 
   function getTransportIcon(type: TransportType): string {
@@ -114,7 +102,7 @@
     {@const departure = deps[0]}
     {@const subsequent = formatSubsequent(deps)}
     {@const hasDeparture = deps.length > 0 && !!departure}
-    {@const liveMinutes = hasDeparture ? getLiveMinutes(departure) : 0}
+    {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
     {@const isExpanded = expandedIndex === index}
 
     <div

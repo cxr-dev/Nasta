@@ -66,11 +66,11 @@ export async function getDepartures(siteId: string, forecast = 240): Promise<Dep
 
   return (data.departures || []).map((dep: any) => {
     let minutes = dep.timeToDeparture;
-    if (minutes === undefined && dep.expected) {
-      minutes = Math.max(0, Math.floor((new Date(dep.expected).getTime() - Date.now()) / 60000));
+    const liveTime = dep.expected || dep.scheduled || '';
+    if (minutes === undefined && liveTime) {
+      minutes = Math.max(0, Math.floor((new Date(liveTime).getTime() - Date.now()) / 60000));
     }
-    const scheduledTime = dep.scheduled || dep.expected || '';
-    const formattedTime = scheduledTime ? formatTime(new Date(scheduledTime)) : '';
+    const formattedTime = liveTime ? formatTime(new Date(liveTime)) : '';
     return {
       line: dep.line?.designation || dep.line?.name || '',
       lineName: dep.line?.name || '',
