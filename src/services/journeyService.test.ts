@@ -3,8 +3,20 @@ import {
   estimateVehicleStopIndex,
   toStockholmDateString,
   buildSynthesisedStops,
+  fetchJourneyStops,
 } from './journeyService';
 import type { JourneyStop } from './journeyService';
+import type { Segment } from '../types/route';
+import type { Departure } from '../types/departure';
+import { vi, beforeEach, afterEach } from 'vitest';
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('toStockholmDateString', () => {
   it('returns YYYY-MM-DD format', () => {
@@ -72,5 +84,63 @@ describe('buildSynthesisedStops', () => {
   it('assigns sequential idx values starting from 0', () => {
     const stops = buildSynthesisedStops('A', 'site1');
     stops.forEach((s, i) => expect(s.idx).toBe(i));
+  });
+});
+
+describe('fetchJourneyStops', () => {
+  const segment: Segment = {
+    id: 'seg-1',
+    line: '76',
+    lineName: '76',
+    directionText: 'Norra Hammarbyhamnen',
+    fromStop: { id: 'from', name: 'Lindarängsvägen', siteId: '100' },
+    toStop: { id: 'to', name: 'Norra Hammarbyhamnen', siteId: '300' },
+    transportType: 'bus'
+  };
+
+  const departure: Departure = {
+    line: '76',
+    lineName: '76',
+    destination: 'Norra Hammarbyhamnen',
+    directionText: 'Norra Hammarbyhamnen',
+    minutes: 4,
+    time: '16:30',
+    transportType: 'bus',
+    journeyRef: 'journey-1'
+  };
+
+  it('reverses fetched stops when they are oriented opposite to the saved segment', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stops: [
+          { name: 'Norra Hammarbyhamnen', stop: { id: '300', name: 'Norra Hammarbyhamnen' } },
+          { name: 'Somewhere', stop: { id: '200', name: 'Somewhere' } },
+          { name: 'Lindarängsvägen', stop: { id: '100', name: 'Lindarängsvägen' } }
+        ]
+      })
+    }));
+
+    const data = await fetchJourneyStops('journey-reversed', segment, { ...departure, journeyRef: 'journey-reversed' });
+    expect(data.isEstimated).toBe(false);
+    expect(data.stops[0].name).toBe('Lindarängsvägen');
+    expect(data.destination).toBe('Norra Hammarbyhamnen');
+    expect(data.pickupStopIndex).toBe(0);
+  });
+
+  it('falls back to synthesised stops when the pickup stop is missing from API data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stops: [
+          { name: 'Elsewhere', stop: { id: '999', name: 'Elsewhere' } }
+        ]
+      })
+    }));
+
+    const data = await fetchJourneyStops('journey-missing-stop', segment, { ...departure, journeyRef: 'journey-missing-stop' });
+    expect(data.isEstimated).toBe(true);
+    expect(data.pickupStopIndex).toBe(3);
+    expect(data.stops[3].name).toBe('Lindarängsvägen');
   });
 });

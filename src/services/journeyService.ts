@@ -15,6 +15,7 @@ export interface JourneyData {
   stops: JourneyStop[];
   isEstimated: boolean; // true = synthesised fallback, not real API data
   destination: string;  // right-end terminus label
+  pickupStopIndex?: number;
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ function synthesised(segment: Segment, departure: Departure): JourneyData {
     stops: buildSynthesisedStops(segment.fromStop.name, segment.fromStop.siteId),
     isEstimated: true,
     destination: departure.destination,
+    pickupStopIndex: 3,
   };
 }
 
@@ -138,6 +140,50 @@ async function fetchFromApi(journeyRef: string): Promise<JourneyStop[] | null> {
   }
 }
 
+function stopMatches(stop: JourneyStop, target: { siteId: string; name: string }): boolean {
+  return stop.siteId === target.siteId || (stop.name !== '' && stop.name === target.name);
+}
+
+function findStopIndex(stops: JourneyStop[], target: { siteId: string; name: string }): number {
+  return stops.findIndex(stop => stopMatches(stop, target));
+}
+
+function normaliseJourneyStops(stops: JourneyStop[], segment: Segment): JourneyData | null {
+  if (!stops.length) return null;
+
+  const pickupIdx = findStopIndex(stops, segment.fromStop);
+  if (pickupIdx < 0) return null;
+
+  const dropoffIdx = findStopIndex(stops, segment.toStop);
+
+  let oriented = stops;
+  let orientedPickupIdx = pickupIdx;
+  let orientedDropoffIdx = dropoffIdx;
+
+  // If the selected segment's pickup appears after its dropoff in the fetched pattern,
+  // the data is oriented opposite to the saved segment. Reverse so the strip matches the chosen ride direction.
+  if (dropoffIdx >= 0 && pickupIdx > dropoffIdx) {
+    oriented = [...stops].reverse().map((stop, idx) => ({
+      ...stop,
+      idx,
+    }));
+    orientedPickupIdx = oriented.length - 1 - pickupIdx;
+    orientedDropoffIdx = oriented.length - 1 - dropoffIdx;
+  }
+
+  const destination =
+    orientedDropoffIdx >= 0
+      ? oriented[orientedDropoffIdx].name
+      : segment.directionText || segment.toStop.name;
+
+  return {
+    stops: oriented,
+    isEstimated: false,
+    destination,
+    pickupStopIndex: orientedPickupIdx,
+  };
+}
+
 /**
  * Returns journey stop data for a departure.
  * Falls back to a synthesised 5-stop sequence on any failure or missing journeyRef.
@@ -160,7 +206,7 @@ export async function fetchJourneyStops(
   } else {
     const stops = await fetchFromApi(journeyRef);
     if (stops && stops.length > 0) {
-      data = { stops, isEstimated: false, destination: departure.destination };
+      data = normaliseJourneyStops(stops, segment) ?? synthesised(segment, departure);
     } else {
       data = synthesised(segment, departure);
     }

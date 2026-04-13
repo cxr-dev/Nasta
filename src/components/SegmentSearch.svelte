@@ -258,15 +258,6 @@
     color: var(--accent);
   }
 
-  .sjostad-badge {
-    font-size: 11px;
-    background: #0077B6;
-    color: #fff;
-    padding: 2px 6px;
-    border-radius: 8px;
-    margin-right: 8px;
-  }
-
   .item .transport-icon {
     font-size: 16px;
     margin-right: 8px;

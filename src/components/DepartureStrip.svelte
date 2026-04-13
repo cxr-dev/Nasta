@@ -21,7 +21,7 @@
   let ticker: ReturnType<typeof setInterval> | null = null;
   let stripEl = $state<HTMLElement | null>(null);
 
-  const MAX_VISIBLE = 12;
+  const MAX_VISIBLE = 8;
 
   function expectedMs(): number {
     return departure.expectedAt ?? (Date.now() + departure.minutes * 60_000);
@@ -31,15 +31,20 @@
     vehicleIdx = estimateVehicleStopIndex(data.stops, expectedMs(), Date.now());
   }
 
-  function visibleStops(stops: JourneyStop[]): JourneyStop[] {
+  function pickupIndex(data: JourneyData): number {
+    if (data.pickupStopIndex !== undefined) return data.pickupStopIndex;
+    return data.stops.findIndex(isYourStop);
+  }
+
+  function visibleStops(data: JourneyData): JourneyStop[] {
+    const stops = data.stops;
     if (stops.length <= MAX_VISIBLE) return stops;
-    const ourIdx = stops.findIndex(s =>
-      s.siteId === segment.fromStop.siteId || s.name === segment.fromStop.name
-    );
-    const centre = ourIdx >= 0 ? Math.floor((vehicleIdx + ourIdx) / 2) : vehicleIdx;
-    const half = Math.floor(MAX_VISIBLE / 2);
-    const start = Math.max(0, Math.min(centre - half, stops.length - MAX_VISIBLE));
-    return stops.slice(start, start + MAX_VISIBLE);
+
+    const pickupIdx = pickupIndex(data);
+    const start = Math.max(0, Math.min(vehicleIdx, pickupIdx >= 0 ? pickupIdx : vehicleIdx));
+    const minEnd = pickupIdx >= 0 ? pickupIdx + 1 : start + 1;
+    const end = Math.max(minEnd, Math.min(stops.length, start + MAX_VISIBLE));
+    return stops.slice(start, end);
   }
 
   function isYourStop(stop: JourneyStop): boolean {
@@ -52,6 +57,31 @@
     if (isYourStop(stop)) return 'your-stop';
     if (origIdx < vehicleIdx) return 'passed';
     return 'upcoming';
+  }
+
+  function currentStopName(data: JourneyData): string {
+    return data.stops[vehicleIdx]?.name || 'okänd hållplats';
+  }
+
+  function stopsUntilPickup(data: JourneyData): number | null {
+    const idx = pickupIndex(data);
+    if (idx < 0) return null;
+    return Math.max(0, idx - vehicleIdx);
+  }
+
+  function progressText(data: JourneyData): string {
+    const remaining = stopsUntilPickup(data);
+    if (remaining === null) return `Mot ${segment.fromStop.name}`;
+    if (remaining === 0) return `Nu vid ${segment.fromStop.name}`;
+    if (remaining === 1) return `1 hållplats kvar till ${segment.fromStop.name}`;
+    return `${remaining} hållplatser kvar till ${segment.fromStop.name}`;
+  }
+
+  function vehicleContextText(data: JourneyData): string {
+    const current = currentStopName(data);
+    if (!current) return '';
+    if (isYourStop(data.stops[vehicleIdx])) return `Fordonet är vid din hållplats`;
+    return `Fordonet är vid ${current}`;
   }
 
   function formatArrival(): string {
@@ -92,8 +122,13 @@
     <div class="skeleton-track"></div>
   </div>
 {:else if journeyData}
-  {@const visible = visibleStops(journeyData.stops)}
+  {@const visible = visibleStops(journeyData)}
   <div class="strip" role="region" aria-label="Fordonsposition" bind:this={stripEl}>
+    <div class="strip-summary">
+      <div class="summary-primary">{progressText(journeyData)}</div>
+      <div class="summary-secondary">{vehicleContextText(journeyData)}</div>
+    </div>
+
     <div class="track-scroll">
       <div class="track-row">
         {#each visible as stop, i}
@@ -110,7 +145,7 @@
             {:else}
               <div class="dot"></div>
             {/if}
-            {#if state === 'your-stop' || state === 'vehicle'}
+            {#if stop.name}
               <span class="stop-label">{stop.name}</span>
             {/if}
           </div>
@@ -148,6 +183,24 @@
     border-top: 1px solid var(--border);
   }
 
+  .strip-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+  }
+
+  .summary-primary {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .summary-secondary {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
   /* ── Track ───────────────────────────────────── */
   .track-scroll {
     overflow-x: auto;
@@ -160,7 +213,7 @@
     display: flex;
     align-items: center;
     min-width: max-content;
-    padding: 18px 0 28px;
+    padding: 18px 0 34px;
   }
 
   .segment-line {
@@ -231,17 +284,18 @@
   .stop-label {
     position: absolute;
     top: calc(100% + 5px);
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
     white-space: nowrap;
     text-align: center;
     transform: translateX(-50%);
     left: 50%;
-    max-width: 68px;
+    max-width: 88px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .stop-vehicle .stop-label,
   .stop-your-stop .stop-label {
     color: var(--text);
     font-weight: 600;

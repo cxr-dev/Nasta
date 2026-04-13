@@ -80,7 +80,7 @@
       const segments = route.segments ?? [];
       const needsRefresh = segments.some((segment, i) => {
         const deps = segmentDeps[i] ?? [];
-        return deps.length > 0 && deps[0].expectedAt !== undefined && getLiveMinutes(deps[0]) === 0;
+        return deps.length > 0 && deps[0].expectedAt !== undefined && getLiveMinutes(deps[0], now) === 0;
       });
       if (needsRefresh) {
         const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
@@ -105,15 +105,14 @@
     {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
     {@const isExpanded = expandedIndex === index}
 
-    <div
+    {#if hasDeparture}
+    <button
       class="departure-row"
       class:expandable={hasDeparture}
       class:expanded={isExpanded}
-      role={hasDeparture ? 'button' : undefined}
-      aria-expanded={hasDeparture ? isExpanded : undefined}
-      tabindex={hasDeparture ? 0 : undefined}
-      onclick={hasDeparture ? () => toggleExpanded(index) : undefined}
-      onkeydown={hasDeparture ? (e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpanded(index); } : undefined}
+      type="button"
+      aria-expanded={isExpanded}
+      onclick={() => toggleExpanded(index)}
       style="--delay: {Math.min(index, 3) * 40}ms"
     >
       <div class="row-left">
@@ -132,26 +131,46 @@
       </div>
 
       <div class="row-right">
-        {#if hasDeparture}
-          {@const isPredicted = departure.predicted === true}
-          <div class="time-stack" class:predicted={isPredicted}>
-            <div class="primary-time">
-              {#if isPredicted}<span class="tilde">~</span>{/if}
-              <span class="minutes">{liveMinutes}</span>
-              <span class="unit">min</span>
-            </div>
-            <div class="secondary-time">
-              <span class="clock">{departure.time}</span>
-              {#if subsequent}
-                <span class="more">· {subsequent}</span>
-              {/if}
-            </div>
+        <div class="time-stack" class:predicted={departure.predicted === true}>
+          <div class="primary-time">
+            {#if departure.predicted === true}<span class="tilde">~</span>{/if}
+            <span class="minutes">{liveMinutes}</span>
+            <span class="unit">min</span>
           </div>
-        {:else}
-          <div class="no-departure">—</div>
-        {/if}
+          <div class="secondary-time">
+            <span class="clock">{departure.time}</span>
+            {#if subsequent}
+              <span class="more">· {subsequent}</span>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </button>
+    {:else}
+    <div
+      class="departure-row"
+      style="--delay: {Math.min(index, 3) * 40}ms"
+    >
+      <div class="row-left">
+        <div class="transport-badge" data-type={segment.transportType}>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <g>{@html getTransportIcon(segment.transportType)}</g>
+          </svg>
+        </div>
+
+        <div class="line-details">
+          <span class="line-info">{segment.lineName || segment.line}</span>
+          <span class="stop-route">
+            {segment.fromStop.name} → {segment.directionText}
+          </span>
+        </div>
+      </div>
+
+      <div class="row-right">
+        <div class="no-departure">—</div>
       </div>
     </div>
+    {/if}
 
     <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
     {#if isExpanded && hasDeparture}
@@ -182,6 +201,12 @@
     animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--delay, 0ms);
     contain: layout paint style;
+    width: 100%;
+    background: transparent;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    text-align: left;
   }
 
   .departure-row.expandable {
