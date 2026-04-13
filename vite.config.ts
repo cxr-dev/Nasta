@@ -8,7 +8,7 @@ export default defineConfig({
     svelte(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'robots.txt'],
+      includeAssets: ['logosvg.svg', 'apple-touch-icon.png', 'robots.txt'],
       manifest: {
         name: 'Nästa - Commute Dashboard',
         short_name: 'Nästa',
@@ -21,6 +21,12 @@ export default defineConfig({
         scope: './',
         icons: [
           {
+            src: './logosvg.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any'
+          },
+          {
             src: './icons/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
@@ -30,12 +36,6 @@ export default defineConfig({
             src: './icons/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: './icons/icon-512.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
             purpose: 'maskable'
           }
         ]
