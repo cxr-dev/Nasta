@@ -53,11 +53,12 @@ function rankByRelevance(
     .map(({ s }) => s);
 }
 
-export async function searchSites(query: string): Promise<SiteSearchResult[]> {
+export async function searchSites(query: string, signal?: AbortSignal): Promise<SiteSearchResult[]> {
   if (!query || query.length < 2) return [];
 
   const response = await fetch(
     `${TRANSPORT_URL}/sites?expand=true&query=${encodeURIComponent(query)}`,
+    { signal }
   );
   if (!response.ok) throw new Error(`API error: ${response.status}`);
 

@@ -109,7 +109,7 @@
         
         // Save to cache
         if (searchCache.size >= MAX_CACHE_SIZE) {
-          searchCache.delete(searchCache.keys().next().value);
+          searchCache.delete(searchCache.keys().next().value!);
         }
         searchCache.set(cacheKey, { result, timestamp: Date.now() });
         

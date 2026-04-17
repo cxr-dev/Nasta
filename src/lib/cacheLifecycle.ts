@@ -137,7 +137,7 @@ export function getCacheHealth(): {
 
   return {
     entries: stats.entries,
-    routes: stats.routes,
+    routes: stats.routes.length,
     sizeKb: Math.round(sizeKb),
     healthPercent: Math.min(healthPercent, 100),
   };
