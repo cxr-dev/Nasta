@@ -27,19 +27,63 @@
   let loadingDeps = $state(false);
   let step = $state<'search' | 'select'>('search');
   let debounceTimer: ReturnType<typeof setTimeout>;
+  let abortController: AbortController | null = null;
+  
+  // LRU Search Cache
+  const searchCache = new Map<string, { result: SiteSearchResult[], timestamp: number }>();
+  const CACHE_TTL = 60000;
+  const MAX_CACHE_SIZE = 50;
   
   async function handleInput() {
     clearTimeout(debounceTimer);
+    abortController?.abort();
     
     if (query.length < 2) {
       stations = [];
       return;
     }
     
+    // Check cache first
+    const cacheKey = query.toLowerCase().trim();
+    const cached = searchCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      stations = cached.result;
+      return;
+    }
+    
     debounceTimer = setTimeout(async () => {
+      abortController = new AbortController();
+      
+      // Minimum loading delay to prevent flash
+      const minLoadDelay = new Promise(resolve => setTimeout(resolve, 80));
+      
       loading = true;
       try {
-        stations = await searchSites(query);
+        const [result] = await Promise.all([
+          searchSites(query, abortController.signal),
+          minLoadDelay
+        ]);
+        
+        // Smart ranking & sorting
+        const normalizedQuery = cacheKey;
+        result.sort((a, b) => {
+          const nameA = a.name.toLowerCase();
+          const nameB = b.name.toLowerCase();
+          
+          // Exact match first
+          if (nameA === normalizedQuery) return -1;
+          if (nameB === normalizedQuery) return 1;
+          
+          // Starts with query
+          if (nameA.startsWith(normalizedQuery)) return -1;
+          if (nameB.startsWith(normalizedQuery)) return 1;
+          
+          // Contains query
+          if (nameA.includes(normalizedQuery)) return -1;
+          if (nameB.includes(normalizedQuery)) return 1;
+          
+          return 0;
+        });
         
         if (isSjostadstrafikenStop(query)) {
           const staticStopKeys: Record<string, string> = {
@@ -59,16 +103,26 @@
               type: 'stop',
               note: 'Sjöstadstrafiken'
             };
-            stations = [sjostadStation, ...stations];
+            result.unshift(sjostadStation);
           }
         }
+        
+        // Save to cache
+        if (searchCache.size >= MAX_CACHE_SIZE) {
+          searchCache.delete(searchCache.keys().next().value);
+        }
+        searchCache.set(cacheKey, { result, timestamp: Date.now() });
+        
+        stations = result;
       } catch (e) {
-        console.error('Search failed:', e);
-        stations = [];
+        if ((e as Error).name !== 'AbortError') {
+          console.error('Search failed:', e);
+          stations = [];
+        }
       } finally {
         loading = false;
       }
-    }, 200);
+    }, 60);
   }
   
   async function selectStation(station: SiteSearchResult) {
@@ -109,26 +163,13 @@
     }
   }
   
-   async function handleSelect(departure: Departure) {
-     // Get real siteId for destination using searchSites
-     let destinationSiteId = 'dest-' + departure.destination; // fallback
-     try {
-       const destinations = await searchSites(departure.destination);
-       if (destinations.length > 0) {
-         // Use the first matching site's siteId
-         destinationSiteId = destinations[0].siteId;
-       }
-     } catch (e) {
-       console.error('Failed to search for destination:', e);
-       // Keep fallback siteId
-     }
-     
+   function handleSelect(departure: Departure) {
      onSelect(
        departure.line,
        departure.lineName,
        departure.directionText,
        { id: crypto.randomUUID(), name: selectedStation!.name, siteId: selectedStation!.siteId },
-       { id: crypto.randomUUID(), name: departure.destination, siteId: destinationSiteId },
+       { id: crypto.randomUUID(), name: departure.destination, siteId: '' },
        departure.transportType
      );
      reset();
@@ -150,20 +191,26 @@
 
 <div class="segment-search">
   {#if step === 'search'}
-    <input
-      type="text"
-      bind:value={query}
-      oninput={handleInput}
-      placeholder={$t.searchPlaceholder}
-      class="search-input"
-    />
+     <input
+       type="text"
+       bind:value={query}
+       oninput={handleInput}
+       placeholder={$t.searchPlaceholder}
+       class="search-input"
+       inputmode="search"
+       enterkeyhint="search"
+       autocomplete="off"
+       autocorrect="off"
+       autocapitalize="off"
+       spellcheck="false"
+     />
     
     {#if loading}
       <div class="msg">{$t.searching}</div>
     {:else if stations.length > 0}
       <div class="results">
         {#each stations as station}
-          <button class="item" onmousedown={() => selectStation(station)}>
+           <button class="item" onmousedown={() => selectStation(station)}>
             {#if station.note === 'Sjöstadstrafiken'}
               <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
             {:else}
@@ -221,6 +268,7 @@
   .search-input {
     width: 100%;
     padding: 12px 14px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     font-size: 16px;
     font-family: inherit;
     border: 1.5px solid var(--border);
@@ -228,6 +276,7 @@
     background: var(--bg);
     color: var(--text);
     outline: none;
+    touch-action: manipulation;
   }
 
   .search-input:focus {
@@ -254,6 +303,7 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
+    min-height: 48px;
     padding: 12px 16px;
     background: transparent;
     border: none;
@@ -261,10 +311,21 @@
     cursor: pointer;
     text-align: left;
     font-size: 15px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: background 150ms cubic-bezier(0.2, 0, 0, 1);
   }
 
-  .item:hover {
-    background: var(--border);
+  @media (hover: hover) {
+    .item:hover {
+      background: var(--border);
+    }
+  }
+  
+  .item:active {
+    background: var(--accent-subtle);
+    transform: scale(0.98);
   }
 
   .arrow {
@@ -314,6 +375,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    min-height: 56px;
     padding: 12px;
     background: var(--bg);
     border: 1px solid var(--border);
@@ -321,10 +383,23 @@
     cursor: pointer;
     text-align: left;
     width: 100%;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
+    will-change: transform, border-color;
   }
 
-  .dep-item:hover {
+  @media (hover: hover) {
+    .dep-item:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+  }
+  
+  .dep-item:active {
     border-color: var(--accent);
+    transform: scale(0.985);
   }
 
   .dep-line {
