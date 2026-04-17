@@ -58,7 +58,7 @@ function isValidSiteSearchResult(obj: unknown): boolean {
   if (!obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
   return (
-    typeof o.id === "string" && o.id.length > 0 &&
+    (typeof o.id === "string" || typeof o.id === "number") && String(o.id).length > 0 &&
     typeof o.name === "string" && o.name.length > 0
   );
 }
@@ -88,6 +88,13 @@ export async function searchSites(
 
   const data = await response.json();
   const rawSites = Array.isArray(data) ? data : [];
+  
+  if (import.meta.env.DEV) {
+    console.log('[SL API] Got', rawSites.length, 'raw results');
+    console.log('[SL API] First result:', rawSites[0]);
+    console.log('[SL API] Validation passed:', rawSites.filter(isValidSiteSearchResult).length);
+  }
+  
   const stations: SiteSearchResult[] = rawSites
     .filter(isValidSiteSearchResult)
     .map((site) => ({

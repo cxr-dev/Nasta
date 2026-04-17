@@ -38,8 +38,8 @@
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
 
-  // Service Worker lifecycle handling
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  // Service Worker lifecycle handling (production only)
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !import.meta.env.DEV) {
     let reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloading) return;
@@ -65,7 +65,7 @@
         });
       });
     }).catch(err => {
-      if (import.meta.env.DEV) console.error('[App] Service Worker registration failed:', err);
+      console.error('[App] Service Worker registration failed:', err);
     });
   }
 
@@ -459,10 +459,25 @@ function handleRouteSwitch(routeId: string) {
     font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
-    height: 100vh;
+    block-size: 100dvh;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: contain;
+  }
+
+
+  :global(:root) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-subtle) transparent;
+  }
+
+  /* Webkit fallback */
+  :global(::-webkit-scrollbar) { width: 10px; }
+  :global(::-webkit-scrollbar-track) { background: transparent; }
+  :global(::-webkit-scrollbar-thumb) {
+    background-color: var(--border-subtle);
+    border-radius: 10px;
+    border: 2px solid var(--bg);
   }
 
   @media (prefers-reduced-motion: reduce) {

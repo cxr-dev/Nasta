@@ -2,13 +2,13 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
-  base: "/Nasta/",
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? "/Nasta/" : "/",
   plugins: [
     svelte(),
     VitePWA({
       devOptions: {
-        enabled: false, // <-- Add this
+        enabled: false,
       },
       registerType: "autoUpdate",
       includeAssets: ["logosvg.svg", "apple-touch-icon.png", "robots.txt"],

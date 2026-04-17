@@ -71,19 +71,24 @@
           const nameA = a.name.toLowerCase();
           const nameB = b.name.toLowerCase();
           
-          // Exact match first
-          if (nameA === normalizedQuery) return -1;
-          if (nameB === normalizedQuery) return 1;
+          // Calculate score for each match
+          const scoreA = 
+            nameA === normalizedQuery ? 100 :
+            nameA.startsWith(normalizedQuery) ? 75 :
+            nameA.includes(normalizedQuery) ? 50 : 0;
+            
+          const scoreB = 
+            nameB === normalizedQuery ? 100 :
+            nameB.startsWith(normalizedQuery) ? 75 :
+            nameB.includes(normalizedQuery) ? 50 : 0;
+
+          // Never return 0, always establish strict ordering
+          if (scoreA !== scoreB) {
+            return scoreB - scoreA;
+          }
           
-          // Starts with query
-          if (nameA.startsWith(normalizedQuery)) return -1;
-          if (nameB.startsWith(normalizedQuery)) return 1;
-          
-          // Contains query
-          if (nameA.includes(normalizedQuery)) return -1;
-          if (nameB.includes(normalizedQuery)) return 1;
-          
-          return 0;
+          // Fallback to natural string sort for equal scores
+          return nameA.localeCompare(nameB);
         });
         
         if (isSjostadstrafikenStop(query)) {
@@ -118,7 +123,7 @@
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           if (import.meta.env.DEV) console.error('Search failed:', e);
-          query = '';
+          stations = [];
         }
       } finally {
         loading = false;
