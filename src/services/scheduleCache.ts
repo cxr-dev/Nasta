@@ -50,7 +50,7 @@ function loadCache(): CacheStore {
     if (!raw) return {};
     return JSON.parse(raw) as CacheStore;
   } catch (e) {
-    console.warn("[scheduleCache] Error loading cache:", e);
+    if (import.meta.env.DEV) console.warn("[scheduleCache] Error loading cache:", e);
     return {};
   }
 }
@@ -64,14 +64,14 @@ function saveCache(cache: CacheStore): void {
     const sizeKB = new Blob([json]).size / 1024;
 
     if (sizeKB > COMPRESSION_THRESHOLD_KB) {
-      console.warn(
+      if (import.meta.env.DEV) console.warn(
         `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`,
       );
     }
 
     localStorage.setItem(CACHE_STORAGE_KEY, json);
   } catch (e) {
-    console.error("[scheduleCache] Error saving cache:", e);
+    if (import.meta.env.DEV) console.error("[scheduleCache] Error saving cache:", e);
   }
 }
 
@@ -142,7 +142,7 @@ export function getCachedSchedule(
   const ageHours = ageMs / (1000 * 60 * 60);
 
   if (ageHours > maxAgeHours) {
-    console.log(
+    if (import.meta.env.DEV) console.log(
       `[scheduleCache] Cache for ${key} is ${ageHours.toFixed(1)}h old (max: ${maxAgeHours}h)`,
     );
     return null;
@@ -171,6 +171,7 @@ export function getCachedSchedule(
         time: departureTime.toLocaleTimeString("sv-SE", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Europe/Stockholm",
         }),
         transportType: "bus" as const,
         predicted: true, // Mark as cached
@@ -201,7 +202,7 @@ export function clearExpiredCache(maxAgeHours: number = 48): void {
 
   if (clearedCount > 0) {
     saveCache(cache);
-    console.log(`[scheduleCache] Cleared ${clearedCount} expired entries`);
+    if (import.meta.env.DEV) console.log(`[scheduleCache] Cleared ${clearedCount} expired entries`);
   }
 }
 
