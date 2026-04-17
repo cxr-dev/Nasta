@@ -5,8 +5,8 @@
  * for display when cache is available.
  */
 
-import type { Departure } from '../types/departure';
-import type { TransportType } from '../types/route';
+import type { Departure } from "../types/departure";
+import type { TransportType } from "../types/route";
 
 export interface CachedDepartureParams {
   siteId: string;
@@ -23,12 +23,19 @@ export interface CachedDepartureParams {
  */
 export function generateCachedDepartures(
   scheduledTimes: string[] | null | undefined,
-  params: CachedDepartureParams
+  params: CachedDepartureParams,
 ): Departure[] | null {
   if (!scheduledTimes || scheduledTimes.length === 0) return null;
 
   const now = Date.now();
-  const { siteId, line, directionText, transportType = 'bus', lineName = '', maxResults = 5 } = params;
+  const {
+    siteId,
+    line,
+    directionText,
+    transportType = "bus",
+    lineName = "",
+    maxResults = 5,
+  } = params;
 
   const departures: Departure[] = scheduledTimes
     .map((isoTime) => {
@@ -37,9 +44,9 @@ export function generateCachedDepartures(
       if (departureTime <= now) return null;
 
       const minutes = Math.max(0, Math.floor((departureTime - now) / 60000));
-      const timeStr = new Date(isoTime).toLocaleTimeString('sv-SE', {
-        hour: '2-digit',
-        minute: '2-digit',
+      const timeStr = new Date(isoTime).toLocaleTimeString("sv-SE", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
 
       return {

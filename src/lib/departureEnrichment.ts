@@ -8,7 +8,7 @@
  * - Platform changes
  */
 
-import type { Departure } from '../types/departure';
+import type { Departure } from "../types/departure";
 
 export interface EnrichedDeparture extends Departure {
   /** Mark if departure is late */
@@ -20,7 +20,7 @@ export interface EnrichedDeparture extends Departure {
   /** New platform if changed */
   newPlatform?: string;
   /** Source of data */
-  source: 'cache' | 'api' | 'enriched';
+  source: "cache" | "api" | "enriched";
   /** When this was cached/fetched */
   timestamp: number;
 }
@@ -36,7 +36,7 @@ export interface EnrichedDeparture extends Departure {
  */
 export function enrichDeparturesWithRealtime(
   cached: Departure[] | null,
-  apiLive: Departure[] | null
+  apiLive: Departure[] | null,
 ): EnrichedDeparture[] {
   const now = Date.now();
   const enriched: EnrichedDeparture[] = [];
@@ -45,7 +45,7 @@ export function enrichDeparturesWithRealtime(
   if (apiLive && apiLive.length > 0) {
     return apiLive.slice(0, 5).map((dep) => ({
       ...dep,
-      source: 'api',
+      source: "api",
       timestamp: now,
     }));
   }
@@ -54,7 +54,7 @@ export function enrichDeparturesWithRealtime(
   if (cached && cached.length > 0) {
     return cached.slice(0, 5).map((dep) => ({
       ...dep,
-      source: 'cache',
+      source: "cache",
       timestamp: now,
     }));
   }
@@ -67,7 +67,7 @@ export function enrichDeparturesWithRealtime(
  */
 export function calculateDeviation(
   plannedTime: Date,
-  actualTime: Date
+  actualTime: Date,
 ): { minutes: number; isLate: boolean } {
   const diff = (actualTime.getTime() - plannedTime.getTime()) / 60000;
   return {
@@ -83,14 +83,14 @@ export function calculateDeviation(
 export function matchApiToCachedSchedule(
   cached: Departure[],
   apiLive: Departure[],
-  toleranceMinutes: number = 2
+  toleranceMinutes: number = 2,
 ): Array<Departure | null> {
   return cached.map((cachedDep) => {
     const cachedTime = new Date(cachedDep.time);
     const matched = apiLive.find((apiDep) => {
       const apiTime = new Date(apiDep.time);
       const diffMinutes = Math.abs(
-        (apiTime.getTime() - cachedTime.getTime()) / 60000
+        (apiTime.getTime() - cachedTime.getTime()) / 60000,
       );
       return diffMinutes <= toleranceMinutes && apiDep.line === cachedDep.line;
     });

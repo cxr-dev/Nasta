@@ -7,9 +7,9 @@
  * - Auto-cleanup of old entries
  */
 
-import { getCacheStats, clearExpiredCache } from '../services/scheduleCache';
+import { getCacheStats, clearExpiredCache } from "../services/scheduleCache";
 
-const CACHE_VERSION = 'nasta_schedule_cache_v1';
+const CACHE_VERSION = "nasta_schedule_cache_v1";
 const MAX_CACHE_AGE_HOURS = 24;
 const MAX_CACHE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -23,7 +23,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 export function initializeCacheLifecycle(): void {
   if (cleanupTimer) return;
 
-  console.log('[cacheLifecycle] Starting cleanup scheduler');
+  console.log("[cacheLifecycle] Starting cleanup scheduler");
 
   // Run initial cleanup
   performCacheCleanup();
@@ -41,7 +41,7 @@ export function stopCacheLifecycle(): void {
   if (cleanupTimer) {
     clearInterval(cleanupTimer);
     cleanupTimer = null;
-    console.log('[cacheLifecycle] Stopped cleanup scheduler');
+    console.log("[cacheLifecycle] Stopped cleanup scheduler");
   }
 }
 
@@ -58,22 +58,22 @@ function performCacheCleanup(): void {
 
     // Phase 2: Check storage size
     const stats = getCacheStats();
-    const cacheStr = localStorage.getItem(CACHE_VERSION) || '{}';
+    const cacheStr = localStorage.getItem(CACHE_VERSION) || "{}";
     const cacheSizeBytes = new Blob([cacheStr]).size;
 
     console.log(
-      `[cacheLifecycle] Cache: ${stats.entries} entries, ${stats.routes} routes, ~${(cacheSizeBytes / 1024).toFixed(1)}KB`
+      `[cacheLifecycle] Cache: ${stats.entries} entries, ${stats.routes} routes, ~${(cacheSizeBytes / 1024).toFixed(1)}KB`,
     );
 
     // Phase 3: Trim if over quota
     if (cacheSizeBytes > MAX_CACHE_SIZE_BYTES) {
       console.warn(
-        `[cacheLifecycle] Cache size exceeded (${(cacheSizeBytes / 1024).toFixed(1)}KB > 8MB), trimming oldest entries`
+        `[cacheLifecycle] Cache size exceeded (${(cacheSizeBytes / 1024).toFixed(1)}KB > 8MB), trimming oldest entries`,
       );
       trimLargestCache();
     }
   } catch (error) {
-    console.error('[cacheLifecycle] Cleanup error:', error);
+    console.error("[cacheLifecycle] Cleanup error:", error);
   }
 }
 
@@ -86,7 +86,7 @@ function trimLargestCache(): void {
     if (!cacheStr) return;
 
     const cache = JSON.parse(cacheStr) as Record<string, string[]>;
-    let largestKey = '';
+    let largestKey = "";
     let largestSize = 0;
 
     // Find largest entry
@@ -109,14 +109,14 @@ function trimLargestCache(): void {
       } else {
         cache[largestKey] = newTimes;
         console.log(
-          `[cacheLifecycle] Trimmed cache entry ${largestKey}: ${times.length} → ${newTimes.length} times`
+          `[cacheLifecycle] Trimmed cache entry ${largestKey}: ${times.length} → ${newTimes.length} times`,
         );
       }
 
       localStorage.setItem(CACHE_VERSION, JSON.stringify(cache));
     }
   } catch (error) {
-    console.error('[cacheLifecycle] Trim error:', error);
+    console.error("[cacheLifecycle] Trim error:", error);
   }
 }
 
@@ -130,7 +130,7 @@ export function getCacheHealth(): {
   healthPercent: number;
 } {
   const stats = getCacheStats();
-  const cacheStr = localStorage.getItem(CACHE_VERSION) || '{}';
+  const cacheStr = localStorage.getItem(CACHE_VERSION) || "{}";
   const sizeBytes = new Blob([cacheStr]).size;
   const sizeKb = sizeBytes / 1024;
   const healthPercent = Math.round((sizeBytes / MAX_CACHE_SIZE_BYTES) * 100);

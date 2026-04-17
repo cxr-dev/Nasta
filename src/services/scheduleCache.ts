@@ -12,9 +12,9 @@
  * Compression: gzip if > 5MB (using minimal compression approach)
  */
 
-import type { Departure } from '../types/departure';
+import type { Departure } from "../types/departure";
 
-const CACHE_STORAGE_KEY = 'nasta_schedule_cache_v1';
+const CACHE_STORAGE_KEY = "nasta_schedule_cache_v1";
 const COMPRESSION_THRESHOLD_KB = 5000; // 5MB
 
 interface CacheEntry {
@@ -33,7 +33,11 @@ type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionTex
 /**
  * Generate cache key from route parameters
  */
-function getCacheKey(siteId: string, line: string, directionText: string): string {
+function getCacheKey(
+  siteId: string,
+  line: string,
+  directionText: string,
+): string {
   return `${siteId}|${line}|${directionText}`;
 }
 
@@ -46,7 +50,7 @@ function loadCache(): CacheStore {
     if (!raw) return {};
     return JSON.parse(raw) as CacheStore;
   } catch (e) {
-    console.warn('[scheduleCache] Error loading cache:', e);
+    console.warn("[scheduleCache] Error loading cache:", e);
     return {};
   }
 }
@@ -61,13 +65,13 @@ function saveCache(cache: CacheStore): void {
 
     if (sizeKB > COMPRESSION_THRESHOLD_KB) {
       console.warn(
-        `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`
+        `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`,
       );
     }
 
     localStorage.setItem(CACHE_STORAGE_KEY, json);
   } catch (e) {
-    console.error('[scheduleCache] Error saving cache:', e);
+    console.error("[scheduleCache] Error saving cache:", e);
   }
 }
 
@@ -79,7 +83,7 @@ export function cacheScheduleTime(
   siteId: string,
   line: string,
   directionText: string,
-  scheduledTime: Date
+  scheduledTime: Date,
 ): void {
   if (!siteId || !line || !directionText) return;
 
@@ -92,7 +96,7 @@ export function cacheScheduleTime(
       directionText,
       scheduledTimes: [],
       updatedAt: Date.now(),
-      validDate: new Date().toISOString().split('T')[0],
+      validDate: new Date().toISOString().split("T")[0],
     };
   }
 
@@ -123,7 +127,7 @@ export function getCachedSchedule(
   siteId: string,
   line: string,
   directionText: string,
-  maxAgeHours: number = 24
+  maxAgeHours: number = 24,
 ): Departure[] | null {
   if (!siteId || !line || !directionText) return null;
 
@@ -139,7 +143,7 @@ export function getCachedSchedule(
 
   if (ageHours > maxAgeHours) {
     console.log(
-      `[scheduleCache] Cache for ${key} is ${ageHours.toFixed(1)}h old (max: ${maxAgeHours}h)`
+      `[scheduleCache] Cache for ${key} is ${ageHours.toFixed(1)}h old (max: ${maxAgeHours}h)`,
     );
     return null;
   }
@@ -156,19 +160,19 @@ export function getCachedSchedule(
       const departureTime = new Date(isoTime);
       const minutes = Math.max(
         0,
-        Math.floor((departureTime.getTime() - now) / 60000)
+        Math.floor((departureTime.getTime() - now) / 60000),
       );
       return {
         line,
-        lineName: '',
+        lineName: "",
         destination: directionText,
         directionText,
         minutes,
-        time: departureTime.toLocaleTimeString('sv-SE', {
-          hour: '2-digit',
-          minute: '2-digit',
+        time: departureTime.toLocaleTimeString("sv-SE", {
+          hour: "2-digit",
+          minute: "2-digit",
         }),
-        transportType: 'bus' as const,
+        transportType: "bus" as const,
         predicted: true, // Mark as cached
       };
     });
@@ -224,5 +228,5 @@ export function getCacheStats(): {
  */
 export function clearAllCache(): void {
   localStorage.removeItem(CACHE_STORAGE_KEY);
-  console.log('[scheduleCache] All cache cleared');
+  console.log("[scheduleCache] All cache cleared");
 }
