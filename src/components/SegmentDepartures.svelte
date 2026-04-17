@@ -60,24 +60,15 @@
     (route.segments ?? []).map(seg => getDeparturesForSegment(seg))
   );
 
-  onMount(() => {
-    const unsub = departureStore.subscribe(data => {
-      departureData = data;
-    });
-    UNSUBSCRIBERS.push(unsub);
-
+  function startClockTimer() {
+    if (clockTimer) clearInterval(clockTimer);
     clockTimer = setInterval(() => {
-      if (document.hidden) return;
       now = Date.now();
-      // Trigger immediate refresh if any leading departure has hit 0 or is about to depart (<= 1 min)
-      // But only refresh if we haven't already refreshed recently (debounce)
       const segments = route.segments ?? [];
       const needsRefresh = segments.some((segment, i) => {
         const deps = segmentDeps[i] ?? [];
         if (deps.length === 0 || deps[0].expectedAt === undefined) return false;
         const mins = getLiveMinutes(deps[0], now);
-        // Only refresh when departure is imminent (within 1 minute) and hasn't been marked as "passed"
-        // Also check it's not in the past (expectedAt should be in the future)
         return mins <= 1 && deps[0].expectedAt > now - 60_000;
       });
       if (needsRefresh) {
@@ -86,6 +77,35 @@
         departureStore.refresh(siteIds, stopNames);
       }
     }, 5000);
+  }
+
+  function stopClockTimer() {
+    if (clockTimer) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  }
+
+  onMount(() => {
+    const unsub = departureStore.subscribe(data => {
+      departureData = data;
+    });
+    UNSUBSCRIBERS.push(unsub);
+
+    startClockTimer();
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopClockTimer();
+      } else {
+        startClockTimer();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   });
 
   function handleRefreshClick() {
