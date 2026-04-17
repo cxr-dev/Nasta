@@ -49,13 +49,13 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 ### Installation
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Development
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Runs the dev server at `http://localhost:5173` (or next available port).
@@ -63,7 +63,7 @@ Runs the dev server at `http://localhost:5173` (or next available port).
 ### Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Creates a production-ready static build in the `dist/` directory.
@@ -71,15 +71,15 @@ Creates a production-ready static build in the `dist/` directory.
 ### Testing
 
 ```bash
-npm test              # Run unit tests (Vitest)
-npm run test:watch    # Watch mode
-npm run test:e2e      # End-to-end tests (Playwright)
+pnpm test              # Run unit tests (Vitest)
+pnpm run test:watch    # Watch mode
+pnpm run test:e2e      # End-to-end tests (Playwright)
 ```
 
 ### Type Check
 
 ```bash
-npm run check     # Run svelte-check
+pnpm run check     # Run svelte-check
 ```
 
 ---
