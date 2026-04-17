@@ -15,6 +15,8 @@
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let now = $state(Date.now());
   let expandedIndex = $state<number | null>(null);
+  let isLoading = $state(false);
+  let lastError = $state<string | null>(null);
 
   // Collapse when route changes
   $effect(() => {
@@ -92,6 +94,12 @@
     });
     UNSUBSCRIBERS.push(unsub);
 
+    const unsubLoading = departureStore.isLoading.subscribe(val => isLoading = val);
+    UNSUBSCRIBERS.push(unsubLoading);
+
+    const unsubError = departureStore.lastError.subscribe(val => lastError = val);
+    UNSUBSCRIBERS.push(unsubError);
+
     startClockTimer();
 
     const handleVisibility = () => {
@@ -122,104 +130,123 @@
 </script>
 
 <div class="departures-list">
-  <div class="departures-header">
-    <h3 class="departures-title">{$t.departures}</h3>
-    <button
-      class="refresh-btn"
-      onclick={handleRefreshClick}
-      title="Refresh departures"
-      aria-label="Refresh departures"
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
-      </svg>
-    </button>
-  </div>
-  {#each (route.segments ?? []) as segment, index (segment.id)}
-    {@const deps = segmentDeps[index] ?? []}
-    {@const departure = deps[0]}
-    {@const subsequent = formatSubsequent(deps)}
-    {@const hasDeparture = deps.length > 0 && !!departure}
-    {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
-    {@const isExpanded = expandedIndex === index}
-
-    {#if hasDeparture}
-    <button
-      class="departure-row"
-      class:expandable={hasDeparture}
-      class:expanded={isExpanded}
-      type="button"
-      aria-expanded={isExpanded}
-      onclick={() => toggleExpanded(index)}
-      style="--delay: {Math.min(index, 3) * 40}ms"
-    >
-      <div class="row-left">
-        <div class="transport-badge" data-type={segment.transportType}>
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <g>{@html getTransportIcon(segment.transportType)}</g>
-          </svg>
-        </div>
-
-        <div class="line-details">
-          <span class="line-info">{segment.lineName || segment.line}</span>
-          <span class="stop-route">
-            {segment.fromStop.name} → {segment.directionText}
-          </span>
-        </div>
-      </div>
-
-      <div class="row-right">
-          <div class="time-stack" class:predicted={departure.predicted === true}>
-            <div class="primary-time">
-              {#if departure.predicted === true}<span class="tilde">~</span>{/if}
-              <span class="minutes">{liveMinutes}</span>
-              <span class="unit">{$t.minutesShort}</span>
-            </div>
-          {#if subsequent}
-            <div class="secondary-time">
-              <span class="more">{subsequent}</span>
-            </div>
-          {/if}
-        </div>
-      </div>
-    </button>
-    {:else}
-    <div
-      class="departure-row"
-      style="--delay: {Math.min(index, 3) * 40}ms"
-    >
-      <div class="row-left">
-        <div class="transport-badge" data-type={segment.transportType}>
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <g>{@html getTransportIcon(segment.transportType)}</g>
-          </svg>
-        </div>
-
-        <div class="line-details">
-          <span class="line-info">{segment.lineName || segment.line}</span>
-          <span class="stop-route">
-            {segment.fromStop.name} → {segment.directionText}
-          </span>
-        </div>
-      </div>
-
-      <div class="row-right">
-        <div class="no-departure">—</div>
-      </div>
+  {#if lastError}
+    <div class="error-bar">
+      <span>{lastError}</span>
+      <button onclick={() => lastError = null}>×</button>
     </div>
-    {/if}
+  {/if}
 
-    <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
-    {#if isExpanded && hasDeparture}
-      <div transition:slide={{ duration: 280, easing: cubicOut }}>
-        <DepartureStrip
-          {departure}
-          {segment}
-          onError={() => { expandedIndex = null; }}
-        />
+  {#if isLoading && departureData.size === 0}
+    <div class="loading-skeleton">
+      {#each Array(3) as _}
+        <div class="skeleton-row">
+          <div class="skeleton-badge"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-time"></div>
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <div class="departures-header">
+      <h3 class="departures-title">{$t.departures}</h3>
+      <button
+        class="refresh-btn"
+        onclick={handleRefreshClick}
+        title="Refresh departures"
+        aria-label="Refresh departures"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+        </svg>
+      </button>
+    </div>
+    {#each (route.segments ?? []) as segment, index (segment.id)}
+      {@const deps = segmentDeps[index] ?? []}
+      {@const departure = deps[0]}
+      {@const subsequent = formatSubsequent(deps)}
+      {@const hasDeparture = deps.length > 0 && !!departure}
+      {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
+      {@const isExpanded = expandedIndex === index}
+
+      {#if hasDeparture}
+      <button
+        class="departure-row"
+        class:expandable={hasDeparture}
+        class:expanded={isExpanded}
+        type="button"
+        aria-expanded={isExpanded}
+        onclick={() => toggleExpanded(index)}
+        style="--delay: {Math.min(index, 3) * 40}ms"
+      >
+        <div class="row-left">
+          <div class="transport-badge" data-type={segment.transportType}>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <g>{@html getTransportIcon(segment.transportType)}</g>
+            </svg>
+          </div>
+
+          <div class="line-details">
+            <span class="line-info">{segment.lineName || segment.line}</span>
+            <span class="stop-route">
+              {segment.fromStop.name} → {segment.directionText}
+            </span>
+          </div>
+        </div>
+
+        <div class="row-right">
+            <div class="time-stack" class:predicted={departure.predicted === true}>
+              <div class="primary-time">
+                {#if departure.predicted === true}<span class="tilde">~</span>{/if}
+                <span class="minutes">{liveMinutes}</span>
+                <span class="unit">{$t.minutesShort}</span>
+              </div>
+            {#if subsequent}
+              <div class="secondary-time">
+                <span class="more">{subsequent}</span>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </button>
+      {:else}
+      <div
+        class="departure-row"
+        style="--delay: {Math.min(index, 3) * 40}ms"
+      >
+        <div class="row-left">
+          <div class="transport-badge" data-type={segment.transportType}>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <g>{@html getTransportIcon(segment.transportType)}</g>
+            </svg>
+          </div>
+
+          <div class="line-details">
+            <span class="line-info">{segment.lineName || segment.line}</span>
+            <span class="stop-route">
+              {segment.fromStop.name} → {segment.directionText}
+            </span>
+          </div>
+        </div>
+
+        <div class="row-right">
+          <div class="no-departure">—</div>
+        </div>
       </div>
-    {/if}
-  {/each}
+      {/if}
+
+      <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
+      {#if isExpanded && hasDeparture}
+        <div transition:slide={{ duration: 280, easing: cubicOut }}>
+          <DepartureStrip
+            {departure}
+            {segment}
+            onError={() => { expandedIndex = null; }}
+          />
+        </div>
+      {/if}
+    {/each}
+  {/if}
 </div>
 
 <style>
@@ -447,5 +474,69 @@
     display: block;
     width: 20px;
     height: 20px;
+  }
+
+  .error-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 8px;
+    color: #991B1B;
+    font-size: 13px;
+  }
+
+  .error-bar button {
+    background: none;
+    border: none;
+    color: #991B1B;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .loading-skeleton {
+    padding: 12px 0;
+  }
+
+  .skeleton-row {
+    display: flex;
+    align-items: center;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .skeleton-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent-subtle);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-line {
+    flex: 1;
+    height: 14px;
+    margin: 0 12px;
+    border-radius: 4px;
+    background: var(--border);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-time {
+    width: 80px;
+    height: 32px;
+    border-radius: 4px;
+    background: var(--border);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 </style>

@@ -11,9 +11,10 @@ interface DepartureWithSource extends Departure {
 }
 
 function createDepartureStore() {
-  const { subscribe, set, update } = writable<Map<string, Departure[]>>(
-    new Map(),
-  );
+  const data = writable<Map<string, Departure[]>>(new Map());
+  const { subscribe, set, update } = data;
+  const isLoading = writable(false);
+  const lastError = writable<string | null>(null);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let stopNamesMap = new Map<string, string>();
   let currentSiteIds: string[] = [];
@@ -48,6 +49,8 @@ function createDepartureStore() {
       return;
     }
     isFetching = true;
+    isLoading.set(true);
+    lastError.set(null);
 
     const results = clearFirst
       ? new Map<string, Departure[]>()
@@ -116,8 +119,10 @@ function createDepartureStore() {
       set(results);
     } catch (error) {
       console.error("[departureStore] Overall fetch error:", error);
+      lastError.set('Failed to fetch departures');
     } finally {
       isFetching = false;
+      isLoading.set(false);
     }
   };
 
@@ -139,6 +144,18 @@ function createDepartureStore() {
 
   return {
     subscribe,
+    isLoading: {
+      subscribe: (cb: (val: boolean) => void) => {
+        const unsub = isLoading.subscribe(cb);
+        return unsub;
+      }
+    },
+    lastError: {
+      subscribe: (cb: (val: string | null) => void) => {
+        const unsub = lastError.subscribe(cb);
+        return unsub;
+      }
+    },
     fetchForSites: fetchAll,
     startAutoRefresh: (
       siteIds: string[],

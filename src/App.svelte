@@ -8,18 +8,21 @@
   import { computeArrivalSummary } from './lib/arrivalTime';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { locale, resolveLocale, t } from './stores/localeStore';
+  import { searchSites } from './services/slApi';
   
   import RouteHeader from './components/RouteHeader.svelte';
   import BottomBar from './components/BottomBar.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import Onboarding from './components/Onboarding.svelte';
+  import ErrorBoundary from './components/ErrorBoundary.svelte';
 
   let editing = $state(false);
   let updateAvailable = $state(false);
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let showOnboarding = $state(false);
+  let siteLookupError = $state<string | null>(null);
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -156,6 +159,7 @@
 
   async function lookupMissingSiteIds(segments: Array<{ fromStop: { name: string; siteId: string }; toStop: { name: string; siteId: string } }>): Promise<string[]> {
     const results: string[] = [];
+    let hadError = false;
     for (const segment of segments) {
       const fromId = segment.fromStop.siteId || segment.toStop.siteId;
       if (fromId) {
@@ -165,14 +169,21 @@
         if (stopName) {
           try {
             const sites = await searchSites(stopName);
+            if (!sites[0]?.siteId) {
+              hadError = true;
+            }
             results.push(sites[0]?.siteId || '');
           } catch {
+            hadError = true;
             results.push('');
           }
         } else {
           results.push('');
         }
       }
+    }
+    if (hadError) {
+      siteLookupError = 'Some stop locations could not be found';
     }
     return results.filter(Boolean);
   }
@@ -325,7 +336,8 @@ function handleRouteSwitch(routeId: string) {
 {#if showOnboarding}
   <Onboarding onComplete={completeOnboarding} />
 {:else}
-  <main
+  <ErrorBoundary>
+    <main
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -360,6 +372,13 @@ function handleRouteSwitch(routeId: string) {
         </svg>
       {/if}
     </div>
+
+    {#if siteLookupError}
+      <div class="warning-banner">
+        <span>{siteLookupError}</span>
+        <button onclick={() => siteLookupError = null}>×</button>
+      </div>
+    {/if}
 
     <div class="scroll-container" bind:this={scrollContainer}>
       {#if hasNoRoutes}
@@ -421,6 +440,7 @@ function handleRouteSwitch(routeId: string) {
       />
     {/if}
   </main>
+  </ErrorBoundary>
 {/if}
 
 <footer class="attribution">
@@ -636,5 +656,28 @@ function handleRouteSwitch(routeId: string) {
   .attribution a {
     color: var(--text-muted);
     text-decoration: underline;
+  }
+
+  .warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 20px;
+    padding: 10px 12px;
+    background: #FEF3C7;
+    border: 1px solid #FCD34D;
+    border-radius: 8px;
+    color: #92400E;
+    font-size: 13px;
+  }
+
+  .warning-banner button {
+    background: none;
+    border: none;
+    color: #92400E;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
   }
 </style>
