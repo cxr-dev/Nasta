@@ -1,175 +1,50 @@
-# Nästa - Stockholm Commute Tracker
+# Nästa
 
-**A minimalist personal commute dashboard for Stockholm public transport (SL).**
+![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat&logo=pwa&logoColor=white)
+![MIT License](https://img.shields.io/badge/License-MIT-007EC7.svg?style=flat)
 
-**Live** → [cxr-dev.github.io/Nasta](https://cxr-dev.github.io/Nasta)
+> A minimalist commute dashboard for Stockholm public transport
 
-## Purpose
+Nästa helps Stockholm commuters track their daily routes by showing real-time departures from configured stops, calculating arrival times, and providing a simple, mobile-first interface optimized for quick glances while walking or waiting at stops.
 
-Nästa helps Stockholm commuters track their daily routes by showing real-time departures from their configured stops, calculating arrival times, and providing a simple mobile-first interface optimized for quick glances while walking or waiting at stops.
+**Live → [cxr-dev.github.io/Nasta](https://cxr-dev.github.io/Nasta)**
 
-## Problem Solved
+---
 
-- Stockholm commuters need to know when their next bus/train/metro/ferry departs without opening multiple apps
-- Existing apps are cluttered with ads, unnecessary features, and complex navigation
-- Users want a zero-friction, always-available PWA that works offline and loads instantly
+## Features
 
-## Target Users
+- **Real-time departures** — Auto-refreshing SL data every 30 seconds (configurable)
+- **Route management** — Two pre-configured routes ("Till jobbet" / "Hem") with touch drag reordering
+- **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
+- **PWA installable** — Works offline with cached data, no app store required
+- **Arrival calculation** — Sums travel times plus transfer buffers to show expected arrival time
+- **Pull-to-refresh** — Manual refresh on mobile with visual feedback
+- **Swipe navigation** — Horizontal swipe to switch between routes on mobile
+- **Dark mode & themes** — 16 color themes, auto-detected system preference
+- **Bilingual** — Swedish and English with automatic locale detection
 
-- Daily commuters in Stockholm who take SL public transport (bus, metro, train, ferry)
-- Users who value speed, simplicity, and minimal visual noise
-- People who want a dedicated "app-like" experience via PWA
+---
 
-## Core Features
+## Tech Stack
 
-### 1. Real-Time Departures Display
+| Category | Technology |
+|----------|------------|
+| Framework | [Svelte 5](https://svelte.dev) (Runes) |
+| Language | [TypeScript](https://typescriptlang.org) |
+| Build Tool | [Vite](https://vitejs.dev) |
+| PWA | [vite-plugin-pwa](https://vite-plugin-pwa.netlify.app) + Workbox |
+| Testing | [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e) |
+| Hosting | [GitHub Pages](https://pages.github.com) |
+| API | [SL Transport API](https://trafiklab.se/api/sl-public-transport/) (Trafiklab) |
+| Persistence | LocalStorage |
 
-- Shows next departures from configured stops for each route segment
-- Auto-refreshes every 30 seconds
-- Displays time until departure (minutes) + planned departure time
-- Color-coded transport type icons (bus, train, metro, boat/ferry)
-
-### 2. Route Management
-
-- Two pre-configured routes: "Till jobbet" (to work) and "Hem" (home)
-- Each route contains ordered segments (stop → stop with travel time)
-- Touch drag reordering for segments on mobile
-
-### 3. Hybrid Ferry Support
-
-- SL API integration for regular transit (bus, train, metro)
-- Static timetable fallback for Sjöstadstrafiken ferries (Luma brygga, Barnängen, Henriksdal)
-- Automatic detection based on stop names
-
-### 4. Arrival Time Calculation
-
-- Sums travel times across all segments
-- Shows expected arrival time at final destination
-- Accounts for departure wait time from first stop
-
-### 5. PWA Installation
-
-- Installable as standalone app
-- Works offline with cached data
-- Cache-busting for automatic updates
-
-## Value Proposition
-
-| Feature                 | User Value                                 |
-| ----------------------- | ------------------------------------------ |
-| Single screen dashboard | No navigation, instant information         |
-| Auto-refresh            | Always accurate, zero manual refresh       |
-| Offline support         | Works in tunnel/slow signal areas          |
-| PWA installable         | Feels like native app, no app store needed |
-| Minimalist design       | Glanceable in sunlight, battery efficient  |
-| Touch drag reordering   | Fast route editing on mobile               |
-
-## Technical Architecture
-
-### Tech Stack
-
-- **Framework**: Vite + Svelte + TypeScript
-- **Storage**: LocalStorage (routes/settings persisted locally)
-- **API**: SL Transport API v1 (Trafiklab)
-- **PWA**: vite-plugin-pwa with service worker
-
-### Data Model
-
-```
-Route
-├── id: string
-├── name: string ("tillJobbet" | "hem")
-└── segments: Segment[]
-
-Segment
-├── id: string
-├── fromStop: Stop
-├── toStop: Stop
-├── line: string (e.g., "76")
-├── destination: string (e.g., "Klingsta")
-├── transportType: "bus" | "train" | "metro" | "boat"
-├── travelTimeMinutes: number
-└── departureTime: string (HH:mm, next departure from fromStop)
-
-Stop
-├── id: string (siteId from SL API)
-├── name: string
-├── type: "stop" | "ferry"
-└── isStaticFerry: boolean
-```
-
-### Key Services
-
-| Service              | Responsibility                               |
-| -------------------- | -------------------------------------------- |
-| `slApi.ts`           | Search stops, fetch departures, format times |
-| `staticTimetable.ts` | Sjöstadstrafiken ferry schedules             |
-| `routeStore.ts`      | Route state, segment CRUD, reordering        |
-| `departureStore.ts`  | Departure fetching, auto-refresh             |
-
-### Key Components
-
-| Component                  | Purpose                                         |
-| -------------------------- | ----------------------------------------------- |
-| `SegmentDepartures.svelte` | Main card showing departure for one segment     |
-| `SegmentList.svelte`       | Ordered list of route segments with drag handle |
-| `SegmentSearch.svelte`     | Stop search with debounce + ferry badge         |
-| `RouteEditor.svelte`       | Full-screen route editing mode                  |
-| `Header.svelte`            | App header with logo                            |
-
-## Implementation History
-
-### Bug Fixes (Production Issues Resolved)
-
-1. **PWA caching preventing updates**: Added cache-control headers, disabled service worker caching, added version params to static assets
-2. **Time format bug**: SL API returns full ISO timestamps; fixed with `formatTime()` function
-3. **Reverse route swapping bug**: fromWork/toWork segments incorrectly shared stops; fixed in routeStore.ts
-4. **Manifest 404s**: Referenced non-existent PNG icons; changed to SVG
-5. **Departure filtering bug**: Showed all departures instead of filtering by line/destination; fixed in SegmentDepartures.svelte
-6. **Search results ordering**: Exact matches not prioritized; improved filterStations() with match priority scoring
-7. **Segment name bug**: Search query "barn" created segment named "barn" instead of "Barnängen"; fixed to use actual stop name
-8. **Drag reordering bug**: Direct mutation broke Svelte reactivity; fixed to return new arrays
-9. **SVG rendering bug**: `{@html}` injection rendered path data as text; wrapped in `<g>` tags
-
-### Design Changes
-
-1. Redesigned segment cards:
-   - Transport icon + line number in colored circle
-   - Next departure time in 56px bold (primary focus)
-   - Second departure in 28px (secondary)
-   - From → To in header (once per card)
-2. Added SVG logo replacing "Nästa" text
-3. Moved "Redigera" button to fixed bottom bar, full width, blue
-
-## API Integration
-
-### SL Transport API
-
-```
-Base URL: https://transport.integration.sl.se/v1
-
-GET /sites?search={query}          # Search stops
-GET /sites/{siteId}/departures     # Get departures
-```
-
-### Static Timetable (Sjöstadstrafiken Ferries)
-
-```
-Stops: Luma brygga ↔ Barnängen ↔ Henriksdal
-Schedule: Hardcoded in staticTimetable.ts
-```
-
-## Deployment
-
-- **Host**: GitHub Pages
-- **URL**: https://cxr-dev.github.io/Nasta
-- **Auto-deploy**: Push to main branch triggers deployment
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18 or higher
 
 ### Installation
 
@@ -183,29 +58,204 @@ npm install
 npm run dev
 ```
 
+Runs the dev server at `http://localhost:5173` (or next available port).
+
 ### Build
 
 ```bash
 npm run build
 ```
 
+Creates a production-ready static build in the `dist/` directory.
+
 ### Testing
 
 ```bash
-npm run test        # Unit tests
-npm run test:e2e   # E2E tests
+npm test              # Run unit tests (Vitest)
+npm run test:watch    # Watch mode
+npm run test:e2e      # End-to-end tests (Playwright)
 ```
+
+### Type Check
+
+```bash
+npm run check     # Run svelte-check
+```
+
+---
 
 ## Configuration
 
-Routes are stored in LocalStorage (`nasta_routes`):
+Routes are stored in LocalStorage under `nasta_routes`. Each route contains:
 
-1. Tap "Redigera" button (bottom bar)
-2. Search for stops using the search bar
-3. Add segments with travel times between stops
-4. Drag to reorder segments
-5. Changes save automatically
+- `id` — unique identifier
+- `name` — display name (e.g., "Arbete")
+- `direction` — `"toWork"` or `"fromWork"`
+- `segments` — ordered array of travel segments
 
-## License
+Each segment defines:
 
-MIT
+- `fromStop` / `toStop` — with `id`, `name`, `siteId` (SL stop ID)
+- `line` — transit line number (e.g., `"76"`)
+- `directionText` — final destination label
+- `transportType` — `"bus"`, `"train"`, `"metro"`, or `"boat"`
+- `travelTimeMinutes` — estimated travel duration
+- `transferBufferMinutes` — optional transfer wait time between segments
+
+**To edit routes:**
+1. Tap the **"Redigera"** button (bottom bar)
+2. Search for stops using the debounced search input
+3. Add segments between stops and set travel time
+4. Drag to reorder segments on mobile
+5. Changes save automatically to LocalStorage
+
+---
+
+## API Integration
+
+### SL Transport API (Trafiklab)
+
+```
+Base URL: https://transport.integration.sl.se/v1
+
+GET /sites?search={query}          → Search stops & stations
+GET /sites/{siteId}/departures     → Get real-time departures
+```
+
+The app queries departures for each configured stop, filters by line/destination, and displays the next few departures. Times are formatted to `HH:mm` and enriched with deviation information when available.
+
+### Static Timetable (Sjöstadstrafiken Ferries)
+
+For the Luma brygga ↔ Barnängen ↔ Henriksdal ferry line, the SL API does not return data. Nästa falls back to a hardcoded weekday/weekend schedule defined in `src/services/staticTimetable.ts`. Ferry stops are automatically detected by name and the static schedule is used instead of the live API.
+
+---
+
+## Architecture
+
+### Data Flow
+
+```
+User Action → Svelte Store → Service → API/Storage
+                    ↓
+              UI Update ← Store Subscribe
+```
+
+### Core Modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `src/stores/routeStore.ts` | Route & segment CRUD, reordering, shared to/from work coupling |
+| `src/stores/departureStore.ts` | Departure fetching, hybrid cache+API strategy, auto-refresh |
+| `src/services/slApi.ts` | SL Transport API client, stop search ranking |
+| `src/services/staticTimetable.ts` | Sjöstadstrafiken ferry static schedule |
+| `src/services/departureService.ts` | Dispatches to SL API or static timetable |
+| `src/services/storage.ts` | LocalStorage persistence for routes & settings |
+| `src/lib/arrivalTime.ts` | Computes expected arrival given departures & travel times |
+| `src/lib/departureDisplay.ts` | Merges live and predicted departures, computes minutes remaining |
+| `src/themes.ts` | 16 theme palettes with automatic contrast adjustment |
+
+### PWA & Caching
+
+- Service worker auto-registers on load (`src/main.ts` + `vite-plugin-pwa`)
+- **Runtime caching:**
+  - Navigation requests — Network First (30-entry cache)
+  - SL `/sites` endpoint — Stale-While-Revalidate (50-entry, 24h TTL)
+  - SL `/departures` endpoint — Network First (20-entry, 60s TTL)
+- Static assets aggressively cached with `workbox-window`
+- Cache-busting via hashed filenames in build output
+- Update flow: `controllerchange` listener triggers page reload
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for deeper dive.
+
+---
+
+## Design
+
+### UI Principles
+
+- **Glanceable:** Largest number on screen is minutes until departure
+- **Minimalist:** Zero ads, no account required, single-screen dashboard
+- **Mobile-first:** Touch-friendly targets, pull-to-refresh, swipe gestures, safe-area insets
+- **Offline-ready:** Works in tunnels or areas with poor signal (ferry timetable always cached)
+
+### Typography
+
+- **Display:** [Neue Machina](https://fontshare.com/neue-machina) (bold, condensed, for headings and numbers)
+- **Body:** [Satoshi](https://fontshare.com/satoshi) (clean, readable, for labels and UI)
+
+Both loaded asynchronously from [Fontshare](https://fontshare.com) to avoid render-blocking.
+
+### Themes
+
+16 built-in color palettes toggle via settings (toggle in-app). Themes dynamically compute light/dark contrast and update CSS custom properties on `:root`. Border, text, and surface colors automatically adapt to background luminance.
+
+See [`src/themes.ts`](src/themes.ts) for the full palette list.
+
+---
+
+## Testing
+
+- **Unit tests:** Vitest +Testing Library for Svelte (`*.test.ts`)
+- **E2E tests:** Playwright tests run against built app (`npm run test:e2e`)
+- **Type safety:** `npm run check` runs `svelte-check` with `tsconfig.json`
+
+---
+
+## Development Notes
+
+### Why Svelte 5?
+
+Runes (`$state`, `$derived`, `$effect`, `$props`) provide fine-grained reactivity without boilerplate, smaller bundles, and excellent TypeScript support. The app leverages Svelte 5's component model for clean separation: stores drive state, components are dumb renderers, services encapsulate side effects.
+
+### Hybrid Fetch Strategy
+
+Departure fetching uses a **cache-first, API-enrich** pattern:
+
+1. Check local schedule cache (`src/services/scheduleCache.ts`) for each segment
+2. Display cached data immediately (instant load)
+3. In parallel, fetch live SL API for those stops
+4. Merge: keep API times, overlay any cached deviations
+
+This ensures the UI is always populated (even offline) while staying fresh.
+
+### Route Coupling
+
+When you delete a segment from "Till jobbet", the same-index segment is automatically removed from "Hem". This keeps round-trip routes symmetric. Implemented in `routeStore.ts:removeSegment()`.
+
+### Ferry Detection
+
+Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isSjostadstrafikenStop()`).
+
+---
+
+## Deployment
+
+**Host:** GitHub Pages  
+**URL:** https://cxr-dev.github.io/Nasta  
+**Branch:** `main` (auto-deploy via GitHub Actions)
+
+Workflow: `.github/workflows/deploy.yml`
+
+```
+push to main → CI runs type check + tests → vite build → Upload Pages artifact → Deploy
+```
+
+The app is served as a static SPA from the `/Nasta/` base path. Svelte adapter generates `404.html` fallback for client-side routing.
+
+---
+
+## Known Limitations
+
+- SL API rate limits: ~10 req/s (not an issue for typical 2-route, 4-stop usage)
+- No support for trips with more than 2 transfers (out of scope)
+- Ferry times are static — no real-time adjustments for delays
+- Only Swedish (SL) public transport; other agencies not supported
+
+---
+
+## Acknowledgements
+
+- Transit data provided by [Trafiklab](https://trafiklab.se) — SL API
+- Icons from internal `transportIcons` SVG paths
+- Fonts from [Fontshare](https://fontshare.com) — Neue Machina & Satoshi
+- Built with ❤️ using Svelte & TypeScript
