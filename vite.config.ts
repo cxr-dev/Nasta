@@ -51,6 +51,18 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
+            urlPattern: (req: Request) => req.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'navigation-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 86400,
+              },
+              networkTimeoutSeconds: 3,
+            },
+          },
+          {
             urlPattern:
               /^https:\/\/transport\.integration\.sl\.se\/v1\/sites.*/i,
             handler: "StaleWhileRevalidate",

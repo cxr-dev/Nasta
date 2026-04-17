@@ -35,13 +35,8 @@
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
 
-  // Cleanup old dev Service Worker and handle updates
+  // Service Worker lifecycle handling
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    // Unregister any existing SW first to fix white screen issue
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      registrations.forEach(reg => reg.unregister());
-    });
-    
     let reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloading) return;
@@ -49,8 +44,12 @@
       window.location.reload();
     });
 
-    // Fallback banner for browsers where controllerchange doesn't fire
-    navigator.serviceWorker.ready.then(registration => {
+    // Register service worker with explicit update check for iOS Safari
+    navigator.serviceWorker.register('/sw.js').then(registration => {
+      // Explicitly check for updates - required for iOS Safari reliability
+      registration.update();
+
+      // Fallback banner for browsers where controllerchange doesn't fire
       if (registration.waiting && navigator.serviceWorker.controller) {
         updateAvailable = true;
       }
@@ -62,6 +61,8 @@
           }
         });
       });
+    }).catch(err => {
+      console.error('[App] Service Worker registration failed:', err);
     });
   }
 
@@ -91,23 +92,10 @@
   $effect(() => {
     const currentRoute = $selectedRoute;
     if (!currentRoute) return;
-    console.log(`[App $effect] Route changed to: ${currentRoute.id} (${currentRoute.direction}) with ${currentRoute.segments.length} segments`);
-    const allSegments = currentRoute.segments;
-    console.log(`[App $effect] ALL segments:`, allSegments.map(s => ({ 
-      from: s.fromStop.name, 
-      fromSiteId: s.fromStop.siteId, 
-      to: s.toStop.name,
-      toSiteId: s.toStop.siteId,
-      directionText: s.directionText
-    })));
     const siteIds = currentRoute.segments
       .map(s => s.fromStop.siteId || s.toStop.siteId)
       .filter(Boolean);
-    console.log(`[App $effect] siteIds from segments:`, siteIds);
-    console.log(`[App $effect] First segment fromStop:`, currentRoute.segments[0]?.fromStop);
-    console.log(`[App $effect] First segment toStop:`, currentRoute.segments[0]?.toStop);
     if (siteIds.length > 0) {
-      console.log(`[App $effect] Loading departures for: ${siteIds.join(', ')}`);
       const stopNames = new Map(currentRoute.segments.map(s => {
         const siteId = s.fromStop.siteId || s.toStop.siteId;
         return [siteId, s.fromStop.name || s.toStop.name];
@@ -120,16 +108,10 @@
         currentRoute.direction
       );
       lastRefreshTime = Date.now();
-    } else {
-      // Fallback: also try fetching with empty siteIds to see what happens
-      console.log(`[App $effect] WARNING: No valid siteIds, checking for empty siteIds...`);
-      const siteIdsWithEmpty = currentRoute.segments.map(s => s.fromStop.siteId);
-      console.log(`[App $effect] siteIds including empty:`, siteIdsWithEmpty);
     }
   });
 
   async function loadDepartures(clearFirst = false) {
-    console.log(`[App] loadDepartures called. route is:`, route ? `${route.id} (${route.direction}) with ${route.segments.length} segments` : 'null/undefined');
     if (route && route.segments.length > 0) {
       const siteIds = route.segments
         .map(s => s.fromStop.siteId || s.toStop.siteId)
@@ -138,7 +120,6 @@
         const siteId = s.fromStop.siteId || s.toStop.siteId;
         return [siteId, s.fromStop.name || s.toStop.name];
       }));
-      console.log(`[App] loadDepartures: ${route.direction}, ${siteIds.length} sites:`, siteIds);
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(
           siteIds,
@@ -304,7 +285,9 @@ function handleRouteSwitch(routeId: string) {
     const unsub = departureStore.subscribe(data => { departures = data; });
 
     lastRefreshInterval = setInterval(() => {
-      lastRefreshTime = Date.now();
+      if (!document.hidden) {
+        lastRefreshTime = Date.now();
+      }
     }, 1000);
 
     const onVisibility = () => {
