@@ -23,7 +23,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 export function initializeCacheLifecycle(): void {
   if (cleanupTimer) return;
 
-  console.log("[cacheLifecycle] Starting cleanup scheduler");
+  if (import.meta.env.DEV) console.log("[cacheLifecycle] Starting cleanup scheduler");
 
   // Run initial cleanup
   performCacheCleanup();
@@ -41,7 +41,7 @@ export function stopCacheLifecycle(): void {
   if (cleanupTimer) {
     clearInterval(cleanupTimer);
     cleanupTimer = null;
-    console.log("[cacheLifecycle] Stopped cleanup scheduler");
+    if (import.meta.env.DEV) console.log("[cacheLifecycle] Stopped cleanup scheduler");
   }
 }
 
@@ -61,19 +61,19 @@ function performCacheCleanup(): void {
     const cacheStr = localStorage.getItem(CACHE_VERSION) || "{}";
     const cacheSizeBytes = new Blob([cacheStr]).size;
 
-    console.log(
+    if (import.meta.env.DEV) console.log(
       `[cacheLifecycle] Cache: ${stats.entries} entries, ${stats.routes} routes, ~${(cacheSizeBytes / 1024).toFixed(1)}KB`,
     );
 
     // Phase 3: Trim if over quota
     if (cacheSizeBytes > MAX_CACHE_SIZE_BYTES) {
-      console.warn(
+      if (import.meta.env.DEV) console.warn(
         `[cacheLifecycle] Cache size exceeded (${(cacheSizeBytes / 1024).toFixed(1)}KB > 8MB), trimming oldest entries`,
       );
       trimLargestCache();
     }
   } catch (error) {
-    console.error("[cacheLifecycle] Cleanup error:", error);
+    if (import.meta.env.DEV) console.error("[cacheLifecycle] Cleanup error:", error);
   }
 }
 
@@ -105,10 +105,10 @@ function trimLargestCache(): void {
 
       if (newTimes.length === 0) {
         delete cache[largestKey];
-        console.log(`[cacheLifecycle] Removed cache entry: ${largestKey}`);
+        if (import.meta.env.DEV) console.log(`[cacheLifecycle] Removed cache entry: ${largestKey}`);
       } else {
         cache[largestKey] = newTimes;
-        console.log(
+        if (import.meta.env.DEV) console.log(
           `[cacheLifecycle] Trimmed cache entry ${largestKey}: ${times.length} → ${newTimes.length} times`,
         );
       }
@@ -116,7 +116,7 @@ function trimLargestCache(): void {
       localStorage.setItem(CACHE_VERSION, JSON.stringify(cache));
     }
   } catch (error) {
-    console.error("[cacheLifecycle] Trim error:", error);
+    if (import.meta.env.DEV) console.error("[cacheLifecycle] Trim error:", error);
   }
 }
 

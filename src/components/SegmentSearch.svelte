@@ -25,6 +25,7 @@
   let selectedStation = $state<SiteSearchResult | null>(null);
   let loading = $state(false);
   let loadingDeps = $state(false);
+  let departureError = $state<string | null>(null);
   let step = $state<'search' | 'select'>('search');
   let debounceTimer: ReturnType<typeof setTimeout>;
   let abortController: AbortController | null = null;
@@ -116,8 +117,8 @@
         stations = result;
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
-          console.error('Search failed:', e);
-          stations = [];
+          if (import.meta.env.DEV) console.error('Search failed:', e);
+          query = '';
         }
       } finally {
         loading = false;
@@ -156,7 +157,8 @@
         }
       }
     } catch (e) {
-      console.error('Failed to load departures:', e);
+      if (import.meta.env.DEV) console.error('Failed to load departures:', e);
+      departureError = 'Kunde inte hämta avgångar. Försök igen.';
       departures = [];
     } finally {
       loadingDeps = false;
@@ -180,6 +182,7 @@
     stations = [];
     departures = [];
     selectedStation = null;
+    departureError = null;
     step = 'search';
   }
   
@@ -233,6 +236,8 @@
       
       {#if loadingDeps}
         <div class="msg">{$t.loadingDepartures}</div>
+      {:else if departureError}
+        <div class="error">{departureError}</div>
       {:else if departures.length === 0}
         <div class="msg">{$t.noDepartures}</div>
       {:else}
@@ -287,6 +292,15 @@
     padding: 16px;
     text-align: center;
     color: var(--text-secondary);
+  }
+
+  .error {
+    padding: 16px;
+    text-align: center;
+    color: #dc2626;
+    background: #fef2f2;
+    border-radius: 8px;
+    margin-top: 8px;
   }
 
   .results {

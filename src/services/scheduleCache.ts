@@ -229,5 +229,5 @@ export function getCacheStats(): {
  */
 export function clearAllCache(): void {
   localStorage.removeItem(CACHE_STORAGE_KEY);
-  console.log("[scheduleCache] All cache cleared");
+  if (import.meta.env.DEV) console.log("[scheduleCache] All cache cleared");
 }

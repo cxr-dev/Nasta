@@ -1,6 +1,8 @@
 <script lang="ts">
-  let { children, fallbackMessage }: { 
-    children: any; 
+  import type { Snippet } from 'svelte';
+
+  let { children, fallbackMessage }: {
+    children: Snippet;
     fallbackMessage?: string;
   } = $props();
 

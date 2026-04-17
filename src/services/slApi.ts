@@ -54,6 +54,26 @@ function rankByRelevance(
     .map(({ s }) => s);
 }
 
+function isValidSiteSearchResult(obj: unknown): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.id === "string" && o.id.length > 0 &&
+    typeof o.name === "string" && o.name.length > 0
+  );
+}
+
+function isValidDeparture(obj: unknown): obj is Departure {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.line === "string" &&
+    typeof o.destination === "string" &&
+    typeof o.directionText === "string" &&
+    (typeof o.minutes === "number" || typeof o.minutes === "undefined")
+  );
+}
+
 export async function searchSites(
   query: string,
   signal?: AbortSignal,
@@ -67,16 +87,17 @@ export async function searchSites(
   if (!response.ok) throw new Error(`API error: ${response.status}`);
 
   const data = await response.json();
-  const stations: SiteSearchResult[] = (Array.isArray(data) ? data : []).map(
-    (site: any) => ({
+  const rawSites = Array.isArray(data) ? data : [];
+  const stations: SiteSearchResult[] = rawSites
+    .filter(isValidSiteSearchResult)
+    .map((site) => ({
       siteId: String(site.id),
       name: site.name,
       note: site.note || "",
       type: "stop" as const,
       lat: site.lat,
       lon: site.lon,
-    }),
-  );
+    }));
 
   return rankByRelevance(stations, query);
 }
@@ -93,7 +114,10 @@ export async function getDepartures(
   const data = await response.json();
   learnFromApiResponse(siteId, data.departures || []);
 
-  return (data.departures || []).map((dep: any) => {
+  const rawDeps = Array.isArray(data.departures) ? data.departures : [];
+  const validDeps = rawDeps.filter(isValidDeparture);
+
+  return validDeps.map((dep: any) => {
     let minutes = dep.timeToDeparture;
     const liveTime = dep.expected || dep.scheduled || "";
     if (minutes === undefined && liveTime) {

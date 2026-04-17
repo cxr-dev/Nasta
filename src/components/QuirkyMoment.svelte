@@ -66,6 +66,18 @@
            dayType === 'weekend';
   }
 
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      clearInterval(intervalId);
+    } else {
+      intervalId = setInterval(() => {
+        checkRareEvent();
+      }, 10000);
+    }
+  }
+
+  let intervalId: ReturnType<typeof setInterval>;
+
   onMount(() => {
     prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -82,13 +94,16 @@
       }
     });
 
-    const interval = setInterval(() => {
+    intervalId = setInterval(() => {
       checkRareEvent();
     }, 10000);
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       unsub();
-      clearInterval(interval);
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (quirkyTimeoutId) clearTimeout(quirkyTimeoutId);
       if (rareTimeoutId) clearTimeout(rareTimeoutId);
     };

@@ -9,7 +9,7 @@ if ("serviceWorker" in navigator) {
         await registration.update();
       }
     } catch (e) {
-      console.warn("SW update check failed", e);
+      if (import.meta.env.DEV) console.warn("SW update check failed", e);
     }
   });
 }

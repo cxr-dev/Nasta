@@ -40,12 +40,12 @@ function createDepartureStore() {
   ) => {
     // Detect direction change - force clear if different direction
     if (direction && direction !== currentDirection) {
-      console.log("[departureStore] Direction changed, clearing data");
+      if (import.meta.env.DEV) console.log("[departureStore] Direction changed, clearing data");
       currentDirection = direction;
       clearFirst = true;
     }
     if (isFetching) {
-      console.log("[departureStore] Fetch skipped - already fetching");
+      if (import.meta.env.DEV) console.log("[departureStore] Fetch skipped - already fetching");
       return;
     }
     isFetching = true;
@@ -69,13 +69,13 @@ function createDepartureStore() {
           24,
         );
         if (cached) {
-          console.log(
+          if (import.meta.env.DEV) console.log(
             `[departureStore] Cache hit: ${seg.siteId} (${seg.stopName}) - ${cached.length} departures`,
           );
           cacheResults.set(seg.siteId, cached);
           results.set(seg.siteId, cached);
         } else {
-          console.log(
+          if (import.meta.env.DEV) console.log(
             `[departureStore] Cache miss: ${seg.siteId} (${seg.stopName}), will fetch API`,
           );
           cacheResults.set(seg.siteId, null);
@@ -91,7 +91,7 @@ function createDepartureStore() {
         await Promise.all(
           siteIdsNeedingApi.map(async (seg) => {
             try {
-              console.log(
+              if (import.meta.env.DEV) console.log(
                 `[departureStore] API fetch: ${seg.siteId} (${seg.stopName})`,
               );
               const apiDepartures = await getDepartures(
@@ -108,7 +108,9 @@ function createDepartureStore() {
                 return store;
               });
             } catch (e) {
-              console.error(`[departureStore] API error for ${seg.siteId}:`, e);
+              if (import.meta.env.DEV) console.error(`[departureStore] API error for ${seg.siteId}:`, e);
+              // Surface error to user
+              lastError.set('Failed to fetch departures');
               // Fall back to empty if API fails
               results.set(seg.siteId, []);
             }
@@ -118,7 +120,7 @@ function createDepartureStore() {
 
       set(results);
     } catch (error) {
-      console.error("[departureStore] Overall fetch error:", error);
+      if (import.meta.env.DEV) console.error("[departureStore] Overall fetch error:", error);
       lastError.set('Failed to fetch departures');
     } finally {
       isFetching = false;

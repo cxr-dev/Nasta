@@ -65,7 +65,7 @@
         });
       });
     }).catch(err => {
-      console.error('[App] Service Worker registration failed:', err);
+      if (import.meta.env.DEV) console.error('[App] Service Worker registration failed:', err);
     });
   }
 
@@ -133,7 +133,7 @@
         );
         lastRefreshTime = Date.now();
       } else if (route.segments.length > 0) {
-        console.log('[App] siteIds empty, attempting proactive lookup');
+        if (import.meta.env.DEV) console.log('[App] siteIds empty, attempting proactive lookup');
         const resolvedIds = await lookupMissingSiteIds(route.segments);
         if (resolvedIds.length > 0) {
           const resolvedStopNames = new Map<string, string>();
@@ -153,7 +153,7 @@
         }
       }
     } else {
-      console.log(`[App] loadDepartures: No segments for route ${route?.id} (direction: ${route?.direction})`);
+      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${route?.id} (direction: ${route?.direction})`);
     }
   }
 
@@ -191,7 +191,7 @@
 function handleRouteSwitch(routeId: string) {
     const currentRoute = $selectedRoute;
     if (!currentRoute) return;
-    console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
+    if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
     selectedRouteId.set(routeId);
     loadDepartures(true);
   }
@@ -454,11 +454,13 @@ function handleRouteSwitch(routeId: string) {
     box-sizing: border-box;
   }
 
+  :global(html),
   :global(body) {
     font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: contain;
   }
@@ -539,11 +541,37 @@ function handleRouteSwitch(routeId: string) {
 
   .scroll-container {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding: 4px 20px calc(env(safe-area-inset-bottom) + 140px);
+
+    /* Fix Chrome 125+ double scrollbar bug */
+    scrollbar-gutter: stable;
+  }
+
+  /* Normalize scrollbars across browsers and prevent double scrollbars */
+  :global(*)::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  :global(*)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  :global(*)::-webkit-scrollbar-thumb {
+    background-color: var(--border-subtle);
+    border-radius: 20px;
+    border: 3px solid var(--bg);
+  }
+
+  /* Fix for Chrome 125+ bug where both native and custom scrollbars appear */
+  @supports not selector(::-webkit-scrollbar) {
+    .scroll-container {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-subtle) var(--bg);
+    }
   }
 
   .update-banner {
