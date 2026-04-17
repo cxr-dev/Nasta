@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
+import { writeFileSync } from "fs";
 
 export default defineConfig({
-  base: "./",
+  base: "/Nasta/",
   plugins: [
     svelte(),
     VitePWA({
