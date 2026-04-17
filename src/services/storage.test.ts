@@ -49,7 +49,8 @@ describe('storage service', () => {
         hasSwipedRoutes: false,
         showNotifications: true,
         theme: 'default',
-        themeVariant: 'A'
+        themeVariant: 'A',
+        language: 'auto'
       });
     });
 
@@ -68,7 +69,8 @@ describe('storage service', () => {
         hasSwipedRoutes: true,
         showNotifications: false,
         theme: 'electric-pulse',
-        themeVariant: 'B' as const
+        themeVariant: 'B' as const,
+        language: 'en' as const
       };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));

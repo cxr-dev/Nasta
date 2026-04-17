@@ -4,10 +4,11 @@
   import { getPredictedDepartures } from '../services/timetableCache';
   import { getLiveMinutes, mergeDeparturesWithPredictions } from '../lib/departureDisplay';
   import { onMount, onDestroy } from 'svelte';
-  import { transportIcons, transportLabels } from '../icons/transport';
+  import { transportIcons } from '../icons/transport';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import DepartureStrip from './DepartureStrip.svelte';
+  import { t } from '../stores/localeStore';
 
   let { route }: { route: Route } = $props();
 
@@ -30,12 +31,8 @@
 
   function getDeparturesForSegment(segment: Segment): Departure[] {
     const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    const live = !segment.lineName || segment.lineName.trim() === ''
-      ? allDeps.filter(dep => dep.line === segment.line)
-      : allDeps.filter(dep =>
-          dep.line === segment.line &&
-          dep.directionText === segment.directionText
-        );
+    // Filter by line only (no directionText filter—API handles that)
+    const live = allDeps.filter(dep => dep.line === segment.line);
 
     if (live.length >= 3) return live;
 
@@ -52,12 +49,8 @@
     return transportIcons[type] ?? transportIcons.bus;
   }
 
-  function getTransportLabel(type: TransportType): string {
-    return transportLabels[type] ?? 'Transport';
-  }
-
   function formatSubsequent(deps: Departure[]): string | null {
-    const subsequent = deps.slice(1, 3).filter(d => d.time);
+    const subsequent = deps.slice(1, 4).filter(d => d.time);
     if (subsequent.length === 0) return null;
     return subsequent.map(d => d.time).join(' · ');
   }
@@ -76,19 +69,31 @@
     clockTimer = setInterval(() => {
       if (document.hidden) return;
       now = Date.now();
-      // Trigger immediate refresh if any leading departure has hit 0
+      // Trigger immediate refresh if any leading departure has hit 0 or is about to depart (<= 1 min)
+      // But only refresh if we haven't already refreshed recently (debounce)
       const segments = route.segments ?? [];
       const needsRefresh = segments.some((segment, i) => {
         const deps = segmentDeps[i] ?? [];
-        return deps.length > 0 && deps[0].expectedAt !== undefined && getLiveMinutes(deps[0], now) === 0;
+        if (deps.length === 0 || deps[0].expectedAt === undefined) return false;
+        const mins = getLiveMinutes(deps[0], now);
+        // Only refresh when departure is imminent (within 1 minute) and hasn't been marked as "passed"
+        // Also check it's not in the past (expectedAt should be in the future)
+        return mins <= 1 && deps[0].expectedAt > now - 60_000;
       });
       if (needsRefresh) {
         const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
         const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
         departureStore.refresh(siteIds, stopNames);
       }
-    }, 1000);
+    }, 5000);
   });
+
+  function handleRefreshClick() {
+    const segments = route.segments ?? [];
+    const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
+    const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+    departureStore.refresh(siteIds, stopNames, false);
+  }
 
   onDestroy(() => {
     UNSUBSCRIBERS.forEach(fn => fn());
@@ -97,6 +102,19 @@
 </script>
 
 <div class="departures-list">
+  <div class="departures-header">
+    <h3 class="departures-title">{$t.departures}</h3>
+    <button
+      class="refresh-btn"
+      onclick={handleRefreshClick}
+      title="Refresh departures"
+      aria-label="Refresh departures"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+      </svg>
+    </button>
+  </div>
   {#each (route.segments ?? []) as segment, index (segment.id)}
     {@const deps = segmentDeps[index] ?? []}
     {@const departure = deps[0]}
@@ -131,18 +149,17 @@
       </div>
 
       <div class="row-right">
-        <div class="time-stack" class:predicted={departure.predicted === true}>
-          <div class="primary-time">
-            {#if departure.predicted === true}<span class="tilde">~</span>{/if}
-            <span class="minutes">{liveMinutes}</span>
-            <span class="unit">min</span>
-          </div>
-          <div class="secondary-time">
-            <span class="clock">{departure.time}</span>
-            {#if subsequent}
-              <span class="more">· {subsequent}</span>
-            {/if}
-          </div>
+          <div class="time-stack" class:predicted={departure.predicted === true}>
+            <div class="primary-time">
+              {#if departure.predicted === true}<span class="tilde">~</span>{/if}
+              <span class="minutes">{liveMinutes}</span>
+              <span class="unit">{$t.minutesShort}</span>
+            </div>
+          {#if subsequent}
+            <div class="secondary-time">
+              <span class="more">{subsequent}</span>
+            </div>
+          {/if}
         </div>
       </div>
     </button>
@@ -362,5 +379,53 @@
     color: var(--text-ghost);
     letter-spacing: 0;
     line-height: 1;
+  }
+
+  .departures-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0 8px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .departures-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 200ms ease;
+    font-size: 0;
+  }
+
+  .refresh-btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .refresh-btn:active {
+    transform: scale(0.95);
+  }
+
+  .refresh-btn svg {
+    display: block;
+    width: 20px;
+    height: 20px;
   }
 </style>

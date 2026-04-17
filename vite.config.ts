@@ -1,87 +1,91 @@
-import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { VitePWA } from 'vite-plugin-pwa';
+import { defineConfig } from "vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  base: './',
+  base: "./",
   plugins: [
     svelte(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['logosvg.svg', 'apple-touch-icon.png', 'robots.txt'],
+      devOptions: {
+        enabled: false, // <-- Add this
+      },
+      registerType: "autoUpdate",
+      includeAssets: ["logosvg.svg", "apple-touch-icon.png", "robots.txt"],
       manifest: {
-        name: 'Nästa - Commute Dashboard',
-        short_name: 'Nästa',
-        description: 'Swedish public transit commute tracker',
-        theme_color: '#635BFF',
-        background_color: '#635BFF',
-        display: 'standalone',
-        orientation: 'portrait',
-        start_url: './',
-        scope: './',
+        name: "Nästa - Commute Dashboard",
+        short_name: "Nästa",
+        description: "Swedish public transit commute tracker",
+        theme_color: "#635BFF",
+        background_color: "#635BFF",
+        display: "standalone",
+        orientation: "portrait",
+        start_url: "./",
+        scope: "./",
         icons: [
           {
-            src: './logosvg.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any'
+            src: "./logosvg.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "any",
           },
           {
-            src: './icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
+            src: "./icons/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
           },
           {
-            src: './icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
-        ]
+            src: "./icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 3000000,
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/transport\.integration\.sl\.se\/v1\/sites.*/i,
-            handler: 'StaleWhileRevalidate',
+            urlPattern:
+              /^https:\/\/transport\.integration\.sl\.se\/v1\/sites.*/i,
+            handler: "StaleWhileRevalidate",
             options: {
-              cacheName: 'sl-sites-cache',
+              cacheName: "sl-sites-cache",
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 86400
-              }
-            }
+                maxAgeSeconds: 86400,
+              },
+            },
           },
           {
             urlPattern: /^https:\/\/transport\.integration\.sl\.se\/.*/i,
-            handler: 'NetworkFirst',
+            handler: "NetworkFirst",
             options: {
-              cacheName: 'sl-api-cache',
+              cacheName: "sl-api-cache",
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60
+                maxAgeSeconds: 60,
               },
-              networkTimeoutSeconds: 5
-            }
-          }
-        ]
-      }
-    })
+              networkTimeoutSeconds: 5,
+            },
+          },
+        ],
+      },
+    }),
   ],
   build: {
-    target: 'esnext',
-    minify: 'esbuild',
+    target: "esnext",
+    minify: "esbuild",
     rollupOptions: {
       output: {
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
-      }
-    }
-  }
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]",
+      },
+    },
+  },
 });

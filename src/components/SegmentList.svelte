@@ -12,6 +12,12 @@
   function removeSegment(segmentId: string) {
     routeStore.removeSegment(route.id, segmentId);
   }
+
+  function updateTransferBuffer(segmentId: string, value: string) {
+    const parsed = Number.parseInt(value, 10);
+    const nextValue = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    routeStore.updateSegmentTransferBuffer(route.id, segmentId, nextValue);
+  }
   
   function handleDragStart(e: DragEvent, index: number) {
     draggingIndex = index;
@@ -116,6 +122,23 @@
             {segment.fromStop.name} → {segment.toStop.name}
           </div>
           <div class="segment-dir">{segment.directionText}</div>
+          {#if index < route.segments.length - 1}
+            <label class="buffer-row">
+              <span class="buffer-label">{$t.transferBuffer}</span>
+              <div class="buffer-input-wrap">
+                <input
+                  class="buffer-input"
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={segment.transferBufferMinutes ?? 0}
+                  oninput={(e) => updateTransferBuffer(segment.id, (e.currentTarget as HTMLInputElement).value)}
+                  aria-label={`${$t.transferBuffer}: ${segment.fromStop.name}`}
+                />
+                <span class="buffer-unit">{$t.minutesShort}</span>
+              </div>
+            </label>
+          {/if}
         </div>
         <button 
           class="remove-btn" 
@@ -213,6 +236,42 @@
   }
 
   .segment-dir {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .buffer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .buffer-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .buffer-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .buffer-input {
+    width: 56px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+    text-align: right;
+  }
+
+  .buffer-unit {
     font-size: 12px;
     color: var(--text-secondary);
   }

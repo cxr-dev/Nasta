@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
+  import { t } from '../stores/localeStore';
 
   let { onComplete }: { onComplete: () => void } = $props();
 
@@ -9,26 +10,26 @@
 
   const totalSteps = 3;
 
-  const steps = [
+  const steps = $derived([
     {
       emoji: '🚇',
-      title: 'Välkommen till Nästa',
-      subtitle: 'Din smarta resetusselskap i Stockholm',
-      description: 'Få koll på nästa avgång – snabbt och enkelt.'
+      title: $t.onboardingWelcomeTitle,
+      subtitle: $t.onboardingWelcomeSubtitle,
+      description: $t.onboardingWelcomeDesc
     },
     {
       emoji: '📱',
-      title: 'Spara dina rutter',
-      subtitle: 'Skapa rutt till jobbet och hem',
-      description: 'Lägg till dina vanliga resor och få uppdateringar i realtid.'
+      title: $t.onboardingRoutesTitle,
+      subtitle: $t.onboardingRoutesSubtitle,
+      description: $t.onboardingRoutesDesc
     },
     {
       emoji: '⚡',
-      title: 'Aldrig mer att vänta',
-      subtitle: 'Ultra-glanceable design',
-      description: 'Största siffran på skärmen = minuter till nästa avgång. Perfekt för stressade morgnar.'
+      title: $t.onboardingGlanceTitle,
+      subtitle: $t.onboardingGlanceSubtitle,
+      description: $t.onboardingGlanceDesc
     }
-  ];
+  ]);
 
   function nextStep() {
     if (currentStep < totalSteps - 1) {
@@ -85,20 +86,20 @@
 
   <div class="navigation">
     {#if currentStep < totalSteps - 1}
-      <button class="skip-btn" onclick={skip} aria-label="Hoppa över introduktion">
-        Hoppa över
+      <button class="skip-btn" onclick={skip} aria-label={$t.skipOnboardingAria}>
+        {$t.skipOnboarding}
       </button>
     {/if}
     
     <div class="nav-buttons">
       {#if currentStep > 0}
-        <button class="back-btn" onclick={prevStep} aria-label="Föregående">
-          Tillbaka
+        <button class="back-btn" onclick={prevStep} aria-label={$t.previousAria}>
+          {$t.previous}
         </button>
       {/if}
       
-      <button class="next-btn" onclick={nextStep} aria-label={currentStep === totalSteps - 1 ? 'Kom igång' : 'Nästa'}>
-        {currentStep === totalSteps - 1 ? 'Kom igång!' : 'Nästa'}
+      <button class="next-btn" onclick={nextStep} aria-label={currentStep === totalSteps - 1 ? $t.getStartedAria : $t.next}>
+        {currentStep === totalSteps - 1 ? $t.getStarted : $t.next}
       </button>
     </div>
   </div>

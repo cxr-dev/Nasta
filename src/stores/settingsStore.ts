@@ -55,6 +55,13 @@ function createSettingsStore() {
         saveSettings(updated);
         return updated;
       });
+    },
+    setLanguage: (language: Settings['language']) => {
+      update(settings => {
+        const updated = { ...settings, language };
+        saveSettings(updated);
+        return updated;
+      });
     }
   };
 }

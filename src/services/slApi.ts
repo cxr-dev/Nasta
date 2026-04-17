@@ -1,6 +1,7 @@
 import type { Departure, SiteSearchResult } from '../types/departure';
 import type { TransportType } from '../types/route';
 import { learnFromApiResponse } from './timetableCache';
+import { cacheScheduleTime } from './scheduleCache';
 
 const TRANSPORT_URL = 'https://transport.integration.sl.se/v1';
 
@@ -71,6 +72,15 @@ export async function getDepartures(siteId: string, forecast = 240): Promise<Dep
       minutes = Math.max(0, Math.floor((new Date(liveTime).getTime() - Date.now()) / 60000));
     }
     const formattedTime = liveTime ? formatTime(new Date(liveTime)) : '';
+    
+    // Extract scheduled time from API response and cache it
+    if (dep.scheduled) {
+      const scheduledDate = new Date(dep.scheduled);
+      const direction = dep.direction || '';
+      const line = dep.line?.designation || dep.line?.name || '';
+      cacheScheduleTime(siteId, line, direction, scheduledDate);
+    }
+    
     return {
       line: dep.line?.designation || dep.line?.name || '',
       lineName: dep.line?.name || '',

@@ -25,6 +25,7 @@
   let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
   let settings = $derived($settingsStore);
+  let activeLanguage = $derived(settings.language ?? 'auto');
 
   function getRouteLabel(r: Route): string {
     return r.direction === 'toWork' ? $t.toWork : $t.home;
@@ -96,13 +97,45 @@
           class="toggle-btn"
           class:on={settings.showNotifications ?? true}
           onclick={() => settingsStore.toggleNotifications()}
-          aria-label="Visa notiser"
+          aria-label={$t.showNotifications}
           role="switch"
           aria-checked={settings.showNotifications ?? true}
         >
           <span class="toggle-knob"></span>
         </button>
       </label>
+
+      <div class="setting-block">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.language}</span>
+        </div>
+        <div class="segmented-control" role="group" aria-label={$t.language}>
+          <button
+            class="segment-choice"
+            class:active={activeLanguage === 'auto'}
+            onclick={() => settingsStore.setLanguage('auto')}
+            aria-pressed={activeLanguage === 'auto'}
+          >
+            {$t.languageAuto}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeLanguage === 'en'}
+            onclick={() => settingsStore.setLanguage('en')}
+            aria-pressed={activeLanguage === 'en'}
+          >
+            {$t.languageEnglish}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeLanguage === 'sv'}
+            onclick={() => settingsStore.setLanguage('sv')}
+            aria-pressed={activeLanguage === 'sv'}
+          >
+            {$t.languageSwedish}
+          </button>
+        </div>
+      </div>
 
       <div class="theme-section">
         <h3 class="theme-title">{$t.theme}</h3>
@@ -119,7 +152,7 @@
                 class:active={isActiveA}
                 style="background:{palette.colorA}"
                 onclick={() => settingsStore.setTheme(palette.id, 'A')}
-                aria-label="{palette.name}, ljus variant"
+                aria-label={`${palette.name}, A`}
                 aria-pressed={isActiveA}
               >
                 <span class="ph-name" style="color:{isLightColor(palette.colorA) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)'}">{palette.name}</span>
@@ -134,7 +167,7 @@
                 class:active={isActiveB}
                 style="background:{palette.colorB}"
                 onclick={() => settingsStore.setTheme(palette.id, 'B')}
-                aria-label="{palette.name}, mörk variant"
+                aria-label={`${palette.name}, B`}
                 aria-pressed={isActiveB}
               >
                 <span class="ph-name" style="color:{isLightColor(palette.colorB) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)'}">{palette.name}</span>
@@ -365,6 +398,12 @@
   gap: 12px;
 }
 
+.setting-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .theme-title {
   font-size: 14px;
   font-weight: 600;
@@ -375,6 +414,30 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.segment-choice {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.segment-choice.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
 }
 
 /* Single card = two clickable halves side by side */

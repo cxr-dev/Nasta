@@ -9,22 +9,28 @@ afterEach(cleanup);
 describe('BottomBar', () => {
   it('shows arrival time when provided', () => {
     const { getByText } = render(BottomBar, {
-      props: { arrivalTime: '08:34', editing: false, onclick: vi.fn(), activeRouteDirection: 'toWork' }
+      props: {
+        arrivalSummary: { time: '08:34', transferSlackMinutes: 2, transferState: 'tight' },
+        editing: false,
+        onclick: vi.fn(),
+        activeRouteDirection: 'toWork'
+      }
     });
     expect(getByText('08:34')).toBeTruthy();
-    expect(getByText('Anländer')).toBeTruthy();
+    expect(getByText('Ankomst')).toBeTruthy();
+    expect(getByText('Tajt byte')).toBeTruthy();
   });
 
   it('hides arrival row when arrivalTime is null', () => {
     const { queryByText } = render(BottomBar, {
-      props: { arrivalTime: null, editing: false, onclick: vi.fn(), activeRouteDirection: 'toWork' }
+      props: { arrivalSummary: null, editing: false, onclick: vi.fn(), activeRouteDirection: 'toWork' }
     });
-    expect(queryByText('Anländer')).toBeNull();
+    expect(queryByText('Ankomst')).toBeNull();
   });
 
   it('shows "Spara" when editing', () => {
     const { getByRole } = render(BottomBar, {
-      props: { arrivalTime: null, editing: true, onclick: vi.fn(), activeRouteDirection: 'toWork' }
+      props: { arrivalSummary: null, editing: true, onclick: vi.fn(), activeRouteDirection: 'toWork' }
     });
     expect(getByRole('button').textContent?.trim()).toBe('Spara');
   });
@@ -32,7 +38,7 @@ describe('BottomBar', () => {
   it('fires onclick when Redigera is clicked', async () => {
     const onclick = vi.fn();
     const { getByRole } = render(BottomBar, {
-      props: { arrivalTime: null, editing: false, onclick, activeRouteDirection: 'toWork' }
+      props: { arrivalSummary: null, editing: false, onclick, activeRouteDirection: 'toWork' }
     });
     await fireEvent.click(getByRole('button'));
     expect(onclick).toHaveBeenCalledOnce();

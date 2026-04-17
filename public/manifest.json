@@ -2,7 +2,7 @@
   "name": "Nästa - Commute Dashboard",
   "short_name": "Nästa",
   "description": "Swedish public transit commute tracker",
-  "start_url": "/",
+  "start_url": "/Nasta/",
   "display": "standalone",
   "background_color": "#0A0B1A",
   "theme_color": "#0A0B1A",

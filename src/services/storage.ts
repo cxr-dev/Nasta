@@ -11,6 +11,7 @@ export interface Settings {
   showNotifications: boolean;
   theme: string;
   themeVariant: 'A' | 'B';
+  language: 'auto' | 'sv' | 'en';
 }
 
 const defaultSettings: Settings = {
@@ -20,7 +21,8 @@ const defaultSettings: Settings = {
   hasSwipedRoutes: false,
   showNotifications: true,
   theme: 'default',
-  themeVariant: 'A'
+  themeVariant: 'A',
+  language: 'auto'
 };
 
 export function loadRoutes(): Route[] {

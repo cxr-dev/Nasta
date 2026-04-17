@@ -2,6 +2,8 @@
 
 **A minimalist personal commute dashboard for Stockholm public transport (SL).**
 
+**Live** → [cxr-dev.github.io/Nasta](https://cxr-dev.github.io/Nasta)
+
 ## Purpose
 
 Nästa helps Stockholm commuters track their daily routes by showing real-time departures from their configured stops, calculating arrival times, and providing a simple mobile-first interface optimized for quick glances while walking or waiting at stops.
@@ -21,45 +23,51 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 ## Core Features
 
 ### 1. Real-Time Departures Display
+
 - Shows next departures from configured stops for each route segment
 - Auto-refreshes every 30 seconds
 - Displays time until departure (minutes) + planned departure time
 - Color-coded transport type icons (bus, train, metro, boat/ferry)
 
 ### 2. Route Management
+
 - Two pre-configured routes: "Till jobbet" (to work) and "Hem" (home)
 - Each route contains ordered segments (stop → stop with travel time)
 - Touch drag reordering for segments on mobile
 
 ### 3. Hybrid Ferry Support
+
 - SL API integration for regular transit (bus, train, metro)
 - Static timetable fallback for Sjöstadstrafiken ferries (Luma brygga, Barnängen, Henriksdal)
 - Automatic detection based on stop names
 
 ### 4. Arrival Time Calculation
+
 - Sums travel times across all segments
 - Shows expected arrival time at final destination
 - Accounts for departure wait time from first stop
 
 ### 5. PWA Installation
+
 - Installable as standalone app
 - Works offline with cached data
 - Cache-busting for automatic updates
 
 ## Value Proposition
 
-| Feature | User Value |
-|---------|------------|
-| Single screen dashboard | No navigation, instant information |
-| Auto-refresh | Always accurate, zero manual refresh |
-| Offline support | Works in tunnel/slow signal areas |
-| PWA installable | Feels like native app, no app store needed |
-| Minimalist design | Glanceable in sunlight, battery efficient |
-| Touch drag reordering | Fast route editing on mobile |
+| Feature                 | User Value                                 |
+| ----------------------- | ------------------------------------------ |
+| Single screen dashboard | No navigation, instant information         |
+| Auto-refresh            | Always accurate, zero manual refresh       |
+| Offline support         | Works in tunnel/slow signal areas          |
+| PWA installable         | Feels like native app, no app store needed |
+| Minimalist design       | Glanceable in sunlight, battery efficient  |
+| Touch drag reordering   | Fast route editing on mobile               |
 
 ## Technical Architecture
 
 ### Tech Stack
+
 - **Framework**: Vite + Svelte + TypeScript
 - **Storage**: LocalStorage (routes/settings persisted locally)
 - **API**: SL Transport API v1 (Trafiklab)
@@ -92,22 +100,22 @@ Stop
 
 ### Key Services
 
-| Service | Responsibility |
-|---------|----------------|
-| `slApi.ts` | Search stops, fetch departures, format times |
-| `staticTimetable.ts` | Sjöstadstrafiken ferry schedules |
-| `routeStore.ts` | Route state, segment CRUD, reordering |
-| `departureStore.ts` | Departure fetching, auto-refresh |
+| Service              | Responsibility                               |
+| -------------------- | -------------------------------------------- |
+| `slApi.ts`           | Search stops, fetch departures, format times |
+| `staticTimetable.ts` | Sjöstadstrafiken ferry schedules             |
+| `routeStore.ts`      | Route state, segment CRUD, reordering        |
+| `departureStore.ts`  | Departure fetching, auto-refresh             |
 
 ### Key Components
 
-| Component | Purpose |
-|-----------|---------|
-| `SegmentDepartures.svelte` | Main card showing departure for one segment |
-| `SegmentList.svelte` | Ordered list of route segments with drag handle |
-| `SegmentSearch.svelte` | Stop search with debounce + ferry badge |
-| `RouteEditor.svelte` | Full-screen route editing mode |
-| `Header.svelte` | App header with logo |
+| Component                  | Purpose                                         |
+| -------------------------- | ----------------------------------------------- |
+| `SegmentDepartures.svelte` | Main card showing departure for one segment     |
+| `SegmentList.svelte`       | Ordered list of route segments with drag handle |
+| `SegmentSearch.svelte`     | Stop search with debounce + ferry badge         |
+| `RouteEditor.svelte`       | Full-screen route editing mode                  |
+| `Header.svelte`            | App header with logo                            |
 
 ## Implementation History
 
@@ -154,30 +162,35 @@ Schedule: Hardcoded in staticTimetable.ts
 ## Deployment
 
 - **Host**: GitHub Pages
-- **URL**: https://nasta.app
+- **URL**: https://cxr-dev.github.io/Nasta
 - **Auto-deploy**: Push to main branch triggers deployment
 
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 
 ### Installation
+
 ```bash
 npm install
 ```
 
 ### Development
+
 ```bash
 npm run dev
 ```
 
 ### Build
+
 ```bash
 npm run build
 ```
 
 ### Testing
+
 ```bash
 npm run test        # Unit tests
 npm run test:e2e   # E2E tests
@@ -186,6 +199,7 @@ npm run test:e2e   # E2E tests
 ## Configuration
 
 Routes are stored in LocalStorage (`nasta_routes`):
+
 1. Tap "Redigera" button (bottom bar)
 2. Search for stops using the search bar
 3. Add segments with travel times between stops

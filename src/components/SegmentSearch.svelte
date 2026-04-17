@@ -4,7 +4,7 @@
   import { getKnownRoutes } from '../services/timetableCache';
   import type { SiteSearchResult, Departure } from '../types/departure';
   import type { TransportType, Stop } from '../types/route';
-  import { transportIcons, transportLabels } from '../icons/transport';
+  import { transportIcons } from '../icons/transport';
   import { t } from '../stores/localeStore';
   
   let { 
@@ -109,17 +109,30 @@
     }
   }
   
-  function handleSelect(departure: Departure) {
-    onSelect(
-      departure.line,
-      departure.lineName,
-      departure.directionText,
-      { id: crypto.randomUUID(), name: selectedStation!.name, siteId: selectedStation!.siteId },
-      { id: crypto.randomUUID(), name: departure.destination, siteId: '' },
-      departure.transportType
-    );
-    reset();
-  }
+   async function handleSelect(departure: Departure) {
+     // Get real siteId for destination using searchSites
+     let destinationSiteId = 'dest-' + departure.destination; // fallback
+     try {
+       const destinations = await searchSites(departure.destination);
+       if (destinations.length > 0) {
+         // Use the first matching site's siteId
+         destinationSiteId = destinations[0].siteId;
+       }
+     } catch (e) {
+       console.error('Failed to search for destination:', e);
+       // Keep fallback siteId
+     }
+     
+     onSelect(
+       departure.line,
+       departure.lineName,
+       departure.directionText,
+       { id: crypto.randomUUID(), name: selectedStation!.name, siteId: selectedStation!.siteId },
+       { id: crypto.randomUUID(), name: departure.destination, siteId: destinationSiteId },
+       departure.transportType
+     );
+     reset();
+   }
   
   function reset() {
     query = '';

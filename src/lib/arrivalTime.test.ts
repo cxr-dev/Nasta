@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { computeArrivalTime } from './arrivalTime';
+import { computeArrivalSummary } from './arrivalTime';
 import type { Route } from '../types/route';
 import type { Departure } from '../stores/departureStore';
 
@@ -11,7 +11,8 @@ const route: Route = {
       fromStop: { id: 'stop1', name: 'Luma', siteId: '1001' },
       toStop: { id: 'stop2', name: 'Slussen', siteId: '1002' },
       transportType: 'metro',
-      travelTimeMinutes: 12
+      travelTimeMinutes: 12,
+      transferBufferMinutes: 4
     },
     {
       id: 's2', line: '74', lineName: 'Buss 74', directionText: 'Frihamnen',
@@ -35,19 +36,50 @@ describe('computeArrivalTime', () => {
   });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('computes wait + travel time', () => {
-    const deps = new Map([['1001', [dep]]]);
-    // 5 min wait + 12 + 8 travel = 25 min from 08:37 = 09:02
-    expect(computeArrivalTime(route, deps)).toBe('09:02');
+  it('computes earliest realistic chained arrival including transfer buffers', () => {
+    const deps = new Map<string, Departure[]>([
+      ['1001', [dep]],
+      ['1002', [
+        {
+          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+          minutes: 17, time: '08:54', transportType: 'bus'
+        },
+        {
+          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+          minutes: 23, time: '09:00', transportType: 'bus'
+        }
+      ]]
+    ]);
+    const result = computeArrivalSummary(route, deps);
+    expect(result).toEqual({
+      time: '09:08',
+      transferSlackMinutes: 2,
+      transferState: 'tight'
+    });
   });
 
   it('returns null when no matching departure', () => {
     const deps = new Map<string, Departure[]>();
-    expect(computeArrivalTime(route, deps)).toBeNull();
+    expect(computeArrivalSummary(route, deps)).toBeNull();
   });
 
   it('returns null for empty route', () => {
     const empty: Route = { id: 'r', name: '', direction: 'toWork', segments: [] };
-    expect(computeArrivalTime(empty, new Map())).toBeNull();
+    expect(computeArrivalSummary(empty, new Map())).toBeNull();
+  });
+
+  it('defaults transferBufferMinutes to 0 for older saved routes', () => {
+    const oldRoute: Route = {
+      ...route,
+      segments: route.segments.map(({ transferBufferMinutes, ...segment }) => segment)
+    };
+    const deps = new Map<string, Departure[]>([
+      ['1001', [dep]],
+      ['1002', [{
+        line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+        minutes: 17, time: '08:54', transportType: 'bus'
+      }]]
+    ]);
+    expect(computeArrivalSummary(oldRoute, deps)?.time).toBe('09:02');
   });
 });

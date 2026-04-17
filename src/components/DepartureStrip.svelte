@@ -4,6 +4,7 @@
   import { fetchJourneyStops, estimateVehicleStopIndex } from '../services/journeyService';
   import type { JourneyData, JourneyStop } from '../services/journeyService';
   import { onMount, onDestroy } from 'svelte';
+  import { t } from '../stores/localeStore';
 
   let {
     departure,
@@ -59,8 +60,12 @@
     return 'upcoming';
   }
 
-  function currentStopName(data: JourneyData): string {
-    return data.stops[vehicleIdx]?.name || 'okänd hållplats';
+  function lastReliableStopName(data: JourneyData): string | null {
+    for (let i = Math.min(vehicleIdx, data.stops.length - 1); i >= 0; i--) {
+      const name = data.stops[i]?.name?.trim();
+      if (name) return name;
+    }
+    return null;
   }
 
   function stopsUntilPickup(data: JourneyData): number | null {
@@ -71,17 +76,19 @@
 
   function progressText(data: JourneyData): string {
     const remaining = stopsUntilPickup(data);
-    if (remaining === null) return `Mot ${segment.fromStop.name}`;
-    if (remaining === 0) return `Nu vid ${segment.fromStop.name}`;
-    if (remaining === 1) return `1 hållplats kvar till ${segment.fromStop.name}`;
-    return `${remaining} hållplatser kvar till ${segment.fromStop.name}`;
+    if (remaining === null) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    if (remaining === 0) return $t.nowAtStop.replace('{stop}', segment.fromStop.name);
+    if (remaining === 1) return $t.stopsAwayOne.replace('{stop}', segment.fromStop.name);
+    return $t.stopsAwayMany
+      .replace('{count}', String(remaining))
+      .replace('{stop}', segment.fromStop.name);
   }
 
   function vehicleContextText(data: JourneyData): string {
-    const current = currentStopName(data);
-    if (!current) return '';
-    if (isYourStop(data.stops[vehicleIdx])) return `Fordonet är vid din hållplats`;
-    return `Fordonet är vid ${current}`;
+    const current = lastReliableStopName(data);
+    if (!current) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    if (isYourStop(data.stops[vehicleIdx])) return $t.vehicleAtYourStop;
+    return $t.vehicleAt.replace('{stop}', current);
   }
 
   function formatArrival(): string {
@@ -123,7 +130,7 @@
   </div>
 {:else if journeyData}
   {@const visible = visibleStops(journeyData)}
-  <div class="strip" role="region" aria-label="Fordonsposition" bind:this={stripEl}>
+  <div class="strip" role="region" aria-label={$t.vehiclePosition} bind:this={stripEl}>
     <div class="strip-summary">
       <div class="summary-primary">{progressText(journeyData)}</div>
       <div class="summary-secondary">{vehicleContextText(journeyData)}</div>
@@ -138,7 +145,7 @@
 
           <div
             class="stop-node stop-{state}"
-            aria-label={stop.name ? `Hållplats: ${stop.name}` : undefined}
+            aria-label={stop.name ? $t.stopLabel.replace('{stop}', stop.name) : undefined}
           >
             {#if state === 'vehicle'}
               <div class="vehicle-bubble">{departure.line}</div>
@@ -167,11 +174,11 @@
     </div>
 
     <div class="strip-footer">
-      <span class="arrival-text">Ankommer <strong>{formatArrival()}</strong></span>
+      <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
       {#if journeyData.isEstimated}
-        <span class="badge badge-estimated">~Estimat</span>
+        <span class="badge badge-estimated">~{$t.estimated}</span>
       {:else}
-        <span class="badge badge-live">Live ✦</span>
+        <span class="badge badge-live">{$t.live} ✦</span>
       {/if}
     </div>
   </div>
@@ -321,11 +328,6 @@
   .arrival-text {
     font-size: 12px;
     color: var(--text-secondary);
-  }
-
-  .arrival-text strong {
-    color: var(--text);
-    font-weight: 600;
   }
 
   .badge {

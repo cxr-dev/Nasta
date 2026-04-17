@@ -1,24 +1,39 @@
 <script lang="ts">
   import { t } from '../stores/localeStore';
+  import type { ArrivalSummary } from '../lib/arrivalTime';
 
   let {
-    arrivalTime,
+    arrivalSummary,
     editing,
     onclick,
     activeRouteDirection
   }: {
-    arrivalTime: string | null;
+    arrivalSummary: ArrivalSummary | null;
     editing: boolean;
     onclick: () => void;
     activeRouteDirection: 'toWork' | 'fromWork';
   } = $props();
+
+  function transferHint(summary: ArrivalSummary): string | null {
+    if (summary.transferState === 'tight') return $t.tightTransfer;
+    if (summary.transferState === 'comfortable') return $t.comfortableTransfer;
+    if (summary.transferSlackMinutes !== null) {
+      return $t.transferWindow.replace('{minutes}', String(summary.transferSlackMinutes));
+    }
+    return null;
+  }
 </script>
 
 <div class="bottom-bar">
-  {#if arrivalTime && !editing}
+  {#if arrivalSummary && !editing}
     <div class="arrival-info">
-      <span class="arrival-label">{$t.arriving}</span>
-      <span class="arrival-time">{arrivalTime}</span>
+      <div class="arrival-copy">
+        <span class="arrival-label">{$t.realisticArrival}</span>
+        {#if transferHint(arrivalSummary)}
+          <span class="arrival-hint">{transferHint(arrivalSummary)}</span>
+        {/if}
+      </div>
+      <span class="arrival-time">{arrivalSummary.time}</span>
     </div>
   {/if}
   <button
@@ -62,10 +77,18 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+    gap: 12px;
     padding: 12px 16px;
     background: var(--bg);
     border-radius: 8px;
     border: 1px solid var(--border);
+  }
+
+  .arrival-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
   }
 
   .arrival-label {
@@ -74,6 +97,14 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
+  }
+
+  .arrival-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .arrival-time {

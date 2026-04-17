@@ -5,13 +5,15 @@
   import { settingsStore } from './stores/settingsStore';
   import { timeOfDay, weatherEmoji, isSunlightMode } from './lib/stores/timeOfDay';
   import { applyTheme } from './themes';
-  import { computeArrivalTime } from './lib/arrivalTime';
+  import { computeArrivalSummary } from './lib/arrivalTime';
+  import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
+  import { locale, resolveLocale, t } from './stores/localeStore';
+  
   import RouteHeader from './components/RouteHeader.svelte';
   import BottomBar from './components/BottomBar.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import Onboarding from './components/Onboarding.svelte';
-  import { t } from './stores/localeStore';
 
   let editing = $state(false);
   let updateAvailable = $state(false);
@@ -33,10 +35,13 @@
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
 
-  // PWA auto-update: reload page when a new service worker takes control.
-  // skipWaiting + clientsClaim in vite.config.ts means a new SW activates
-  // immediately on deploy; controllerchange fires and we reload transparently.
+  // Cleanup old dev Service Worker and handle updates
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    // Unregister any existing SW first to fix white screen issue
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(reg => reg.unregister());
+    });
+    
     let reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloading) return;
@@ -72,26 +77,131 @@
   let hasNoRoutes = $derived(!routes || routes.length === 0);
   let settings = $derived($settingsStore);
   let departures = $state<Map<string, import('./stores/departureStore').Departure[]>>(new Map());
-  let arrivalTime = $derived(route ? computeArrivalTime(route, departures) : null);
+  let arrivalSummary = $derived(route ? computeArrivalSummary(route, departures) : null);
 
   $effect(() => {
     applyTheme($settingsStore.theme ?? 'default', $settingsStore.themeVariant ?? 'A');
   });
 
-  function loadDepartures() {
+  $effect(() => {
+    locale.set(resolveLocale($settingsStore.language ?? 'auto'));
+  });
+
+  // Watch for route changes and load departures
+  $effect(() => {
+    const currentRoute = $selectedRoute;
+    if (!currentRoute) return;
+    console.log(`[App $effect] Route changed to: ${currentRoute.id} (${currentRoute.direction}) with ${currentRoute.segments.length} segments`);
+    const allSegments = currentRoute.segments;
+    console.log(`[App $effect] ALL segments:`, allSegments.map(s => ({ 
+      from: s.fromStop.name, 
+      fromSiteId: s.fromStop.siteId, 
+      to: s.toStop.name,
+      toSiteId: s.toStop.siteId,
+      directionText: s.directionText
+    })));
+    const siteIds = currentRoute.segments
+      .map(s => s.fromStop.siteId || s.toStop.siteId)
+      .filter(Boolean);
+    console.log(`[App $effect] siteIds from segments:`, siteIds);
+    console.log(`[App $effect] First segment fromStop:`, currentRoute.segments[0]?.fromStop);
+    console.log(`[App $effect] First segment toStop:`, currentRoute.segments[0]?.toStop);
+    if (siteIds.length > 0) {
+      console.log(`[App $effect] Loading departures for: ${siteIds.join(', ')}`);
+      const stopNames = new Map(currentRoute.segments.map(s => {
+        const siteId = s.fromStop.siteId || s.toStop.siteId;
+        return [siteId, s.fromStop.name || s.toStop.name];
+      }));
+      departureStore.startAutoRefresh(
+        siteIds,
+        stopNames,
+        settings.refreshInterval || 30000,
+        true,
+        currentRoute.direction
+      );
+      lastRefreshTime = Date.now();
+    } else {
+      // Fallback: also try fetching with empty siteIds to see what happens
+      console.log(`[App $effect] WARNING: No valid siteIds, checking for empty siteIds...`);
+      const siteIdsWithEmpty = currentRoute.segments.map(s => s.fromStop.siteId);
+      console.log(`[App $effect] siteIds including empty:`, siteIdsWithEmpty);
+    }
+  });
+
+  async function loadDepartures(clearFirst = false) {
+    console.log(`[App] loadDepartures called. route is:`, route ? `${route.id} (${route.direction}) with ${route.segments.length} segments` : 'null/undefined');
     if (route && route.segments.length > 0) {
-      const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-      const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+      const siteIds = route.segments
+        .map(s => s.fromStop.siteId || s.toStop.siteId)
+        .filter(Boolean);
+      const stopNames = new Map(route.segments.map(s => {
+        const siteId = s.fromStop.siteId || s.toStop.siteId;
+        return [siteId, s.fromStop.name || s.toStop.name];
+      }));
+      console.log(`[App] loadDepartures: ${route.direction}, ${siteIds.length} sites:`, siteIds);
       if (siteIds.length > 0) {
-        departureStore.startAutoRefresh(siteIds, stopNames, settings.refreshInterval || 30000);
+        departureStore.startAutoRefresh(
+          siteIds,
+          stopNames,
+          settings.refreshInterval || 30000,
+          clearFirst,
+          route.direction
+        );
         lastRefreshTime = Date.now();
+      } else if (route.segments.length > 0) {
+        console.log('[App] siteIds empty, attempting proactive lookup');
+        const resolvedIds = await lookupMissingSiteIds(route.segments);
+        if (resolvedIds.length > 0) {
+          const resolvedStopNames = new Map<string, string>();
+          route.segments.forEach((s, i) => {
+            if (resolvedIds[i] && (s.fromStop.name || s.toStop.name)) {
+              resolvedStopNames.set(resolvedIds[i], s.fromStop.name || s.toStop.name);
+            }
+          });
+          departureStore.startAutoRefresh(
+            resolvedIds.filter(Boolean),
+            resolvedStopNames,
+            settings.refreshInterval || 30000,
+            true,
+            route.direction
+          );
+          lastRefreshTime = Date.now();
+        }
       }
+    } else {
+      console.log(`[App] loadDepartures: No segments for route ${route?.id} (direction: ${route?.direction})`);
     }
   }
 
-  function handleRouteSwitch(routeId: string) {
+  async function lookupMissingSiteIds(segments: Array<{ fromStop: { name: string; siteId: string }; toStop: { name: string; siteId: string } }>): Promise<string[]> {
+    const results: string[] = [];
+    for (const segment of segments) {
+      const fromId = segment.fromStop.siteId || segment.toStop.siteId;
+      if (fromId) {
+        results.push(fromId);
+      } else {
+        const stopName = segment.fromStop.name || segment.toStop.name;
+        if (stopName) {
+          try {
+            const sites = await searchSites(stopName);
+            results.push(sites[0]?.siteId || '');
+          } catch {
+            results.push('');
+          }
+        } else {
+          results.push('');
+        }
+      }
+    }
+    return results.filter(Boolean);
+  }
+
+function handleRouteSwitch(routeId: string) {
+    const currentRoute = $selectedRoute;
+    if (!currentRoute) return;
+    console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
     selectedRouteId.set(routeId);
-    loadDepartures();
+    loadDepartures(true);
   }
 
   function toggleEdit() {
@@ -162,10 +272,15 @@
   async function triggerManualRefresh() {
     if (!route?.segments || isRefreshing) return;
     isRefreshing = true;
-    const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-    const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+    const siteIds = route.segments
+      .map(s => s.fromStop.siteId || s.toStop.siteId)
+      .filter(Boolean);
+    const stopNames = new Map(route.segments.map(s => {
+      const siteId = s.fromStop.siteId || s.toStop.siteId;
+      return [siteId, s.fromStop.name || s.toStop.name];
+    }));
     try {
-      await departureStore.refresh(siteIds, stopNames);
+      await departureStore.refresh(siteIds, stopNames, true, route.direction);
       lastRefreshTime = Date.now();
     } finally {
       isRefreshing = false;
@@ -175,6 +290,7 @@
   onMount(() => {
     timeOfDay.start();
     routeStore.initialize();
+    initializeCacheLifecycle();
     const initialRoutes = $routeStore ?? [];
 
     if (!hasSeenOnboarding && initialRoutes.length === 0) {
@@ -193,10 +309,18 @@
 
     const onVisibility = () => {
       if (!document.hidden && route?.segments) {
-        const siteIds = route.segments.map(s => s.fromStop.siteId).filter(Boolean);
-        const stopNames = new Map(route.segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
-        departureStore.refresh(siteIds, stopNames);
-        lastRefreshTime = Date.now();
+        const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+        if (timeSinceLastRefresh > 10000) {
+          const siteIds = route.segments
+            .map(s => s.fromStop.siteId || s.toStop.siteId)
+            .filter(Boolean);
+          const stopNames = new Map(route.segments.map(s => {
+            const siteId = s.fromStop.siteId || s.toStop.siteId;
+            return [siteId, s.fromStop.name || s.toStop.name];
+          }));
+          departureStore.refresh(siteIds, stopNames, false, route.direction);
+          lastRefreshTime = Date.now();
+        }
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
@@ -210,6 +334,7 @@
   onDestroy(() => {
     timeOfDay.stop();
     departureStore.stopAutoRefresh();
+    stopCacheLifecycle();
     if (lastRefreshInterval) clearInterval(lastRefreshInterval);
   });
 </script>
@@ -296,7 +421,7 @@
 
     {#if !hasNoRoutes}
       <BottomBar
-        {arrivalTime}
+        arrivalSummary={arrivalSummary}
         {editing}
         onclick={toggleEdit}
         activeRouteDirection={route?.direction ?? 'toWork'}
