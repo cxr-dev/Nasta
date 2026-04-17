@@ -4,6 +4,7 @@ import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
+const DEFAULT_FORECAST_MINUTES = 240;
 
 function getTransportType(mode?: string): TransportType {
   switch (mode?.toLowerCase()) {
@@ -53,7 +54,10 @@ function rankByRelevance(
     .map(({ s }) => s);
 }
 
-export async function searchSites(query: string, signal?: AbortSignal): Promise<SiteSearchResult[]> {
+export async function searchSites(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SiteSearchResult[]> {
   if (!query || query.length < 2) return [];
 
   const response = await fetch(
@@ -79,7 +83,7 @@ export async function searchSites(query: string, signal?: AbortSignal): Promise<
 
 export async function getDepartures(
   siteId: string,
-  forecast = 240,
+  forecast = DEFAULT_FORECAST_MINUTES,
 ): Promise<Departure[]> {
   const response = await fetch(
     `${TRANSPORT_URL}/sites/${siteId}/departures?forecast=${forecast}`,
