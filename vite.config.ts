@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
-import { writeFileSync } from "fs";
 
 export default defineConfig({
   base: "/Nasta/",
@@ -51,10 +50,10 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
-            urlPattern: (req: Request) => req.mode === 'navigate',
-            handler: 'NetworkFirst',
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
             options: {
-              cacheName: 'navigation-cache',
+              cacheName: "navigation-cache",
               expiration: {
                 maxEntries: 30,
                 maxAgeSeconds: 86400,
