@@ -10,10 +10,6 @@
   import DepartureStrip from './DepartureStrip.svelte';
   import { t } from '../stores/localeStore';
 
-  const STALE_THRESHOLD_MS = 90_000;
-  const CLOCK_CHECK_INTERVAL_MS = 5000;
-  const REFRESH_LEAD_TIME_MINUTES = 2;
-
   let { route }: { route: Route } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
@@ -69,7 +65,16 @@
   // Recomputes only when departureData or route.segments changes — not on every clock tick
   let segmentDeps = $derived(
     (route.segments ?? []).map(seg => {
-      return getDeparturesForSegment(seg);
+      const deps = getDeparturesForSegment(seg);
+      if (deps.length > 0) {
+        const dep = deps[0];
+        console.log('[render] predicted:', dep.predicted, 
+          'expectedAt:', dep.expectedAt, 
+          'expectedAt ISO:', dep.expectedAt ? new Date(dep.expectedAt).toISOString() : null,
+          'dep.minutes:', dep.minutes, 
+          'getLiveMinutes result:', getLiveMinutes(dep, now));
+      }
+      return deps;
     })
   );
 
@@ -82,14 +87,14 @@
         const deps = segmentDeps[i] ?? [];
         if (deps.length === 0 || deps[0].expectedAt === undefined) return false;
         const mins = getLiveMinutes(deps[0], now);
-        return mins <= REFRESH_LEAD_TIME_MINUTES && deps[0].expectedAt > now - STALE_THRESHOLD_MS;
+        return mins <= 2 && deps[0].expectedAt > now - 60_000;
       });
       if (needsRefresh) {
         const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
         const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
         departureStore.refresh(siteIds, stopNames);
       }
-    }, CLOCK_CHECK_INTERVAL_MS);
+    }, 5000);
   }
 
   function stopClockTimer() {
@@ -151,7 +156,6 @@
       <span>{lastError}</span>
       <button onclick={() => lastError = null}>×</button>
     </div>  
-  {/if}
 
   {#if isLoading && departureData.size === 0}
     <div class="loading-skeleton">
@@ -178,7 +182,7 @@
         </svg>
       </button>
     </div>
-    {#if lastSuccessfulFetch > 0 && now - lastSuccessfulFetch > STALE_THRESHOLD_MS}
+    {#if lastSuccessfulFetch > 0 && now - lastSuccessfulFetch > 90_000}
       <div class="stale-indicator">
         Updated {Math.floor((now - lastSuccessfulFetch) / 60000)} min ago
       </div>
@@ -191,7 +195,6 @@
       {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
       {@const isExpanded = expandedIndex === index}
 
-      {#if hasDeparture}
       <button
         class="departure-row"
         class:expandable={hasDeparture}
@@ -255,7 +258,6 @@
           <div class="no-departure">—</div>
         </div>
       </div>
-      {/if}
 
       <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
       {#if isExpanded && hasDeparture}
