@@ -4,7 +4,52 @@ import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
+const STOP_FINDER_URL = "https://journeyplanner.integration.sl.se/v2/stop-finder";
 const DEFAULT_FORECAST_MINUTES = 240;
+
+/**
+ * Parse SL API timestamps as Stockholm local time using Intl-based DST-aware conversion.
+ * SL returns local time without timezone suffix (e.g., "2026-04-18T00:22:57").
+ * Sweden uses Europe/Stockholm (UTC+1 winter, UTC+2 summer DST).
+ */
+export function parseSlTimestamp(raw: string): number {
+  if (!raw) return 0;
+
+  const datePart = raw.substring(0, 10);
+  const timePart = raw.substring(11, 19);
+
+  const stockholmDateStr = `${datePart}T${timePart}`;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Stockholm',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const offsetParts = formatter.formatToParts(new Date(stockholmDateStr));
+  const getPart = (type: string) => offsetParts.find(p => p.type === type)?.value;
+  const year = getPart('year')!;
+  const month = getPart('month')!;
+  const day = getPart('day')!;
+  const hour = getPart('hour')!;
+  const minute = getPart('minute')!;
+  const second = getPart('second')!;
+
+  const utcMs = Date.UTC(
+    parseInt(year),
+    parseInt(month) - 1,
+    parseInt(day),
+    parseInt(hour),
+    parseInt(minute),
+    parseInt(second)
+  );
+
+  return utcMs;
+}
 
 function getTransportType(mode?: string): TransportType {
   switch (mode?.toLowerCase()) {
@@ -23,43 +68,30 @@ function getTransportType(mode?: string): TransportType {
   }
 }
 
-function norm(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+function globalIdToSiteId(globalId: string): string {
+  return globalId.replace(/^9091001000/, "");
 }
 
-function rankByRelevance(
-  stations: SiteSearchResult[],
-  query: string,
-): SiteSearchResult[] {
-  const q = query.toLowerCase().trim();
-  const nq = norm(query);
-  return stations
-    .map((s) => {
-      const name = s.name.toLowerCase();
-      const nname = norm(s.name);
-      let score: number;
-      if (name === q || nname === nq)
-        score = 4; // exact
-      else if (name.startsWith(q) || nname.startsWith(nq))
-        score = 3; // prefix
-      else if (name.includes(q) || nname.includes(nq))
-        score = 2; // contains
-      else score = 1; // API fuzzy match
-      return { s, score };
-    })
-    .sort((a, b) => b.score - a.score)
-    .map(({ s }) => s);
+interface StopFinderLocation {
+  id: string;
+  name: string;
+  disassembledName: string;
+  coord?: [number, number];
+  type: string;
+  matchQuality?: number;
 }
 
-function isValidSiteSearchResult(obj: unknown): boolean {
+interface StopFinderResponse {
+  locations: StopFinderLocation[];
+}
+
+function isValidStopFinderResult(obj: unknown): obj is StopFinderLocation {
   if (!obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
   return (
-    (typeof o.id === "string" || typeof o.id === "number") && String(o.id).length > 0 &&
-    typeof o.name === "string" && o.name.length > 0
+    typeof o.id === "string" &&
+    typeof o.name === "string" &&
+    typeof o.type === "string"
   );
 }
 
@@ -67,10 +99,10 @@ function isValidDeparture(obj: unknown): obj is Departure {
   if (!obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
   return (
-    typeof o.line === "string" &&
+    typeof o.line === "object" &&
+    o.line !== null &&
     typeof o.destination === "string" &&
-    typeof o.directionText === "string" &&
-    (typeof o.minutes === "number" || typeof o.minutes === "undefined")
+    typeof o.direction === "string"
   );
 }
 
@@ -80,33 +112,50 @@ export async function searchSites(
 ): Promise<SiteSearchResult[]> {
   if (!query || query.length < 2) return [];
 
-  const response = await fetch(
-    `${TRANSPORT_URL}/sites?expand=true&query=${encodeURIComponent(query)}`,
-    { signal }
-  );
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  const url = `${STOP_FINDER_URL}?name_sf=${encodeURIComponent(query)}&any_obj_filter_sf=2&type_sf=any`;
 
-  const data = await response.json();
-  const rawSites = Array.isArray(data) ? data : [];
-  
-  if (import.meta.env.DEV) {
-    console.log('[SL API] Got', rawSites.length, 'raw results');
-    console.log('[SL API] First result:', rawSites[0]);
-    console.log('[SL API] Validation passed:', rawSites.filter(isValidSiteSearchResult).length);
+  let response: Response;
+  try {
+    response = await fetch(url, { signal });
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      return [];
+    }
+    if (import.meta.env.DEV) console.error("[SL API] Search fetch error:", e);
+    return [];
   }
-  
-  const stations: SiteSearchResult[] = rawSites
-    .filter(isValidSiteSearchResult)
-    .map((site) => ({
-      siteId: String(site.id),
-      name: site.name,
-      note: site.note || "",
+
+  if (!response.ok) {
+    if (import.meta.env.DEV) console.error("[SL API] Search error:", response.status);
+    return [];
+  }
+
+  let data: StopFinderResponse;
+  try {
+    data = await response.json();
+  } catch {
+    if (import.meta.env.DEV) console.error("[SL API] JSON parse error");
+    return [];
+  }
+
+  const rawLocations = Array.isArray(data.locations) ? data.locations : [];
+
+  if (import.meta.env.DEV) {
+    console.log("[SL API] Got", rawLocations.length, "stop-finder results");
+  }
+
+  const stations: SiteSearchResult[] = rawLocations
+    .filter((loc): loc is StopFinderLocation => isValidStopFinderResult(loc) && loc.type === "stop")
+    .map((loc) => ({
+      siteId: globalIdToSiteId(loc.id),
+      name: loc.name,
+      note: undefined,
       type: "stop" as const,
-      lat: site.lat,
-      lon: site.lon,
+      lat: loc.coord?.[0],
+      lon: loc.coord?.[1],
     }));
 
-  return rankByRelevance(stations, query);
+  return stations;
 }
 
 export async function getDepartures(
@@ -127,17 +176,15 @@ export async function getDepartures(
   return validDeps.map((dep: any) => {
     let minutes = dep.timeToDeparture;
     const liveTime = dep.expected || dep.scheduled || "";
-    if (minutes === undefined && liveTime) {
-      minutes = Math.max(
-        0,
-        Math.floor((new Date(liveTime).getTime() - Date.now()) / 60000),
-      );
+    const parsedTime = liveTime ? parseSlTimestamp(liveTime) : NaN;
+    if (minutes === undefined && liveTime && !isNaN(parsedTime)) {
+      minutes = Math.max(0, Math.floor((parsedTime - Date.now()) / 60000));
     }
-    const formattedTime = liveTime ? formatTime(new Date(liveTime)) : "";
+    const formattedTime = !isNaN(parsedTime) ? formatTime(new Date(parsedTime)) : "";
 
     // Extract scheduled time from API response and cache it
     if (dep.scheduled) {
-      const scheduledDate = new Date(dep.scheduled);
+      const scheduledDate = new Date(parseSlTimestamp(dep.scheduled));
       const direction = dep.direction || "";
       const line = dep.line?.designation || dep.line?.name || "";
       cacheScheduleTime(siteId, line, direction, scheduledDate);
@@ -150,11 +197,13 @@ export async function getDepartures(
       directionText: dep.direction || "",
       minutes: minutes ?? 0,
       time: formattedTime,
-      expectedAt: dep.expected ? new Date(dep.expected).getTime() : undefined,
+      expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
       deviation: dep.deviation,
       transportType: getTransportType(dep.line?.transport_mode),
       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
       journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
+      // SL's pre-calculated display — always correct, use as fallback
+      display: dep.display,
     };
   });
 }

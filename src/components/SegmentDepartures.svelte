@@ -10,6 +10,10 @@
   import DepartureStrip from './DepartureStrip.svelte';
   import { t } from '../stores/localeStore';
 
+  const STALE_THRESHOLD_MS = 90_000;
+  const CLOCK_CHECK_INTERVAL_MS = 5000;
+  const REFRESH_LEAD_TIME_MINUTES = 2;
+
   let { route }: { route: Route } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
@@ -17,6 +21,8 @@
   let expandedIndex = $state<number | null>(null);
   let isLoading = $state(false);
   let lastError = $state<string | null>(null);
+  let lastSuccessfulFetch = $state(0);
+  let isRefreshing = $state(false);
 
   // Collapse when route changes
   $effect(() => {
@@ -52,14 +58,19 @@
   }
 
   function formatSubsequent(deps: Departure[]): string | null {
-    const subsequent = deps.slice(1, 4).filter(d => d.time);
+    const subsequent = deps.slice(1, 4);
     if (subsequent.length === 0) return null;
-    return subsequent.map(d => d.time).join(' · ');
+    return subsequent
+      .map(d => d.time)
+      .filter(Boolean)
+      .join(' · ');
   }
 
   // Recomputes only when departureData or route.segments changes — not on every clock tick
   let segmentDeps = $derived(
-    (route.segments ?? []).map(seg => getDeparturesForSegment(seg))
+    (route.segments ?? []).map(seg => {
+      return getDeparturesForSegment(seg);
+    })
   );
 
   function startClockTimer() {
@@ -71,14 +82,14 @@
         const deps = segmentDeps[i] ?? [];
         if (deps.length === 0 || deps[0].expectedAt === undefined) return false;
         const mins = getLiveMinutes(deps[0], now);
-        return mins <= 1 && deps[0].expectedAt > now - 60_000;
+        return mins <= REFRESH_LEAD_TIME_MINUTES && deps[0].expectedAt > now - STALE_THRESHOLD_MS;
       });
       if (needsRefresh) {
         const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
         const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
         departureStore.refresh(siteIds, stopNames);
       }
-    }, 5000);
+    }, CLOCK_CHECK_INTERVAL_MS);
   }
 
   function stopClockTimer() {
@@ -100,6 +111,9 @@
     const unsubError = departureStore.lastError.subscribe(val => lastError = val);
     UNSUBSCRIBERS.push(unsubError);
 
+    const unsubLastFetch = departureStore.lastSuccessfulFetch.subscribe(val => lastSuccessfulFetch = val);
+    UNSUBSCRIBERS.push(unsubLastFetch);
+
     startClockTimer();
 
     const handleVisibility = () => {
@@ -116,11 +130,13 @@
     };
   });
 
-  function handleRefreshClick() {
+  async function handleRefreshClick() {
     const segments = route.segments ?? [];
     const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
     const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
-    departureStore.refresh(siteIds, stopNames, false);
+    isRefreshing = true;
+    await departureStore.refresh(siteIds, stopNames, false);
+    isRefreshing = false;
   }
 
   onDestroy(() => {
@@ -134,7 +150,7 @@
     <div class="error-bar">
       <span>{lastError}</span>
       <button onclick={() => lastError = null}>×</button>
-    </div>
+    </div>  
   {/if}
 
   {#if isLoading && departureData.size === 0}
@@ -152,6 +168,7 @@
       <h3 class="departures-title">{$t.departures}</h3>
       <button
         class="refresh-btn"
+        class:spinning={isRefreshing}
         onclick={handleRefreshClick}
         title="Refresh departures"
         aria-label="Refresh departures"
@@ -161,6 +178,11 @@
         </svg>
       </button>
     </div>
+    {#if lastSuccessfulFetch > 0 && now - lastSuccessfulFetch > STALE_THRESHOLD_MS}
+      <div class="stale-indicator">
+        Updated {Math.floor((now - lastSuccessfulFetch) / 60000)} min ago
+      </div>
+    {/if}
     {#each (route.segments ?? []) as segment, index (segment.id)}
       {@const deps = segmentDeps[index] ?? []}
       {@const departure = deps[0]}
@@ -198,8 +220,8 @@
             <div class="time-stack" class:predicted={departure.predicted === true}>
               <div class="primary-time">
                 {#if departure.predicted === true}<span class="tilde">~</span>{/if}
-                <span class="minutes">{liveMinutes}</span>
-                <span class="unit">{$t.minutesShort}</span>
+                  <span class="minutes">{liveMinutes}</span>
+                  <span class="unit">{$t.minutesShort}</span>
               </div>
             {#if subsequent}
               <div class="secondary-time">
@@ -474,6 +496,14 @@
     display: block;
     width: 20px;
     height: 20px;
+  }
+
+  .stale-indicator {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    opacity: 0.7;
   }
 
   .error-bar {

@@ -15,6 +15,7 @@ function createDepartureStore() {
   const { subscribe, set, update } = data;
   const isLoading = writable(false);
   const lastError = writable<string | null>(null);
+  const lastSuccessfulFetch = writable<number>(0);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let stopNamesMap = new Map<string, string>();
   let currentSiteIds: string[] = [];
@@ -107,6 +108,10 @@ function createDepartureStore() {
                 store.set(seg.siteId, apiDepartures);
                 return store;
               });
+              // Mark successful fetch time for stale indicator
+              if (apiDepartures.length > 0) {
+                lastSuccessfulFetch.set(Date.now());
+              }
             } catch (e) {
               if (import.meta.env.DEV) console.error(`[departureStore] API error for ${seg.siteId}:`, e);
               // Surface error to user
@@ -155,6 +160,12 @@ function createDepartureStore() {
     lastError: {
       subscribe: (cb: (val: string | null) => void) => {
         const unsub = lastError.subscribe(cb);
+        return unsub;
+      }
+    },
+    lastSuccessfulFetch: {
+      subscribe: (cb: (val: number) => void) => {
+        const unsub = lastSuccessfulFetch.subscribe(cb);
         return unsub;
       }
     },

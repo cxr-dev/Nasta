@@ -15,7 +15,10 @@
 import type { Departure } from "../types/departure";
 
 const CACHE_STORAGE_KEY = "nasta_schedule_cache_v1";
-const COMPRESSION_THRESHOLD_KB = 5000; // 5MB
+const COMPRESSION_THRESHOLD_KB = 5000;
+const MAX_DEPARTURES = 5;
+const DUPLICATE_WINDOW_MS = 60_000;
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface CacheEntry {
   line: string;
@@ -103,10 +106,10 @@ export function cacheScheduleTime(
   const isoTime = scheduledTime.toISOString();
   const entry = cache[key];
 
-  // Avoid duplicates (within 1 minute)
+  // Avoid duplicates (within DUPLICATE_WINDOW_MS)
   const isDuplicate = entry.scheduledTimes.some((t) => {
     const diff = Math.abs(new Date(t).getTime() - scheduledTime.getTime());
-    return diff < 60000;
+    return diff < DUPLICATE_WINDOW_MS;
   });
 
   if (!isDuplicate) {
@@ -149,32 +152,31 @@ export function getCachedSchedule(
   }
 
   // Convert ISO times to Departure objects
-  const now = Date.now();
   const departures: Departure[] = entry.scheduledTimes
     .filter((isoTime) => {
       // Only include future times
-      return new Date(isoTime).getTime() > now;
+      return new Date(isoTime).getTime() > Date.now();
     })
-    .slice(0, 5) // Return next 5 departures
+.slice(0, MAX_DEPARTURES)
     .map((isoTime) => {
       const departureTime = new Date(isoTime);
-      const minutes = Math.max(
-        0,
-        Math.floor((departureTime.getTime() - now) / 60000),
-      );
+      const time = departureTime.toLocaleTimeString("sv-SE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Stockholm",
+      });
+      const expectedAt = departureTime.getTime();
+      const calculatedMinutes = Math.max(0, Math.floor((expectedAt - Date.now()) / 60000));
       return {
         line,
         lineName: "",
         destination: directionText,
         directionText,
-        minutes,
-        time: departureTime.toLocaleTimeString("sv-SE", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "Europe/Stockholm",
-        }),
+        minutes: calculatedMinutes,
+        time,
+        expectedAt,
         transportType: "bus" as const,
-        predicted: true, // Mark as cached
+        predicted: true,
       };
     });
 

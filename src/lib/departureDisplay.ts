@@ -9,6 +9,40 @@ export function getLiveMinutes(dep: Departure, now: number): number {
   return dep.minutes;
 }
 
+export function formatDepartureTime(dep: Departure, now: number): string {
+  // Priority 1: Live calculation from expectedAt timestamp (5-second clock uses this)
+  if (dep.expectedAt) {
+    const mins = getLiveMinutes(dep, now);
+
+    if (mins <= 0) return 'Nu';
+    if (mins === 1) return '1 min';
+    if (mins < 60) return `${mins} min`;
+
+    // Over 60 min: show clock time from expectedAt
+    const date = new Date(dep.expectedAt);
+    return date.toLocaleTimeString('sv-SE', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Stockholm',
+    });
+  }
+
+  // Priority 2: Static fallback - use display from API (for departures without live timestamp)
+  if (dep.display) {
+    return dep.display;
+  }
+
+  // Priority 3: Fallback to dep.minutes / time for static timetable
+  if (dep.time) return dep.time;
+
+  // Final fallback: calculate from dep.minutes
+  const mins = dep.minutes ?? 0;
+  if (mins <= 0) return 'Nu';
+  const hours = Math.floor(mins / 60);
+  const minutes = mins % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 function isDuplicatePrediction(live: Departure, predicted: Departure): boolean {
   if (live.expectedAt !== undefined && predicted.expectedAt !== undefined) {
     return Math.abs(predicted.expectedAt - live.expectedAt) <= DUPLICATE_WINDOW_MS;

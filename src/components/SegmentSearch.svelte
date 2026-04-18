@@ -6,7 +6,11 @@
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons } from '../icons/transport';
   import { t } from '../stores/localeStore';
-  
+
+  const SEARCH_MIN_QUERY_LENGTH = 2;
+  const SEARCH_DEBOUNCE_MS = 300;
+  const MIN_LOAD_DELAY_MS = 80;
+
   let { 
     onSelect = (line: string, lineName: string, directionText: string, fromStop: Stop, toStop: Stop, transportType: TransportType) => {}
   }: { 
@@ -29,78 +33,52 @@
   let step = $state<'search' | 'select'>('search');
   let debounceTimer: ReturnType<typeof setTimeout>;
   let abortController: AbortController | null = null;
-  
-  // LRU Search Cache
-  const searchCache = new Map<string, { result: SiteSearchResult[], timestamp: number }>();
-  const CACHE_TTL = 60000;
-  const MAX_CACHE_SIZE = 50;
-  
+
   async function handleInput() {
     clearTimeout(debounceTimer);
-    abortController?.abort();
-    
-    if (query.length < 2) {
+
+    if (query.length < SEARCH_MIN_QUERY_LENGTH) {
       stations = [];
+      loading = false;
       return;
     }
-    
-    // Check cache first
-    const cacheKey = query.toLowerCase().trim();
-    const cached = searchCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      stations = cached.result;
-      return;
-    }
-    
+
     debounceTimer = setTimeout(async () => {
+      abortController?.abort();
       abortController = new AbortController();
-      
-      // Minimum loading delay to prevent flash
-      const minLoadDelay = new Promise(resolve => setTimeout(resolve, 80));
-      
+
+      const minLoadDelay = new Promise(resolve => setTimeout(resolve, MIN_LOAD_DELAY_MS));
+
       loading = true;
       try {
         const [result] = await Promise.all([
           searchSites(query, abortController.signal),
           minLoadDelay
         ]);
-        
-        // Smart ranking & sorting
-        const normalizedQuery = cacheKey;
-        result.sort((a, b) => {
-          const nameA = a.name.toLowerCase();
-          const nameB = b.name.toLowerCase();
-          
-          // Calculate score for each match
-          const scoreA = 
-            nameA === normalizedQuery ? 100 :
-            nameA.startsWith(normalizedQuery) ? 75 :
-            nameA.includes(normalizedQuery) ? 50 : 0;
-            
-          const scoreB = 
-            nameB === normalizedQuery ? 100 :
-            nameB.startsWith(normalizedQuery) ? 75 :
-            nameB.includes(normalizedQuery) ? 50 : 0;
 
-          // Never return 0, always establish strict ordering
-          if (scoreA !== scoreB) {
-            return scoreB - scoreA;
-          }
-          
-          // Fallback to natural string sort for equal scores
-          return nameA.localeCompare(nameB);
+        const normalize = (s: string) =>
+          s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+        const q = normalize(query);
+        result.sort((a, b) => {
+          const aNorm = normalize(a.name);
+          const bNorm = normalize(b.name);
+          if (aNorm === q) return -1;
+          if (bNorm === q) return 1;
+          if (aNorm.startsWith(q)) return -1;
+          if (bNorm.startsWith(q)) return 1;
+          return a.name.localeCompare(b.name);
         });
-        
+
         if (isSjostadstrafikenStop(query)) {
           const staticStopKeys: Record<string, string> = {
             'luma': 'Luma brygga',
             'barn': 'Barnängen',
             'henrik': 'Henriksdal'
           };
-          const actualName = Object.entries(staticStopKeys).find(([k]) => 
+          const actualName = Object.entries(staticStopKeys).find(([k]) =>
             query.toLowerCase().includes(k)
           )?.[1] || query;
-          
+
           const staticDeps = getNextDepartures(actualName, 3);
           if (staticDeps.length > 0) {
             const sjostadStation: SiteSearchResult = {
@@ -112,13 +90,7 @@
             result.unshift(sjostadStation);
           }
         }
-        
-        // Save to cache
-        if (searchCache.size >= MAX_CACHE_SIZE) {
-          searchCache.delete(searchCache.keys().next().value!);
-        }
-        searchCache.set(cacheKey, { result, timestamp: Date.now() });
-        
+
         stations = result;
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
@@ -128,7 +100,7 @@
       } finally {
         loading = false;
       }
-    }, 60);
+    }, SEARCH_DEBOUNCE_MS);
   }
   
   async function selectStation(station: SiteSearchResult) {
@@ -229,7 +201,7 @@
           </button>
         {/each}
       </div>
-    {:else if query.length >= 2}
+    {:else if query.length >= SEARCH_MIN_QUERY_LENGTH}
       <div class="msg">{$t.noStops}</div>
     {/if}
   {:else}

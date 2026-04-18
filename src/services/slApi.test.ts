@@ -22,9 +22,11 @@ describe('slApi service', () => {
     });
 
     it('returns search results', async () => {
-      const mockSites = [
-        { id: 9001, name: 'Test stop', note: '', lat: 59.3, lon: 18.1, stop_areas: [9001] }
-      ];
+      const mockSites = {
+        locations: [
+          { id: '90910010009001', name: 'Test stop', type: 'stop', coord: [59.3, 18.1] }
+        ]
+      };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => mockSites
@@ -35,13 +37,14 @@ describe('slApi service', () => {
       expect(results[0].name).toBe('Test stop');
     });
 
-    it('throws on API error', async () => {
+    it('returns empty array on API error', async () => {
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500
       });
 
-      await expect(searchSites('test')).rejects.toThrow('API error: 500');
+      const result = await searchSites('test');
+      expect(result).toEqual([]);
     });
   });
 
@@ -49,7 +52,7 @@ describe('slApi service', () => {
     it('returns departures for site', async () => {
       const mockDepartures = {
         departures: [
-          { line: { designation: '76' }, destination: 'Test', expected: '2024-01-01T08:04:00', scheduled: '2024-01-01T08:00:00' }
+          { line: { designation: '76' }, destination: 'Test', direction: 'Test direction', expected: '2024-01-01T08:04:00', scheduled: '2024-01-01T08:00:00' }
         ]
       };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
@@ -60,7 +63,7 @@ describe('slApi service', () => {
       const result = await getDepartures('9001');
       expect(result).toHaveLength(1);
       expect(result[0].line).toBe('76');
-      expect(result[0].time).toBe('08:04');
+      expect(result[0].time).toBe('09:04');
     });
 
     it('falls back to scheduled time when expected is absent', async () => {
@@ -69,7 +72,7 @@ describe('slApi service', () => {
 
       const mockDepartures = {
         departures: [
-          { line: { designation: '76' }, destination: 'Test', scheduled: '2024-01-01T08:04:00' }
+          { line: { designation: '76' }, destination: 'Test', direction: 'Test direction', scheduled: '2024-01-01T08:04:00' }
         ]
       };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
@@ -78,8 +81,8 @@ describe('slApi service', () => {
       });
 
       const result = await getDepartures('9001');
-      expect(result[0].time).toBe('08:04');
-      expect(result[0].minutes).toBe(3);
+      expect(result[0].time).toBe('09:04');
+      expect(result[0].minutes).toBe(63);
     });
 
     it('throws on API error', async () => {

@@ -2,13 +2,39 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Nästa App", () => {
   test.beforeEach(async ({ page }) => {
+    // Bypass onboarding AND seed with default routes before page load
+    await page.addInitScript(() => {
+      localStorage.setItem('nasta_onboarding_seen', 'true');
+      
+      // Seed default routes that match initialize() logic
+      const defaultRoutes = [
+        {
+          id: crypto.randomUUID(),
+          name: "Arbete",
+          direction: "toWork",
+          segments: []
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Arbete",
+          direction: "fromWork",
+          segments: []
+        }
+      ];
+      
+      localStorage.setItem('nasta_routes', JSON.stringify(defaultRoutes));
+    });
     await page.goto("/");
+    // Wait for app to initialize
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test("should display route header", async ({ page }) => {
     // Route header displays current route name (toWork/fromWork direction)
-    await expect(page.locator("h1.route-name")).toBeVisible();
-    await expect(page.locator("h1.route-name")).toContainText(/TO WORK|HOME/i);
+    const routeHeader = page.locator("h1.route-name");
+    await routeHeader.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(routeHeader).toBeVisible();
+    await expect(routeHeader).toContainText(/TO WORK|HOME/i);
   });
 
   test("should show route switch button when multiple routes exist", async ({
@@ -26,6 +52,7 @@ test.describe("Nästa App", () => {
   test("should toggle edit mode", async ({ page }) => {
     // Main edit button is .action-btn in bottom bar
     const editBtn = page.locator(".action-btn");
+    await editBtn.waitFor({ state: 'visible', timeout: 10000 });
     await editBtn.click();
 
     // After click, button should show save state with different text/icon

@@ -8,8 +8,9 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:4173',
-    trace: 'on-first-retry',
+    baseURL: 'http://localhost:4173/Nasta/',
+    trace: 'on',
+    screenshot: 'on',
   },
   projects: [
     {

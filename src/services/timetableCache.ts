@@ -8,6 +8,7 @@
  */
 
 import type { TransportType } from '../types/route';
+import { parseSlTimestamp } from './slApi';
 
 const STORAGE_KEY = 'sl_timetable_v1';
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -137,7 +138,7 @@ export function learnFromApiResponse(siteId: string, rawDepartures: unknown[]): 
     const directionText: string = dep.direction || '';
     if (!line || !directionText) continue;
 
-    const scheduledTs = new Date(scheduledStr).getTime();
+    const scheduledTs = parseSlTimestamp(scheduledStr);
     if (isNaN(scheduledTs)) continue;
 
     const { transitDay, transitMinutes } = toTransitTime(scheduledTs);

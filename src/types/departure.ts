@@ -14,6 +14,8 @@ export interface Departure {
   predicted?: boolean;
   /** SL journey reference, used to fetch the stop sequence for the progress strip. */
   journeyRef?: string;
+  /** Raw display string from SL API — e.g., "Nu", "9 min", "01:22" */
+  display?: string;
 }
 
 export interface SiteSearchResult {
