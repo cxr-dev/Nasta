@@ -235,7 +235,8 @@
           </div>
         </div>
       </button>
-      {:else}
+
+      {#if !hasDeparture}
       <div
         class="departure-row"
         style="--delay: {Math.min(index, 3) * 40}ms"
@@ -259,6 +260,7 @@
           <div class="no-departure">—</div>
         </div>
       </div>
+      {/if}
 
       <!-- Strip is a SIBLING of departure-row to avoid CSS contain clipping -->
       {#if isExpanded && hasDeparture}
