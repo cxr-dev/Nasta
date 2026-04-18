@@ -221,9 +221,9 @@
         </div>
 
         <div class="row-right">
-            <div class="time-stack" class:predicted={departure.predicted === true}>
+            <div class="time-stack" class:predicted={hasDeparture && departure.predicted === true}>
               <div class="primary-time">
-                {#if departure.predicted === true}<span class="tilde">~</span>{/if}
+                {#if hasDeparture && departure.predicted === true}<span class="tilde">~</span>{/if}
                   <span class="minutes">{liveMinutes}</span>
                   <span class="unit">{$t.minutesShort}</span>
               </div>
