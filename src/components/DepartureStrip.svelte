@@ -3,7 +3,7 @@
   import type { Segment } from '../types/route';
   import { fetchJourneyStops, estimateVehicleStopIndex } from '../services/journeyService';
   import type { JourneyData, JourneyStop } from '../services/journeyService';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { t } from '../stores/localeStore';
 
   let {
@@ -104,11 +104,14 @@
       updateVehiclePosition(data);
       loading = false;
 
-      // Scroll your stop into view after slide transition (280ms + small buffer)
-      setTimeout(() => {
-        const el = stripEl?.querySelector('.stop-your-stop') as HTMLElement | null;
-        el?.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
-      }, 310);
+      await tick();
+      
+      const el = stripEl?.querySelector('.stop-your-stop');
+      el?.scrollIntoView({
+        inline: 'center',
+        behavior: 'smooth',
+        block: 'nearest'
+      });
 
       ticker = setInterval(() => {
         if (journeyData) updateVehiclePosition(journeyData);

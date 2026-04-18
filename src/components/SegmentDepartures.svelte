@@ -151,11 +151,12 @@
 </script>
 
 <div class="departures-list">
-  {#if lastError}
-    <div class="error-bar">
-      <span>{lastError}</span>
-      <button onclick={() => lastError = null}>×</button>
-    </div>  
+    {#if lastError}
+      <div class="error-bar">
+        <span>{lastError}</span>
+        <button onclick={() => lastError = null}>×</button>
+      </div>  
+    {/if}
 
   {#if isLoading && departureData.size === 0}
     <div class="loading-skeleton">
