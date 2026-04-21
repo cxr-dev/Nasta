@@ -10,6 +10,11 @@ interface DepartureWithSource extends Departure {
   cachedAt?: number;
 }
 
+export interface SegmentCacheMeta {
+  line: string;
+  directionText: string;
+}
+
 function createDepartureStore() {
   const data = writable<Map<string, Departure[]>>(new Map());
   const { subscribe, set, update } = data;
@@ -137,14 +142,15 @@ function createDepartureStore() {
   const fetchAll = async (
     siteIds: string[],
     stopNames: Map<string, string>,
+    segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
     clearFirst = false,
     direction: string | null = null,
   ) => {
     const segmentData = siteIds.map((id) => ({
       siteId: id,
       stopName: stopNames.get(id) || "",
-      line: "", // Will be filled by segment data if available
-      directionText: "", // Will be filled by segment data if available
+      line: segmentMetaBySiteId.get(id)?.line ?? "",
+      directionText: segmentMetaBySiteId.get(id)?.directionText ?? "",
     }));
     await fetchAllHybrid(segmentData, clearFirst, direction);
   };
@@ -173,6 +179,7 @@ function createDepartureStore() {
     startAutoRefresh: (
       siteIds: string[],
       stopNames: Map<string, string>,
+      segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
       interval: number,
       clearFirst = false,
       direction: string | null = null,
@@ -180,9 +187,9 @@ function createDepartureStore() {
       if (refreshTimer) clearInterval(refreshTimer);
       stopNamesMap = stopNames;
       currentSiteIds = siteIds;
-      fetchAll(siteIds, stopNames, clearFirst, direction);
+      fetchAll(siteIds, stopNames, segmentMetaBySiteId, clearFirst, direction);
       refreshTimer = setInterval(
-        () => fetchAll(siteIds, stopNames, false, direction),
+        () => fetchAll(siteIds, stopNames, segmentMetaBySiteId, false, direction),
         interval,
       );
     },
@@ -195,10 +202,11 @@ function createDepartureStore() {
     refresh: async (
       siteIds: string[],
       stopNames: Map<string, string>,
+      segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
       clearFirst = false,
       direction: string | null = null,
     ) => {
-      await fetchAll(siteIds, stopNames, clearFirst, direction);
+      await fetchAll(siteIds, stopNames, segmentMetaBySiteId, clearFirst, direction);
     },
   };
 }

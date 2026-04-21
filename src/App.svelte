@@ -3,7 +3,7 @@
   import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
   import { departureStore } from './stores/departureStore';
   import { settingsStore } from './stores/settingsStore';
-  import { timeOfDay, weatherEmoji, isSunlightMode } from './lib/stores/timeOfDay';
+  import { timeOfDay } from './lib/stores/timeOfDay';
   import { applyTheme } from './themes';
   import { computeArrivalSummary } from './lib/arrivalTime';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
@@ -18,7 +18,6 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
 
   let editing = $state(false);
-  let updateAvailable = $state(false);
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let showOnboarding = $state(false);
@@ -37,39 +36,6 @@
 
   const hasSeenOnboarding = typeof localStorage !== 'undefined'
     && localStorage.getItem('nasta_onboarding_seen');
-
-  // Service Worker lifecycle handling (production only)
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !import.meta.env.DEV) {
-    let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
-      reloading = true;
-      window.location.reload();
-    });
-
-    // Register service worker with explicit update check for iOS Safari
-    navigator.serviceWorker.register('/sw.js').then(registration => {
-      // Explicitly check for updates - required for iOS Safari reliability
-      registration.update();
-
-      // Fallback banner for browsers where controllerchange doesn't fire
-      if (registration.waiting && navigator.serviceWorker.controller) {
-        updateAvailable = true;
-      }
-      registration.addEventListener('updatefound', () => {
-        const w = registration.installing;
-        w?.addEventListener('statechange', () => {
-          if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            updateAvailable = true;
-          }
-        });
-      });
-    }).catch(err => {
-      console.error('[App] Service Worker registration failed:', err);
-    });
-  }
-
-  function reloadApp() { window.location.reload(); }
 
   function completeOnboarding() {
     showOnboarding = false;
@@ -103,9 +69,14 @@
         const siteId = s.fromStop.siteId || s.toStop.siteId;
         return [siteId, s.fromStop.name || s.toStop.name];
       }));
+      const segmentMetaBySiteId = new Map(currentRoute.segments.map(s => {
+        const siteId = s.fromStop.siteId || s.toStop.siteId;
+        return [siteId, { line: s.line, directionText: s.directionText }];
+      }));
       departureStore.startAutoRefresh(
         siteIds,
         stopNames,
+        segmentMetaBySiteId,
         settings.refreshInterval || 30000,
         true,
         currentRoute.direction
@@ -123,10 +94,15 @@
         const siteId = s.fromStop.siteId || s.toStop.siteId;
         return [siteId, s.fromStop.name || s.toStop.name];
       }));
+      const segmentMetaBySiteId = new Map(route.segments.map(s => {
+        const siteId = s.fromStop.siteId || s.toStop.siteId;
+        return [siteId, { line: s.line, directionText: s.directionText }];
+      }));
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(
           siteIds,
           stopNames,
+          segmentMetaBySiteId,
           settings.refreshInterval || 30000,
           clearFirst,
           route.direction
@@ -145,6 +121,7 @@
           departureStore.startAutoRefresh(
             resolvedIds.filter(Boolean),
             resolvedStopNames,
+            new Map(),
             settings.refreshInterval || 30000,
             true,
             route.direction
@@ -271,8 +248,18 @@ function handleRouteSwitch(routeId: string) {
       const siteId = s.fromStop.siteId || s.toStop.siteId;
       return [siteId, s.fromStop.name || s.toStop.name];
     }));
+    const segmentMetaBySiteId = new Map(route.segments.map(s => {
+      const siteId = s.fromStop.siteId || s.toStop.siteId;
+      return [siteId, { line: s.line, directionText: s.directionText }];
+    }));
     try {
-      await departureStore.refresh(siteIds, stopNames, true, route.direction);
+      await departureStore.refresh(
+        siteIds,
+        stopNames,
+        segmentMetaBySiteId,
+        true,
+        route.direction
+      );
       lastRefreshTime = Date.now();
     } finally {
       isRefreshing = false;
@@ -312,7 +299,17 @@ function handleRouteSwitch(routeId: string) {
             const siteId = s.fromStop.siteId || s.toStop.siteId;
             return [siteId, s.fromStop.name || s.toStop.name];
           }));
-          departureStore.refresh(siteIds, stopNames, false, route.direction);
+          const segmentMetaBySiteId = new Map(route.segments.map(s => {
+            const siteId = s.fromStop.siteId || s.toStop.siteId;
+            return [siteId, { line: s.line, directionText: s.directionText }];
+          }));
+          departureStore.refresh(
+            siteIds,
+            stopNames,
+            segmentMetaBySiteId,
+            false,
+            route.direction
+          );
           lastRefreshTime = Date.now();
         }
       }
@@ -343,13 +340,6 @@ function handleRouteSwitch(routeId: string) {
     ontouchend={handleTouchEnd}
     ontouchcancel={handleTouchCancel}
   >
-    {#if updateAvailable}
-      <div class="update-banner">
-        <span>{$t.updateAvailable}</span>
-        <button onclick={reloadApp}>{$t.reload}</button>
-      </div>
-    {/if}
-
     {#if !hasNoRoutes}
       <RouteHeader
         activeRouteId={$selectedRouteId ?? ''}
@@ -587,34 +577,6 @@ function handleRouteSwitch(routeId: string) {
       scrollbar-width: thin;
       scrollbar-color: var(--border-subtle) var(--bg);
     }
-  }
-
-  .update-banner {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--accent);
-    color: #fff;
-    padding: 10px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 9999;
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .update-banner button {
-    background: #fff;
-    color: var(--accent);
-    border: none;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
   }
 
   .empty-state,

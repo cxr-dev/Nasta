@@ -1,7 +1,19 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Nästa App", () => {
+  let runtimeErrors: string[] = [];
+
   test.beforeEach(async ({ page }) => {
+    runtimeErrors = [];
+    page.on("pageerror", (error) => {
+      runtimeErrors.push(error.message);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        runtimeErrors.push(message.text());
+      }
+    });
+
     // Bypass onboarding AND seed with default routes before page load
     await page.addInitScript(() => {
       localStorage.setItem('nasta_onboarding_seen', 'true');
@@ -27,6 +39,10 @@ test.describe("Nästa App", () => {
     await page.goto("/");
     // Wait for app to initialize
     await page.waitForLoadState('domcontentloaded');
+  });
+
+  test.afterEach(() => {
+    expect(runtimeErrors, `Runtime errors detected:\n${runtimeErrors.join("\n")}`).toEqual([]);
   });
 
   test("should display route header", async ({ page }) => {
@@ -66,5 +82,25 @@ test.describe("Nästa App", () => {
     const count = await emptyState.count();
     // Empty state may or may not be visible depending on if routes are preloaded
     expect(count).toBeGreaterThanOrEqual(0);
+  });
+
+  test("should load from GitHub Pages subpath and survive hard refresh", async ({ page }) => {
+    await page.goto("http://localhost:4173/Nasta/");
+    await page.waitForLoadState("domcontentloaded");
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    const routeHeader = page.locator("h1.route-name");
+    await expect(routeHeader).toBeVisible();
+  });
+
+  test("should remain functional across repeated reloads (PWA sanity)", async ({ page }) => {
+    const routeHeader = page.locator("h1.route-name");
+    await expect(routeHeader).toBeVisible();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(routeHeader).toBeVisible();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(routeHeader).toBeVisible();
   });
 });

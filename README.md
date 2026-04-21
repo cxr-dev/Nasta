@@ -38,6 +38,18 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 | API | [SL Transport API](https://trafiklab.se/api/sl-public-transport/) (Trafiklab) |
 | Persistence | LocalStorage |
 
+### Supported Toolchain Matrix
+
+| Package | Supported Version |
+|---------|-------------------|
+| Node.js | 20+ |
+| `svelte` | `^5.55.2` |
+| `vite` | `^7.0.0` |
+| `@sveltejs/vite-plugin-svelte` | `^7.0.0` |
+| `vite-plugin-pwa` | `^1.2.0` |
+
+Keep these versions in a compatible range when upgrading. If a major changes, validate with `pnpm run build` and `pnpm run verify:build` before deploy.
+
 ---
 
 ## Getting Started
@@ -64,6 +76,7 @@ Runs the dev server at `http://localhost:5173` (or next available port).
 
 ```bash
 pnpm run build
+pnpm run verify:build
 ```
 
 Creates a production-ready static build in the `dist/` directory.
@@ -196,8 +209,9 @@ See [`src/themes.ts`](src/themes.ts) for the full palette list.
 ## Testing
 
 - **Unit tests:** Vitest +Testing Library for Svelte (`*.test.ts`)
-- **E2E tests:** Playwright tests run against built app (`npm run test:e2e`)
-- **Type safety:** `npm run check` runs `svelte-check` with `tsconfig.json`
+- **E2E tests:** Playwright tests run against built app (`pnpm run test:e2e`)
+- **Type safety:** `pnpm run check` runs `svelte-check` with `tsconfig.json`
+- **Build smoke:** `pnpm run verify:build` fails if server-only Svelte runtime markers are present in production JS bundles
 
 ---
 
@@ -240,7 +254,39 @@ Workflow: `.github/workflows/deploy.yml`
 push to main → CI runs type check + tests → vite build → Upload Pages artifact → Deploy
 ```
 
-The app is served as a static SPA from the `/Nasta/` base path. Svelte adapter generates `404.html` fallback for client-side routing.
+The app is served as a static SPA from the `/Nasta/` base path.
+
+### GitHub Pages Deployment Invariants
+
+- `vite.config.ts` production `base` must remain `"/Nasta/"`.
+- Service worker paths must be base-aware (`import.meta.env.BASE_URL`) and must not hardcode root paths like `/sw.js`.
+- Asset references should remain base-safe and resolve under `/Nasta/` in production output.
+- Treat `vite.config.ts` as source of truth for base path behavior.
+
+### Release Checklist
+
+1. `pnpm install --frozen-lockfile`
+2. `pnpm run check`
+3. `pnpm run test`
+4. `pnpm run build`
+5. `pnpm run verify:build`
+6. `pnpm run test:e2e`
+7. `pnpm run preview` and verify `http://localhost:4173/Nasta/` renders correctly
+
+### Troubleshooting: `lifecycle_function_unavailable`
+
+**Symptom**
+- White screen in production
+- Console error: ``mount(...) is not available on the server``
+
+**Likely cause**
+- Client bundle resolved to Svelte server runtime due to incompatible toolchain versions.
+
+**Fix path**
+1. Verify `svelte`, `vite`, and `@sveltejs/vite-plugin-svelte` are in the supported matrix.
+2. Reinstall and rebuild: `pnpm install --frozen-lockfile && pnpm run build`.
+3. Run `pnpm run verify:build` to ensure server-only markers are absent.
+4. If a stale service worker was previously installed, clear site data and reload.
 
 ---
 

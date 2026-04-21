@@ -139,8 +139,12 @@
     const segments = route.segments ?? [];
     const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
     const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+    const segmentMetaBySiteId = new Map(segments.map(s => [
+      s.fromStop.siteId,
+      { line: s.line, directionText: s.directionText }
+    ]));
     isRefreshing = true;
-    await departureStore.refresh(siteIds, stopNames, false);
+    await departureStore.refresh(siteIds, stopNames, segmentMetaBySiteId, false);
     isRefreshing = false;
   }
 

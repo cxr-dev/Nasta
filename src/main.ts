@@ -1,5 +1,6 @@
 import App from "./App.svelte";
 import { mount } from "svelte";
+import { getServiceWorkerUrl } from "./lib/sw";
 
 let app;
 
@@ -11,7 +12,9 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", async () => {
       try {
-        const registration = await navigator.serviceWorker.getRegistration();
+        const registration = await navigator.serviceWorker.getRegistration(
+          getServiceWorkerUrl(),
+        );
         if (registration) {
           await registration.update();
         }
