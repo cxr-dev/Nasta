@@ -75,6 +75,11 @@
   }
 
   function progressText(data: JourneyData): string {
+    // When live position data is unavailable, show simplified message
+    if (data.availability !== 'live') {
+      return $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    }
+    
     const remaining = stopsUntilPickup(data);
     if (remaining === null) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
     if (remaining === 0) return $t.nowAtStop.replace('{stop}', segment.fromStop.name);
@@ -85,6 +90,10 @@
   }
 
   function vehicleContextText(data: JourneyData): string {
+    if (data.availability !== 'live') {
+      return $t.livePositionUnavailable ?? 'Live position unavailable';
+    }
+    
     const current = lastReliableStopName(data);
     if (!current) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
     if (isYourStop(data.stops[vehicleIdx])) return $t.vehicleAtYourStop;
@@ -178,10 +187,12 @@
 
     <div class="strip-footer">
       <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
-      {#if journeyData.isEstimated}
+      {#if journeyData.availability === 'live'}
+        <span class="badge badge-live">{$t.live} ✦</span>
+      {:else if journeyData.availability === 'estimated'}
         <span class="badge badge-estimated">~{$t.estimated}</span>
       {:else}
-        <span class="badge badge-live">{$t.live} ✦</span>
+        <span class="badge badge-unavailable">{$t.unavailable ?? 'Unavailable'}</span>
       {/if}
     </div>
   </div>
@@ -348,6 +359,11 @@
   .badge-estimated {
     color: var(--text-muted);
     background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  }
+
+  .badge-unavailable {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--border) 30%, transparent);
   }
 
   /* ── Skeleton ────────────────────────────────── */

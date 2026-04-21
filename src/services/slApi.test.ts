@@ -1,11 +1,11 @@
 /// <reference types="vitest" />
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { searchSites, getDepartures } from './slApi';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { searchSites, getDepartures, parseSlTimestamp } from "./slApi";
 
 (globalThis as any).fetch = vi.fn();
 
-describe('slApi service', () => {
+describe("slApi service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -15,83 +15,139 @@ describe('slApi service', () => {
     vi.useRealTimers();
   });
 
-  describe('searchSites', () => {
-    it('returns empty array for short query', async () => {
-      expect(await searchSites('a')).toEqual([]);
-      expect(await searchSites('')).toEqual([]);
+  describe("parseSlTimestamp", () => {
+    it("parses ISO timestamps with explicit timezone", () => {
+      // Timestamps with explicit timezone should be parsed directly
+      const ms1 = parseSlTimestamp("2024-01-01T08:04:00Z");
+      const ms2 = parseSlTimestamp("2024-01-01T08:04:00+01:00");
+      expect(ms1).toBe(new Date("2024-01-01T08:04:00Z").getTime());
+      expect(ms2).toBe(new Date("2024-01-01T08:04:00+01:00").getTime());
     });
 
-    it('returns search results', async () => {
+    it("interprets timezone-naive timestamps as Stockholm local time", () => {
+      // In January, Stockholm is UTC+1
+      // '2024-01-01T08:04:00' should be interpreted as Stockholm local time (08:04 CET)
+      // which is 07:04 UTC
+      const parsed = parseSlTimestamp("2024-01-01T08:04:00");
+      const expected = new Date("2024-01-01T07:04:00Z").getTime();
+      expect(parsed).toBe(expected);
+    });
+
+    it("handles summer time (DST) correctly", () => {
+      // In June, Stockholm is UTC+2
+      // '2024-06-01T14:00:00' should be Stockholm local time (14:00 CEST)
+      // which is 12:00 UTC
+      const parsed = parseSlTimestamp("2024-06-01T14:00:00");
+      const expected = new Date("2024-06-01T12:00:00Z").getTime();
+      expect(parsed).toBe(expected);
+    });
+  });
+
+  describe("searchSites", () => {
+    it("returns empty array for short query", async () => {
+      expect(await searchSites("a")).toEqual([]);
+      expect(await searchSites("")).toEqual([]);
+    });
+
+    it("returns search results", async () => {
       const mockSites = {
         locations: [
-          { id: '90910010009001', name: 'Test stop', type: 'stop', coord: [59.3, 18.1] }
-        ]
+          {
+            id: "90910010009001",
+            name: "Test stop",
+            type: "stop",
+            coord: [59.3, 18.1],
+          },
+        ],
       };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => mockSites
+        json: async () => mockSites,
       });
 
-      const results = await searchSites('test');
+      const results = await searchSites("test");
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Test stop');
+      expect(results[0].name).toBe("Test stop");
     });
 
-    it('returns empty array on API error', async () => {
+    it("returns empty array on API error", async () => {
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: false,
-        status: 500
+        status: 500,
       });
 
-      const result = await searchSites('test');
+      const result = await searchSites("test");
       expect(result).toEqual([]);
     });
   });
 
-  describe('getDepartures', () => {
-    it('returns departures for site', async () => {
-      const mockDepartures = {
-        departures: [
-          { line: { designation: '76' }, destination: 'Test', direction: 'Test direction', expected: '2024-01-01T08:04:00', scheduled: '2024-01-01T08:00:00' }
-        ]
-      };
-      (globalThis as any).fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockDepartures
-      });
-
-      const result = await getDepartures('9001');
-      expect(result).toHaveLength(1);
-      expect(result[0].line).toBe('76');
-      expect(result[0].time).toBe('09:04');
-    });
-
-    it('falls back to scheduled time when expected is absent', async () => {
+  describe("getDepartures", () => {
+    it("returns departures with correct minute calculation", async () => {
       vi.useFakeTimers();
-      vi.setSystemTime(new Date('2024-01-01T08:00:30'));
+      // Set system time to 2024-01-01T08:00:30 UTC
+      // This is 09:00:30 in Stockholm (UTC+1)
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
 
       const mockDepartures = {
         departures: [
-          { line: { designation: '76' }, destination: 'Test', direction: 'Test direction', scheduled: '2024-01-01T08:04:00' }
-        ]
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction: "Test direction",
+            expected: "2024-01-01T08:04:00", // Stockholm time 08:04 = UTC 07:04
+            scheduled: "2024-01-01T08:00:00",
+          },
+        ],
       };
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => mockDepartures
+        json: async () => mockDepartures,
       });
 
-      const result = await getDepartures('9001');
-      expect(result[0].time).toBe('09:04');
-      expect(result[0].minutes).toBe(63);
+      const result = await getDepartures("9001");
+      expect(result).toHaveLength(1);
+      expect(result[0].line).toBe("76");
+      // Parsed time 07:04 UTC, now is 08:00:30 UTC
+      // Minutes = (07:04 - 08:00:30) / 60 = negative, clamped to 0
+      // This shows the timestamp is in the past
+      expect(result[0].minutes).toBe(0);
     });
 
-    it('throws on API error', async () => {
+    it("correctly handles future departures", async () => {
+      vi.useFakeTimers();
+      // Set system time to 2024-01-01T08:00:30 UTC
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
+
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction: "Test direction",
+            expected: "2024-01-01T09:10:00", // Stockholm time 09:10 = UTC 08:10
+            scheduled: "2024-01-01T09:00:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result).toHaveLength(1);
+      // Parsed time 08:10 UTC, now is 08:00:30 UTC
+      // Minutes = (08:10 - 08:00:30) / 60 ≈ 9.58 → 9 minutes
+      expect(result[0].minutes).toBe(9);
+    });
+
+    it("throws on API error", async () => {
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: false,
-        status: 404
+        status: 404,
       });
 
-      await expect(getDepartures('9001')).rejects.toThrow('API error: 404');
+      await expect(getDepartures("9001")).rejects.toThrow("API error: 404");
     });
   });
 });

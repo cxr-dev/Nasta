@@ -4,51 +4,73 @@ import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
-const STOP_FINDER_URL = "https://journeyplanner.integration.sl.se/v2/stop-finder";
+const STOP_FINDER_URL =
+  "https://journeyplanner.integration.sl.se/v2/stop-finder";
 const DEFAULT_FORECAST_MINUTES = 240;
 
 /**
  * Parse SL API timestamps as Stockholm local time using Intl-based DST-aware conversion.
  * SL returns local time without timezone suffix (e.g., "2026-04-18T00:22:57").
  * Sweden uses Europe/Stockholm (UTC+1 winter, UTC+2 summer DST).
+ *
+ * If the timestamp includes Z or an offset (±HH:MM), parse it directly as ISO 8601.
+ * Otherwise, interpret it as a Stockholm wall-clock time and convert to UTC milliseconds.
  */
 export function parseSlTimestamp(raw: string): number {
-  if (!raw) return 0;
+  // If timestamp has explicit timezone indicator, parse directly
+  if (/Z|[+-]\d{2}:\d{2}$/.test(raw)) {
+    return new Date(raw).getTime();
+  }
 
-  const datePart = raw.substring(0, 10);
-  const timePart = raw.substring(11, 19);
+  // Interpret timezone-naive string as Stockholm local time.
+  // Parse as UTC first to get components, then figure out the offset between UTC and Stockholm.
+  const assumedUtcMs = new Date(raw + "Z").getTime();
 
-  const stockholmDateStr = `${datePart}T${timePart}`;
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Stockholm',
+  // Get the components of the assumed UTC time
+  const utcFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
   });
 
-  const offsetParts = formatter.formatToParts(new Date(stockholmDateStr));
-  const getPart = (type: string) => offsetParts.find(p => p.type === type)?.value;
-  const year = getPart('year')!;
-  const month = getPart('month')!;
-  const day = getPart('day')!;
-  const hour = getPart('hour')!;
-  const minute = getPart('minute')!;
-  const second = getPart('second')!;
+  const stockholmFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 
-  const utcMs = Date.UTC(
-    parseInt(year),
-    parseInt(month) - 1,
-    parseInt(day),
-    parseInt(hour),
-    parseInt(minute),
-    parseInt(second)
+  // Format the same UTC timestamp in both timezones to determine the offset
+  const utcParts = utcFormatter.formatToParts(new Date(assumedUtcMs));
+  const stockholmParts = stockholmFormatter.formatToParts(
+    new Date(assumedUtcMs),
   );
 
-  return utcMs;
+  const utcHour = parseInt(
+    utcParts.find((p) => p.type === "hour")?.value || "0",
+  );
+  const stockholmHour = parseInt(
+    stockholmParts.find((p) => p.type === "hour")?.value || "0",
+  );
+
+  // Calculate the offset in hours (Stockholm - UTC)
+  // Handle day boundary wrapping
+  let offsetHours = stockholmHour - utcHour;
+  if (offsetHours > 12) offsetHours -= 24;
+  if (offsetHours < -12) offsetHours += 24;
+
+  // The raw timestamp is in Stockholm time, so subtract the offset to get UTC
+  const offsetMs = offsetHours * 60 * 60 * 1000;
+  return assumedUtcMs - offsetMs;
 }
 
 function getTransportType(mode?: string): TransportType {
@@ -126,7 +148,8 @@ export async function searchSites(
   }
 
   if (!response.ok) {
-    if (import.meta.env.DEV) console.error("[SL API] Search error:", response.status);
+    if (import.meta.env.DEV)
+      console.error("[SL API] Search error:", response.status);
     return [];
   }
 
@@ -145,7 +168,10 @@ export async function searchSites(
   }
 
   const stations: SiteSearchResult[] = rawLocations
-    .filter((loc): loc is StopFinderLocation => isValidStopFinderResult(loc) && loc.type === "stop")
+    .filter(
+      (loc): loc is StopFinderLocation =>
+        isValidStopFinderResult(loc) && loc.type === "stop",
+    )
     .map((loc) => ({
       siteId: globalIdToSiteId(loc.id),
       name: loc.name,
@@ -174,13 +200,45 @@ export async function getDepartures(
   const validDeps = rawDeps.filter(isValidDeparture);
 
   return validDeps.map((dep: any) => {
-    let minutes = dep.timeToDeparture;
     const liveTime = dep.expected || dep.scheduled || "";
     const parsedTime = liveTime ? parseSlTimestamp(liveTime) : NaN;
-    if (minutes === undefined && liveTime && !isNaN(parsedTime)) {
+
+    // Prioritize computed minutes from parsed timestamp
+    let minutes: number;
+    let isFromParsedTime = false;
+
+    if (liveTime && !isNaN(parsedTime)) {
+      // Compute from absolute timestamp (most reliable)
       minutes = Math.max(0, Math.floor((parsedTime - Date.now()) / 60000));
+      isFromParsedTime = true;
+    } else if (
+      dep.timeToDeparture !== undefined &&
+      typeof dep.timeToDeparture === "number"
+    ) {
+      // Fallback to API-provided timeToDeparture
+      minutes = Math.max(0, dep.timeToDeparture);
+    } else {
+      // Last resort: use 0 if both fail
+      minutes = 0;
     }
-    const formattedTime = !isNaN(parsedTime) ? formatTime(new Date(parsedTime)) : "";
+
+    // Dev diagnostics for stale/invalid timestamps
+    if (import.meta.env.DEV) {
+      if (minutes < 0) {
+        console.warn("[SL API] Stale timestamp detected:", {
+          raw: liveTime,
+          parsed: parsedTime,
+          now: Date.now(),
+          minutes,
+          line: dep.line?.designation,
+          destination: dep.destination,
+        });
+      }
+    }
+
+    const formattedTime = !isNaN(parsedTime)
+      ? formatTime(new Date(parsedTime))
+      : "";
 
     // Extract scheduled time from API response and cache it
     if (dep.scheduled) {
@@ -195,7 +253,7 @@ export async function getDepartures(
       lineName: dep.line?.name || "",
       destination: dep.destination || "",
       directionText: dep.direction || "",
-      minutes: minutes ?? 0,
+      minutes,
       time: formattedTime,
       expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
       deviation: dep.deviation,

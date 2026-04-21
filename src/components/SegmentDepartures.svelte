@@ -35,8 +35,13 @@
 
   function getDeparturesForSegment(segment: Segment): Departure[] {
     const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    // Filter by line only (no directionText filter—API handles that)
-    const live = allDeps.filter(dep => dep.line === segment.line);
+    
+    // Filter by line AND direction to avoid mixing opposite directions on same line
+    // Use direction as authoritative user-facing destination label when fields differ
+    const live = allDeps.filter(dep => 
+      dep.line === segment.line && 
+      (dep.directionText === segment.directionText || dep.destination === segment.toStop.name)
+    );
 
     if (live.length >= 3) return live;
 

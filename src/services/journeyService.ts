@@ -1,7 +1,8 @@
-import type { Segment } from '../types/route';
-import type { Departure } from '../types/departure';
+import type { Segment } from "../types/route";
+import type { Departure } from "../types/departure";
+import { parseSlTimestamp } from "./slApi";
 
-const TRANSPORT_URL = 'https://transport.integration.sl.se/v1';
+const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
 const FETCH_TIMEOUT_MS = 5_000;
 
 export interface JourneyStop {
@@ -13,9 +14,10 @@ export interface JourneyStop {
 
 export interface JourneyData {
   stops: JourneyStop[];
-  isEstimated: boolean; // true = synthesised fallback, not real API data
-  destination: string;  // right-end terminus label
+  availability: "live" | "unavailable" | "estimated"; // live = real API data, estimated = synthetic fallback, unavailable = failed with reason
+  destination: string; // right-end terminus label
   pickupStopIndex?: number;
+  reason?: string; // diagnostic reason code: 'no_ref' | '404' | 'empty' | 'parse_error' | 'direction_mismatch' | 'live'
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
@@ -23,41 +25,70 @@ export interface JourneyData {
 const cache = new Map<string, { data: JourneyData; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60_000;
 
-function cacheKey(journeyRef: string | undefined, now: number): string {
-  return `${journeyRef ?? '_synth'}:${toStockholmDateString(now)}`;
+/**
+ * Generate cache key that includes segment identity to prevent collisions.
+ * When journeyRef is present, it's globally unique.
+ * When absent, include siteId|line|direction|date to prevent cross-route cache reuse.
+ */
+function cacheKey(
+  journeyRef: string | undefined,
+  segment: Segment | undefined,
+  now: number,
+): string {
+  if (journeyRef) {
+    return `ref:${journeyRef}:${toStockholmDateString(now)}`;
+  }
+
+  // Include segment identity to prevent synthetic data collision across routes
+  const segmentId = segment
+    ? `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`
+    : "unknown";
+
+  return `synth:${segmentId}:${toStockholmDateString(now)}`;
 }
 
 // ─── Date helper ─────────────────────────────────────────────────────────────
 
 /** Returns "YYYY-MM-DD" in Stockholm local time. Exported for testing. */
 export function toStockholmDateString(ts: number): string {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(new Date(ts));
 }
 
 // ─── Synthesised fallback ─────────────────────────────────────────────────────
 
 /** Builds a 5-stop placeholder sequence with ourStop at index 3. Exported for testing. */
-export function buildSynthesisedStops(ourStopName: string, ourSiteId: string): JourneyStop[] {
+export function buildSynthesisedStops(
+  ourStopName: string,
+  ourSiteId: string,
+): JourneyStop[] {
   return [
-    { name: '', siteId: '', idx: 0 },
-    { name: '', siteId: '', idx: 1 },
-    { name: '', siteId: '', idx: 2 },
+    { name: "", siteId: "", idx: 0 },
+    { name: "", siteId: "", idx: 1 },
+    { name: "", siteId: "", idx: 2 },
     { name: ourStopName, siteId: ourSiteId, idx: 3 },
-    { name: '', siteId: '', idx: 4 },
+    { name: "", siteId: "", idx: 4 },
   ];
 }
 
-function synthesised(segment: Segment, departure: Departure): JourneyData {
+function synthesised(
+  segment: Segment,
+  departure: Departure,
+  reason: string,
+): JourneyData {
   return {
-    stops: buildSynthesisedStops(segment.fromStop.name, segment.fromStop.siteId),
-    isEstimated: true,
+    stops: buildSynthesisedStops(
+      segment.fromStop.name,
+      segment.fromStop.siteId,
+    ),
+    availability: "estimated", // Not real API data, but we'll show it anyway for UX
     destination: departure.destination,
     pickupStopIndex: 3,
+    reason, // Diagnostic reason: 'no_ref' | '404' | 'empty' | 'parse_error'
   };
 }
 
@@ -78,7 +109,7 @@ export function estimateVehicleStopIndex(
 ): number {
   if (stops.length === 0) return 0;
 
-  const hasTimes = stops.some(s => s.scheduledAt !== undefined);
+  const hasTimes = stops.some((s) => s.scheduledAt !== undefined);
 
   if (hasTimes) {
     let result = 0;
@@ -114,41 +145,94 @@ async function fetchWithTimeout(url: string): Promise<Response> {
 
 async function fetchFromApi(journeyRef: string): Promise<JourneyStop[] | null> {
   try {
-    for (const suffix of ['stops', 'calls']) {
-      const res = await fetchWithTimeout(`${TRANSPORT_URL}/journeys/${journeyRef}/${suffix}`);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const items: any[] = Array.isArray(data) ? data : data.stops ?? data.calls ?? [];
-      if (!items.length) continue;
+    for (const suffix of ["stops", "calls"]) {
+      const res = await fetchWithTimeout(
+        `${TRANSPORT_URL}/journeys/${journeyRef}/${suffix}`,
+      );
+      if (!res.ok) {
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[Journey Service] ${suffix} endpoint returned ${res.status} for journey ${journeyRef}`,
+          );
+        }
+        continue;
+      }
 
-      return items.map((s: any, i: number) => ({
-        name: s.stop?.name ?? s.name ?? s.stopPoint?.name ?? '',
-        siteId: String(s.stop?.id ?? s.siteId ?? s.stopPoint?.siteId ?? ''),
+      const data = await res.json();
+      const items: any[] = Array.isArray(data)
+        ? data
+        : (data.stops ?? data.calls ?? []);
+      if (!items.length) {
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[Journey Service] ${suffix} endpoint returned empty result for journey ${journeyRef}`,
+          );
+        }
+        continue;
+      }
+
+      const stops = items.map((s: any, i: number) => ({
+        name: s.stop?.name ?? s.name ?? s.stopPoint?.name ?? "",
+        siteId: String(s.stop?.id ?? s.siteId ?? s.stopPoint?.siteId ?? ""),
         idx: i,
+        // Import parseSlTimestamp for journey stop timestamps (same as departure times)
         scheduledAt: s.scheduledArrival
-          ? new Date(s.scheduledArrival).getTime()
+          ? parseSlTimestamp(s.scheduledArrival)
           : s.scheduledDeparture
-          ? new Date(s.scheduledDeparture).getTime()
-          : s.scheduled
-          ? new Date(s.scheduled).getTime()
-          : undefined,
+            ? parseSlTimestamp(s.scheduledDeparture)
+            : s.scheduled
+              ? parseSlTimestamp(s.scheduled)
+              : undefined,
       }));
+
+      if (import.meta.env.DEV) {
+        console.debug(
+          `[Journey Service] Fetched ${stops.length} stops from ${suffix} endpoint`,
+          { journeyRef },
+        );
+      }
+
+      return stops;
+    }
+
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Journey Service] Both /stops and /calls endpoints failed for journey ${journeyRef}`,
+      );
     }
     return null;
-  } catch {
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Journey Service] Journey fetch error for ${journeyRef}:`,
+        e,
+      );
+    }
     return null;
   }
 }
 
-function stopMatches(stop: JourneyStop, target: { siteId: string; name: string }): boolean {
-  return stop.siteId === target.siteId || (stop.name !== '' && stop.name === target.name);
+function stopMatches(
+  stop: JourneyStop,
+  target: { siteId: string; name: string },
+): boolean {
+  return (
+    stop.siteId === target.siteId ||
+    (stop.name !== "" && stop.name === target.name)
+  );
 }
 
-function findStopIndex(stops: JourneyStop[], target: { siteId: string; name: string }): number {
-  return stops.findIndex(stop => stopMatches(stop, target));
+function findStopIndex(
+  stops: JourneyStop[],
+  target: { siteId: string; name: string },
+): number {
+  return stops.findIndex((stop) => stopMatches(stop, target));
 }
 
-function normaliseJourneyStops(stops: JourneyStop[], segment: Segment): JourneyData | null {
+function normaliseJourneyStops(
+  stops: JourneyStop[],
+  segment: Segment,
+): JourneyData | null {
   if (!stops.length) return null;
 
   const pickupIdx = findStopIndex(stops, segment.fromStop);
@@ -178,16 +262,20 @@ function normaliseJourneyStops(stops: JourneyStop[], segment: Segment): JourneyD
 
   return {
     stops: oriented,
-    isEstimated: false,
+    availability: "live", // Real API data
     destination,
     pickupStopIndex: orientedPickupIdx,
+    reason: "live",
   };
 }
 
 /**
  * Returns journey stop data for a departure.
  * Falls back to a synthesised 5-stop sequence on any failure or missing journeyRef.
- * Results are cached in memory for CACHE_TTL_MS (5 min) per journey+date key.
+ * Results are cached in memory for CACHE_TTL_MS (5 min) per journey+date+segment key.
+ *
+ * When journeyRef is missing or fetch fails, marks data as 'estimated'.
+ * Includes reason code for diagnostics: 'no_ref' | '404' | 'empty' | 'parse_error' | 'live'.
  */
 export async function fetchJourneyStops(
   journeyRef: string | undefined,
@@ -195,20 +283,28 @@ export async function fetchJourneyStops(
   departure: Departure,
 ): Promise<JourneyData> {
   const now = Date.now();
-  const key = cacheKey(journeyRef, now);
+  const key = cacheKey(journeyRef, segment, now);
   const cached = cache.get(key);
   if (cached && cached.expiresAt > now) return cached.data;
 
   let data: JourneyData;
 
   if (!journeyRef) {
-    data = synthesised(segment, departure);
+    data = synthesised(segment, departure, "no_ref");
   } else {
     const stops = await fetchFromApi(journeyRef);
     if (stops && stops.length > 0) {
-      data = normaliseJourneyStops(stops, segment) ?? synthesised(segment, departure);
+      const normalised = normaliseJourneyStops(stops, segment);
+      if (normalised) {
+        data = normalised;
+      } else {
+        // Successfully fetched but failed to match segment endpoints
+        data = synthesised(segment, departure, "direction_mismatch");
+      }
     } else {
-      data = synthesised(segment, departure);
+      // Fetch returned null or empty
+      const reason = stops === null ? "404" : "empty";
+      data = synthesised(segment, departure, reason);
     }
   }
 
