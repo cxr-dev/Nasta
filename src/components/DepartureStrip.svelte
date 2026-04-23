@@ -53,8 +53,8 @@
       (stop.name !== '' && stop.name === segment.fromStop.name);
   }
 
-  function stopState(origIdx: number, stop: JourneyStop): 'passed' | 'vehicle' | 'your-stop' | 'upcoming' {
-    if (origIdx === vehicleIdx) return 'vehicle';
+  function stopState(data: JourneyData, origIdx: number, stop: JourneyStop): 'passed' | 'vehicle' | 'your-stop' | 'upcoming' {
+    if (data.availability !== 'unavailable' && origIdx === vehicleIdx) return 'vehicle';
     if (isYourStop(stop)) return 'your-stop';
     if (origIdx < vehicleIdx) return 'passed';
     return 'upcoming';
@@ -75,27 +75,35 @@
   }
 
   function progressText(data: JourneyData): string {
-    // When live position data is unavailable, show simplified message
-    if (data.availability !== 'live') {
-      return $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    if (data.availability === 'unavailable') {
+      return $t.positionUnavailablePrimary ?? 'Position unavailable';
     }
-    
+
     const remaining = stopsUntilPickup(data);
-    if (remaining === null) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
-    if (remaining === 0) return $t.nowAtStop.replace('{stop}', segment.fromStop.name);
-    if (remaining === 1) return $t.stopsAwayOne.replace('{stop}', segment.fromStop.name);
-    return $t.stopsAwayMany
+    let baseText: string;
+    if (remaining === null) baseText = $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    else if (remaining === 0) baseText = $t.nowAtStop.replace('{stop}', segment.fromStop.name);
+    else if (remaining === 1) baseText = $t.stopsAwayOne.replace('{stop}', segment.fromStop.name);
+    else baseText = $t.stopsAwayMany
       .replace('{count}', String(remaining))
       .replace('{stop}', segment.fromStop.name);
+
+    if (data.availability === 'scheduled') {
+      return `${baseText} · ${$t.scheduledEstimateLabel}`;
+    }
+    return baseText;
   }
 
   function vehicleContextText(data: JourneyData): string {
-    if (data.availability !== 'live') {
+    if (data.availability === 'unavailable') {
       return $t.livePositionUnavailable ?? 'Live position unavailable';
     }
     
     const current = lastReliableStopName(data);
     if (!current) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
+    if (data.availability === 'scheduled') {
+      return $t.vehicleAtScheduled.replace('{stop}', current);
+    }
     if (isYourStop(data.stops[vehicleIdx])) return $t.vehicleAtYourStop;
     return $t.vehicleAt.replace('{stop}', current);
   }
@@ -152,7 +160,7 @@
       <div class="track-row">
         {#each visible as stop, i}
           {@const origIdx = journeyData.stops.indexOf(stop)}
-          {@const state = stopState(origIdx, stop)}
+          {@const state = stopState(journeyData, origIdx, stop)}
           {@const isLast = i === visible.length - 1}
 
           <div
@@ -189,8 +197,8 @@
       <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
       {#if journeyData.availability === 'live'}
         <span class="badge badge-live">{$t.live} ✦</span>
-      {:else if journeyData.availability === 'estimated'}
-        <span class="badge badge-estimated">~{$t.estimated}</span>
+      {:else if journeyData.availability === 'scheduled'}
+        <span class="badge badge-scheduled">~{$t.scheduledEstimateLabel}</span>
       {:else}
         <span class="badge badge-unavailable">{$t.unavailable ?? 'Unavailable'}</span>
       {/if}
@@ -312,7 +320,7 @@
     text-align: center;
     transform: translateX(-50%);
     left: 50%;
-    max-width: 88px;
+    max-width: 128px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -357,7 +365,7 @@
     background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
-  .badge-estimated {
+  .badge-scheduled {
     color: var(--text-muted);
     background: color-mix(in srgb, var(--text-muted) 10%, transparent);
   }

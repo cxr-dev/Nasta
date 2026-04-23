@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   estimateVehicleStopIndex,
   toStockholmDateString,
-  buildSynthesisedStops,
   fetchJourneyStops,
   cacheKey,
+  __clearJourneyServiceCachesForTests,
 } from "./journeyService";
 import type { JourneyStop } from "./journeyService";
 import type { Segment } from "../types/route";
@@ -13,6 +13,7 @@ import { vi, beforeEach, afterEach } from "vitest";
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  __clearJourneyServiceCachesForTests();
 });
 
 afterEach(() => {
@@ -71,20 +72,6 @@ describe("estimateVehicleStopIndex", () => {
     const result = estimateVehicleStopIndex(stops, expectedAtOurStop, now);
     expect(result).toBeGreaterThanOrEqual(0);
     expect(result).toBeLessThan(3); // hasn't reached our stop yet
-  });
-});
-
-describe("buildSynthesisedStops", () => {
-  it("returns 5 stops with our stop at index 3", () => {
-    const stops = buildSynthesisedStops("Östhammarsgatan", "9011001234100001");
-    expect(stops).toHaveLength(5);
-    expect(stops[3].name).toBe("Östhammarsgatan");
-    expect(stops[3].siteId).toBe("9011001234100001");
-  });
-
-  it("assigns sequential idx values starting from 0", () => {
-    const stops = buildSynthesisedStops("A", "site1");
-    stops.forEach((s, i) => expect(s.idx).toBe(i));
   });
 });
 
@@ -159,12 +146,133 @@ describe("fetchJourneyStops", () => {
       ...departure,
       journeyRef: "journey-missing-stop",
     });
-    expect(data.availability).toBe("estimated");
+    expect(data.availability).toBe("unavailable");
+    expect(data.source).toBe("none");
     expect(data.reason).toBe("direction_mismatch");
-     expect(data.pickupStopIndex).toBe(3);
-     expect(data.stops[3].name).toBe("Lindarängsvägen");
-   });
- });
+    expect(data.pickupStopIndex).toBe(1);
+    expect(data.stops[1].name).toBe("Lindarängsvägen");
+  });
+
+  it("uses pattern-scheduled fallback when journeyRef is missing and pattern was learned", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-04-23T10:00:00Z");
+    vi.setSystemTime(now);
+    const expectedAt = now.getTime() + 10 * 60_000;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          stops: [
+            {
+              name: "Stop A",
+              stop: { id: "090", name: "Stop A" },
+              scheduledArrival: new Date(expectedAt - 2 * 60_000).toISOString(),
+            },
+            {
+              name: "Lindarängsvägen",
+              stop: { id: "100", name: "Lindarängsvägen" },
+              scheduledArrival: new Date(expectedAt).toISOString(),
+            },
+            {
+              name: "Stop C",
+              stop: { id: "200", name: "Stop C" },
+              scheduledArrival: new Date(expectedAt + 3 * 60_000).toISOString(),
+            },
+          ],
+        }),
+      }),
+    );
+
+    const live = await fetchJourneyStops("journey-for-pattern", segment, {
+      ...departure,
+      journeyRef: "journey-for-pattern",
+      expectedAt,
+    });
+    expect(live.availability).toBe("live");
+
+    const scheduled = await fetchJourneyStops(undefined, segment, {
+      ...departure,
+      journeyRef: undefined,
+      expectedAt: expectedAt + 60_000,
+    });
+    expect(scheduled.availability).toBe("scheduled");
+    expect(scheduled.source).toBe("pattern_schedule");
+    expect(scheduled.confidence).toBe("medium");
+    expect(scheduled.pickupStopIndex).toBeGreaterThanOrEqual(0);
+    expect(scheduled.stops.length).toBeGreaterThanOrEqual(2);
+    expect(scheduled.stops[scheduled.pickupStopIndex ?? 0].name).toBe("Lindarängsvägen");
+  });
+
+  it("falls back to unavailable when no journeyRef and no learned pattern", async () => {
+    const data = await fetchJourneyStops(undefined, segment, {
+      ...departure,
+      journeyRef: undefined,
+    });
+    expect(data.availability).toBe("unavailable");
+    expect(data.source).toBe("none");
+    expect(data.confidence).toBe("low");
+    expect(data.reason).toBe("no_ref");
+    expect(data.pickupStopIndex).toBe(1);
+    expect(data.stops).toHaveLength(3);
+    expect(data.stops[1].name).toBe("Lindarängsvägen");
+  });
+
+  it("prefers scheduled pattern fallback when journeyRef fetch fails", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-04-23T10:00:00Z");
+    vi.setSystemTime(now);
+    const expectedAt = now.getTime() + 8 * 60_000;
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stops: [
+            {
+              name: "Stop A",
+              stop: { id: "090", name: "Stop A" },
+              scheduledArrival: new Date(expectedAt - 2 * 60_000).toISOString(),
+            },
+            {
+              name: "Lindarängsvägen",
+              stop: { id: "100", name: "Lindarängsvägen" },
+              scheduledArrival: new Date(expectedAt).toISOString(),
+            },
+            {
+              name: "Stop C",
+              stop: { id: "200", name: "Stop C" },
+              scheduledArrival: new Date(expectedAt + 3 * 60_000).toISOString(),
+            },
+          ],
+        }),
+      })
+      .mockResolvedValue({
+        ok: false,
+        status: 404,
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchJourneyStops("journey-pattern-source", segment, {
+      ...departure,
+      journeyRef: "journey-pattern-source",
+      expectedAt,
+    });
+
+    const fallback = await fetchJourneyStops("journey-failing", segment, {
+      ...departure,
+      journeyRef: "journey-failing",
+      expectedAt: expectedAt + 60_000,
+    });
+
+    expect(fallback.availability).toBe("scheduled");
+    expect(fallback.source).toBe("pattern_schedule");
+    expect(fallback.confidence).toBe("medium");
+  });
+});
 
 describe("cacheKey", () => {
   type CacheKeyDeparture = Pick<Departure, "expectedAt">;

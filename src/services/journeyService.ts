@@ -14,16 +14,71 @@ export interface JourneyStop {
 
 export interface JourneyData {
   stops: JourneyStop[];
-  availability: "live" | "unavailable" | "estimated"; // live = real API data, estimated = synthetic fallback, unavailable = failed with reason
+  availability: "live" | "scheduled" | "unavailable";
+  source: "live_journey" | "pattern_schedule" | "none";
+  confidence: "high" | "medium" | "low";
   destination: string; // right-end terminus label
   pickupStopIndex?: number;
-  reason?: string; // diagnostic reason code: 'no_ref' | '404' | 'empty' | 'parse_error' | 'direction_mismatch' | 'live'
+  reason?: string;
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 const cache = new Map<string, { data: JourneyData; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60_000;
+const PATTERN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const MAX_OFFSET_SAMPLES = 25;
+const MAX_PATTERN_STOPS = 14;
+
+interface PatternStopStats {
+  siteId: string;
+  name: string;
+  relativeIndex: number;
+  offsetSamplesSec: number[];
+}
+
+interface StopPatternEntry {
+  line: string;
+  directionText: string;
+  pickupStopSiteId: string;
+  updatedAt: number;
+  sampleCount: number;
+  stops: PatternStopStats[];
+}
+
+const stopPatternCache = new Map<string, StopPatternEntry>();
+
+function patternKey(line: string, directionText: string, pickupStopSiteId: string): string {
+  return `${line}|${directionText}|${pickupStopSiteId}`;
+}
+
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+  return sorted[mid];
+}
+
+function trimSamples(values: number[]): number[] {
+  if (values.length <= MAX_OFFSET_SAMPLES) return values;
+  return values.slice(values.length - MAX_OFFSET_SAMPLES);
+}
+
+function samePatternStop(
+  a: Pick<PatternStopStats, "siteId" | "name" | "relativeIndex">,
+  b: Pick<PatternStopStats, "siteId" | "name" | "relativeIndex">,
+): boolean {
+  if (a.relativeIndex !== b.relativeIndex) return false;
+  if (a.siteId && b.siteId) return a.siteId === b.siteId;
+  return a.name !== "" && a.name === b.name;
+}
+
+function isPatternFresh(entry: StopPatternEntry, now: number): boolean {
+  return now - entry.updatedAt <= PATTERN_TTL_MS;
+}
 
 /**
  * Generate cache key that includes segment identity to prevent collisions.
@@ -68,36 +123,36 @@ export function toStockholmDateString(ts: number): string {
   }).format(new Date(ts));
 }
 
-// ─── Synthesised fallback ─────────────────────────────────────────────────────
-
-/** Builds a 5-stop placeholder sequence with ourStop at index 3. Exported for testing. */
-export function buildSynthesisedStops(
-  ourStopName: string,
-  ourSiteId: string,
-): JourneyStop[] {
-  return [
-    { name: "", siteId: "", idx: 0 },
-    { name: "", siteId: "", idx: 1 },
-    { name: "", siteId: "", idx: 2 },
-    { name: ourStopName, siteId: ourSiteId, idx: 3 },
-    { name: "", siteId: "", idx: 4 },
-  ];
-}
-
-function synthesised(
+function unavailableData(
   segment: Segment,
   departure: Departure,
   reason: string,
 ): JourneyData {
+  const stops: JourneyStop[] = [
+    {
+      name: "",
+      siteId: "",
+      idx: 0,
+    },
+    {
+      name: segment.fromStop.name,
+      siteId: segment.fromStop.siteId,
+      idx: 1,
+    },
+    {
+      name: segment.toStop.name,
+      siteId: segment.toStop.siteId,
+      idx: 2,
+    },
+  ];
   return {
-    stops: buildSynthesisedStops(
-      segment.fromStop.name,
-      segment.fromStop.siteId,
-    ),
-    availability: "estimated", // Not real API data, but we'll show it anyway for UX
-    destination: departure.destination,
-    pickupStopIndex: 3,
-    reason, // Diagnostic reason: 'no_ref' | '404' | 'empty' | 'parse_error'
+    stops,
+    availability: "unavailable",
+    source: "none",
+    confidence: "low",
+    destination: segment.directionText || departure.destination || segment.toStop.name,
+    pickupStopIndex: 1,
+    reason,
   };
 }
 
@@ -107,8 +162,7 @@ function synthesised(
  * Returns the stop index where the vehicle currently is (0-based).
  *
  * If stops have scheduledAt times: finds the last stop that has already passed (scheduledAt <= now).
- * If stops lack scheduledAt (synthesised): distributes evenly across the interval
- *   [expectedAtOurStop - count*90s, expectedAtOurStop] and picks the closest past stop.
+ * Works with both live journey stop schedules and timetable-derived stop schedules.
  * Returns 0 if stops is empty.
  */
 export function estimateVehicleStopIndex(
@@ -129,14 +183,7 @@ export function estimateVehicleStopIndex(
     }
     return result;
   }
-
-  // Synthesised: distribute evenly at 90-second intervals before our stop
-  const INTERVAL_MS = 90_000;
-  const count = stops.length;
-  for (let i = count - 1; i >= 0; i--) {
-    const estimatedAt = expectedAtOurStop - (count - 1 - i) * INTERVAL_MS;
-    if (estimatedAt <= now) return i;
-  }
+  // No stop schedules available: avoid fabricating precision.
   return 0;
 }
 
@@ -271,20 +318,125 @@ function normaliseJourneyStops(
 
   return {
     stops: oriented,
-    availability: "live", // Real API data
+    availability: "live",
+    source: "live_journey",
+    confidence: "high",
     destination,
     pickupStopIndex: orientedPickupIdx,
     reason: "live",
   };
 }
 
+function learnStopPatternFromLiveJourney(
+  segment: Segment,
+  departure: Departure,
+  data: JourneyData,
+): void {
+  if (data.availability !== "live") return;
+  if (!departure.line || !departure.directionText || !segment.fromStop.siteId) return;
+
+  const pickupIdx = data.pickupStopIndex ?? data.stops.findIndex((s) => stopMatches(s, segment.fromStop));
+  if (pickupIdx < 0) return;
+  const pickupScheduledAt = data.stops[pickupIdx]?.scheduledAt;
+  if (pickupScheduledAt === undefined) return;
+
+  const sampleStops: PatternStopStats[] = [];
+  for (const stop of data.stops) {
+    if (stop.scheduledAt === undefined) continue;
+    const relativeIndex = stop.idx - pickupIdx;
+    const offsetSec = Math.round((stop.scheduledAt - pickupScheduledAt) / 1000);
+    sampleStops.push({
+      siteId: stop.siteId,
+      name: stop.name,
+      relativeIndex,
+      offsetSamplesSec: [offsetSec],
+    });
+  }
+  if (!sampleStops.length) return;
+
+  sampleStops.sort((a, b) => a.relativeIndex - b.relativeIndex);
+  const boundedSample = sampleStops
+    .filter((s) => s.relativeIndex >= -6 && s.relativeIndex <= 7)
+    .slice(0, MAX_PATTERN_STOPS);
+  if (!boundedSample.length) return;
+
+  const key = patternKey(departure.line, departure.directionText, segment.fromStop.siteId);
+  const now = Date.now();
+  const existing = stopPatternCache.get(key);
+  if (!existing || !isPatternFresh(existing, now)) {
+    stopPatternCache.set(key, {
+      line: departure.line,
+      directionText: departure.directionText,
+      pickupStopSiteId: segment.fromStop.siteId,
+      updatedAt: now,
+      sampleCount: 1,
+      stops: boundedSample,
+    });
+    return;
+  }
+
+  for (const sampled of boundedSample) {
+    const matched = existing.stops.find((s) => samePatternStop(s, sampled));
+    if (matched) {
+      matched.offsetSamplesSec = trimSamples([...matched.offsetSamplesSec, sampled.offsetSamplesSec[0]]);
+      if (!matched.name && sampled.name) matched.name = sampled.name;
+      if (!matched.siteId && sampled.siteId) matched.siteId = sampled.siteId;
+    } else {
+      existing.stops.push(sampled);
+    }
+  }
+
+  existing.stops.sort((a, b) => a.relativeIndex - b.relativeIndex);
+  existing.stops = existing.stops
+    .filter((s) => s.relativeIndex >= -6 && s.relativeIndex <= 7)
+    .slice(0, MAX_PATTERN_STOPS);
+  existing.sampleCount += 1;
+  existing.updatedAt = now;
+}
+
+function buildJourneyFromPattern(
+  segment: Segment,
+  departure: Departure,
+): JourneyData | null {
+  if (!departure.line || !departure.directionText || !segment.fromStop.siteId) {
+    return null;
+  }
+  const key = patternKey(departure.line, departure.directionText, segment.fromStop.siteId);
+  const entry = stopPatternCache.get(key);
+  const now = Date.now();
+  if (!entry || !isPatternFresh(entry, now)) return null;
+
+  const sortedStops = [...entry.stops].sort((a, b) => a.relativeIndex - b.relativeIndex);
+  const pickupPatternIdx = sortedStops.findIndex((s) => s.relativeIndex === 0);
+  if (pickupPatternIdx < 0 || sortedStops.length < 2) return null;
+
+  const expectedAtOurStop = departure.expectedAt ?? (now + departure.minutes * 60_000);
+  const stops: JourneyStop[] = sortedStops.map((stop, idx) => ({
+    idx,
+    name: stop.name,
+    siteId: stop.siteId,
+    scheduledAt: expectedAtOurStop + median(stop.offsetSamplesSec) * 1000,
+  }));
+
+  const destination = sortedStops[sortedStops.length - 1]?.name || segment.directionText || departure.destination;
+  return {
+    stops,
+    availability: "scheduled",
+    source: "pattern_schedule",
+    confidence: "medium",
+    destination,
+    pickupStopIndex: pickupPatternIdx,
+    reason: "pattern_schedule",
+  };
+}
+
 /**
  * Returns journey stop data for a departure.
- * Falls back to a synthesised 5-stop sequence on any failure or missing journeyRef.
+ * Falls back to timetable pattern-derived stops when live journey data is missing.
+ * If no pattern exists, returns minimal unavailable data without fabricated position.
  * Results are cached in memory for CACHE_TTL_MS (5 min) per journey+date+segment key.
  *
- * When journeyRef is missing or fetch fails, marks data as 'estimated'.
- * Includes reason code for diagnostics: 'no_ref' | '404' | 'empty' | 'parse_error' | 'live'.
+ * Includes reason code for diagnostics and source/confidence metadata.
  */
 export async function fetchJourneyStops(
   journeyRef: string | undefined,
@@ -298,25 +450,35 @@ export async function fetchJourneyStops(
 
   let data: JourneyData;
 
-  if (!journeyRef) {
-    data = synthesised(segment, departure, "no_ref");
-  } else {
+  if (journeyRef) {
     const stops = await fetchFromApi(journeyRef);
     if (stops && stops.length > 0) {
       const normalised = normaliseJourneyStops(stops, segment);
       if (normalised) {
         data = normalised;
+        learnStopPatternFromLiveJourney(segment, departure, normalised);
       } else {
-        // Successfully fetched but failed to match segment endpoints
-        data = synthesised(segment, departure, "direction_mismatch");
+        data =
+          buildJourneyFromPattern(segment, departure) ??
+          unavailableData(segment, departure, "direction_mismatch");
       }
     } else {
-      // Fetch returned null or empty
       const reason = stops === null ? "404" : "empty";
-      data = synthesised(segment, departure, reason);
+      data =
+        buildJourneyFromPattern(segment, departure) ??
+        unavailableData(segment, departure, reason);
     }
+  } else {
+    data =
+      buildJourneyFromPattern(segment, departure) ??
+      unavailableData(segment, departure, "no_ref");
   }
 
   cache.set(key, { data, expiresAt: now + CACHE_TTL_MS });
   return data;
+}
+
+export function __clearJourneyServiceCachesForTests(): void {
+  cache.clear();
+  stopPatternCache.clear();
 }
