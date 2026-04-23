@@ -248,21 +248,23 @@ export async function getDepartures(
       cacheScheduleTime(siteId, line, direction, scheduledDate);
     }
 
-    return {
-      line: dep.line?.designation || dep.line?.name || "",
-      lineName: dep.line?.name || "",
-      destination: dep.destination || "",
-      directionText: dep.direction || "",
-      minutes,
-      time: formattedTime,
-      expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
-      deviation: dep.deviation,
-      transportType: getTransportType(dep.line?.transport_mode),
-      // SL API exposes journey.id — used for vehicle position estimation in the progress strip
-      journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
-      // SL's pre-calculated display — always correct, use as fallback
-      display: dep.display,
-    };
+     return {
+       line: dep.line?.designation || dep.line?.name || "",
+       lineName: dep.line?.name || "",
+       destination: dep.destination || "",
+       directionText: dep.direction || "",
+       minutes,
+       time: formattedTime,
+       expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
+       deviation: dep.deviation,
+       transportType: getTransportType(dep.line?.transport_mode),
+       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
+       journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
+       // SL API exposes trip.id — fallback for cache key when journeyRef is missing
+       tripId: dep.trip?.id != null ? String(dep.trip.id) : undefined,
+       // SL's pre-calculated display — always correct, use as fallback
+       display: dep.display,
+     };
   });
 }
 

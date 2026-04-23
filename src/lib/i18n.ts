@@ -77,6 +77,8 @@ const sv = {
   estimated: 'Estimat',
   live: 'Live',
   stopLabel: 'Hållplats: {stop}',
+  unavailable: 'Ej tillgänglig',
+  livePositionUnavailable: 'Live position saknas',
 
   // Onboarding
   onboardingWelcomeTitle: 'Välkommen till Nästa',
@@ -168,6 +170,8 @@ const en: typeof sv = {
   estimated: 'Estimated',
   live: 'Live',
   stopLabel: 'Stop: {stop}',
+  unavailable: 'Unavailable',
+  livePositionUnavailable: 'Live position unavailable',
 
   onboardingWelcomeTitle: 'Welcome to Nästa',
   onboardingWelcomeSubtitle: 'Your smart Stockholm commute companion',

@@ -27,24 +27,33 @@ const CACHE_TTL_MS = 5 * 60_000;
 
 /**
  * Generate cache key that includes segment identity to prevent collisions.
- * When journeyRef is present, it's globally unique.
- * When absent, include siteId|line|direction|date to prevent cross-route cache reuse.
+ * Priority: journeyRef > tripId > composite (segment + departure time).
  */
-function cacheKey(
+export function cacheKey(
   journeyRef: string | undefined,
+  tripId: string | undefined,
   segment: Segment | undefined,
   now: number,
+  departure?: Pick<Departure, "expectedAt">,
 ): string {
   if (journeyRef) {
     return `ref:${journeyRef}:${toStockholmDateString(now)}`;
   }
 
-  // Include segment identity to prevent synthetic data collision across routes
+  if (tripId) {
+    return `trip:${tripId}:${toStockholmDateString(now)}`;
+  }
+
+  // Composite: include departure time (expectedAt rounded to minute) to avoid collisions
+  const timeKey = departure?.expectedAt
+    ? Math.floor(departure.expectedAt / 60000).toString()
+    : toStockholmDateString(now);
+
   const segmentId = segment
     ? `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`
     : "unknown";
 
-  return `synth:${segmentId}:${toStockholmDateString(now)}`;
+  return `synth:${segmentId}:${timeKey}`;
 }
 
 // ─── Date helper ─────────────────────────────────────────────────────────────
@@ -283,7 +292,7 @@ export async function fetchJourneyStops(
   departure: Departure,
 ): Promise<JourneyData> {
   const now = Date.now();
-  const key = cacheKey(journeyRef, segment, now);
+  const key = cacheKey(journeyRef, departure.tripId, segment, now, departure);
   const cached = cache.get(key);
   if (cached && cached.expiresAt > now) return cached.data;
 

@@ -168,9 +168,14 @@ export function learnFromApiResponse(siteId: string, rawDepartures: unknown[]): 
   if (dirty) saveStore(store);
 }
 
+/** Maximum minutes ahead to show predicted departures.
+ * Beyond this, it's likely stale timetable data, not real-time. */
+const MAX_PREDICTED_MINUTES = 6 * 60; // 6 hours
+
 /**
  * Returns up to `count` predicted upcoming departures for a route,
  * derived entirely from the cached timetable. Returns [] if no cache exists.
+ * Predicted departures beyond MAX_PREDICTED_MINUTES are filtered out.
  */
 export function getPredictedDepartures(
   siteId: string,
@@ -207,13 +212,17 @@ export function getPredictedDepartures(
 
       if (departureTs <= now) continue;
 
+      // Filter out departures too far in the future — likely stale timetable data
+      const minutesAhead = Math.floor((departureTs - now) / 60_000);
+      if (minutesAhead > MAX_PREDICTED_MINUTES) continue;
+
       results.push({
         line: entry.line,
         lineName: entry.lineName,
         destination: entry.destination,
         directionText: entry.directionText,
         transportType: entry.transportType,
-        minutes: Math.floor((departureTs - now) / 60_000),
+        minutes: minutesAhead,
         time: formatTransitMinutes(transitMinutes),
         expectedAt: departureTs,
         predicted: true,

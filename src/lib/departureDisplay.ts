@@ -1,4 +1,12 @@
 import type { Departure } from '../types/departure';
+import { locale } from '../stores/localeStore';
+import { get } from 'svelte/store';
+
+/** Get the locale-aware "now" text */
+function getNowText(): string {
+  const currentLocale = get(locale);
+  return currentLocale === 'sv' ? 'Nu' : 'Now';
+}
 
 const DUPLICATE_WINDOW_MS = 90_000;
 
@@ -14,7 +22,7 @@ export function formatDepartureTime(dep: Departure, now: number): string {
   if (dep.expectedAt) {
     const mins = getLiveMinutes(dep, now);
 
-    if (mins <= 0) return 'Nu';
+    if (mins <= 0) return getNowText();
     if (mins === 1) return '1 min';
     if (mins < 60) return `${mins} min`;
 
@@ -37,7 +45,7 @@ export function formatDepartureTime(dep: Departure, now: number): string {
 
   // Final fallback: calculate from dep.minutes
   const mins = dep.minutes ?? 0;
-  if (mins <= 0) return 'Nu';
+  if (mins <= 0) return getNowText();
   const hours = Math.floor(mins / 60);
   const minutes = mins % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;

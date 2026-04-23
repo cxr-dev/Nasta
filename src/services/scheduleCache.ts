@@ -122,6 +122,10 @@ export function cacheScheduleTime(
   saveCache(cache);
 }
 
+/** Maximum minutes ahead to show cached schedule departures.
+ * Beyond this, the data is likely stale timetable data. */
+const MAX_CACHED_MINUTES = 24 * 60; // 24 hours (handles overnight schedules)
+
 /**
  * Retrieve cached schedule for a route
  * Returns null if no cache or expired
@@ -151,13 +155,16 @@ export function getCachedSchedule(
     return null;
   }
 
+  const now = Date.now();
+
   // Convert ISO times to Departure objects
   const departures: Departure[] = entry.scheduledTimes
     .filter((isoTime) => {
-      // Only include future times
-      return new Date(isoTime).getTime() > Date.now();
+      // Only include future times within reasonable horizon
+      const ts = new Date(isoTime).getTime();
+      return ts > now && (ts - now) / 60000 <= MAX_CACHED_MINUTES;
     })
-.slice(0, MAX_DEPARTURES)
+    .slice(0, MAX_DEPARTURES)
     .map((isoTime) => {
       const departureTime = new Date(isoTime);
       const time = departureTime.toLocaleTimeString("sv-SE", {
@@ -166,7 +173,7 @@ export function getCachedSchedule(
         timeZone: "Europe/Stockholm",
       });
       const expectedAt = departureTime.getTime();
-      const calculatedMinutes = Math.max(0, Math.floor((expectedAt - Date.now()) / 60000));
+      const calculatedMinutes = Math.max(0, Math.floor((expectedAt - now) / 60000));
       return {
         line,
         lineName: "",

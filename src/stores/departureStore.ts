@@ -19,6 +19,7 @@ function createDepartureStore() {
   const data = writable<Map<string, Departure[]>>(new Map());
   const { subscribe, set, update } = data;
   const isLoading = writable(false);
+  const isUpdating = writable(false);
   const lastError = writable<string | null>(null);
   const lastSuccessfulFetch = writable<number>(0);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -30,7 +31,7 @@ function createDepartureStore() {
 
   /**
    * Hybrid fetch strategy:
-   * 1. Check cache immediately → display
+   * 1. Check cache immediately → display (only on initial load)
    * 2. Fetch API in parallel for enrichment
    * 3. Merge: use API times, layer cache deviations
    */
@@ -55,7 +56,13 @@ function createDepartureStore() {
       return;
     }
     isFetching = true;
-    isLoading.set(true);
+
+    // Set appropriate loading state
+    if (clearFirst) {
+      isLoading.set(true);
+    } else {
+      isUpdating.set(true);
+    }
     lastError.set(null);
 
     const results = clearFirst
@@ -89,8 +96,11 @@ function createDepartureStore() {
         }
       }
 
-      // Display cached data immediately
-      set(results);
+      // Display cached data immediately on initial load only.
+      // For refreshes, keep existing data visible until API results arrive.
+      if (clearFirst) {
+        set(results);
+      }
 
       // Phase 2: Fetch fresh API data in parallel for enrichment
       if (siteIdsNeedingApi.length > 0) {
@@ -124,19 +134,18 @@ function createDepartureStore() {
               // Fall back to empty if API fails
               results.set(seg.siteId, []);
             }
-          }),
-        );
-      }
-
-      set(results);
-    } catch (error) {
-      if (import.meta.env.DEV) console.error("[departureStore] Overall fetch error:", error);
-      lastError.set('Failed to fetch departures');
-    } finally {
-      isFetching = false;
-      isLoading.set(false);
-    }
-  };
+           }),
+         );
+       }
+     } catch (error) {
+       if (import.meta.env.DEV) console.error("[departureStore] Overall fetch error:", error);
+       lastError.set('Failed to fetch departures');
+     } finally {
+       isFetching = false;
+       isLoading.set(false);
+       isUpdating.set(false);
+     }
+   };
 
   // Legacy API - convert to new segment data format
   const fetchAll = async (
@@ -160,6 +169,12 @@ function createDepartureStore() {
     isLoading: {
       subscribe: (cb: (val: boolean) => void) => {
         const unsub = isLoading.subscribe(cb);
+        return unsub;
+      }
+    },
+    isUpdating: {
+      subscribe: (cb: (val: boolean) => void) => {
+        const unsub = isUpdating.subscribe(cb);
         return unsub;
       }
     },

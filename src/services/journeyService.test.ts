@@ -4,6 +4,7 @@ import {
   toStockholmDateString,
   buildSynthesisedStops,
   fetchJourneyStops,
+  cacheKey,
 } from "./journeyService";
 import type { JourneyStop } from "./journeyService";
 import type { Segment } from "../types/route";
@@ -160,7 +161,47 @@ describe("fetchJourneyStops", () => {
     });
     expect(data.availability).toBe("estimated");
     expect(data.reason).toBe("direction_mismatch");
-    expect(data.pickupStopIndex).toBe(3);
-    expect(data.stops[3].name).toBe("Lindarängsvägen");
+     expect(data.pickupStopIndex).toBe(3);
+     expect(data.stops[3].name).toBe("Lindarängsvägen");
+   });
+ });
+
+describe("cacheKey", () => {
+  type CacheKeyDeparture = Pick<Departure, "expectedAt">;
+  const now = Date.now();
+  const segment: Segment = {
+    id: "seg-1",
+    line: "76",
+    lineName: "76",
+    directionText: "Norra Hammarbyhamnen",
+    fromStop: { id: "from", name: "Lindarängsvägen", siteId: "100" },
+    toStop: { id: "to", name: "Norra Hammarbyhamnen", siteId: "300" },
+    transportType: "bus",
+  };
+
+  it("uses journeyRef when present", () => {
+    const key = cacheKey("journey123", undefined, segment, now);
+    expect(key).toBe(`ref:journey123:${toStockholmDateString(now)}`);
+  });
+
+  it("uses tripId when journeyRef missing", () => {
+    const key = cacheKey(undefined, "trip456", segment, now);
+    expect(key).toBe(`trip:trip456:${toStockholmDateString(now)}`);
+  });
+
+  it("uses composite key with departure time minutes when both refs missing", () => {
+    const expectedAt = now + 10 * 60_000; // 10 min from now
+    const departure: CacheKeyDeparture = { expectedAt };
+    const key = cacheKey(undefined, undefined, segment, now, departure);
+    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`;
+    const timeKey = Math.floor(expectedAt / 60000).toString();
+    expect(key).toBe(`synth:${segmentId}:${timeKey}`);
+  });
+
+  it("falls back to date string when departure lacks expectedAt", () => {
+    const departure: CacheKeyDeparture = {};
+    const key = cacheKey(undefined, undefined, segment, now, departure);
+    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`;
+    expect(key).toBe(`synth:${segmentId}:${toStockholmDateString(now)}`);
   });
 });

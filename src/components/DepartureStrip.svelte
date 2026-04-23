@@ -283,23 +283,24 @@
     box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
   }
 
-  /* ── Vehicle bubble ──────────────────────────── */
-  .vehicle-bubble {
-    width: 30px;
-    height: 30px;
-    background: var(--accent);
-    color: var(--bg);
-    border-radius: 7px;
-    border: 2px solid #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: -0.3px;
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
-  }
+   /* ── Vehicle bubble ──────────────────────────── */
+   .vehicle-bubble {
+     width: 30px;
+     height: 30px;
+     background: var(--accent);
+     color: var(--bg);
+     border-radius: 7px;
+     border: 2px solid #fff;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     font-family: 'Neue Machina', sans-serif;
+     font-size: 8px;
+     font-weight: 800;
+     letter-spacing: -0.3px;
+     box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
+     transition: transform 0.3s ease-out;
+   }
 
   /* ── Stop labels ─────────────────────────────── */
   .stop-label {

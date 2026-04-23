@@ -32,26 +32,59 @@
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
+  let lastRefreshAt = 0;
 
-  function getDeparturesForSegment(segment: Segment): Departure[] {
-    const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    
-    // Filter by line AND direction to avoid mixing opposite directions on same line
-    // Use direction as authoritative user-facing destination label when fields differ
-    const live = allDeps.filter(dep => 
-      dep.line === segment.line && 
-      (dep.directionText === segment.directionText || dep.destination === segment.toStop.name)
-    );
+  function getFirstDeparture(): Departure | undefined {
+    const segments = route.segments ?? [];
+    for (let i = 0; i < segments.length; i += 1) {
+      const deps = segmentDeps[i] ?? [];
+      if (deps[0]) return deps[0];
+    }
+    return undefined;
+  }
 
-    if (live.length >= 3) return live;
+  function calculateAdaptiveInterval(firstDep: Departure | undefined): number {
+    if (!firstDep || firstDep.expectedAt === undefined) {
+      return 30000; // default 30s when no live data
+    }
+    const mins = getLiveMinutes(firstDep, Date.now());
+    if (mins <= 5) return 10000;   // urgent: 10s
+    if (mins <= 20) return 20000;  // moderate: 20s
+    return 30000;                  // default: 30s
+  }
 
-    // Supplement sparse/empty live data with cached timetable predictions
-    const predicted = getPredictedDepartures(
-      segment.fromStop.siteId, segment.line, segment.directionText, 3
-    );
-    if (!predicted.length) return live;
+  function refreshRouteDepartures() {
+    const segments = route.segments ?? [];
+    const siteIds = segments.map(s => s.fromStop.siteId).filter((id): id is string => Boolean(id));
+    if (siteIds.length === 0) return;
 
-    return mergeDeparturesWithPredictions(live, predicted, 5);
+    const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
+    const segmentMetaBySiteId = new Map(segments.map(s => [
+      s.fromStop.siteId,
+      { line: s.line, directionText: s.directionText }
+    ]));
+    departureStore.refresh(siteIds, stopNames, segmentMetaBySiteId);
+  }
+
+  function maybeRefreshDepartures(force = false) {
+    const ts = Date.now();
+    const interval = calculateAdaptiveInterval(getFirstDeparture());
+    const elapsed = ts - lastRefreshAt;
+    if (!force && lastRefreshAt > 0 && elapsed < interval) return;
+    lastRefreshAt = ts;
+    refreshRouteDepartures();
+  }
+
+  function startClockTimer(forceImmediate = false) {
+    if (clockTimer) clearInterval(clockTimer);
+    if (forceImmediate) {
+      now = Date.now();
+      maybeRefreshDepartures(true);
+    }
+    clockTimer = setInterval(() => {
+      now = Date.now();
+      maybeRefreshDepartures();
+    }, 5000);
   }
 
   function getTransportIcon(type: TransportType): string {
@@ -67,40 +100,33 @@
       .join(' · ');
   }
 
+  function getDeparturesForSegment(segment: Segment): Departure[] {
+    const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
+
+    // Filter by line AND direction to avoid mixing opposite directions on same line
+    // Use direction as authoritative user-facing destination label when fields differ
+    const live = allDeps.filter(dep =>
+      dep.line === segment.line &&
+      (dep.directionText === segment.directionText || dep.destination === segment.toStop.name)
+    );
+
+    if (live.length >= 3) return live;
+
+    // Supplement sparse/empty live data with cached timetable predictions
+    const predicted = getPredictedDepartures(
+      segment.fromStop.siteId, segment.line, segment.directionText, 3
+    );
+    if (!predicted.length) return live;
+
+    return mergeDeparturesWithPredictions(live, predicted, 5);
+  }
+
   // Recomputes only when departureData or route.segments changes — not on every clock tick
   let segmentDeps = $derived(
     (route.segments ?? []).map(seg => {
-      const deps = getDeparturesForSegment(seg);
-      if (deps.length > 0) {
-        const dep = deps[0];
-        console.log('[render] predicted:', dep.predicted, 
-          'expectedAt:', dep.expectedAt, 
-          'expectedAt ISO:', dep.expectedAt ? new Date(dep.expectedAt).toISOString() : null,
-          'dep.minutes:', dep.minutes, 
-          'getLiveMinutes result:', getLiveMinutes(dep, now));
-      }
-      return deps;
+      return getDeparturesForSegment(seg);
     })
   );
-
-  function startClockTimer() {
-    if (clockTimer) clearInterval(clockTimer);
-    clockTimer = setInterval(() => {
-      now = Date.now();
-      const segments = route.segments ?? [];
-      const needsRefresh = segments.some((segment, i) => {
-        const deps = segmentDeps[i] ?? [];
-        if (deps.length === 0 || deps[0].expectedAt === undefined) return false;
-        const mins = getLiveMinutes(deps[0], now);
-        return mins <= 2 && deps[0].expectedAt > now - 60_000;
-      });
-      if (needsRefresh) {
-        const siteIds = segments.map(s => s.fromStop.siteId).filter(Boolean);
-        const stopNames = new Map(segments.map(s => [s.fromStop.siteId, s.fromStop.name]));
-        departureStore.refresh(siteIds, stopNames);
-      }
-    }, 5000);
-  }
 
   function stopClockTimer() {
     if (clockTimer) {
@@ -124,13 +150,13 @@
     const unsubLastFetch = departureStore.lastSuccessfulFetch.subscribe(val => lastSuccessfulFetch = val);
     UNSUBSCRIBERS.push(unsubLastFetch);
 
-    startClockTimer();
+    startClockTimer(true);
 
     const handleVisibility = () => {
       if (document.hidden) {
         stopClockTimer();
       } else {
-        startClockTimer();
+        startClockTimer(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -149,13 +175,14 @@
       { line: s.line, directionText: s.directionText }
     ]));
     isRefreshing = true;
+    lastRefreshAt = Date.now();
     await departureStore.refresh(siteIds, stopNames, segmentMetaBySiteId, false);
     isRefreshing = false;
   }
 
   onDestroy(() => {
     UNSUBSCRIBERS.forEach(fn => fn());
-    if (clockTimer) clearInterval(clockTimer);
+    stopClockTimer();
   });
 </script>
 
