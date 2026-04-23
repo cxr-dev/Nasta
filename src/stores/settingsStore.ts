@@ -62,6 +62,43 @@ function createSettingsStore() {
         saveSettings(updated);
         return updated;
       });
+    },
+    setDisruptionAlertsEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, disruptionAlertsEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setDisruptionSeverityThreshold: (
+      threshold: Settings['disruptionSeverityThreshold']
+    ) => {
+      update(settings => {
+        const updated = { ...settings, disruptionSeverityThreshold: threshold };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setDisruptionLanguage: (language: Settings['disruptionLanguage']) => {
+      update(settings => {
+        const updated = { ...settings, disruptionLanguage: language };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setCommuteNudgesEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, commuteNudgesEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setAnchor: (type: 'homeAnchor' | 'workAnchor', value: string) => {
+      update(settings => {
+        const updated = { ...settings, [type]: value };
+        saveSettings(updated);
+        return updated;
+      });
     }
   };
 }

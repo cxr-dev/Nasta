@@ -1,267 +1,199 @@
 <script lang="ts">
-  import { fly, fade } from 'svelte/transition';
-  import { quintOut } from 'svelte/easing';
-  import { t } from '../stores/localeStore';
+  import type { Direction, Stop, TransportType } from "../types/route";
+  import { routeStore } from "../stores/routeStore";
+  import { settingsStore } from "../stores/settingsStore";
+  import { t } from "../stores/localeStore";
+  import SegmentSearch from "./SegmentSearch.svelte";
 
   let { onComplete }: { onComplete: () => void } = $props();
 
-  let currentStep = $state(0);
-  let direction = $state(1);
+  let step = $state<0 | 1 | 2>(0);
+  let direction = $state<Direction>("toWork");
+  let duplicateReturnRoute = $state(true);
+  let selectedSegment = $state<{
+    line: string;
+    lineName: string;
+    directionText: string;
+    fromStop: Stop;
+    toStop: Stop;
+    transportType: TransportType;
+  } | null>(null);
 
-  const totalSteps = 3;
+  function pickDirection(nextDirection: Direction) {
+    direction = nextDirection;
+    step = 1;
+  }
 
-  const steps = $derived([
-    {
-      emoji: '🚇',
-      title: $t.onboardingWelcomeTitle,
-      subtitle: $t.onboardingWelcomeSubtitle,
-      description: $t.onboardingWelcomeDesc
-    },
-    {
-      emoji: '📱',
-      title: $t.onboardingRoutesTitle,
-      subtitle: $t.onboardingRoutesSubtitle,
-      description: $t.onboardingRoutesDesc
-    },
-    {
-      emoji: '⚡',
-      title: $t.onboardingGlanceTitle,
-      subtitle: $t.onboardingGlanceSubtitle,
-      description: $t.onboardingGlanceDesc
+  function handleSelect(
+    line: string,
+    lineName: string,
+    directionText: string,
+    fromStop: Stop,
+    toStop: Stop,
+    transportType: TransportType,
+  ) {
+    selectedSegment = {
+      line,
+      lineName,
+      directionText,
+      fromStop,
+      toStop,
+      transportType,
+    };
+    step = 2;
+  }
+
+  function completeSetup() {
+    if (!selectedSegment) return;
+
+    const firstRouteId = routeStore.addRoute("Arbete", direction);
+    routeStore.addSegment(firstRouteId, {
+      ...selectedSegment,
+      travelTimeMinutes: 0,
+      transferBufferMinutes: 0,
+    });
+
+    if (duplicateReturnRoute) {
+      const oppositeDirection: Direction =
+        direction === "toWork" ? "fromWork" : "toWork";
+      const returnRouteId = routeStore.addRoute("Arbete", oppositeDirection);
+      routeStore.addSegment(returnRouteId, {
+        ...selectedSegment,
+        travelTimeMinutes: 0,
+        transferBufferMinutes: 0,
+      });
     }
-  ]);
 
-  function nextStep() {
-    if (currentStep < totalSteps - 1) {
-      direction = 1;
-      currentStep++;
+    if (direction === "toWork") {
+      settingsStore.setAnchor("homeAnchor", selectedSegment.fromStop.name);
+      settingsStore.setAnchor("workAnchor", selectedSegment.toStop.name);
     } else {
-      onComplete();
+      settingsStore.setAnchor("homeAnchor", selectedSegment.toStop.name);
+      settingsStore.setAnchor("workAnchor", selectedSegment.fromStop.name);
     }
-  }
 
-  function prevStep() {
-    if (currentStep > 0) {
-      direction = -1;
-      currentStep--;
-    }
-  }
-
-  function skip() {
     onComplete();
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowRight' || e.key === ' ') {
-      nextStep();
-    } else if (e.key === 'ArrowLeft') {
-      prevStep();
-    }
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
-
 <div class="onboarding">
-  <div class="progress-bar">
-    {#each Array(totalSteps) as _, i}
-      <div class="progress-dot" class:active={i <= currentStep}></div>
-    {/each}
-  </div>
-
-  <div class="slides-container">
-    {#key currentStep}
-      <div 
-        class="slide"
-        in:fly={{ x: direction * 100, duration: 300, easing: quintOut }}
-        out:fly={{ x: direction * -100, duration: 250, easing: quintOut }}
-      >
-        <div class="step-emoji">{steps[currentStep].emoji}</div>
-        <h1>{steps[currentStep].title}</h1>
-        <p class="subtitle">{steps[currentStep].subtitle}</p>
-        <p class="description">{steps[currentStep].description}</p>
-      </div>
-    {/key}
-  </div>
-
-  <div class="navigation">
-    {#if currentStep < totalSteps - 1}
-      <button class="skip-btn" onclick={skip} aria-label={$t.skipOnboardingAria}>
-        {$t.skipOnboarding}
-      </button>
-    {/if}
-    
-    <div class="nav-buttons">
-      {#if currentStep > 0}
-        <button class="back-btn" onclick={prevStep} aria-label={$t.previousAria}>
-          {$t.previous}
+  <div class="sheet">
+    {#if step === 0}
+      <h1>{$t.setupDirectionTitle}</h1>
+      <p class="sub">{$t.setupDirectionDesc}</p>
+      <div class="stack">
+        <button class="primary" onclick={() => pickDirection("toWork")}>
+          {$t.setupDirectionToWork}
         </button>
+        <button class="secondary" onclick={() => pickDirection("fromWork")}>
+          {$t.setupDirectionFromWork}
+        </button>
+      </div>
+    {:else if step === 1}
+      <h1>{$t.setupStopTitle}</h1>
+      <p class="sub">{$t.setupStopDesc}</p>
+      <SegmentSearch onSelect={handleSelect} />
+      <button class="ghost" onclick={() => (step = 0)}>{$t.previous}</button>
+    {:else}
+      <h1>{$t.setupReviewTitle}</h1>
+      <p class="sub">{$t.setupReviewDesc}</p>
+      {#if selectedSegment}
+        <div class="summary">
+          <div>{selectedSegment.fromStop.name}</div>
+          <div>{selectedSegment.lineName || selectedSegment.line}</div>
+          <div>{selectedSegment.directionText}</div>
+        </div>
       {/if}
-      
-      <button class="next-btn" onclick={nextStep} aria-label={currentStep === totalSteps - 1 ? $t.getStartedAria : $t.next}>
-        {currentStep === totalSteps - 1 ? $t.getStarted : $t.next}
-      </button>
-    </div>
+      <label class="check">
+        <input type="checkbox" bind:checked={duplicateReturnRoute} />
+        <span>{$t.duplicateReturnRoute}</span>
+      </label>
+      <div class="stack">
+        <button class="primary" onclick={completeSetup}>
+          {$t.createFirstRoute}
+        </button>
+        <button class="ghost" onclick={() => (step = 1)}>{$t.previous}</button>
+      </div>
+    {/if}
   </div>
 </div>
 
 <style>
   .onboarding {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(180deg, #1E3A5F 0%, #0F172A 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    inset: 0;
+    background: linear-gradient(160deg, #f3f4f6, #e5e7eb);
+    display: grid;
+    place-items: center;
+    padding: 20px;
     z-index: 9999;
   }
 
-  .progress-bar {
+  .sheet {
+    inline-size: min(100%, 420px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
     display: flex;
-    gap: 8px;
-    margin-bottom: 32px;
-  }
-
-  .progress-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
-  }
-
-  .progress-dot.active {
-    background: #2563EB;
-    width: 24px;
-    border-radius: 4px;
-  }
-
-  .slides-container {
-    position: relative;
-    width: 100%;
-    max-width: 320px;
-    height: 320px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .slide {
-    position: absolute;
-    width: 100%;
-    text-align: center;
-    color: white;
-  }
-
-  .step-emoji {
-    font-size: 72px;
-    margin-bottom: 24px;
-    animation: bounce 2s ease-in-out infinite;
-  }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-
-  h1 {
-    font-size: 24px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    line-height: 1.2;
-  }
-
-  .subtitle {
-    font-size: 16px;
-    color: rgba(255, 255, 255, 0.8);
-    margin-bottom: 16px;
-    font-weight: 500;
-  }
-
-  .description {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.5;
-  }
-
-  .navigation {
-    width: 100%;
-    max-width: 320px;
-    margin-top: 48px;
-  }
-
-  .skip-btn {
-    display: block;
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 14px;
-    padding: 12px;
-    cursor: pointer;
-    margin-bottom: 16px;
-  }
-
-  .skip-btn:hover {
-    color: rgba(255, 255, 255, 0.8);
-  }
-
-  .nav-buttons {
-    display: flex;
+    flex-direction: column;
     gap: 12px;
   }
 
-  .back-btn {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: white;
-    padding: 14px 24px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
+  h1 {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .sub {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .primary,
+  .secondary,
+  .ghost {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: inherit;
     cursor: pointer;
-    transition: all 0.2s ease;
   }
 
-  .back-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+  .primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
   }
 
-  .next-btn {
-    flex: 2;
-    background: #2563EB;
-    border: none;
-    color: white;
-    padding: 14px 24px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  .secondary,
+  .ghost {
+    background: transparent;
+    color: var(--text);
   }
 
-  .next-btn:hover {
-    background: #1D4ED8;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+  .summary {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
   }
 
-  .next-btn:active {
-    transform: translateY(0);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .step-emoji,
-    .slide {
-      animation: none;
-      transition: none;
-    }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
   }
 </style>
+

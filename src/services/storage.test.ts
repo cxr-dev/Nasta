@@ -45,12 +45,18 @@ describe('storage service', () => {
       expect(loadSettings()).toEqual({
         darkMode: true,
         refreshInterval: 30000,
-        funMode: true,
+        funMode: false,
         hasSwipedRoutes: false,
-        showNotifications: true,
+        showNotifications: false,
         theme: 'default',
         themeVariant: 'A',
-        language: 'auto'
+        language: 'auto',
+        disruptionAlertsEnabled: true,
+        disruptionSeverityThreshold: 'warning',
+        disruptionLanguage: 'auto',
+        commuteNudgesEnabled: false,
+        homeAnchor: '',
+        workAnchor: ''
       });
     });
 
@@ -70,7 +76,13 @@ describe('storage service', () => {
         showNotifications: false,
         theme: 'electric-pulse',
         themeVariant: 'B' as const,
-        language: 'en' as const
+        language: 'en' as const,
+        disruptionAlertsEnabled: true,
+        disruptionSeverityThreshold: 'critical' as const,
+        disruptionLanguage: 'sv' as const,
+        commuteNudgesEnabled: true,
+        homeAnchor: 'Liljeholmen',
+        workAnchor: 'T-Centralen'
       };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));

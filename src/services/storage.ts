@@ -6,23 +6,37 @@ const SETTINGS_KEY = 'nasta_settings';
 export interface Settings {
   darkMode: boolean;
   refreshInterval: number;
+  /** @deprecated kept for backwards compatibility */
   funMode: boolean;
   hasSwipedRoutes: boolean;
+  /** @deprecated kept for backwards compatibility */
   showNotifications: boolean;
   theme: string;
   themeVariant: 'A' | 'B';
   language: 'auto' | 'sv' | 'en';
+  disruptionAlertsEnabled: boolean;
+  disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
+  disruptionLanguage: 'sv' | 'en' | 'auto';
+  commuteNudgesEnabled: boolean;
+  homeAnchor: string;
+  workAnchor: string;
 }
 
 const defaultSettings: Settings = {
   darkMode: true,
   refreshInterval: 30000,
-  funMode: true,
+  funMode: false,
   hasSwipedRoutes: false,
-  showNotifications: true,
+  showNotifications: false,
   theme: 'default',
   themeVariant: 'A',
-  language: 'auto'
+  language: 'auto',
+  disruptionAlertsEnabled: true,
+  disruptionSeverityThreshold: 'warning',
+  disruptionLanguage: 'auto',
+  commuteNudgesEnabled: false,
+  homeAnchor: '',
+  workAnchor: ''
 };
 
 export function loadRoutes(): Route[] {
@@ -41,7 +55,8 @@ export function saveRoutes(routes: Route[]): void {
 export function loadSettings(): Settings {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
-    return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
+    const parsed = data ? JSON.parse(data) : {};
+    return { ...defaultSettings, ...parsed };
   } catch {
     return defaultSettings;
   }

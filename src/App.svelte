@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
   import { departureStore } from './stores/departureStore';
+  import { deviationStore } from './stores/deviationStore';
   import { settingsStore } from './stores/settingsStore';
   import { timeOfDay } from './lib/stores/timeOfDay';
   import { applyTheme } from './themes';
@@ -40,6 +41,11 @@
   function completeOnboarding() {
     showOnboarding = false;
     localStorage.setItem('nasta_onboarding_seen', 'true');
+    const allRoutes = $routeStore ?? [];
+    if (!$selectedRouteId && allRoutes.length > 0) {
+      selectedRouteId.set(allRoutes[0].id);
+    }
+    loadDepartures(true);
   }
 
   let route = $derived($selectedRoute);
@@ -47,6 +53,9 @@
   let hasNoRoutes = $derived(!routes || routes.length === 0);
   let settings = $derived($settingsStore);
   let departures = $state<Map<string, import('./stores/departureStore').Departure[]>>(new Map());
+  let deviationHealthBySegment = $state<Map<string, import('./types/deviation').SegmentHealth>>(new Map());
+  let deviationUsedCache = $state(false);
+  let deviationLastUpdatedAt = $state(0);
   let arrivalSummary = $derived(route ? computeArrivalSummary(route, departures) : null);
 
   $effect(() => {
@@ -81,6 +90,18 @@
         true,
         currentRoute.direction
       );
+      if (settings.disruptionAlertsEnabled) {
+        const preferredLanguage = settings.disruptionLanguage === 'auto'
+          ? resolveLocale(settings.language ?? 'auto')
+          : settings.disruptionLanguage;
+        deviationStore.startAutoRefresh(
+          currentRoute.segments,
+          preferredLanguage,
+          settings.disruptionSeverityThreshold
+        );
+      } else {
+        deviationStore.stopAutoRefresh();
+      }
       lastRefreshTime = Date.now();
     }
   });
@@ -107,6 +128,16 @@
           clearFirst,
           route.direction
         );
+        if (settings.disruptionAlertsEnabled) {
+          const preferredLanguage = settings.disruptionLanguage === 'auto'
+            ? resolveLocale(settings.language ?? 'auto')
+            : settings.disruptionLanguage;
+          deviationStore.startAutoRefresh(
+            route.segments,
+            preferredLanguage,
+            settings.disruptionSeverityThreshold
+          );
+        }
         lastRefreshTime = Date.now();
       } else if (route.segments.length > 0) {
         if (import.meta.env.DEV) console.log('[App] siteIds empty, attempting proactive lookup');
@@ -126,6 +157,16 @@
             true,
             route.direction
           );
+          if (settings.disruptionAlertsEnabled) {
+            const preferredLanguage = settings.disruptionLanguage === 'auto'
+              ? resolveLocale(settings.language ?? 'auto')
+              : settings.disruptionLanguage;
+            deviationStore.startAutoRefresh(
+              route.segments,
+              preferredLanguage,
+              settings.disruptionSeverityThreshold
+            );
+          }
           lastRefreshTime = Date.now();
         }
       }
@@ -160,7 +201,7 @@
       }
     }
     if (hadError) {
-      siteLookupError = 'Some stop locations could not be found';
+      siteLookupError = $t.someStopsNotFound;
     }
     return results.filter(Boolean);
   }
@@ -177,6 +218,7 @@ function handleRouteSwitch(routeId: string) {
     editing = !editing;
     if (editing) {
       departureStore.stopAutoRefresh();
+      deviationStore.stopAutoRefresh();
     } else {
       loadDepartures();
     }
@@ -260,6 +302,16 @@ function handleRouteSwitch(routeId: string) {
         true,
         route.direction
       );
+      if (settings.disruptionAlertsEnabled) {
+        const preferredLanguage = settings.disruptionLanguage === 'auto'
+          ? resolveLocale(settings.language ?? 'auto')
+          : settings.disruptionLanguage;
+        await deviationStore.refresh(
+          route.segments,
+          preferredLanguage,
+          settings.disruptionSeverityThreshold
+        );
+      }
       lastRefreshTime = Date.now();
     } finally {
       isRefreshing = false;
@@ -281,6 +333,31 @@ function handleRouteSwitch(routeId: string) {
     loadDepartures();
 
     const unsub = departureStore.subscribe(data => { departures = data; });
+    const unsubDeviations = deviationStore.subscribe(state => {
+      deviationHealthBySegment = state.bySegmentId;
+      deviationUsedCache = state.usedCache;
+      deviationLastUpdatedAt = state.lastUpdatedAt;
+    });
+
+    let nudgeTimer: ReturnType<typeof setInterval> | null = null;
+    if (settings.commuteNudgesEnabled && typeof Notification !== 'undefined') {
+      nudgeTimer = setInterval(() => {
+        if (Notification.permission !== 'granted' || document.hidden) return;
+        const now = new Date();
+        const day = now.getDay();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        if (day === 0 || day === 6) return;
+        const nudgeKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${hour}:${minute}`;
+        if ((hour === 7 && minute === 30) || (hour === 16 && minute === 30)) {
+          if (localStorage.getItem('nasta_last_nudge') === nudgeKey) return;
+          new Notification('Nästa', {
+            body: 'Kolla läget innan du går till hållplatsen.',
+          });
+          localStorage.setItem('nasta_last_nudge', nudgeKey);
+        }
+      }, 60_000);
+    }
 
     lastRefreshInterval = setInterval(() => {
       if (!document.hidden) {
@@ -318,6 +395,8 @@ function handleRouteSwitch(routeId: string) {
 
     return () => {
       unsub();
+      unsubDeviations();
+      if (nudgeTimer) clearInterval(nudgeTimer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   });
@@ -325,6 +404,7 @@ function handleRouteSwitch(routeId: string) {
   onDestroy(() => {
     timeOfDay.stop();
     departureStore.stopAutoRefresh();
+    deviationStore.stopAutoRefresh();
     stopCacheLifecycle();
     if (lastRefreshInterval) clearInterval(lastRefreshInterval);
   });
@@ -382,7 +462,7 @@ function handleRouteSwitch(routeId: string) {
           </div>
           <h2>{$t.noRoutes}</h2>
           <p>{$t.noRoutesDesc}</p>
-          <button class="empty-cta" onclick={toggleEdit}>
+          <button class="empty-cta" onclick={() => showOnboarding = true}>
             <span>{$t.createRoute}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
@@ -390,7 +470,12 @@ function handleRouteSwitch(routeId: string) {
           </button>
         </div>
       {:else if route && route.segments.length > 0}
-        <SegmentDepartures {route} />
+        <SegmentDepartures
+          {route}
+          deviationHealthBySegment={deviationHealthBySegment}
+          deviationUsedCache={deviationUsedCache}
+          deviationLastUpdatedAt={deviationLastUpdatedAt}
+        />
       {:else if route}
         <div class="empty-segments">
           <div class="empty-illustration small">

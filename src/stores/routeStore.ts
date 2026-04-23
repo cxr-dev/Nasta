@@ -30,6 +30,7 @@ function createRouteStore() {
         saveRoutes(updated);
         return updated;
       });
+      return newRoute.id;
     },
 
     removeRoute: (id: string) => {
@@ -154,22 +155,7 @@ function createRouteStore() {
 
     initialize: () => {
       const stored = loadRoutes();
-      if (stored.length === 0) {
-        const toWork: Route = {
-          id: crypto.randomUUID(),
-          name: "Arbete",
-          direction: "toWork",
-          segments: [],
-        };
-        const fromWork: Route = {
-          id: crypto.randomUUID(),
-          name: "Arbete",
-          direction: "fromWork",
-          segments: [],
-        };
-        set([toWork, fromWork]);
-        saveRoutes([toWork, fromWork]);
-      }
+      set(stored);
     },
   };
 }

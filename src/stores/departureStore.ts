@@ -15,9 +15,12 @@ export interface SegmentCacheMeta {
   directionText: string;
 }
 
+export type SiteConfidenceState = "live" | "cached" | "predicted" | "stale";
+
 function createDepartureStore() {
   const data = writable<Map<string, Departure[]>>(new Map());
   const { subscribe, set, update } = data;
+  const confidenceBySite = writable<Map<string, SiteConfidenceState>>(new Map());
   const isLoading = writable(false);
   const isUpdating = writable(false);
   const lastError = writable<string | null>(null);
@@ -68,6 +71,9 @@ function createDepartureStore() {
     const results = clearFirst
       ? new Map<string, Departure[]>()
       : new Map(get({ subscribe }));
+    const nextConfidence = clearFirst
+      ? new Map<string, SiteConfidenceState>()
+      : new Map(get(confidenceBySite));
 
     try {
       // Phase 1: Check cache for each segment and display immediately
@@ -87,6 +93,7 @@ function createDepartureStore() {
           );
           cacheResults.set(seg.siteId, cached);
           results.set(seg.siteId, cached);
+          nextConfidence.set(seg.siteId, "cached");
         } else {
           if (import.meta.env.DEV) console.log(
             `[departureStore] Cache miss: ${seg.siteId} (${seg.stopName}), will fetch API`,
@@ -117,11 +124,16 @@ function createDepartureStore() {
 
               // Use API data (which auto-caches)
               results.set(seg.siteId, apiDepartures);
+              nextConfidence.set(seg.siteId, "live");
 
               // Update store with API results
               update((store) => {
                 store.set(seg.siteId, apiDepartures);
                 return store;
+              });
+              confidenceBySite.update((state) => {
+                state.set(seg.siteId, "live");
+                return state;
               });
               // Mark successful fetch time for stale indicator
               if (apiDepartures.length > 0) {
@@ -133,10 +145,13 @@ function createDepartureStore() {
               lastError.set('Failed to fetch departures');
               // Fall back to empty if API fails
               results.set(seg.siteId, []);
+              const hadCache = cacheResults.get(seg.siteId);
+              nextConfidence.set(seg.siteId, hadCache ? "cached" : "stale");
             }
            }),
          );
        }
+      confidenceBySite.set(nextConfidence);
      } catch (error) {
        if (import.meta.env.DEV) console.error("[departureStore] Overall fetch error:", error);
        lastError.set('Failed to fetch departures');
@@ -169,6 +184,12 @@ function createDepartureStore() {
     isLoading: {
       subscribe: (cb: (val: boolean) => void) => {
         const unsub = isLoading.subscribe(cb);
+        return unsub;
+      }
+    },
+    confidenceBySite: {
+      subscribe: (cb: (val: Map<string, SiteConfidenceState>) => void) => {
+        const unsub = confidenceBySite.subscribe(cb);
         return unsub;
       }
     },

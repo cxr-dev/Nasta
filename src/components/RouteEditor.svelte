@@ -26,6 +26,8 @@
   let showSearch = $state(false);
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
+  let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
+  let activeDisruptionLanguage = $derived(settings.disruptionLanguage ?? 'auto');
 
   function getRouteLabel(r: Route): string {
     return r.direction === 'toWork' ? $t.toWork : $t.home;
@@ -45,6 +47,18 @@
     if (!route) return;
     routeStore.addSegment(route.id, { line, lineName, directionText, fromStop, toStop, transportType });
     showSearch = false;
+  }
+
+  async function toggleCommuteNudges() {
+    const next = !(settings.commuteNudgesEnabled ?? false);
+    settingsStore.setCommuteNudgesEnabled(next);
+    if (
+      next &&
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default'
+    ) {
+      await Notification.requestPermission();
+    }
   }
 </script>
 
@@ -90,20 +104,120 @@
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.showNotifications}</span>
-          <span class="toggle-desc">{$t.notificationsDesc}</span>
+          <span class="toggle-name">{$t.disruptionAlerts}</span>
+          <span class="toggle-desc">{$t.disruptionAlertsDesc}</span>
         </div>
         <button
           class="toggle-btn"
-          class:on={settings.showNotifications ?? true}
-          onclick={() => settingsStore.toggleNotifications()}
-          aria-label={$t.showNotifications}
+          class:on={settings.disruptionAlertsEnabled ?? true}
+          onclick={() => settingsStore.setDisruptionAlertsEnabled(!(settings.disruptionAlertsEnabled ?? true))}
+          aria-label={$t.disruptionAlerts}
           role="switch"
-          aria-checked={settings.showNotifications ?? true}
+          aria-checked={settings.disruptionAlertsEnabled ?? true}
         >
           <span class="toggle-knob"></span>
         </button>
       </label>
+
+      <div class="setting-block">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.disruptionThreshold}</span>
+        </div>
+        <div class="segmented-control" role="group" aria-label={$t.disruptionThreshold}>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionThreshold === 'info'}
+            onclick={() => settingsStore.setDisruptionSeverityThreshold('info')}
+            aria-pressed={activeDisruptionThreshold === 'info'}
+          >
+            {$t.disruptionThresholdInfo}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionThreshold === 'warning'}
+            onclick={() => settingsStore.setDisruptionSeverityThreshold('warning')}
+            aria-pressed={activeDisruptionThreshold === 'warning'}
+          >
+            {$t.disruptionThresholdWarning}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionThreshold === 'critical'}
+            onclick={() => settingsStore.setDisruptionSeverityThreshold('critical')}
+            aria-pressed={activeDisruptionThreshold === 'critical'}
+          >
+            {$t.disruptionThresholdCritical}
+          </button>
+        </div>
+      </div>
+
+      <div class="setting-block">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.disruptionLanguage}</span>
+        </div>
+        <div class="segmented-control" role="group" aria-label={$t.disruptionLanguage}>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionLanguage === 'auto'}
+            onclick={() => settingsStore.setDisruptionLanguage('auto')}
+            aria-pressed={activeDisruptionLanguage === 'auto'}
+          >
+            {$t.disruptionLanguageAuto}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionLanguage === 'sv'}
+            onclick={() => settingsStore.setDisruptionLanguage('sv')}
+            aria-pressed={activeDisruptionLanguage === 'sv'}
+          >
+            {$t.languageSwedish}
+          </button>
+          <button
+            class="segment-choice"
+            class:active={activeDisruptionLanguage === 'en'}
+            onclick={() => settingsStore.setDisruptionLanguage('en')}
+            aria-pressed={activeDisruptionLanguage === 'en'}
+          >
+            {$t.languageEnglish}
+          </button>
+        </div>
+      </div>
+
+      <label class="toggle-row">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.commuteNudges}</span>
+          <span class="toggle-desc">{$t.commuteNudgesDesc}</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.commuteNudgesEnabled ?? false}
+          onclick={toggleCommuteNudges}
+          aria-label={$t.commuteNudges}
+          role="switch"
+          aria-checked={settings.commuteNudgesEnabled ?? false}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
+      <div class="setting-block">
+        <div class="toggle-label">
+          <span class="toggle-name">Hemma / Jobb</span>
+          <span class="toggle-desc">Snabbval i hållplatssök</span>
+        </div>
+        <input
+          class="anchor-input"
+          placeholder="Hemma hållplats"
+          value={settings.homeAnchor}
+          oninput={(e) => settingsStore.setAnchor('homeAnchor', (e.currentTarget as HTMLInputElement).value)}
+        />
+        <input
+          class="anchor-input"
+          placeholder="Jobb hållplats"
+          value={settings.workAnchor}
+          oninput={(e) => settingsStore.setAnchor('workAnchor', (e.currentTarget as HTMLInputElement).value)}
+        />
+      </div>
 
       <div class="setting-block">
         <div class="toggle-label">
@@ -408,6 +522,16 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
+}
+
+.anchor-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
 }
 
 .theme-list {

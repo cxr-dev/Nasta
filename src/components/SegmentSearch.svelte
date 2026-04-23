@@ -6,6 +6,7 @@
   import type { TransportType, Stop } from '../types/route';
   import { transportIcons } from '../icons/transport';
   import { t } from '../stores/localeStore';
+  import { settingsStore } from '../stores/settingsStore';
 
   const SEARCH_MIN_QUERY_LENGTH = 2;
   const SEARCH_DEBOUNCE_MS = 300;
@@ -30,6 +31,7 @@
   let loading = $state(false);
   let loadingDeps = $state(false);
   let departureError = $state<string | null>(null);
+  let settings = $derived($settingsStore);
   let step = $state<'search' | 'select'>('search');
   let debounceTimer: ReturnType<typeof setTimeout>;
   let abortController: AbortController | null = null;
@@ -69,7 +71,7 @@
           return a.name.localeCompare(b.name);
         });
 
-        if (isSjostadstrafikenStop(query)) {
+      if (isSjostadstrafikenStop(query)) {
           const staticStopKeys: Record<string, string> = {
             'luma': 'Luma brygga',
             'barn': 'Barnängen',
@@ -135,7 +137,7 @@
       }
     } catch (e) {
       if (import.meta.env.DEV) console.error('Failed to load departures:', e);
-      departureError = 'Kunde inte hämta avgångar. Försök igen.';
+      departureError = $t.failedToFetchDepartures;
       departures = [];
     } finally {
       loadingDeps = false;
@@ -167,6 +169,11 @@
     step = 'search';
     departures = [];
   }
+
+  function applyAnchor(value: string) {
+    query = value;
+    handleInput();
+  }
 </script>
 
 <div class="segment-search">
@@ -184,6 +191,21 @@
        autocapitalize="off"
        spellcheck="false"
      />
+
+    {#if settings.homeAnchor || settings.workAnchor}
+      <div class="anchor-row">
+        {#if settings.homeAnchor}
+          <button class="anchor-btn" onclick={() => applyAnchor(settings.homeAnchor)}>
+            Hemma
+          </button>
+        {/if}
+        {#if settings.workAnchor}
+          <button class="anchor-btn" onclick={() => applyAnchor(settings.workAnchor)}>
+            Jobb
+          </button>
+        {/if}
+      </div>
+    {/if}
     
     {#if loading}
       <div class="msg">{$t.searching}</div>
@@ -269,6 +291,22 @@
     padding: 16px;
     text-align: center;
     color: var(--text-secondary);
+  }
+
+  .anchor-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .anchor-btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
   }
 
   .error {
