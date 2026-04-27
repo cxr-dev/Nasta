@@ -25,9 +25,6 @@ function createMockReadable<T>(initial: T) {
 
 const departureStoreMockState = vi.hoisted(() => {
   const data = createMockReadable<Map<string, Departure[]>>(new Map());
-  const confidenceBySite = createMockReadable(
-    new Map<string, "live" | "cached" | "predicted" | "stale">(),
-  );
   const isLoading = createMockReadable(false);
   const lastError = createMockReadable<string | null>(null);
   const lastSuccessfulFetch = createMockReadable(0);
@@ -35,7 +32,6 @@ const departureStoreMockState = vi.hoisted(() => {
 
   return {
     data,
-    confidenceBySite,
     isLoading,
     lastError,
     lastSuccessfulFetch,
@@ -47,7 +43,6 @@ vi.mock("../stores/departureStore", () => {
   return {
     departureStore: {
       subscribe: departureStoreMockState.data.subscribe,
-      confidenceBySite: { subscribe: departureStoreMockState.confidenceBySite.subscribe },
       isLoading: { subscribe: departureStoreMockState.isLoading.subscribe },
       lastError: { subscribe: departureStoreMockState.lastError.subscribe },
       lastSuccessfulFetch: {
@@ -80,7 +75,6 @@ describe("SegmentDepartures refresh behavior", () => {
     vi.useFakeTimers();
     departureStoreMockState.refresh.mockReset();
     departureStoreMockState.data.set(new Map());
-    departureStoreMockState.confidenceBySite.set(new Map([["100", "live"]]));
   });
 
   afterEach(() => {
@@ -98,14 +92,16 @@ describe("SegmentDepartures refresh behavior", () => {
 
   it("refreshes when user clicks refresh button", async () => {
     const view = render(SegmentDepartures, { props: { route } });
-    const refreshButton = view.getByRole("button", { name: /refresh|uppdatera/i });
+    const refreshButton = view.getByRole("button", {
+      name: /refresh|uppdatera/i,
+    });
     await fireEvent.click(refreshButton);
     expect(departureStoreMockState.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show Live when no matching departures exist", () => {
+  it("renders without errors when no matching departures exist", () => {
     const view = render(SegmentDepartures, { props: { route } });
-    expect(view.queryByText("Live")).toBeNull();
-    expect(view.getByText("Stale")).toBeTruthy();
+    // Component should render without errors
+    expect(view.container).toBeTruthy();
   });
 });

@@ -1,11 +1,11 @@
-import type { Departure } from '../types/departure';
-import { locale } from '../stores/localeStore';
-import { get } from 'svelte/store';
+import type { Departure } from "../types/departure";
+import { locale } from "../stores/localeStore";
+import { get } from "svelte/store";
 
 /** Get the locale-aware "now" text */
 function getNowText(): string {
   const currentLocale = get(locale);
-  return currentLocale === 'sv' ? 'Nu' : 'Now';
+  return currentLocale === "sv" ? "Nu" : "Now";
 }
 
 const DUPLICATE_WINDOW_MS = 90_000;
@@ -23,15 +23,15 @@ export function formatDepartureTime(dep: Departure, now: number): string {
     const mins = getLiveMinutes(dep, now);
 
     if (mins <= 0) return getNowText();
-    if (mins === 1) return '1 min';
+    if (mins === 1) return "1 min";
     if (mins < 60) return `${mins} min`;
 
     // Over 60 min: show clock time from expectedAt
     const date = new Date(dep.expectedAt);
-    return date.toLocaleTimeString('sv-SE', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Europe/Stockholm',
+    return date.toLocaleTimeString("sv-SE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Stockholm",
     });
   }
 
@@ -48,12 +48,14 @@ export function formatDepartureTime(dep: Departure, now: number): string {
   if (mins <= 0) return getNowText();
   const hours = Math.floor(mins / 60);
   const minutes = mins % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function isDuplicatePrediction(live: Departure, predicted: Departure): boolean {
   if (live.expectedAt !== undefined && predicted.expectedAt !== undefined) {
-    return Math.abs(predicted.expectedAt - live.expectedAt) <= DUPLICATE_WINDOW_MS;
+    return (
+      Math.abs(predicted.expectedAt - live.expectedAt) <= DUPLICATE_WINDOW_MS
+    );
   }
 
   return Boolean(live.time && predicted.time && live.time === predicted.time);
@@ -62,11 +64,13 @@ function isDuplicatePrediction(live: Departure, predicted: Departure): boolean {
 export function mergeDeparturesWithPredictions(
   live: Departure[],
   predicted: Departure[],
-  maxCount = 5
+  maxCount = 5,
 ): Departure[] {
   if (!predicted.length) return live.slice(0, maxCount);
 
-  const fresh = predicted.filter(p => !live.some(l => isDuplicatePrediction(l, p)));
+  const fresh = predicted.filter(
+    (p) => !live.some((l) => isDuplicatePrediction(l, p)),
+  );
 
   return [...live, ...fresh]
     .sort((a, b) => {
@@ -76,8 +80,10 @@ export function mergeDeparturesWithPredictions(
       if (aHasExpected && bHasExpected) {
         return a.expectedAt! - b.expectedAt!;
       }
+
+      // When one has expectedAt and one doesn't, sort by time as fallback
       if (aHasExpected !== bHasExpected) {
-        return aHasExpected ? 1 : -1;
+        return a.time.localeCompare(b.time);
       }
 
       return a.time.localeCompare(b.time);

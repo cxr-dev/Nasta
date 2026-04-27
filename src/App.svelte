@@ -27,6 +27,8 @@
   let swipeStartX = 0;
   let swipeStartY = 0;
   let scrollContainer = $state<HTMLElement | null>(null);
+  let currentRequestId = $state<string | null>(null);
+  let previousRouteId = $state<string | null>(null);
 
   // Pull-to-refresh state
   const PULL_THRESHOLD = 64;
@@ -70,6 +72,18 @@
   $effect(() => {
     const currentRoute = $selectedRoute;
     if (!currentRoute) return;
+    
+    // Only generate new request ID if route ACTUALLY changed
+    // This prevents rejecting in-flight responses from settings/other reactive updates
+    if (currentRoute.id !== previousRouteId) {
+      previousRouteId = currentRoute.id;
+      const newRequestId = `route-${currentRoute.id}-${Date.now()}`;
+      currentRequestId = newRequestId;
+      if (import.meta.env.DEV) console.log(`[App] Route switched to ${currentRoute.id}, requestId: ${newRequestId}`);
+    }
+    
+    // Use current request ID (whether newly created or existing)
+    const actualRequestId = currentRequestId;
     const siteIds = currentRoute.segments
       .map(s => s.fromStop.siteId || s.toStop.siteId)
       .filter(Boolean);
@@ -82,13 +96,15 @@
         const siteId = s.fromStop.siteId || s.toStop.siteId;
         return [siteId, { line: s.line, directionText: s.directionText }];
       }));
+      // Pass request ID to prevent stale responses from overwriting current route
       departureStore.startAutoRefresh(
         siteIds,
         stopNames,
         segmentMetaBySiteId,
         settings.refreshInterval || 30000,
         true,
-        currentRoute.direction
+        currentRoute.direction,
+        actualRequestId
       );
       if (settings.disruptionAlertsEnabled) {
         const preferredLanguage = settings.disruptionLanguage === 'auto'
@@ -108,6 +124,15 @@
 
   async function loadDepartures(clearFirst = false) {
     if (route && route.segments.length > 0) {
+      // Only create new request ID if route changed, otherwise reuse existing
+      if (route.id !== previousRouteId) {
+        previousRouteId = route.id;
+        const newRequestId = `route-${route.id}-manual-${Date.now()}`;
+        currentRequestId = newRequestId;
+      }
+      
+      const newRequestId = currentRequestId || `route-${route.id}-manual-${Date.now()}`;
+      
       const siteIds = route.segments
         .map(s => s.fromStop.siteId || s.toStop.siteId)
         .filter(Boolean);
@@ -126,7 +151,8 @@
           segmentMetaBySiteId,
           settings.refreshInterval || 30000,
           clearFirst,
-          route.direction
+          route.direction,
+          newRequestId
         );
         if (settings.disruptionAlertsEnabled) {
           const preferredLanguage = settings.disruptionLanguage === 'auto'
@@ -155,7 +181,8 @@
             new Map(),
             settings.refreshInterval || 30000,
             true,
-            route.direction
+            route.direction,
+            newRequestId
           );
           if (settings.disruptionAlertsEnabled) {
             const preferredLanguage = settings.disruptionLanguage === 'auto'

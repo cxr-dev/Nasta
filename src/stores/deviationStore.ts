@@ -1,7 +1,11 @@
 import { writable } from "svelte/store";
 import type { Segment, TransportType } from "../types/route";
 import type { DeviationMessage, SegmentHealth } from "../types/deviation";
-import { getDeviations, pickPreferredMessageText } from "../services/slDeviations";
+import {
+  getDeviations,
+  pickPreferredMessageText,
+} from "../services/slDeviations";
+import { isExternalTimetableSource } from "../lib/sourceClassification";
 
 export type SeverityThreshold = "info" | "warning" | "critical";
 
@@ -41,13 +45,15 @@ function severityRank(severity: "info" | "warning" | "critical"): number {
 
 function matchesSegment(segment: Segment, message: DeviationMessage): boolean {
   const stopAreaMatch = message.scope.stopAreas.some(
-    (stop) => stop.id === segment.fromStop.siteId || stop.id === segment.toStop.siteId,
+    (stop) =>
+      stop.id === segment.fromStop.siteId || stop.id === segment.toStop.siteId,
   );
   const lineMatch = message.scope.lines.some(
     (line) =>
       line.designation === segment.line ||
       line.id === segment.line ||
-      (line.name && line.name.toLowerCase().includes(segment.line.toLowerCase())),
+      (line.name &&
+        line.name.toLowerCase().includes(segment.line.toLowerCase())),
   );
   const mode = transportModeForSegment(segment.transportType);
   const modeMatch = message.scope.lines.some(
@@ -114,19 +120,53 @@ function createDeviationStore() {
     }
     update((state) => ({ ...state, isLoading: true }));
 
-    const siteIds = segments.flatMap((segment) => [
-      segment.fromStop.siteId,
-      segment.toStop.siteId,
-    ]);
-    const lines = segments.map((segment) => segment.line);
-    const { messages, fromCache } = await getDeviations(siteIds, lines);
+    // Filter out Sjostadstrafiken (external timetable) segments before fetching deviations
+    // These don't have SL deviations and should always show as "ok"
+    const slSegments = segments.filter(
+      (segment) =>
+        !isExternalTimetableSource({
+          siteId: segment.fromStop.siteId,
+          stopName: segment.fromStop.name,
+        }),
+    );
+
+    let messages: DeviationMessage[] = [];
+    let fromCache = false;
+
+    // Only fetch deviations if there are SL segments
+    if (slSegments.length > 0) {
+      const siteIds = slSegments.flatMap((segment) => [
+        segment.fromStop.siteId,
+        segment.toStop.siteId,
+      ]);
+      const lines = slSegments.map((segment) => segment.line);
+      const result = await getDeviations(siteIds, lines);
+      messages = result.messages;
+      fromCache = result.fromCache;
+    }
 
     const bySegmentId = new Map<string, SegmentHealth>();
     segments.forEach((segment) => {
-      bySegmentId.set(
-        segment.id,
-        buildSegmentHealth(segment, messages, preferredLanguage, threshold),
-      );
+      // External timetable segments always show as "ok" with no deviations
+      if (
+        isExternalTimetableSource({
+          siteId: segment.fromStop.siteId,
+          stopName: segment.fromStop.name,
+        })
+      ) {
+        bySegmentId.set(segment.id, {
+          state: "ok",
+          severity: null,
+          reason: null,
+          messages: [],
+          updatedAt: Date.now(),
+        });
+      } else {
+        bySegmentId.set(
+          segment.id,
+          buildSegmentHealth(segment, messages, preferredLanguage, threshold),
+        );
+      }
     });
 
     set({
@@ -166,4 +206,3 @@ function createDeviationStore() {
 }
 
 export const deviationStore = createDeviationStore();
-
