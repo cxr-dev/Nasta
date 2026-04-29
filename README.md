@@ -30,26 +30,26 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| Framework | [Svelte 5](https://svelte.dev) (Runes) |
-| Language | [TypeScript](https://typescriptlang.org) |
-| Build Tool | [Vite](https://vitejs.dev) |
-| PWA | [vite-plugin-pwa](https://vite-plugin-pwa.netlify.app) + Workbox |
-| Testing | [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e) |
-| Hosting | [GitHub Pages](https://pages.github.com) |
-| API | [SL Transport API](https://trafiklab.se/api/sl-public-transport/) (Trafiklab) |
-| Persistence | LocalStorage |
+| Category    | Technology                                                                      |
+| ----------- | ------------------------------------------------------------------------------- |
+| Framework   | [Svelte 5](https://svelte.dev) (Runes)                                          |
+| Language    | [TypeScript](https://typescriptlang.org)                                        |
+| Build Tool  | [Vite](https://vitejs.dev)                                                      |
+| PWA         | [vite-plugin-pwa](https://vite-plugin-pwa.netlify.app) + Workbox                |
+| Testing     | [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e) |
+| Hosting     | [GitHub Pages](https://pages.github.com)                                        |
+| API         | [SL Transport API](https://trafiklab.se/api/sl-public-transport/) (Trafiklab)   |
+| Persistence | LocalStorage                                                                    |
 
 ### Supported Toolchain Matrix
 
-| Package | Supported Version |
-|---------|-------------------|
-| Node.js | 20+ |
-| `svelte` | `^5.55.2` |
-| `vite` | `^7.0.0` |
-| `@sveltejs/vite-plugin-svelte` | `^7.0.0` |
-| `vite-plugin-pwa` | `^1.2.0` |
+| Package                        | Supported Version |
+| ------------------------------ | ----------------- |
+| Node.js                        | 20+               |
+| `svelte`                       | `^5.55.2`         |
+| `vite`                         | `^7.0.0`          |
+| `@sveltejs/vite-plugin-svelte` | `^7.0.0`          |
+| `vite-plugin-pwa`              | `^1.2.0`          |
 
 Keep these versions in a compatible range when upgrading. If a major changes, validate with `pnpm run build` and `pnpm run verify:build` before deploy.
 
@@ -121,6 +121,7 @@ Each segment defines:
 - `transferBufferMinutes` — optional transfer wait time between segments
 
 **To edit routes:**
+
 1. Tap the **"Redigera"** button (bottom bar)
 2. Search for stops using the debounced search input
 3. Add segments between stops and set travel time
@@ -131,16 +132,16 @@ Each segment defines:
 
 Available in the Settings panel (tap **"Inställningar"**):
 
-| Setting | Options | Default | Purpose |
-|---------|---------|---------|---------|
-| **Theme** | 16 color palettes | "default" | Visual appearance and colors |
-| **Language** | Auto, Swedish, English | "auto" | App UI language |
-| **Refresh interval** | 10-60 seconds | 30 seconds | How often to fetch departures |
-| **Disruption alerts** | On/Off | Off | Show transit disruptions and alerts |
-| **Disruption level** | All, Warning+, Critical only | "all" | Filter disruptions by severity |
-| **Disruption language** | Auto, Swedish, English | "auto" | Language for disruption text |
-| **Commute nudges** | On/Off | Off | Weekday morning/afternoon notifications |
-| **Transfer buffer** | Minutes | 2-5 | Time allowed for transfers between segments |
+| Setting                 | Options                      | Default    | Purpose                                     |
+| ----------------------- | ---------------------------- | ---------- | ------------------------------------------- |
+| **Theme**               | 16 color palettes            | "default"  | Visual appearance and colors                |
+| **Language**            | Auto, Swedish, English       | "auto"     | App UI language                             |
+| **Refresh interval**    | 10-60 seconds                | 30 seconds | How often to fetch departures               |
+| **Disruption alerts**   | On/Off                       | Off        | Show transit disruptions and alerts         |
+| **Disruption level**    | All, Warning+, Critical only | "all"      | Filter disruptions by severity              |
+| **Disruption language** | Auto, Swedish, English       | "auto"     | Language for disruption text                |
+| **Commute nudges**      | On/Off                       | Off        | Weekday morning/afternoon notifications     |
+| **Transfer buffer**     | Minutes                      | 2-5        | Time allowed for transfers between segments |
 
 ---
 
@@ -188,28 +189,28 @@ User Action → Svelte Store → Service → API/Storage
 
 ### Core Modules
 
-| Module | Responsibility |
-|--------|----------------|
-| `src/stores/routeStore.ts` | Route & segment CRUD, reordering, shared to/from work coupling |
-| `src/stores/departureStore.ts` | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
-| `src/stores/deviationStore.ts` | Disruption fetching, segment health tracking, severity thresholding |
-| `src/stores/localeStore.ts` | Automatic locale detection, i18n translation store |
-| `src/stores/settingsStore.ts` | User preferences: refresh interval, theme, language, notification toggles |
-| `src/services/slApi.ts` | SL Transport API client, stop search with result ranking |
-| `src/services/slDeviations.ts` | SL Deviations API client, message parsing, severity scoring |
-| `src/services/journeyService.ts` | Journey planner, stop patterns, live vehicle position calculation |
-| `src/services/departureService.ts` | Routes departures to SL API or static timetable based on source |
-| `src/services/staticTimetable.ts` | Sjöstadstrafiken ferry static schedule |
-| `src/services/deviationCache.ts` | Disk persistence for disruption data (fallback when API unavailable) |
-| `src/services/storage.ts` | LocalStorage persistence for routes, settings, and schedule cache |
-| `src/lib/arrivalTime.ts` | Computes expected arrival given departures & travel times |
-| `src/lib/departureDisplay.ts` | Merges live and predicted departures, computes minutes remaining |
-| `src/lib/departureDeduplication.ts` | Deduplicates arrivals by stable key (avoids double-counting) |
-| `src/lib/departureEnrichment.ts` | Adds deviation minutes and source metadata to departures |
-| `src/lib/sourceClassification.ts` | Detects external timetable sources (ferries, etc.) |
-| `src/lib/cacheLifecycle.ts` | Manages cache eviction and cleanup lifecycle |
-| `src/lib/i18n.ts` | Internationalization strings (Swedish & English) |
-| `src/themes.ts` | 16 theme palettes with automatic contrast adjustment |
+| Module                              | Responsibility                                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------------- |
+| `src/stores/routeStore.ts`          | Route & segment CRUD, reordering, shared to/from work coupling                      |
+| `src/stores/departureStore.ts`      | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
+| `src/stores/deviationStore.ts`      | Disruption fetching, segment health tracking, severity thresholding                 |
+| `src/stores/localeStore.ts`         | Automatic locale detection, i18n translation store                                  |
+| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, notification toggles           |
+| `src/services/slApi.ts`             | SL Transport API client, stop search with result ranking                            |
+| `src/services/slDeviations.ts`      | SL Deviations API client, message parsing, severity scoring                         |
+| `src/services/journeyService.ts`    | Journey planner, stop patterns, live vehicle position calculation                   |
+| `src/services/departureService.ts`  | Routes departures to SL API or static timetable based on source                     |
+| `src/services/staticTimetable.ts`   | Sjöstadstrafiken ferry static schedule                                              |
+| `src/services/deviationCache.ts`    | Disk persistence for disruption data (fallback when API unavailable)                |
+| `src/services/storage.ts`           | LocalStorage persistence for routes, settings, and schedule cache                   |
+| `src/lib/arrivalTime.ts`            | Computes expected arrival given departures & travel times                           |
+| `src/lib/departureDisplay.ts`       | Merges live and predicted departures, computes minutes remaining                    |
+| `src/lib/departureDeduplication.ts` | Deduplicates arrivals by stable key (avoids double-counting)                        |
+| `src/lib/departureEnrichment.ts`    | Adds deviation minutes and source metadata to departures                            |
+| `src/lib/sourceClassification.ts`   | Detects external timetable sources (ferries, etc.)                                  |
+| `src/lib/cacheLifecycle.ts`         | Manages cache eviction and cleanup lifecycle                                        |
+| `src/lib/i18n.ts`                   | Internationalization strings (Swedish & English)                                    |
+| `src/themes.ts`                     | 16 theme palettes with automatic contrast adjustment                                |
 
 ### PWA & Caching
 
@@ -278,6 +279,7 @@ Departure fetching uses a **Network-first with intelligent deduplication** patte
 7. Drop responses with mismatched `requestId` to prevent race conditions
 
 This ensures:
+
 - Instant display of cached data even on poor connections
 - Fresh live data as soon as available
 - No stale data overwrites when switching routes rapidly
@@ -317,6 +319,7 @@ Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the st
 ### Commute Nudges
 
 Optional weekday morning/afternoon reminders:
+
 - Enabled via Settings → "Commute nudges"
 - Requests notification permission on first enable
 - Triggers on configured weekday hours
@@ -325,6 +328,7 @@ Optional weekday morning/afternoon reminders:
 ### Live Vehicle Tracking
 
 The `DepartureStrip` component shows vehicle stops along a route:
+
 - Fetches stop patterns from SL Journey Planner API
 - Estimates current vehicle position based on elapsed time since departure
 - Renders visual progress indicator showing upcoming stops
@@ -368,13 +372,16 @@ The app is served as a static SPA from the `/Nasta/` base path.
 ### Troubleshooting: `lifecycle_function_unavailable`
 
 **Symptom**
+
 - White screen in production
-- Console error: ``mount(...) is not available on the server``
+- Console error: `mount(...) is not available on the server`
 
 **Likely cause**
+
 - Client bundle resolved to Svelte server runtime due to incompatible toolchain versions.
 
 **Fix path**
+
 1. Verify `svelte`, `vite`, and `@sveltejs/vite-plugin-svelte` are in the supported matrix.
 2. Reinstall and rebuild: `pnpm install --frozen-lockfile && pnpm run build`.
 3. Run `pnpm run verify:build` to ensure server-only markers are absent.

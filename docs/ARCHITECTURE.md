@@ -34,36 +34,36 @@ Svelte 5 Runes ($state, $derived, $effect)
 
 ## Stores
 
-| Store | Responsibility |
-|-------|----------------|
-| `routeStore` | Route/segment CRUD, reordering, persistence to LocalStorage |
-| `departureStore` | Departure fetching, caching, auto-refresh every N seconds |
-| `deviationStore` | Disruption fetching, segment health tracking, severity filtering |
-| `settingsStore` | User preferences (theme, refresh interval, language, notifications) |
-| `localeStore` | Automatic locale detection and i18n text retrieval |
+| Store            | Responsibility                                                      |
+| ---------------- | ------------------------------------------------------------------- |
+| `routeStore`     | Route/segment CRUD, reordering, persistence to LocalStorage         |
+| `departureStore` | Departure fetching, caching, auto-refresh every N seconds           |
+| `deviationStore` | Disruption fetching, segment health tracking, severity filtering    |
+| `settingsStore`  | User preferences (theme, refresh interval, language, notifications) |
+| `localeStore`    | Automatic locale detection and i18n text retrieval                  |
 
 ## Services
 
 ### API Integration
 
-| Service | Endpoint | Purpose |
-|---------|----------|---------|
-| `slApi.ts` | `https://transport.integration.sl.se/v1` | Stop search, real-time departures, journey patterns |
-| `slDeviations.ts` | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring |
-| `journeyService.ts` | Journey planner via slApi | Vehicle stop patterns, live position calculation |
+| Service             | Endpoint                                           | Purpose                                             |
+| ------------------- | -------------------------------------------------- | --------------------------------------------------- |
+| `slApi.ts`          | `https://transport.integration.sl.se/v1`           | Stop search, real-time departures, journey patterns |
+| `slDeviations.ts`   | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring        |
+| `journeyService.ts` | Journey planner via slApi                          | Vehicle stop patterns, live position calculation    |
 
 ### Data Processing
 
-| Service | Responsibility |
-|---------|----------------|
-| `departureService.ts` | Routes API calls to SL or static timetable based on source detection |
-| `staticTimetable.ts` | Hardcoded Sjöstadstrafiken ferry schedule (weekday/weekend) |
-| `deviationCache.ts` | Persists disruptions to IndexedDB (fallback when API unavailable) |
-| `timetableCache.ts` | Caches predicted departures from schedules |
-| `departureDeduplication.ts` | Removes duplicate arrivals when merging live + cached data |
-| `departureEnrichment.ts` | Adds deviation minutes and source metadata to departures |
-| `sourceClassification.ts` | Detects external timetable sources (e.g., ferries) vs. SL API |
-| `cacheLifecycle.ts` | Manages cache eviction and TTL expiration |
+| Service                     | Responsibility                                                       |
+| --------------------------- | -------------------------------------------------------------------- |
+| `departureService.ts`       | Routes API calls to SL or static timetable based on source detection |
+| `staticTimetable.ts`        | Hardcoded Sjöstadstrafiken ferry schedule (weekday/weekend)          |
+| `deviationCache.ts`         | Persists disruptions to IndexedDB (fallback when API unavailable)    |
+| `timetableCache.ts`         | Caches predicted departures from schedules                           |
+| `departureDeduplication.ts` | Removes duplicate arrivals when merging live + cached data           |
+| `departureEnrichment.ts`    | Adds deviation minutes and source metadata to departures             |
+| `sourceClassification.ts`   | Detects external timetable sources (e.g., ferries) vs. SL API        |
+| `cacheLifecycle.ts`         | Manages cache eviction and TTL expiration                            |
 
 ## Components
 
@@ -95,17 +95,17 @@ Static assets          → Cache First (hashed filenames)
 
 ### LocalStorage Keys
 
-| Key | Content | TTL |
-|-----|---------|-----|
-| `nasta_routes` | Serialized Route[] | Permanent |
-| `nasta_settings` | Serialized settings | Permanent |
-| `nasta_onboarding_seen` | Boolean flag | Permanent |
-| (Computed schedules) | Predicted departures | As configured per service |
+| Key                     | Content              | TTL                       |
+| ----------------------- | -------------------- | ------------------------- |
+| `nasta_routes`          | Serialized Route[]   | Permanent                 |
+| `nasta_settings`        | Serialized settings  | Permanent                 |
+| `nasta_onboarding_seen` | Boolean flag         | Permanent                 |
+| (Computed schedules)    | Predicted departures | As configured per service |
 
 ### IndexedDB Keys (Deviations)
 
-| Key | Content | TTL |
-|-----|---------|-----|
+| Key                | Content                             | TTL     |
+| ------------------ | ----------------------------------- | ------- |
 | `deviations_cache` | Deviation message array + timestamp | 6 hours |
 
 ## Request ID Routing
@@ -124,6 +124,7 @@ This prevents race conditions when users quickly switch between routes.
 ### Severity Scoring
 
 Disruptions are classified as:
+
 - **info** — Minor, low urgency (score < 5)
 - **warning** — Moderate impact (score 5-7)
 - **critical** — High urgency, major impact (score ≥ 8)
@@ -146,6 +147,7 @@ Score computed as: `importance * 2 + influence + urgency`
 ## Commute Nudges
 
 Weekday morning and afternoon reminder notifications:
+
 - Stored in `settingsStore.commuteNudgesEnabled`
 - Requires notification permission (requested on first enable)
 - Triggered via `setInterval` on specific hour/minute slots

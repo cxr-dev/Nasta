@@ -11,6 +11,7 @@ GET /sites?search={query}
 ```
 
 Response:
+
 ```json
 [
   {
@@ -28,6 +29,7 @@ GET /sites/{siteId}/departures
 ```
 
 Response:
+
 ```json
 {
   "departures": [
@@ -63,6 +65,7 @@ GET /messages?transport_modes={modes}&scope_stop_areas={siteIds}
 ```
 
 Response:
+
 ```json
 {
   "messages": [
@@ -84,8 +87,8 @@ Response:
         }
       ],
       "scope": {
-        "lines": [{"id": "76", "designation": "76"}],
-        "stop_areas": [{"id": "3001", "name": "Sergels torg"}]
+        "lines": [{ "id": "76", "designation": "76" }],
+        "stop_areas": [{ "id": "3001", "name": "Sergels torg" }]
       }
     }
   ]
@@ -93,22 +96,24 @@ Response:
 ```
 
 Severity is determined by:
+
 - `importance_level` (0-4)
 - `influence_level` (0-3)
 - `urgency_level` (0-3)
 
 Score calculation: `importance * 2 + influence + urgency`
+
 - Score ≥ 8 or importance ≥ 4 → **critical**
 - Score ≥ 5 or importance ≥ 3 → **warning**
 - Otherwise → **info**
 
 ## LocalStorage Keys
 
-| Key | Type | Example |
-|-----|------|---------|
-| `nasta_routes` | JSON array | `[{id, name, direction, segments}]` |
-| `nasta_settings` | JSON object | `{theme, language, refreshInterval}` |
-| `nasta_onboarding_seen` | String | `"true"` |
+| Key                     | Type        | Example                              |
+| ----------------------- | ----------- | ------------------------------------ |
+| `nasta_routes`          | JSON array  | `[{id, name, direction, segments}]`  |
+| `nasta_settings`        | JSON object | `{theme, language, refreshInterval}` |
+| `nasta_onboarding_seen` | String      | `"true"`                             |
 
 ## TypeScript Types
 
@@ -202,3 +207,4 @@ interface Settings {
   commuteNudgesEnabled?: boolean;
   transferBufferMinutes?: number;
 }
+```
