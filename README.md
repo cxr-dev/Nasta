@@ -14,14 +14,17 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 ## Features
 
 - **Real-time departures** — Auto-refreshing SL data every 30 seconds (configurable)
-- **Route management** — Two pre-configured routes ("Till jobbet" / "Hem") with touch drag reordering
+- **Route management** — Multiple routes with drag-to-reorder segments and auto-save to LocalStorage
+- **Disruption alerts** — Real-time transit disruptions and alerts by severity (info/warning/critical)
 - **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
 - **PWA installable** — Works offline with cached data, no app store required
 - **Arrival calculation** — Sums travel times plus transfer buffers to show expected arrival time
-- **Pull-to-refresh** — Manual refresh on mobile with visual feedback
+- **Pull-to-refresh** — Manual refresh on mobile with visual feedback and stale data indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
-- **Dark mode & themes** — 16 color themes, auto-detected system preference
-- **Bilingual** — Swedish and English with automatic locale detection
+- **Commute nudges** — Local weekday morning and afternoon reminder notifications
+- **Live vehicle tracking** — Shows vehicle stops along selected routes with real-time position updates
+- **Dark mode & themes** — 16 color themes, auto-detected system preference with contrast adjustment
+- **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
 
 ---
 
@@ -99,6 +102,8 @@ pnpm run check     # Run svelte-check
 
 ## Configuration
 
+### Routes & Segments
+
 Routes are stored in LocalStorage under `nasta_routes`. Each route contains:
 
 - `id` — unique identifier
@@ -122,6 +127,21 @@ Each segment defines:
 4. Drag to reorder segments on mobile
 5. Changes save automatically to LocalStorage
 
+### Settings
+
+Available in the Settings panel (tap **"Inställningar"**):
+
+| Setting | Options | Default | Purpose |
+|---------|---------|---------|---------|
+| **Theme** | 16 color palettes | "default" | Visual appearance and colors |
+| **Language** | Auto, Swedish, English | "auto" | App UI language |
+| **Refresh interval** | 10-60 seconds | 30 seconds | How often to fetch departures |
+| **Disruption alerts** | On/Off | Off | Show transit disruptions and alerts |
+| **Disruption level** | All, Warning+, Critical only | "all" | Filter disruptions by severity |
+| **Disruption language** | Auto, Swedish, English | "auto" | Language for disruption text |
+| **Commute nudges** | On/Off | Off | Weekday morning/afternoon notifications |
+| **Transfer buffer** | Minutes | 2-5 | Time allowed for transfers between segments |
+
 ---
 
 ## API Integration
@@ -131,11 +151,24 @@ Each segment defines:
 ```
 Base URL: https://transport.integration.sl.se/v1
 
-GET /sites?search={query}          → Search stops & stations
-GET /sites/{siteId}/departures     → Get real-time departures
+GET /sites?search={query}              → Search stops & stations
+GET /sites/{siteId}/departures         → Get real-time departures
+GET /journey-planner/{line}            → Get journey stops and patterns
 ```
 
-The app queries departures for each configured stop, filters by line/destination, and displays the next few departures. Times are formatted to `HH:mm` and enriched with deviation information when available.
+### SL Deviations API
+
+```
+Base URL: https://deviations.integration.sl.se/v1
+
+GET /messages                          → Get all active disruptions/alerts
+```
+
+Departures are enriched with real-time disruptions, severity levels (info/warning/critical), and text in both Swedish and English. Disruptions are cached locally and can be filtered by severity threshold.
+
+### Journey Service
+
+Fetches and caches vehicle stop patterns for lines, enabling live vehicle position tracking along routes. Patterns are cached for 14 days with 5-minute live cache TTL for fresh data.
 
 ### Static Timetable (Sjöstadstrafiken Ferries)
 
@@ -158,13 +191,24 @@ User Action → Svelte Store → Service → API/Storage
 | Module | Responsibility |
 |--------|----------------|
 | `src/stores/routeStore.ts` | Route & segment CRUD, reordering, shared to/from work coupling |
-| `src/stores/departureStore.ts` | Departure fetching, hybrid cache+API strategy, auto-refresh |
-| `src/services/slApi.ts` | SL Transport API client, stop search ranking |
+| `src/stores/departureStore.ts` | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
+| `src/stores/deviationStore.ts` | Disruption fetching, segment health tracking, severity thresholding |
+| `src/stores/localeStore.ts` | Automatic locale detection, i18n translation store |
+| `src/stores/settingsStore.ts` | User preferences: refresh interval, theme, language, notification toggles |
+| `src/services/slApi.ts` | SL Transport API client, stop search with result ranking |
+| `src/services/slDeviations.ts` | SL Deviations API client, message parsing, severity scoring |
+| `src/services/journeyService.ts` | Journey planner, stop patterns, live vehicle position calculation |
+| `src/services/departureService.ts` | Routes departures to SL API or static timetable based on source |
 | `src/services/staticTimetable.ts` | Sjöstadstrafiken ferry static schedule |
-| `src/services/departureService.ts` | Dispatches to SL API or static timetable |
-| `src/services/storage.ts` | LocalStorage persistence for routes & settings |
+| `src/services/deviationCache.ts` | Disk persistence for disruption data (fallback when API unavailable) |
+| `src/services/storage.ts` | LocalStorage persistence for routes, settings, and schedule cache |
 | `src/lib/arrivalTime.ts` | Computes expected arrival given departures & travel times |
 | `src/lib/departureDisplay.ts` | Merges live and predicted departures, computes minutes remaining |
+| `src/lib/departureDeduplication.ts` | Deduplicates arrivals by stable key (avoids double-counting) |
+| `src/lib/departureEnrichment.ts` | Adds deviation minutes and source metadata to departures |
+| `src/lib/sourceClassification.ts` | Detects external timetable sources (ferries, etc.) |
+| `src/lib/cacheLifecycle.ts` | Manages cache eviction and cleanup lifecycle |
+| `src/lib/i18n.ts` | Internationalization strings (Swedish & English) |
 | `src/themes.ts` | 16 theme palettes with automatic contrast adjustment |
 
 ### PWA & Caching
@@ -223,14 +267,44 @@ Runes (`$state`, `$derived`, `$effect`, `$props`) provide fine-grained reactivit
 
 ### Hybrid Fetch Strategy
 
-Departure fetching uses a **cache-first, API-enrich** pattern:
+Departure fetching uses a **Network-first with intelligent deduplication** pattern:
 
-1. Check local schedule cache (`src/services/scheduleCache.ts`) for each segment
-2. Display cached data immediately (instant load)
-3. In parallel, fetch live SL API for those stops
-4. Merge: keep API times, overlay any cached deviations
+1. Route change generates new `requestId` to prevent stale responses
+2. Fetch live departures from SL API for all configured stops
+3. Fetch cached schedule predictions in parallel
+4. Merge results: live data takes priority, cached provides instant display
+5. Deduplicate arrivals by stable key (line + destination + time) to avoid double-counting
+6. Enrich with deviation minutes and source metadata (live/cached/predicted)
+7. Drop responses with mismatched `requestId` to prevent race conditions
 
-This ensures the UI is always populated (even offline) while staying fresh.
+This ensures:
+- Instant display of cached data even on poor connections
+- Fresh live data as soon as available
+- No stale data overwrites when switching routes rapidly
+- Accurate arrival counts even when live and cached overlap
+
+### Disruption Fetching
+
+Disruptions are fetched from the SL Deviations API:
+
+1. Request active disruptions for the current route's lines and stops
+2. Filter by user's severity threshold (info/warning/critical)
+3. Compute segment health state (ok/affected/critical)
+4. Cache locally; fallback to cached copy if API unavailable
+5. Auto-refresh every 60+ seconds during active viewing
+
+Language-specific disruption text is returned based on app locale setting.
+
+### Request ID Routing
+
+To prevent race conditions when users rapidly switch routes:
+
+1. Each route change assigns a new `requestId = route-${id}-${timestamp}`
+2. Pending requests pass this ID alongside API calls
+3. Store only applies responses with current `requestId`
+4. Responses from old requests are silently dropped
+
+This is critical because fetches can take several seconds; without routing, a fast route switcher would see departures from the wrong route overlay on the correct one.
 
 ### Route Coupling
 
@@ -238,7 +312,25 @@ When you delete a segment from "Till jobbet", the same-index segment is automati
 
 ### Ferry Detection
 
-Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isSjostadstrafikenStop()`).
+Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
+
+### Commute Nudges
+
+Optional weekday morning/afternoon reminders:
+- Enabled via Settings → "Commute nudges"
+- Requests notification permission on first enable
+- Triggers on configured weekday hours
+- Hidden if browser tab is in background or permission denied
+
+### Live Vehicle Tracking
+
+The `DepartureStrip` component shows vehicle stops along a route:
+- Fetches stop patterns from SL Journey Planner API
+- Estimates current vehicle position based on elapsed time since departure
+- Renders visual progress indicator showing upcoming stops
+- Updates position ~every 5 seconds during active viewing
+
+Patterns are cached for 14 days; live positions refresh every 5 minutes.
 
 ---
 
@@ -292,10 +384,14 @@ The app is served as a static SPA from the `/Nasta/` base path.
 
 ## Known Limitations
 
-- SL API rate limits: ~10 req/s (not an issue for typical 2-route, 4-stop usage)
-- No support for trips with more than 2 transfers (out of scope)
-- Ferry times are static — no real-time adjustments for delays
-- Only Swedish (SL) public transport; other agencies not supported
+- **SL API only:** Only supports Stockholm public transport (SL). Other agencies/cities not supported.
+- **Rate limiting:** SL API rate limits at ~10 req/s (not an issue for typical 2-4 routes, 4-8 stops usage)
+- **Transfer complexity:** Routes limited to 2 transfers max (current UI design assumption)
+- **Ferry times:** Sjöstadstrafiken times are static; no real-time delay adjustments
+- **Departure count:** Shows next 3-5 departures (to keep UI glanceable); does not show all departures
+- **Vehicle tracking:** Vehicle position estimation is approximate; based on schedule vs. actual times
+- **Browser support:** Requires modern browsers with ES2023, WebWorker, and PWA support (Safari 16.4+, Chrome 90+, Edge 90+, Firefox 91+)
+- **Offline limitation:** Ferry timetable cached offline, but live disruptions require network connectivity
 
 ---
 
