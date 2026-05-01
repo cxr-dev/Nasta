@@ -131,7 +131,8 @@ interface StopInterface {
       if (station.note === 'Sjöstadstrafiken') {
         rawDeps = getNextDepartures(station.name, 5);
       } else {
-        rawDeps = await getDepartures(station.siteId, 240);
+        const result = await getDepartures(station.siteId, 240);
+        rawDeps = result.departures;
       }
 
       // Supplement with routes known from timetable cache (covers overnight / off-peak)
