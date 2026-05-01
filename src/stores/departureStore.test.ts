@@ -31,7 +31,7 @@ describe("departureStore cache key wiring", () => {
       1,
       24,
     );
-    expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001");
+    expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001", "14", 1, undefined);
   });
 });
 

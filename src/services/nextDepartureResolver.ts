@@ -20,7 +20,7 @@ export async function getNextDeparture(
 ): Promise<ResolverResult> {
   try {
     // 1. Try real-time API first (forecast 120 min)
-    const realtimeDepartures = await getDepartures(siteId, 120);
+    const { departures: realtimeDepartures } = await getDepartures(siteId, 120);
     
     const nextRealtime = realtimeDepartures
       .filter(d => d.line === line && d.direction_code === direction_code)

@@ -28,6 +28,7 @@ const departureStoreMockState = vi.hoisted(() => {
   const isLoading = createMockReadable(false);
   const lastError = createMockReadable<string | null>(null);
   const lastSuccessfulFetch = createMockReadable(0);
+  const stopDeviations = createMockReadable<Map<string, any[]>>(new Map());
   const refresh = vi.fn();
 
   return {
@@ -35,6 +36,7 @@ const departureStoreMockState = vi.hoisted(() => {
     isLoading,
     lastError,
     lastSuccessfulFetch,
+    stopDeviations,
     refresh,
   };
 });
@@ -47,6 +49,9 @@ vi.mock("../stores/departureStore", () => {
       lastError: { subscribe: departureStoreMockState.lastError.subscribe },
       lastSuccessfulFetch: {
         subscribe: departureStoreMockState.lastSuccessfulFetch.subscribe,
+      },
+      stopDeviations: {
+        subscribe: departureStoreMockState.stopDeviations.subscribe,
       },
       refresh: departureStoreMockState.refresh,
     },
