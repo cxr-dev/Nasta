@@ -67,7 +67,7 @@ describe("DepartureStrip", () => {
     });
 
     await waitFor(() => {
-      expect(getAllByText(/Tidtabellsestimat/).length).toBeGreaterThanOrEqual(1);
+      expect(getByText("Ungefärligt läge")).toBeTruthy();
     });
 
     expect(container.querySelector(".vehicle-bubble")).toBeTruthy();
@@ -90,10 +90,8 @@ describe("DepartureStrip", () => {
     });
 
     await waitFor(() => {
-      expect(getByText("Position ej tillgänglig")).toBeTruthy();
+      expect(container.querySelector(".strip")).toBeNull();
     });
-
-    expect(getByText("Live position saknas")).toBeTruthy();
     expect(container.querySelector(".vehicle-bubble")).toBeNull();
   });
 

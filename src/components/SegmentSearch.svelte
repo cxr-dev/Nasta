@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { searchSites, getDepartures } from '../services/slApi';
+  import { searchSites, getDepartures, mapProductClassesToTransportTypes } from '../services/slApi';
   import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
   import { getKnownRoutes } from '../services/timetableCache';
+  import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
   import type { SiteSearchResult, Departure } from '../types/departure';
 import type { TransportType, Stop, SegmentDirection } from '../types/route';
 import { transportIcons } from '../icons/transport';
 import { t } from '../stores/localeStore';
 import { settingsStore } from '../stores/settingsStore';
 import DirectionSelector from './DirectionSelector.svelte';
+import { onMount } from 'svelte';
 
 const SEARCH_MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -28,19 +30,51 @@ interface StopInterface {
   let query = $state('');
   let stations = $state<SiteSearchResult[]>([]);
   let allDepartures = $state<Departure[]>([]);
+  let userLocation = $state<[number, number] | null>(null);
+  let recentStops = $state<SiteSearchResult[]>([]);
+
+  // Filtering logic: Enforcement at data level
+  let filteredStations = $derived.by(() => {
+    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
+    return stations.filter(s => {
+      if (!s.productClasses || s.productClasses.length === 0) return true; // Allow if unknown
+      const types = mapProductClassesToTransportTypes(s.productClasses);
+      return types.some(t => enabled.includes(t));
+    });
+  });
+
+  let nearbyStops = $derived.by(() => {
+    if (!userLocation) return [];
+    return recentStops
+      .map(s => {
+        if (s.lat === undefined || s.lon === undefined) return { ...s, distance: Infinity };
+        const dist = getMemoizedDistance(s.siteId, s.lat, s.lon, userLocation![0], userLocation![1]);
+        return { ...s, distance: dist };
+      })
+      .filter(s => s.distance < 2.0) // Within 2km for "nearby"
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
+  });
   
-  let uniqueLines = $derived.by(() => {
+  let selectedLineDepartures = $derived(allDepartures.filter(d => {
+    const isLineMatch = selectedLine && d.line === selectedLine.line;
+    if (!isLineMatch) return false;
+    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
+    return enabled.includes(d.transportType);
+  }));
+
+  let uniqueLinesFiltered = $derived.by(() => {
+    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
     const seen = new Set<string>();
     const lines: Departure[] = [];
     for (const d of allDepartures) {
-      if (!seen.has(d.line)) {
+      if (!seen.has(d.line) && enabled.includes(d.transportType)) {
         seen.add(d.line);
         lines.push(d);
       }
     }
     return lines;
   });
-  let selectedLineDepartures = $derived(allDepartures.filter(d => selectedLine && d.line === selectedLine.line));
   let selectedLine = $state<Departure | null>(null);
 
   let selectedStation = $state<SiteSearchResult | null>(null);
@@ -126,6 +160,12 @@ interface StopInterface {
     step = 'select';
     loadingDeps = true;
     
+    // Save to recent stops for "Nearby" feature
+    if (!recentStops.some(s => s.siteId === station.siteId)) {
+      recentStops = [station, ...recentStops].slice(0, 20);
+      localStorage.setItem('nasta_recent_stops', JSON.stringify(recentStops));
+    }
+
     try {
       let rawDeps: Departure[] = [];
       if (station.note === 'Sjöstadstrafiken') {
@@ -165,7 +205,13 @@ interface StopInterface {
       selectedLine.line,
       selectedLine.lineName,
       direction,
-      { id: crypto.randomUUID(), name: selectedStation.name, siteId: selectedStation.siteId },
+      { 
+        id: crypto.randomUUID(), 
+        name: selectedStation.name, 
+        siteId: selectedStation.siteId,
+        coord: selectedStation.lat !== undefined && selectedStation.lon !== undefined ? [selectedStation.lat, selectedStation.lon] : undefined,
+        productClasses: selectedStation.productClasses
+      },
       { id: crypto.randomUUID(), name: direction.destination, siteId: '' },
       selectedLine.transportType
     );
@@ -197,6 +243,18 @@ interface StopInterface {
     query = value;
     handleInput();
   }
+
+  onMount(async () => {
+    userLocation = await getQuickLocation();
+    const stored = localStorage.getItem('nasta_recent_stops');
+    if (stored) {
+      try {
+        recentStops = JSON.parse(stored);
+      } catch (e) {
+        recentStops = [];
+      }
+    }
+  });
 </script>
 
 <div class="segment-search">
@@ -215,7 +273,7 @@ interface StopInterface {
        spellcheck="false"
      />
 
-    {#if settings.homeAnchor || settings.workAnchor}
+    {#if settings.homeAnchor || settings.workAnchor || nearbyStops.length > 0}
       <div class="anchor-row">
         {#if settings.homeAnchor}
           <button class="anchor-btn" onclick={() => applyAnchor(settings.homeAnchor)}>
@@ -227,21 +285,35 @@ interface StopInterface {
             Jobb
           </button>
         {/if}
+        {#if nearbyStops.length > 0}
+          <div class="nearby-label">{$t.nearby || "Nära dig"}:</div>
+          {#each nearbyStops as stop}
+             <button class="anchor-btn nearby-btn" onclick={() => selectStation(stop)}>
+              {stop.name} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>
+            </button>
+          {/each}
+        {/if}
       </div>
     {/if}
     
     {#if loading}
       <div class="msg">{$t.searching}</div>
-    {:else if stations.length > 0}
+    {:else if filteredStations.length > 0}
       <div class="results">
-        {#each stations as station}
+        {#each filteredStations as station}
            <button class="item" onmousedown={() => selectStation(station)}>
-            {#if station.note === 'Sjöstadstrafiken'}
-              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
-            {:else}
-              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.bus}</g></svg>
+            <div class="item-main">
+              {#if station.note === 'Sjöstadstrafiken'}
+                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
+              {:else}
+                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.bus}</g></svg>
+              {/if}
+              <span class="name">{station.name}</span>
+            </div>
+            {#if userLocation && station.lat !== undefined && station.lon !== undefined}
+              {@const dist = getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1])}
+              <span class="distance">{formatDistance(dist)}</span>
             {/if}
-            <span class="name">{station.name}</span>
             <span class="arrow">→</span>
           </button>
         {/each}
@@ -264,7 +336,7 @@ interface StopInterface {
         <div class="msg">{$t.noDepartures}</div>
       {:else if step === 'select'}
         <div class="departures-list">
-          {#each uniqueLines as dep}
+          {#each uniqueLinesFiltered as dep}
             <button class="dep-item" class:dep-cached={dep.predicted} onmousedown={() => handleLineSelect(dep)}>
               <div class="dep-transport">
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
@@ -403,6 +475,44 @@ interface StopInterface {
 
   .item .name {
     flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item-main {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .distance {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-right: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dist-mini {
+    opacity: 0.6;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+
+  .nearby-label {
+    font-size: 11px;
+    color: var(--text-ghost);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    align-self: center;
+    margin-right: 4px;
+  }
+
+  .nearby-btn {
+    border-color: var(--accent-subtle);
+    background: var(--accent-subtle);
+    color: var(--accent);
   }
 
   .departures-view {

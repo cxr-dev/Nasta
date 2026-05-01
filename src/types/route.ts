@@ -6,6 +6,8 @@ export interface Stop {
   id: string;
   name: string;
   siteId: string;
+  coord?: [number, number];
+  productClasses?: number[];
 }
 
 export interface SegmentDirection {

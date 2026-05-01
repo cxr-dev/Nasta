@@ -31,4 +31,5 @@ export interface SiteSearchResult {
   note?: string;
   lat?: number;
   lon?: number;
+  productClasses?: number[];
 }

@@ -102,6 +102,7 @@ interface StopFinderLocation {
   coord?: [number, number];
   type: string;
   matchQuality?: number;
+  productClasses?: number[];
 }
 
 interface StopFinderResponse {
@@ -180,6 +181,7 @@ export async function searchSites(
       type: "stop" as const,
       lat: loc.coord?.[0],
       lon: loc.coord?.[1],
+      productClasses: loc.productClasses,
     }));
 
   return stations;
@@ -346,4 +348,21 @@ function formatTime(date: Date): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+/**
+ * Maps SL productClasses to internal TransportType.
+ * 1, 2, 4 -> metro
+ * 8, 16, 32, 64 -> train
+ * 128 -> bus
+ * 256 -> boat
+ */
+export function mapProductClassesToTransportTypes(classes: number[]): TransportType[] {
+  const types = new Set<TransportType>();
+  for (const c of classes) {
+    if (c === 1 || c === 2 || c === 4) types.add("metro");
+    else if (c === 8 || c === 16 || c === 32 || c === 64) types.add("train");
+    else if (c === 128) types.add("bus");
+    else if (c === 256) types.add("boat");
+  }
+  return Array.from(types);
 }

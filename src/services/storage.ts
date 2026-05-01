@@ -1,4 +1,4 @@
-import type { Route } from '../types/route';
+import type { Route, TransportType } from '../types/route';
 
 const ROUTES_KEY = 'nasta_routes';
 const SETTINGS_KEY = 'nasta_settings';
@@ -20,6 +20,7 @@ export interface Settings {
   commuteNudgesEnabled: boolean;
   homeAnchor: string;
   workAnchor: string;
+  enabledTransportTypes: TransportType[];
 }
 
 const defaultSettings: Settings = {
@@ -36,7 +37,8 @@ const defaultSettings: Settings = {
   disruptionLanguage: 'auto',
   commuteNudgesEnabled: false,
   homeAnchor: '',
-  workAnchor: ''
+  workAnchor: '',
+  enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
 };
 
 export function loadRoutes(): Route[] {

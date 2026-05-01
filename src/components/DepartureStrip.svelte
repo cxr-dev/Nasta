@@ -88,17 +88,10 @@
       .replace('{count}', String(remaining))
       .replace('{stop}', segment.fromStop.name);
 
-    if (data.availability === 'scheduled') {
-      return `${baseText} · ${$t.scheduledEstimateLabel}`;
-    }
     return baseText;
   }
 
   function vehicleContextText(data: JourneyData): string {
-    if (data.availability === 'unavailable') {
-      return $t.livePositionUnavailable ?? 'Live position unavailable';
-    }
-    
     const current = lastReliableStopName(data);
     if (!current) return $t.approachingStop.replace('{stop}', segment.fromStop.name);
     if (data.availability === 'scheduled') {
@@ -144,14 +137,13 @@
   });
 </script>
 
-{#if loading}
-  <div class="strip skeleton" aria-hidden="true">
-    <div class="skeleton-track"></div>
-  </div>
-{:else if journeyData}
+{#if journeyData && journeyData.availability !== 'unavailable'}
   {@const visible = visibleStops(journeyData)}
   <div class="strip" role="region" aria-label={$t.vehiclePosition} bind:this={stripEl}>
     <div class="strip-summary">
+      {#if journeyData.availability === 'scheduled'}
+        <div class="summary-prefix">{$t.estimatedPosition}</div>
+      {/if}
       <div class="summary-primary">{progressText(journeyData)}</div>
       <div class="summary-secondary">{vehicleContextText(journeyData)}</div>
     </div>
@@ -197,10 +189,6 @@
       <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
       {#if journeyData.availability === 'live'}
         <span class="badge badge-live">{$t.live} ✦</span>
-      {:else if journeyData.availability === 'scheduled'}
-        <span class="badge badge-scheduled">~{$t.scheduledEstimateLabel}</span>
-      {:else}
-        <span class="badge badge-unavailable">{$t.unavailable ?? 'Unavailable'}</span>
       {/if}
     </div>
   </div>
@@ -217,6 +205,16 @@
     flex-direction: column;
     gap: 2px;
     margin-bottom: 10px;
+  }
+
+  .summary-prefix {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    opacity: 0.8;
+    margin-bottom: 4px;
   }
 
   .summary-primary {
@@ -373,25 +371,6 @@
   .badge-unavailable {
     color: var(--text-muted);
     background: color-mix(in srgb, var(--border) 30%, transparent);
-  }
-
-  /* ── Skeleton ────────────────────────────────── */
-  .skeleton {
-    border-top: 1px solid var(--border);
-  }
-
-  .skeleton-track {
-    height: 8px;
-    border-radius: 4px;
-    margin: 20px 0 40px;
-    background: linear-gradient(
-      90deg,
-      var(--border) 25%,
-      color-mix(in srgb, var(--border) 60%, var(--bg)) 50%,
-      var(--border) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
   }
 
   @keyframes shimmer {

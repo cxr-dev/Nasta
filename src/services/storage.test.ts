@@ -88,7 +88,8 @@ describe('storage service', () => {
         disruptionLanguage: 'auto',
         commuteNudgesEnabled: false,
         homeAnchor: '',
-        workAnchor: ''
+        workAnchor: '',
+        enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
       });
     });
 
@@ -114,7 +115,8 @@ describe('storage service', () => {
         disruptionLanguage: 'sv' as const,
         commuteNudgesEnabled: true,
         homeAnchor: 'Liljeholmen',
-        workAnchor: 'T-Centralen'
+        workAnchor: 'T-Centralen',
+        enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
       };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));

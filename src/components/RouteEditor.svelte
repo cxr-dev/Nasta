@@ -4,6 +4,7 @@
   import { settingsStore } from '../stores/settingsStore';
   import { THEMES } from '../themes';
   import { t } from '../stores/localeStore';
+  import { transportIcons } from '../icons/transport';
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
   import DuplicateRoutePanel from './DuplicateRoutePanel.svelte';
@@ -261,6 +262,28 @@
           >
             {$t.languageSwedish}
           </button>
+        </div>
+      </div>
+
+      <div class="setting-block">
+        <div class="toggle-label">
+          <span class="toggle-name">{$t.transportModes || 'Transportmedel'}</span>
+          <span class="toggle-desc">{$t.transportModesDesc || 'Visa endast dessa i sökning'}</span>
+        </div>
+        <div class="transport-toggles">
+          {#each ['metro', 'train', 'bus', 'boat'] as type}
+            <button
+              class="transport-toggle-btn"
+              class:active={settings.enabledTransportTypes?.includes(type as TransportType)}
+              onclick={() => settingsStore.toggleTransportType(type as TransportType)}
+              aria-label={type}
+              aria-pressed={settings.enabledTransportTypes?.includes(type as TransportType)}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                {@html transportIcons[type as TransportType]}
+              </svg>
+            </button>
+          {/each}
         </div>
       </div>
 
@@ -630,5 +653,35 @@
   font-size: 13px;
   font-weight: 900;
   flex-shrink: 0;
+}
+
+.transport-toggles {
+  display: flex;
+  gap: 8px;
+}
+
+.transport-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-ghost);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transport-toggle-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.transport-toggle-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 </style>

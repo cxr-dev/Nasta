@@ -41,7 +41,7 @@ Svelte 5 Runes ($state, $derived, $effect)
 | `routeStore`     | Route/segment CRUD, reordering, persistence to LocalStorage         |
 | `departureStore` | Departure fetching, caching, auto-refresh every N seconds           |
 | `deviationStore` | Disruption fetching, segment health tracking, severity filtering    |
-| `settingsStore`  | User preferences (theme, refresh interval, language, notifications) |
+| `settingsStore`  | User preferences (theme, transport filtering, refresh interval, language, notifications) |
 | `localeStore`    | Automatic locale detection and i18n text retrieval                  |
 
 ## Services
@@ -53,6 +53,7 @@ Svelte 5 Runes ($state, $derived, $effect)
 | `slApi.ts`          | `https://transport.integration.sl.se/v1`           | Stop search, real-time departures, journey patterns |
 | `slDeviations.ts`   | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring        |
 | `journeyService.ts` | Journey planner via slApi                          | Vehicle stop patterns, live position calculation    |
+| `geo.ts`            | Native Geolocation API                             | User distance to stops, walking time calculations   |
 
 ### Data Processing
 
@@ -102,6 +103,7 @@ Static assets          → Cache First (hashed filenames)
 | `nasta_routes`          | Serialized Route[]   | Permanent                 |
 | `nasta_settings`        | Serialized settings  | Permanent                 |
 | `nasta_onboarding_seen` | Boolean flag         | Permanent                 |
+| `nasta_recent_stops`    | SiteSearchResult[]   | Permanent (Recent searches) |
 | (Computed schedules)    | Predicted departures | As configured per service |
 
 ### IndexedDB Keys (Deviations)
@@ -172,6 +174,15 @@ The `DepartureStrip` component integrates with `journeyService` to:
 4. Update position every ~5 seconds
 
 Caches patterns for 14 days; live position cache refreshes every 5 minutes.
+
+## Transport Filtering
+
+Enforced at the data layer to ensure unselected modes don't clutter the UI:
+
+1. Enabled modes stored in `settingsStore.enabledTransportTypes`
+2. `slApi.searchSites` includes `productClasses` for filtering
+3. `SegmentSearch` filters stations and lines before selection
+4. Global enforcement ensures no hidden modes appear in any view
 
 ## PWA Configuration
 

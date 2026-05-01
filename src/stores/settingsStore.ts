@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import type { TransportType } from '../types/route';
 import type { Settings } from '../services/storage';
 import { loadSettings, saveSettings } from '../services/storage';
 
@@ -96,6 +97,17 @@ function createSettingsStore() {
     setAnchor: (type: 'homeAnchor' | 'workAnchor', value: string) => {
       update(settings => {
         const updated = { ...settings, [type]: value };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    toggleTransportType: (type: TransportType) => {
+      update(settings => {
+        const current = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
+        const updatedTypes = current.includes(type)
+          ? current.filter(t => t !== type)
+          : [...current, type];
+        const updated = { ...settings, enabledTransportTypes: updatedTypes };
         saveSettings(updated);
         return updated;
       });

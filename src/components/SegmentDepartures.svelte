@@ -9,6 +9,7 @@
   import { transportIcons } from "../icons/transport";
   import { slide } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
+  import { getQuickLocation, getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import DepartureStrip from "./DepartureStrip.svelte";
   import { t } from "../stores/localeStore";
 
@@ -32,6 +33,7 @@
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
   let isRefreshing = $state(false);
+  let userLocation = $state<[number, number] | null>(null);
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -138,6 +140,7 @@
     UNSUBSCRIBERS.push(
       departureStore.lastSuccessfulFetch.subscribe((val) => (lastSuccessfulFetch = val)),
     );
+    getQuickLocation().then(loc => userLocation = loc);
     startClockTimer();
   });
 
@@ -208,7 +211,9 @@
 
           <div class="line-details">
             <span class="line-info">{segment.lineName || segment.line}</span>
-            <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
+            <div class="stop-route-container">
+              <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
+            </div>
           </div>
         </div>
 
@@ -250,7 +255,33 @@
       {#if isExpanded}
         <div transition:slide={{ duration: 280, easing: cubicOut }}>
           {#if hasDeparture}
-            <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
+            <div class="expanded-actions">
+              {#if userLocation && segment.fromStop.coord}
+                {@const dist = getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1])}
+                <div class="expanded-geo-info">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="geo-icon">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span>{formatDistance(dist)} ({getWalkingTime(dist)}m till hållplatsen)</span>
+                </div>
+              {/if}
+              <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
+              {#if segment.fromStop.coord}
+                <a 
+                  href="https://www.google.com/maps/search/?api=1&query={segment.fromStop.coord[0]},{segment.fromStop.coord[1]}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="map-link"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  {$t.openInMaps || "Open in Maps"}
+                </a>
+              {/if}
+            </div>
           {:else}
             {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
             {#if siteDevs.length > 0}
@@ -297,6 +328,22 @@
   .line-details { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .line-info { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stop-route { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stop-route-container { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .expanded-actions { position: relative; }
+  .map-link { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    padding: 12px 16px; 
+    font-size: 13px; 
+    color: var(--accent); 
+    text-decoration: none; 
+    border-top: 1px solid var(--border); 
+    background: var(--surface);
+    transition: background 0.2s ease;
+  }
+  .map-link:active { background: var(--accent-subtle); }
+  .map-link svg { width: 16px; height: 16px; }
   .row-right { flex-shrink: 0; text-align: right; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; position: relative; }
@@ -331,4 +378,19 @@
   .disruption-header svg { width: 18px; height: 18px; }
   .disruption-content { display: flex; flex-direction: column; gap: 12px; }
   .disruption-content p { font-size: 14px; line-height: 1.5; color: var(--text); }
+  .expanded-geo-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .geo-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
 </style>
