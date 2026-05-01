@@ -42,9 +42,20 @@ Response:
       "deviation": 0,
       "transportMode": "bus"
     }
+  ],
+  "stop_deviations": [
+    {
+      "id": 11175981,
+      "importance_level": 2,
+      "message": "Innerstadsbussarna: Idag påverkas många busslinjer av demonstrationer...",
+      "scope": { "stop_areas": [3031], "lines": [2] }
+    }
   ]
 }
 ```
+
+> [!NOTE]
+> The `stop_deviations` field provides site-specific context (e.g. why a station is currently empty) that may not always be present in the main Deviations API due to filtering differences.
 
 ### Get Journey Patterns
 
@@ -191,6 +202,36 @@ interface SegmentHealth {
   messages: DeviationMessage[];
   updatedAt: number;
 }
+```
+
+### Caching Strategy
+
+1. Fetch deviations every 60+ seconds
+2. Cache failures fall back to last successful fetch (up to 6 hours old)
+3. External timetable segments (ferries) always show as "ok"
+4. Language-specific text returned based on app locale setting
+
+### Inline Disruptions (Stop Deviations)
+
+1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
+2. These are stored in `departureStore.stopDeviations` (site-mapped).
+3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
+4. Clicking the row expands to show the full disruption message(s).
+
+### Architecture Flow
+
+```
+User Route Change → App.svelte
+            ├─→ departureStore.startAutoRefresh()
+            │   ├─→ Check departureCache
+            │   ├─→ Fetch from slApi.ts (returns departures + stop_deviations)
+            │   ├─→ Update departureStore.data
+            │   ├─→ Update departureStore.stopDeviations
+            │   └─→ Merge & deduplicate departures
+            │
+            └─→ deviationStore.startAutoRefresh()
+                ├─→ Check deviationCache
+                └─→ Fetch from slDeviations.ts
 ```
 
 ## Settings Schema

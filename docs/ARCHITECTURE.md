@@ -12,7 +12,9 @@ Nästa is a frontend-only PWA that uses LocalStorage for persistence, SL Transpo
 User Route Change → App.svelte
                     ├─→ departureStore.startAutoRefresh()
                     │   ├─→ Check departureCache
-                    │   ├─→ Fetch from slApi.ts
+                    │   ├─→ Fetch from slApi.ts (returns departures + stop_deviations)
+                    │   ├─→ Update departureStore.data
+                    │   ├─→ Update departureStore.stopDeviations
                     │   └─→ Merge & deduplicate departures
                     │
                     └─→ deviationStore.startAutoRefresh()
@@ -143,6 +145,13 @@ Score computed as: `importance * 2 + influence + urgency`
 2. Cache failures fall back to last successful fetch (up to 6 hours old)
 3. External timetable segments (ferries) always show as "ok"
 4. Language-specific text returned based on app locale setting
+ 
+ ### Inline Disruptions (Stop Deviations)
+ 
+ 1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
+ 2. These are stored in `departureStore.stopDeviations` (site-mapped).
+ 3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
+ 4. Clicking the row expands to show the full disruption message(s).
 
 ## Commute Nudges
 
