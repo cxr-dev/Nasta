@@ -118,6 +118,45 @@ Score calculation: `importance * 2 + influence + urgency`
 - Score ≥ 5 or importance ≥ 3 → **warning**
 - Otherwise → **info**
 
+## SL Journey Planner API
+
+Base URL: `https://journeyplanner.integration.sl.se/v2`
+
+### Stop Finder
+
+`GET /stop-finder?name_sf={query}&any_obj_filter_sf=2&type_sf=any`
+
+Response shape:
+
+```json
+{
+  "locations": [
+    {
+      "coord": [59.320316, 18.072451],
+      "disassembledName": "Slussen",
+      "id": "9091001000009192",
+      "isBest": true,
+      "isGlobalId": true,
+      "matchQuality": 1000,
+      "name": "Stockholm, Slussen",
+      "productClasses": [2, 5, 9],
+      "properties": {
+        "mainLocality": "Stockholm",
+        "stopId": "18009192"
+      },
+      "type": "stop"
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> - This is the endpoint used for stop search in the app (not `transport.integration.sl.se/v1/sites`)
+> - `coord` is `[latitude, longitude]`
+> - `productClasses` is an array of integers representing transport modes served at this stop
+> - `properties.stopId` is the stop identifier used internally
+> - `isBest` and `matchQuality` can be used to rank or pre-select results
+
 ## LocalStorage Keys
 
 | Key                     | Type        | Example                              |
@@ -129,6 +168,30 @@ Score calculation: `importance * 2 + influence + urgency`
 ## TypeScript Types
 
 All TypeScript types are defined in `src/types/`:
+
+### Search Types
+
+```typescript
+interface StopFinderLocation {
+  coord: [number, number]; // [lat, lon]
+  disassembledName: string;
+  id: string;
+  isBest: boolean;
+  isGlobalId: boolean;
+  matchQuality: number;
+  name: string;
+  productClasses: number[];
+  properties: {
+    mainLocality: string;
+    stopId: string;
+  };
+  type: string;
+}
+
+interface StopFinderResponse {
+  locations: StopFinderLocation[];
+}
+```
 
 ### Route Types
 
