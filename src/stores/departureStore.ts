@@ -13,6 +13,7 @@ interface DepartureWithSource extends Departure {
 export interface SegmentCacheMeta {
   line: string;
   direction_code: number;
+  destId?: string;
 }
 
 function createDepartureStore() {
@@ -45,6 +46,7 @@ function createDepartureStore() {
       stopName: string;
       line: string;
       direction_code: number;
+      destId?: string;
     }>,
     clearFirst = false,
     direction: string | null = null,
@@ -131,6 +133,9 @@ function createDepartureStore() {
               const apiDepartures = await getDepartures(
                 seg.stopName,
                 seg.siteId,
+                seg.line,
+                seg.direction_code,
+                seg.destId,
               );
 
               // STALE RESPONSE CHECK: only update if this request ID still matches
@@ -205,6 +210,7 @@ function createDepartureStore() {
       stopName: stopNames.get(id) || "",
       line: segmentMetaBySiteId.get(id)?.line ?? "",
       direction_code: segmentMetaBySiteId.get(id)?.direction_code ?? 0,
+      destId: segmentMetaBySiteId.get(id)?.destId,
     }));
     await fetchAllHybrid(segmentData, clearFirst, direction, requestId);
   };

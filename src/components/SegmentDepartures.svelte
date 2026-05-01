@@ -209,10 +209,18 @@
           {#if hasDeparture}
             <div class="time-stack">
               <div class="primary-time">
-                <span class="minutes">{liveMinutes}</span>
-                <span class="unit">{$t.minutesShort}</span>
+                {#if departure.isFirstMorning}
+                  <span class="planned-label">{$t.morningFirst || "Morning first"}</span>
+                  <span class="clock-time">{departure.time}</span>
+                {:else}
+                  {#if departure.predicted}
+                    <span class="planned-label">{$t.planned || "Planned"}</span>
+                  {/if}
+                  <span class="minutes">{liveMinutes}</span>
+                  <span class="unit">{$t.minutesShort}</span>
+                {/if}
               </div>
-              {#if subsequent}
+              {#if subsequent && !departure.isFirstMorning}
                 <div class="secondary-time"><span class="more">{subsequent}</span></div>
               {/if}
             </div>
@@ -253,7 +261,9 @@
   .stop-route { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row-right { flex-shrink: 0; text-align: right; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-  .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; }
+  .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; position: relative; }
+  .planned-label { position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; opacity: 0.8; }
+  .clock-time { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 800; letter-spacing: -2px; color: var(--accent); }
   .minutes { font-family: "Neue Machina", sans-serif; font-size: 68px; font-weight: 800; letter-spacing: -4px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .unit { font-size: 16px; font-weight: 500; color: var(--accent); opacity: 0.5; padding-bottom: 10px; }
   .secondary-time { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }

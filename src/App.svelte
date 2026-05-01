@@ -95,7 +95,11 @@
       }));
       const segmentMetaBySiteId = new Map(currentRoute.segments.map(s => {
         const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
+        return [siteId, { 
+          line: s.line, 
+          direction_code: s.direction?.code ?? 0,
+          destId: s.toStop.siteId
+        }];
       }));
       // Pass request ID to prevent stale responses from overwriting current route
       departureStore.startAutoRefresh(
@@ -143,7 +147,11 @@
       }));
       const segmentMetaBySiteId = new Map(route.segments.map(s => {
         const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
+        return [siteId, { 
+          line: s.line, 
+          direction_code: s.direction?.code ?? 0,
+          destId: s.toStop.siteId
+        }];
       }));
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(
@@ -320,7 +328,11 @@ function handleRouteSwitch(routeId: string) {
     }));
     const segmentMetaBySiteId = new Map(route.segments.map(s => {
       const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
+      return [siteId, { 
+        line: s.line, 
+        direction_code: s.direction?.code ?? 0,
+        destId: s.toStop.siteId
+      }];
     }));
     try {
       await departureStore.refresh(
@@ -406,7 +418,11 @@ function handleRouteSwitch(routeId: string) {
           }));
           const segmentMetaBySiteId = new Map(route.segments.map(s => {
             const siteId = s.fromStop.siteId || s.toStop.siteId;
-          return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
+            return [siteId, { 
+              line: s.line, 
+              direction_code: s.direction?.code ?? 0,
+              destId: s.toStop.siteId
+            }];
           }));
           departureStore.refresh(
             siteIds,

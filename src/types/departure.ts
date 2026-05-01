@@ -20,7 +20,8 @@ export interface Departure {
   /** Raw display string from SL API — e.g., "Nu", "9 min", "01:22" */
   display?: string;
   /** Stop point ID from SL API */
-  stop_point_id?: string;
+  /** True when this is the first departure of the next traffic day (after a night gap). */
+  isFirstMorning?: boolean;
 }
 
 export interface SiteSearchResult {

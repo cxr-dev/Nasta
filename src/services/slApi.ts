@@ -4,8 +4,9 @@ import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
-const STOP_FINDER_URL =
-  "https://journeyplanner.integration.sl.se/v2/stop-finder";
+const JOURNEY_PLANNER_URL = "https://journeyplanner.integration.sl.se/v2";
+const STOP_FINDER_URL = `${JOURNEY_PLANNER_URL}/stop-finder`;
+const TRIP_URL = `${JOURNEY_PLANNER_URL}/trip`;
 const DEFAULT_FORECAST_MINUTES = 240;
 
 /**
@@ -269,6 +270,72 @@ export async function getDepartures(
       stop_point_id: dep.stop_point?.id ?? undefined,
     };
   });
+}
+
+
+export async function searchTrips(
+  originId: string,
+  destId: string,
+  time?: Date,
+): Promise<Departure[]> {
+  const dateStr = time ? toStockholmDateString(time.getTime()) : "";
+  const timeStr = time
+    ? time.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  let url = `${TRIP_URL}?originId=${originId}&destId=${destId}`;
+  if (dateStr) url += `&date=${dateStr}`;
+  if (timeStr) url += `&time=${timeStr}`;
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Trip API error: ${response.status}`);
+
+  const data = await response.json();
+  const trips = Array.isArray(data.trips) ? data.trips : [];
+
+  const results: Departure[] = [];
+
+  for (const trip of trips) {
+    // A trip has multiple legs. We look for legs that start at originId.
+    const legs = Array.isArray(trip.legs) ? trip.legs : [];
+    for (const leg of legs) {
+      if (globalIdToSiteId(leg.origin?.id || "") === originId) {
+        const liveTime = leg.origin?.time || "";
+        const parsedTime = liveTime ? parseSlTimestamp(`${leg.origin?.date || ""}T${liveTime}`) : NaN;
+
+        if (isNaN(parsedTime)) continue;
+
+        const minutes = Math.max(1, Math.ceil((parsedTime - Date.now()) / 60000));
+        
+        // Filter out past trips
+        if (minutes < 0) continue;
+
+        results.push({
+          line: leg.line?.designation || leg.line?.name || "",
+          lineName: leg.line?.name || "",
+          destination: leg.destination?.name || "",
+          direction_code: leg.direction?.code ?? 0,
+          minutes,
+          time: liveTime,
+          expectedAt: parsedTime,
+          transportType: getTransportType(leg.transport_mode),
+          predicted: true, // Marked as planned
+          stop_point_id: leg.origin?.stopPoint?.id,
+        });
+      }
+    }
+  }
+
+  return results.sort((a, b) => a.minutes - b.minutes);
+}
+
+function toStockholmDateString(ts: number): string {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ts));
 }
 
 function formatTime(date: Date): string {

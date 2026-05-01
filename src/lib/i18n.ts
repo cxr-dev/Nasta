@@ -41,6 +41,8 @@ const sv = {
   transferBuffer: 'Bytestid',
   transferBufferDesc: 'Minuter till nästa segment',
   minutesShort: 'min',
+  planned: 'Planerad',
+  morningFirst: 'Morgonens första',
 
   // SegmentList
   addSegmentHint: 'Lägg till resesegment nedan',
@@ -189,6 +191,8 @@ const en: typeof sv = {
   transferBuffer: 'Transfer buffer',
   transferBufferDesc: 'Minutes before next segment',
   minutesShort: 'min',
+  planned: 'Planned',
+  morningFirst: 'Morning first',
 
   addSegmentHint: 'Add travel segments below',
   remove: 'Remove',
