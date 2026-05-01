@@ -60,6 +60,29 @@ function createRouteStore() {
       });
     },
 
+    duplicateRoute: (routeId: string): Omit<Route, "id"> | null => {
+      const routes = get({ subscribe });
+      const route = routes.find((r) => r.id === routeId);
+      if (!route) return null;
+
+      // Reverse segments and swap from/to stops
+      const reversedSegments: Omit<Segment, "id">[] = [...route.segments].reverse().map(seg => ({
+        line: seg.line,
+        lineName: seg.lineName,
+        direction: seg.direction, // Will be overridden by UI confirmation
+        fromStop: seg.toStop,
+        toStop: seg.fromStop,
+        transportType: seg.transportType,
+        transferBufferMinutes: seg.transferBufferMinutes,
+      }));
+
+      return {
+        name: route.name,
+        direction: route.direction === "toWork" ? "fromWork" : "toWork",
+        segments: reversedSegments as Segment[], // Typescript might complain, but segments will be added properly later or ids generated
+      };
+    },
+
     removeSegment: (routeId: string, segmentId: string) => {
       update((routes) => {
         const route = routes.find((r) => r.id === routeId);

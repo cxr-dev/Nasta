@@ -16,11 +16,11 @@ describe("departureStore cache key wiring", () => {
     vi.clearAllMocks();
   });
 
-  it("uses siteId + line + directionText for cached schedule lookups", async () => {
+  it("uses siteId + line + direction_code for cached schedule lookups", async () => {
     await departureStore.refresh(
       ["1001"],
       new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", directionText: "Mörby centrum" }]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
       "toWork",
     );
@@ -28,7 +28,7 @@ describe("departureStore cache key wiring", () => {
     expect(getCachedSchedule).toHaveBeenCalledWith(
       "1001",
       "14",
-      "Mörby centrum",
+      1,
       24,
     );
     expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001");
@@ -50,7 +50,7 @@ describe("departureStore - request identity and stale response filtering", () =>
     await departureStore.refresh(
       ["1001"],
       new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", directionText: "Home" }]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
       "home", // direction
       requestId1, // requestId
@@ -61,7 +61,7 @@ describe("departureStore - request identity and stale response filtering", () =>
     await departureStore.refresh(
       ["1002"],
       new Map([["1002", "Work"]]),
-      new Map([["1002", { line: "3", directionText: "Work" }]]),
+      new Map([["1002", { line: "3", direction_code: 2 }]]),
       true,
       "work", // direction
       requestId2, // requestId
@@ -84,7 +84,7 @@ describe("departureStore - request identity and stale response filtering", () =>
               line: "14",
               lineName: "14",
               destination: "Home",
-              directionText: "Home",
+              direction_code: 1,
               minutes: 5,
               time: "08:15",
               transportType: "bus" as const,
@@ -101,7 +101,7 @@ describe("departureStore - request identity and stale response filtering", () =>
               line: "3",
               lineName: "3",
               destination: "Work",
-              directionText: "Work",
+              direction_code: 2,
               minutes: 10,
               time: "08:20",
               transportType: "bus" as const,
@@ -134,7 +134,7 @@ describe("departureStore - request identity and stale response filtering", () =>
     await departureStore.refresh(
       ["1001"],
       new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", directionText: "Home" }]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
       false, // Don't clear yet
       "home",
       requestId1,
@@ -144,7 +144,7 @@ describe("departureStore - request identity and stale response filtering", () =>
     await departureStore.refresh(
       ["1002"],
       new Map([["1002", "Work"]]),
-      new Map([["1002", { line: "3", directionText: "Work" }]]),
+      new Map([["1002", { line: "3", direction_code: 2 }]]),
       true, // Clear first
       "work",
       requestId2,
@@ -169,7 +169,7 @@ describe("departureStore - request identity and stale response filtering", () =>
     await departureStore.refresh(
       ["1001"],
       new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", directionText: "Home" }]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
       "home",
       requestId1,

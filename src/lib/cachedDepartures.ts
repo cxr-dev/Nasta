@@ -11,7 +11,8 @@ import type { TransportType } from "../types/route";
 export interface CachedDepartureParams {
   siteId: string;
   line: string;
-  directionText: string;
+  direction_code: number;
+  directionText?: string;
   transportType?: TransportType;
   lineName?: string;
   maxResults?: number;
@@ -31,7 +32,8 @@ export function generateCachedDepartures(
   const {
     siteId,
     line,
-    directionText,
+    direction_code,
+    directionText = "",
     transportType = "bus",
     lineName = "",
     maxResults = 5,
@@ -52,8 +54,8 @@ export function generateCachedDepartures(
       return {
         line,
         lineName,
-        destination: directionText,
-        directionText,
+        destination: directionText || "",
+        direction_code,
         minutes,
         time: timeStr,
         transportType,

@@ -22,7 +22,7 @@ const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface CacheEntry {
   line: string;
-  directionText: string;
+  direction_code: number;
   /** ISO timestamps of scheduled departures */
   scheduledTimes: string[];
   /** Timestamp when this schedule was last updated */
@@ -39,9 +39,9 @@ type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionTex
 function getCacheKey(
   siteId: string,
   line: string,
-  directionText: string,
+  direction_code: number,
 ): string {
-  return `${siteId}|${line}|${directionText}`;
+  return `${siteId}|${line}|${direction_code}`;
 }
 
 /**
@@ -53,7 +53,8 @@ function loadCache(): CacheStore {
     if (!raw) return {};
     return JSON.parse(raw) as CacheStore;
   } catch (e) {
-    if (import.meta.env.DEV) console.warn("[scheduleCache] Error loading cache:", e);
+    if (import.meta.env.DEV)
+      console.warn("[scheduleCache] Error loading cache:", e);
     return {};
   }
 }
@@ -67,14 +68,16 @@ function saveCache(cache: CacheStore): void {
     const sizeKB = new Blob([json]).size / 1024;
 
     if (sizeKB > COMPRESSION_THRESHOLD_KB) {
-      if (import.meta.env.DEV) console.warn(
-        `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`,
-      );
+      if (import.meta.env.DEV)
+        console.warn(
+          `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`,
+        );
     }
 
     localStorage.setItem(CACHE_STORAGE_KEY, json);
   } catch (e) {
-    if (import.meta.env.DEV) console.error("[scheduleCache] Error saving cache:", e);
+    if (import.meta.env.DEV)
+      console.error("[scheduleCache] Error saving cache:", e);
   }
 }
 
@@ -85,18 +88,18 @@ function saveCache(cache: CacheStore): void {
 export function cacheScheduleTime(
   siteId: string,
   line: string,
-  directionText: string,
+  direction_code: number,
   scheduledTime: Date,
 ): void {
-  if (!siteId || !line || !directionText) return;
+  if (!siteId || !line) return;
 
   const cache = loadCache();
-  const key = getCacheKey(siteId, line, directionText);
+  const key = getCacheKey(siteId, line, direction_code);
 
   if (!cache[key]) {
     cache[key] = {
       line,
-      directionText,
+      direction_code,
       scheduledTimes: [],
       updatedAt: Date.now(),
       validDate: new Date().toISOString().split("T")[0],
@@ -133,13 +136,13 @@ const MAX_CACHED_MINUTES = 24 * 60; // 24 hours (handles overnight schedules)
 export function getCachedSchedule(
   siteId: string,
   line: string,
-  directionText: string,
+  direction_code: number,
   maxAgeHours: number = 24,
 ): Departure[] | null {
-  if (!siteId || !line || !directionText) return null;
+  if (!siteId || !line) return null;
 
   const cache = loadCache();
-  const key = getCacheKey(siteId, line, directionText);
+  const key = getCacheKey(siteId, line, direction_code);
   const entry = cache[key];
 
   if (!entry) return null;
@@ -149,9 +152,10 @@ export function getCachedSchedule(
   const ageHours = ageMs / (1000 * 60 * 60);
 
   if (ageHours > maxAgeHours) {
-    if (import.meta.env.DEV) console.log(
-      `[scheduleCache] Cache for ${key} is ${ageHours.toFixed(1)}h old (max: ${maxAgeHours}h)`,
-    );
+    if (import.meta.env.DEV)
+      console.log(
+        `[scheduleCache] Cache for ${key} is ${ageHours.toFixed(1)}h old (max: ${maxAgeHours}h)`,
+      );
     return null;
   }
 
@@ -173,12 +177,15 @@ export function getCachedSchedule(
         timeZone: "Europe/Stockholm",
       });
       const expectedAt = departureTime.getTime();
-      const calculatedMinutes = Math.max(0, Math.floor((expectedAt - now) / 60000));
+      const calculatedMinutes = Math.max(
+        0,
+        Math.floor((expectedAt - now) / 60000),
+      );
       return {
         line,
         lineName: "",
-        destination: directionText,
-        directionText,
+        destination: "",
+        direction_code,
         minutes: calculatedMinutes,
         time,
         expectedAt,
@@ -211,7 +218,8 @@ export function clearExpiredCache(maxAgeHours: number = 48): void {
 
   if (clearedCount > 0) {
     saveCache(cache);
-    if (import.meta.env.DEV) console.log(`[scheduleCache] Cleared ${clearedCount} expired entries`);
+    if (import.meta.env.DEV)
+      console.log(`[scheduleCache] Cleared ${clearedCount} expired entries`);
   }
 }
 

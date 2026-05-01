@@ -38,6 +38,38 @@ describe('storage service', () => {
       saveRoutes(routes);
       expect(localStorage.getItem('nasta_routes')).toBe(JSON.stringify(routes));
     });
+
+    it('migrates legacy routes with directionText to direction object', () => {
+      const legacyRoutes = [{
+        id: '1',
+        name: 'Arbete',
+        direction: 'toWork' as const,
+        segments: [{
+          id: 's1',
+          line: '76',
+          lineName: '76',
+          directionText: 'Norra Hammarbyhamnen',
+          fromStop: { id: 'f', name: 'From', siteId: '100' },
+          toStop: { id: 't', name: 'To', siteId: '300' },
+          transportType: 'bus' as const
+        }]
+      }];
+      
+      localStorage.setItem('nasta_routes', JSON.stringify(legacyRoutes));
+      
+      const loaded = loadRoutes();
+      expect(loaded[0].segments[0].direction).toEqual({
+        code: 1,
+        destination: 'Norra Hammarbyhamnen',
+        stopPointId: ''
+      });
+      // @ts-ignore
+      expect(loaded[0].segments[0].directionText).toBeUndefined();
+      
+      // Verify it was saved back to localStorage migrated
+      const stored = JSON.parse(localStorage.getItem('nasta_routes')!);
+      expect(stored[0].segments[0].direction.destination).toBe('Norra Hammarbyhamnen');
+    });
   });
 
   describe('settings', () => {

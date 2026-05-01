@@ -25,7 +25,7 @@ describe("scheduleCache service", () => {
     it("should cache a single scheduled time", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
       const scheduledTime = new Date("2026-04-15T14:30:00Z");
 
       cacheScheduleTime(siteId, line, direction, scheduledTime);
@@ -39,7 +39,7 @@ describe("scheduleCache service", () => {
     it("should accumulate multiple scheduled times", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
 
       cacheScheduleTime(
         siteId,
@@ -67,7 +67,7 @@ describe("scheduleCache service", () => {
     it("should filter out past times when retrieving cached schedule", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
       const now = Date.now();
 
       // Cache 1 hour ago (should be filtered)
@@ -87,7 +87,7 @@ describe("scheduleCache service", () => {
     it("should deduplicate identical scheduled times", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
       const time = new Date("2026-04-15T14:30:00Z");
 
       cacheScheduleTime(siteId, line, direction, time);
@@ -105,18 +105,18 @@ describe("scheduleCache service", () => {
       cacheScheduleTime(
         siteId,
         line,
-        "Fruängen",
+        1,
         new Date("2026-04-15T14:30:00Z"),
       );
       cacheScheduleTime(
         siteId,
         line,
-        "Ropsten",
+        2,
         new Date("2026-04-15T15:00:00Z"),
       );
 
-      const fruångenCache = getCachedSchedule(siteId, line, "Fruängen");
-      const ropstenCache = getCachedSchedule(siteId, line, "Ropsten");
+      const fruångenCache = getCachedSchedule(siteId, line, 1);
+      const ropstenCache = getCachedSchedule(siteId, line, 2);
 
       expect(fruångenCache?.length).toBe(1);
       expect(ropstenCache?.length).toBe(1);
@@ -127,14 +127,14 @@ describe("scheduleCache service", () => {
 
   describe("getCachedSchedule", () => {
     it("should return null if no cache exists", () => {
-      const cached = getCachedSchedule("9999", "99", "Nowhere");
+      const cached = getCachedSchedule("9999", "99", 0);
       expect(cached).toBeNull();
     });
 
     it("should return cached departures as Departure[] format", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
 
       cacheScheduleTime(
         siteId,
@@ -153,7 +153,7 @@ describe("scheduleCache service", () => {
     it("should respect maxAgeHours parameter", () => {
       const siteId = "1001";
       const line = "76";
-      const direction = "Fruängen";
+      const direction = 1;
 
       // Store a time from yesterday (relative to TEST_NOW)
       const yesterdayTime = new Date(TEST_NOW - 30 * 60 * 60 * 1000);
@@ -177,19 +177,19 @@ describe("scheduleCache service", () => {
 
       // Store old entry
       vi.useFakeTimers({ now: new Date("2026-04-10").getTime() });
-      cacheScheduleTime(siteId, line, "Old", new Date("2026-04-10T14:30:00Z"));
+      cacheScheduleTime(siteId, line, 1, new Date("2026-04-10T14:30:00Z"));
 
       // Move time forward
       vi.setSystemTime(new Date("2026-04-12").getTime());
 
       // Store new entry
-      cacheScheduleTime(siteId, line, "New", new Date("2026-04-12T14:30:00Z"));
+      cacheScheduleTime(siteId, line, 2, new Date("2026-04-12T14:30:00Z"));
 
       // Clear entries older than 24 hours
       clearExpiredCache(24);
 
-      const oldCache = getCachedSchedule(siteId, line, "Old");
-      const newCache = getCachedSchedule(siteId, line, "New");
+      const oldCache = getCachedSchedule(siteId, line, 1);
+      const newCache = getCachedSchedule(siteId, line, 2);
 
       expect(oldCache).toBeNull(); // Old entry should be cleared
       expect(newCache).not.toBeNull(); // New entry should remain
@@ -200,9 +200,9 @@ describe("scheduleCache service", () => {
 
   describe("getCacheStats", () => {
     it("should return cache statistics", () => {
-      cacheScheduleTime("1001", "76", "A", new Date("2026-04-15T14:30:00Z"));
-      cacheScheduleTime("1001", "76", "B", new Date("2026-04-15T14:30:00Z"));
-      cacheScheduleTime("1002", "77", "C", new Date("2026-04-15T14:30:00Z"));
+      cacheScheduleTime("1001", "76", 1, new Date("2026-04-15T14:30:00Z"));
+      cacheScheduleTime("1001", "76", 2, new Date("2026-04-15T14:30:00Z"));
+      cacheScheduleTime("1002", "77", 3, new Date("2026-04-15T14:30:00Z"));
 
       const stats = getCacheStats();
       expect(stats.entries).toBe(3);
@@ -218,8 +218,8 @@ describe("scheduleCache service", () => {
 
   describe("clearAllCache", () => {
     it("should clear all cached data", () => {
-      cacheScheduleTime("1001", "76", "A", new Date("2026-04-15T14:30:00Z"));
-      cacheScheduleTime("1001", "76", "B", new Date("2026-04-15T14:30:00Z"));
+      cacheScheduleTime("1001", "76", 1, new Date("2026-04-15T14:30:00Z"));
+      cacheScheduleTime("1001", "76", 2, new Date("2026-04-15T14:30:00Z"));
 
       clearAllCache();
 

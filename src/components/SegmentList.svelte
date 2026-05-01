@@ -121,7 +121,7 @@
           <div class="segment-route">
             {segment.fromStop.name} → {segment.toStop.name}
           </div>
-          <div class="segment-dir">{segment.directionText}</div>
+          <div class="segment-dir">{segment.direction?.destination}</div>
           {#if index < route.segments.length - 1}
             <label class="buffer-row">
               <span class="buffer-label">{$t.transferBuffer}</span>

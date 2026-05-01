@@ -1,6 +1,6 @@
-export type TransportType = 'bus' | 'train' | 'metro' | 'boat';
+export type TransportType = "bus" | "train" | "metro" | "boat";
 
-export type Direction = 'toWork' | 'fromWork';
+export type RouteDirection = "toWork" | "fromWork";
 
 export interface Stop {
   id: string;
@@ -8,11 +8,17 @@ export interface Stop {
   siteId: string;
 }
 
+export interface SegmentDirection {
+  code: number;
+  destination: string;
+  stopPointId: string;
+}
+
 export interface Segment {
   id: string;
   line: string;
   lineName: string;
-  directionText: string;
+  direction: SegmentDirection;
   fromStop: Stop;
   toStop: Stop;
   transportType: TransportType;
@@ -23,6 +29,9 @@ export interface Segment {
 export interface Route {
   id: string;
   name: string;
-  direction: Direction;
+  direction: RouteDirection;
   segments: Segment[];
 }
+
+// Backwards compatibility export
+export type Direction = RouteDirection;

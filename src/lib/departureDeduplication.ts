@@ -4,19 +4,6 @@ import type { Departure } from "../types/departure";
 const DEPARTURE_SLOT_WINDOW_MS = 90_000; // 90 seconds
 
 /**
- * Normalize direction text for deduplication.
- * Converts to lowercase and removes accents to match variations like:
- * "Norra Hammarbyhamnen" == "norra hammarbyhamnen"
- */
-function normalizeDirection(direction: string | undefined): string {
-  if (!direction) return "";
-  return direction
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-/**
  * Get the time slot for a departure.
  * Uses expectedAt (live) if available, otherwise uses time.
  * Time slots are rounded to DEPARTURE_SLOT_WINDOW_MS windows.
@@ -39,7 +26,7 @@ function getTimeSlot(dep: Departure): number {
 
 /**
  * Create a stable deduplication key for a departure.
- * Key structure: `siteId:line:normalizedDirection:timeSlot`
+ * Key structure: `siteId:line:directionCode:timeSlot`
  *
  * This key uniquely identifies a departure slot. Multiple departures
  * (live vs predicted) with the same key are considered duplicates.
@@ -48,10 +35,9 @@ export function createDepartureDeduplicationKey(
   siteId: string,
   dep: Departure,
 ): string {
-  const normalizedDir = normalizeDirection(dep.directionText);
   const timeSlot = getTimeSlot(dep);
 
-  return `${siteId}:${dep.line}:${normalizedDir}:${timeSlot}`;
+  return `${siteId}:${dep.line}:${dep.direction_code}:${timeSlot}`;
 }
 
 /**

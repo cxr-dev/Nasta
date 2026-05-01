@@ -136,6 +136,17 @@ const sv = {
   duplicateReturnRoute: 'Duplicera som returrutt',
   createFirstRoute: 'Skapa första rutt',
 
+  // Direction selector
+  selectDirection: 'Välj riktning',
+  confirm: 'Bekräfta',
+
+  // Create return trip
+  createReturnTrip: 'Skapa returresa',
+  from: 'från',
+
+  // No departures
+  noDeparturesAvailable: 'Inga avgångar hittades',
+
   // Attribution
   attribution: 'Trafikdata via',
 };
@@ -266,6 +277,18 @@ const en: typeof sv = {
   duplicateReturnRoute: 'Duplicate as return route',
   createFirstRoute: 'Create first route',
 
+  // Direction selector
+  selectDirection: 'Select direction',
+  confirm: 'Confirm',
+
+  // Create return trip
+  createReturnTrip: 'Create return trip',
+  from: 'from',
+
+  // No departures
+  noDeparturesAvailable: 'No departures found',
+
+  // Attribution
   attribution: 'Transit data via',
 };
 

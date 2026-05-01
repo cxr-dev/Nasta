@@ -39,7 +39,7 @@ interface PatternStopStats {
 
 interface StopPatternEntry {
   line: string;
-  directionText: string;
+  direction_code: number;
   pickupStopSiteId: string;
   updatedAt: number;
   sampleCount: number;
@@ -48,8 +48,12 @@ interface StopPatternEntry {
 
 const stopPatternCache = new Map<string, StopPatternEntry>();
 
-function patternKey(line: string, directionText: string, pickupStopSiteId: string): string {
-  return `${line}|${directionText}|${pickupStopSiteId}`;
+function patternKey(
+  line: string,
+  direction_code: number,
+  pickupStopSiteId: string,
+): string {
+  return `${line}|${direction_code}|${pickupStopSiteId}`;
 }
 
 function median(values: number[]): number {
@@ -105,7 +109,7 @@ export function cacheKey(
     : toStockholmDateString(now);
 
   const segmentId = segment
-    ? `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`
+    ? `${segment.fromStop.siteId}|${segment.line}|${segment.direction?.code || "unknown"}`
     : "unknown";
 
   return `synth:${segmentId}:${timeKey}`;
@@ -150,7 +154,8 @@ function unavailableData(
     availability: "unavailable",
     source: "none",
     confidence: "low",
-    destination: segment.directionText || departure.destination || segment.toStop.name,
+    destination:
+      departure.destination || segment.direction?.destination || segment.toStop.name,
     pickupStopIndex: 1,
     reason,
   };
@@ -197,6 +202,50 @@ async function fetchWithTimeout(url: string): Promise<Response> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchFromApiWithRetry(
+  journeyRef: string,
+): Promise<JourneyStop[] | null> {
+  const maxRetries = 3;
+  const backoffs = [500, 1000, 2000]; // ms
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await fetchFromApi(journeyRef);
+      if (result !== null) {
+        return result;
+      }
+      // If result is null, it means the API returned no data
+      // Try again with backoff
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, backoffs[attempt]));
+      }
+    } catch (e) {
+      lastError = e as Error;
+      if (attempt < maxRetries - 1) {
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[Journey Service] Retry attempt ${attempt + 1}/${maxRetries} after error:`,
+            e,
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, backoffs[attempt]));
+      }
+    }
+  }
+
+  // All retries exhausted
+  if (lastError) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[Journey Service] Journey fetch failed after ${maxRetries} attempts for ${journeyRef}:`,
+        lastError,
+      );
+    }
+  }
+  return null;
 }
 
 async function fetchFromApi(journeyRef: string): Promise<JourneyStop[] | null> {
@@ -314,7 +363,7 @@ function normaliseJourneyStops(
   const destination =
     orientedDropoffIdx >= 0
       ? oriented[orientedDropoffIdx].name
-      : segment.directionText || segment.toStop.name;
+      : segment.direction?.destination || segment.toStop.name;
 
   return {
     stops: oriented,
@@ -333,9 +382,12 @@ function learnStopPatternFromLiveJourney(
   data: JourneyData,
 ): void {
   if (data.availability !== "live") return;
-  if (!departure.line || !departure.directionText || !segment.fromStop.siteId) return;
+  if (!departure.line || departure.direction_code === undefined || !segment.fromStop.siteId)
+    return;
 
-  const pickupIdx = data.pickupStopIndex ?? data.stops.findIndex((s) => stopMatches(s, segment.fromStop));
+  const pickupIdx =
+    data.pickupStopIndex ??
+    data.stops.findIndex((s) => stopMatches(s, segment.fromStop));
   if (pickupIdx < 0) return;
   const pickupScheduledAt = data.stops[pickupIdx]?.scheduledAt;
   if (pickupScheduledAt === undefined) return;
@@ -360,13 +412,17 @@ function learnStopPatternFromLiveJourney(
     .slice(0, MAX_PATTERN_STOPS);
   if (!boundedSample.length) return;
 
-  const key = patternKey(departure.line, departure.directionText, segment.fromStop.siteId);
+  const key = patternKey(
+    departure.line,
+    departure.direction_code,
+    segment.fromStop.siteId,
+  );
   const now = Date.now();
   const existing = stopPatternCache.get(key);
   if (!existing || !isPatternFresh(existing, now)) {
     stopPatternCache.set(key, {
       line: departure.line,
-      directionText: departure.directionText,
+      direction_code: departure.direction_code,
       pickupStopSiteId: segment.fromStop.siteId,
       updatedAt: now,
       sampleCount: 1,
@@ -378,7 +434,10 @@ function learnStopPatternFromLiveJourney(
   for (const sampled of boundedSample) {
     const matched = existing.stops.find((s) => samePatternStop(s, sampled));
     if (matched) {
-      matched.offsetSamplesSec = trimSamples([...matched.offsetSamplesSec, sampled.offsetSamplesSec[0]]);
+      matched.offsetSamplesSec = trimSamples([
+        ...matched.offsetSamplesSec,
+        sampled.offsetSamplesSec[0],
+      ]);
       if (!matched.name && sampled.name) matched.name = sampled.name;
       if (!matched.siteId && sampled.siteId) matched.siteId = sampled.siteId;
     } else {
@@ -398,19 +457,26 @@ function buildJourneyFromPattern(
   segment: Segment,
   departure: Departure,
 ): JourneyData | null {
-  if (!departure.line || !departure.directionText || !segment.fromStop.siteId) {
+  if (!departure.line || departure.direction_code === undefined || !segment.fromStop.siteId) {
     return null;
   }
-  const key = patternKey(departure.line, departure.directionText, segment.fromStop.siteId);
+  const key = patternKey(
+    departure.line,
+    departure.direction_code,
+    segment.fromStop.siteId,
+  );
   const entry = stopPatternCache.get(key);
   const now = Date.now();
   if (!entry || !isPatternFresh(entry, now)) return null;
 
-  const sortedStops = [...entry.stops].sort((a, b) => a.relativeIndex - b.relativeIndex);
+  const sortedStops = [...entry.stops].sort(
+    (a, b) => a.relativeIndex - b.relativeIndex,
+  );
   const pickupPatternIdx = sortedStops.findIndex((s) => s.relativeIndex === 0);
   if (pickupPatternIdx < 0 || sortedStops.length < 2) return null;
 
-  const expectedAtOurStop = departure.expectedAt ?? (now + departure.minutes * 60_000);
+  const expectedAtOurStop =
+    departure.expectedAt ?? now + departure.minutes * 60_000;
   const stops: JourneyStop[] = sortedStops.map((stop, idx) => ({
     idx,
     name: stop.name,
@@ -418,7 +484,10 @@ function buildJourneyFromPattern(
     scheduledAt: expectedAtOurStop + median(stop.offsetSamplesSec) * 1000,
   }));
 
-  const destination = sortedStops[sortedStops.length - 1]?.name || segment.directionText || departure.destination;
+  const destination =
+    sortedStops[sortedStops.length - 1]?.name ||
+    segment.direction?.destination ||
+    departure.destination;
   return {
     stops,
     availability: "scheduled",
@@ -451,7 +520,7 @@ export async function fetchJourneyStops(
   let data: JourneyData;
 
   if (journeyRef) {
-    const stops = await fetchFromApi(journeyRef);
+    const stops = await fetchFromApiWithRetry(journeyRef);
     if (stops && stops.length > 0) {
       const normalised = normaliseJourneyStops(stops, segment);
       if (normalised) {
@@ -463,7 +532,7 @@ export async function fetchJourneyStops(
           unavailableData(segment, departure, "direction_mismatch");
       }
     } else {
-      const reason = stops === null ? "404" : "empty";
+      const reason = stops === null ? "retry_exhausted" : "empty";
       data =
         buildJourneyFromPattern(segment, departure) ??
         unavailableData(segment, departure, reason);

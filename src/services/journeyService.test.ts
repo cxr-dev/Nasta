@@ -80,7 +80,7 @@ describe("fetchJourneyStops", () => {
     id: "seg-1",
     line: "76",
     lineName: "76",
-    directionText: "Norra Hammarbyhamnen",
+    direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
     fromStop: { id: "from", name: "Lindarängsvägen", siteId: "100" },
     toStop: { id: "to", name: "Norra Hammarbyhamnen", siteId: "300" },
     transportType: "bus",
@@ -90,7 +90,7 @@ describe("fetchJourneyStops", () => {
     line: "76",
     lineName: "76",
     destination: "Norra Hammarbyhamnen",
-    directionText: "Norra Hammarbyhamnen",
+    direction_code: 1,
     minutes: 4,
     time: "16:30",
     transportType: "bus",
@@ -262,11 +262,16 @@ describe("fetchJourneyStops", () => {
       expectedAt,
     });
 
-    const fallback = await fetchJourneyStops("journey-failing", segment, {
+    const fallbackPromise = fetchJourneyStops("journey-failing", segment, {
       ...departure,
       journeyRef: "journey-failing",
       expectedAt: expectedAt + 60_000,
     });
+
+    // Advance timers for retries (500 + 1000 + 2000 ms)
+    await vi.advanceTimersByTimeAsync(5000);
+
+    const fallback = await fallbackPromise;
 
     expect(fallback.availability).toBe("scheduled");
     expect(fallback.source).toBe("pattern_schedule");
@@ -281,7 +286,7 @@ describe("cacheKey", () => {
     id: "seg-1",
     line: "76",
     lineName: "76",
-    directionText: "Norra Hammarbyhamnen",
+    direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
     fromStop: { id: "from", name: "Lindarängsvägen", siteId: "100" },
     toStop: { id: "to", name: "Norra Hammarbyhamnen", siteId: "300" },
     transportType: "bus",
@@ -301,7 +306,7 @@ describe("cacheKey", () => {
     const expectedAt = now + 10 * 60_000; // 10 min from now
     const departure: CacheKeyDeparture = { expectedAt };
     const key = cacheKey(undefined, undefined, segment, now, departure);
-    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`;
+    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.direction?.code || "unknown"}`;
     const timeKey = Math.floor(expectedAt / 60000).toString();
     expect(key).toBe(`synth:${segmentId}:${timeKey}`);
   });
@@ -309,7 +314,7 @@ describe("cacheKey", () => {
   it("falls back to date string when departure lacks expectedAt", () => {
     const departure: CacheKeyDeparture = {};
     const key = cacheKey(undefined, undefined, segment, now, departure);
-    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.directionText || "unknown"}`;
+    const segmentId = `${segment.fromStop.siteId}|${segment.line}|${segment.direction?.code || "unknown"}`;
     expect(key).toBe(`synth:${segmentId}:${toStockholmDateString(now)}`);
   });
 });

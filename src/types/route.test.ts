@@ -12,7 +12,7 @@ describe('Route type', () => {
           id: 's1',
           line: '76',
           lineName: 'Buss 76',
-          directionText: 'mot Norra Hammarbyhamnen',
+          direction: { code: 1, destination: 'mot Norra Hammarbyhamnen', stopPointId: '123' },
           fromStop: { id: '1', name: 'Lindarängsvägen', siteId: '9001' },
           toStop: { id: '2', name: 'Kungsträdgården', siteId: '9002' },
           transportType: 'bus'

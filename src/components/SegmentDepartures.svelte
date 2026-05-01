@@ -65,7 +65,7 @@
     const predicted = getPredictedDepartures(
       segment.fromStop.siteId,
       segment.line,
-      segment.directionText,
+      segment.direction?.code ?? 0,
       5,
     );
 
@@ -74,7 +74,7 @@
     const live = allDeps.filter(
       (dep) =>
         dep.line === segment.line &&
-        (dep.directionText === segment.directionText ||
+        (dep.destination === segment.direction?.destination ||
           dep.destination === segment.toStop.name),
     );
 
@@ -110,7 +110,7 @@
     const siteIds = segments.map((s) => s.fromStop.siteId).filter(Boolean);
     const stopNames = new Map(segments.map((s) => [s.fromStop.siteId, s.fromStop.name]));
     const segmentMetaBySiteId = new Map(
-      segments.map((s) => [s.fromStop.siteId, { line: s.line, directionText: s.directionText }]),
+      segments.map((s) => [s.fromStop.siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }]),
     );
     isRefreshing = true;
     await departureStore.refresh(siteIds, stopNames, segmentMetaBySiteId, false);
@@ -201,7 +201,7 @@
 
           <div class="line-details">
             <span class="line-info">{segment.lineName || segment.line}</span>
-            <span class="stop-route">{segment.fromStop.name} → {segment.directionText}</span>
+            <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
           </div>
         </div>
 

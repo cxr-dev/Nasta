@@ -11,6 +11,10 @@ export default defineConfig({
     baseURL: 'http://localhost:4173/Nasta/',
     trace: 'on',
     screenshot: 'on',
+    // Block service workers so Playwright's page.route() mocks work correctly.
+    // The VitePWA service worker (active in preview builds) would otherwise intercept
+    // fetch calls to transport.integration.sl.se before Playwright can mock them.
+    serviceWorkers: 'block',
   },
   projects: [
     {

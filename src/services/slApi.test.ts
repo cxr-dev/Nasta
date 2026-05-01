@@ -93,7 +93,7 @@ describe("slApi service", () => {
           {
             line: { designation: "76" },
             destination: "Test",
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T08:04:00", // Stockholm time 08:04 = UTC 07:04
             scheduled: "2024-01-01T08:00:00",
           },
@@ -108,9 +108,9 @@ describe("slApi service", () => {
       expect(result).toHaveLength(1);
       expect(result[0].line).toBe("76");
       // Parsed time 07:04 UTC, now is 08:00:30 UTC
-      // Minutes = (07:04 - 08:00:30) / 60 = negative, clamped to 0
-      // This shows the timestamp is in the past
-      expect(result[0].minutes).toBe(0);
+      // Minutes = Math.max(1, Math.ceil((07:04 - 08:00:30) / 60)) = 1
+      // This shows the timestamp is in the past, but we never show 0 or negative
+      expect(result[0].minutes).toBe(1);
     });
 
     it("correctly handles future departures", async () => {
@@ -124,7 +124,7 @@ describe("slApi service", () => {
           {
             line: { designation: "76" },
             destination: "Test",
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T09:10:00", // Stockholm time 09:10 = UTC 08:10
             scheduled: "2024-01-01T09:00:00",
           },
@@ -138,8 +138,8 @@ describe("slApi service", () => {
       const result = await getDepartures("9001");
       expect(result).toHaveLength(1);
       // Parsed time 08:10 UTC, now is 08:00:30 UTC
-      // Minutes = (08:10 - 08:00:30) / 60 ≈ 9.58 → 9 minutes
-      expect(result[0].minutes).toBe(9);
+      // Minutes = Math.ceil((08:10 - 08:00:30) / 60) = Math.ceil(9.5) = 10
+      expect(result[0].minutes).toBe(10);
     });
 
     it("extracts journeyRef and tripId from API response", async () => {
@@ -148,7 +148,7 @@ describe("slApi service", () => {
           {
             line: { designation: "76", name: "76", transport_mode: "bus" },
             destination: "Test",
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T10:00:00",
             journey: { id: "journey-xyz" },
             trip: { id: "trip-123" },
@@ -209,26 +209,26 @@ describe("slApi service", () => {
           {
             line: { designation: "76" },
             destination: "Test",
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T10:00:00",
           },
           // Invalid - missing line
           {
             destination: "Test",
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T10:05:00",
           },
           // Invalid - missing destination
           {
             line: { designation: "2" },
-            direction: "Test direction",
+            direction_code: 1,
             expected: "2024-01-01T10:10:00",
           },
           // Valid
           {
             line: { designation: "2" },
             destination: "Test2",
-            direction: "Test direction 2",
+            direction_code: 2,
             expected: "2024-01-01T10:15:00",
           },
         ],

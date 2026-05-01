@@ -37,13 +37,28 @@ test.describe("Nästa App", () => {
       localStorage.setItem("nasta_routes", JSON.stringify(defaultRoutes));
     });
     await page.goto("/");
+    
+    // Disable CSS transitions to avoid Playwright waiting for animations or elements outside viewport
+    await page.addStyleTag({
+      content: `
+        *, *::before, *::after {
+          transition: none !important;
+          animation: none !important;
+        }
+      `
+    });
+
     // Wait for app to initialize
     await page.waitForLoadState("domcontentloaded");
   });
 
-  test.afterEach(() => {
+  test.afterEach(async ({ page }, testInfo) => {
+    // Filter out expected network errors from intentional route aborts in tests
+    const unexpectedErrors = runtimeErrors.filter(
+      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED")
+    );
     expect(
-      runtimeErrors,
+      unexpectedErrors,
       `Runtime errors detected:\n${runtimeErrors.join("\n")}`,
     ).toEqual([]);
   });
@@ -177,5 +192,176 @@ test.describe("Nästa App", () => {
         msg.includes("deviations"),
     );
     expect(errorMessages.length).toBe(0);
+  });
+
+  test("should show PWA update banner and handle reload", async ({ page }) => {
+    // Inject event listener spy to verify reload is called
+    await page.addInitScript(() => {
+      window.__pwaReloadCalled = false;
+    });
+
+    // Wait a bit for components to mount
+    await page.waitForTimeout(500);
+
+    // Dispatch custom event to trigger banner
+    await page.evaluate(() => {
+      const updateSW = async (reloadPage: boolean) => {
+        if (reloadPage) window.__pwaReloadCalled = true;
+      };
+      window.dispatchEvent(
+        new CustomEvent("pwa-update-available", { detail: { updateSW } }),
+      );
+    });
+
+    // Check banner is visible
+    const banner = page.locator(".update-banner");
+    await expect(banner).toBeVisible();
+
+    // Click reload button
+    const reloadBtn = banner.locator(".reload-btn");
+    await reloadBtn.click();
+
+    // Verify updateSW was called with true
+    const reloadCalled = await page.evaluate(() => window.__pwaReloadCalled);
+    expect(reloadCalled).toBe(true);
+  });
+
+  test("direction picker should support keyboard navigation", async ({ page }) => {
+    // Mock the stop-finder search API so results are always available
+    await page.route("https://journeyplanner.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          locations: [
+            {
+              id: "9091001000003980",
+              name: "Slussen (Stockholm)",
+              disassembledName: "Slussen",
+              type: "stop",
+              matchQuality: 1000,
+            }
+          ]
+        }),
+      });
+    });
+
+    // Mock departures API to ensure we always get reliable results
+    await page.route("https://transport.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          departures: [
+            {
+              line: { designation: "13", name: "13", transport_mode: "metro" },
+              direction_code: 1,
+              destination: "Ropsten",
+              display: "5 min",
+              expected: new Date(Date.now() + 5 * 60000).toISOString(),
+            },
+            {
+              line: { designation: "13", name: "13", transport_mode: "metro" },
+              direction_code: 2,
+              destination: "Norsborg",
+              display: "10 min",
+              expected: new Date(Date.now() + 10 * 60000).toISOString(),
+            }
+          ]
+        }),
+      });
+    });
+
+    // Open edit mode
+    await page.locator(".action-btn").click();
+    await page.waitForTimeout(500); // Wait for editor panel to slide up
+    
+    // Add segment to open search
+    await page.locator(".add-btn").evaluate((el) => (el as HTMLElement).click());
+    
+    // Wait for and fill search input
+    const searchInput = page.locator(".search-input");
+    await searchInput.waitFor({ state: "visible", timeout: 5000 });
+    await searchInput.fill("Slussen");
+    await page.waitForTimeout(400); // debounce
+    
+    // Select first result (Stop)
+    const firstResult = page.locator(".results .item").first();
+    await firstResult.waitFor({ state: "visible", timeout: 5000 });
+    await firstResult.click();
+    
+    // Wait for departures to load and click the first line
+    const firstLine = page.locator(".dep-item").first();
+    await firstLine.waitFor({ state: "visible", timeout: 10000 });
+    await firstLine.click();
+    
+    // Now we should be in direction picker — wait for it to render
+    const firstDirection = page.locator(".direction-option").first();
+    await firstDirection.waitFor({ state: "visible", timeout: 10000 });
+    
+    // Focus the first radio to start keyboard navigation reliably
+    const firstRadio = page.locator('input[type="radio"]').first();
+    await firstRadio.focus();
+    
+    // ArrowDown should select the next one in the group
+    await page.keyboard.press("ArrowDown");
+    
+    // Check if a radio is now checked
+    await expect(page.locator('input[type="radio"]:checked')).toHaveCount(1, { timeout: 5000 });
+    
+    // Tab to confirm button and press Enter
+    // Focus is on a radio, so one Tab should reach the Confirm button
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    
+    // The search should be closed and segment added
+    await expect(page.locator(".segment-search")).toHaveCount(0, { timeout: 10000 });
+  });
+
+  test("should handle journey API failure gracefully", async ({ page }) => {
+    // Mock the stop-finder search API so results are always available
+    await page.route("https://journeyplanner.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          locations: [
+            {
+              id: "9091001000003980",
+              name: "Slussen (Stockholm)",
+              disassembledName: "Slussen",
+              type: "stop",
+              matchQuality: 1000,
+            }
+          ]
+        }),
+      });
+    });
+
+    // Intercept journey departures request and abort it to simulate failure
+    await page.route("https://transport.integration.sl.se/**", async (route) => {
+      await route.abort("failed");
+    });
+
+    // Attempt to load departures
+    await page.locator(".action-btn").click();
+    await page.waitForTimeout(500); // Wait for editor panel to slide up
+    await page.locator(".add-btn").evaluate((el) => (el as HTMLElement).click());
+    
+    const searchInput = page.locator(".search-input");
+    await searchInput.waitFor({ state: "visible", timeout: 5000 });
+    await searchInput.fill("Slussen");
+    await page.waitForTimeout(400); // debounce
+    
+    const firstResult = page.locator(".results .item").first();
+    await firstResult.waitFor({ state: "visible", timeout: 5000 });
+    await firstResult.evaluate((el) => el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    
+    // Expect error message instead of crash
+    const errorMsg = page.locator(".error");
+    await errorMsg.waitFor({ state: "visible", timeout: 10000 });
+    await expect(errorMsg).toBeVisible();
+    // Error text is locale-dependent; match both Swedish and English
+    await expect(errorMsg).toContainText(/(Kunde inte hämta|Failed to fetch departures)/i);
   });
 });

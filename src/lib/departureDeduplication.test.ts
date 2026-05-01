@@ -10,7 +10,7 @@ describe("departureDeduplication", () => {
     line: "76",
     lineName: "76",
     destination: "Norra Hammarbyhamnen",
-    directionText: "Norra Hammarbyhamnen",
+    direction_code: 1,
     minutes: 5,
     time: "16:30",
     transportType: "bus",
@@ -26,22 +26,22 @@ describe("departureDeduplication", () => {
 
       const key = createDepartureDeduplicationKey(siteId, dep);
 
-      // Key should include siteId, line, normalized direction
+      // Key should include siteId, line, direction_code
       expect(key).toContain("9001");
       expect(key).toContain("76");
       // Expected time slot should be in the key
       expect(key).toBeTruthy();
     });
 
-    it("normalizes direction text for consistent keying", () => {
+    it("uses same key for same direction_code", () => {
       const siteId = "9001";
       const dep1: Departure = {
         ...baseDep,
-        directionText: "Norra Hammarbyhamnen",
+        direction_code: 1,
       };
       const dep2: Departure = {
         ...baseDep,
-        directionText: "norra hammarbyhamnen", // lowercase
+        direction_code: 1,
       };
 
       const key1 = createDepartureDeduplicationKey(siteId, dep1);
@@ -145,7 +145,7 @@ describe("departureDeduplication", () => {
       expect(deduped.length).toBe(1);
     });
 
-    it("handles ferries and buses consistently", () => {
+    it("handles boats and buses consistently", () => {
       const siteId = "9001";
       const bus: Departure = {
         ...baseDep,
@@ -153,32 +153,32 @@ describe("departureDeduplication", () => {
         transportType: "bus",
         expectedAt: 1000000000000,
       };
-      const ferry: Departure = {
+      const boat: Departure = {
         ...baseDep,
         line: "421",
-        transportType: "ferry",
+        transportType: "boat",
         expectedAt: 1000000000000 + 30_000, // Same slot
       };
 
-      const departures = [bus, ferry];
+      const departures = [bus, boat];
       const deduped = deduplicateDeparturesByKey(siteId, departures);
 
       // Different lines, so should not deduplicate
       expect(deduped.length).toBe(2);
     });
 
-    it("normalizes direction differences that should match", () => {
+    it("normalizes direction differences by using direction_code", () => {
       const siteId = "9001";
       const dep1: Departure = {
         ...baseDep,
-        directionText: "Norra Hammarbyhamnen",
+        direction_code: 1,
         destination: "Norra Hammarbyhamnen",
         expectedAt: 1000000000000,
       };
       const dep2: Departure = {
         ...baseDep,
-        directionText: "norra hammarbyhamnen",
-        destination: "Norra Hammarbyhamnen",
+        direction_code: 1,
+        destination: "norra hammarbyhamnen",
         expectedAt: 1000000000000 + 30_000,
         predicted: true,
       };
@@ -186,7 +186,7 @@ describe("departureDeduplication", () => {
       const departures = [dep1, dep2];
       const deduped = deduplicateDeparturesByKey(siteId, departures);
 
-      // Should deduplicate because normalized direction matches
+      // Should deduplicate because direction_code matches
       expect(deduped.length).toBe(1);
       expect(deduped[0].predicted).not.toBe(true);
     });

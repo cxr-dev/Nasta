@@ -7,7 +7,7 @@ const route: Route = {
   id: 'r1', name: 'Till jobbet', direction: 'toWork',
   segments: [
     {
-      id: 's1', line: '13', lineName: 'Tunnelbana 13', directionText: 'Ropsten',
+      id: 's1', line: '13', lineName: 'Tunnelbana 13', direction: { code: 1, destination: 'Ropsten', stopPointId: '' },
       fromStop: { id: 'stop1', name: 'Luma', siteId: '1001' },
       toStop: { id: 'stop2', name: 'Slussen', siteId: '1002' },
       transportType: 'metro',
@@ -15,7 +15,7 @@ const route: Route = {
       transferBufferMinutes: 4
     },
     {
-      id: 's2', line: '74', lineName: 'Buss 74', directionText: 'Frihamnen',
+      id: 's2', line: '74', lineName: 'Buss 74', direction: { code: 1, destination: 'Frihamnen', stopPointId: '' },
       fromStop: { id: 'stop3', name: 'Slussen', siteId: '1002' },
       toStop: { id: 'stop4', name: 'Frihamnen', siteId: '1003' },
       transportType: 'bus',
@@ -25,7 +25,7 @@ const route: Route = {
 };
 
 const dep: Departure = {
-  line: '13', lineName: 'Tunnelbana 13', destination: 'Ropsten', directionText: 'Ropsten',
+  line: '13', lineName: 'Tunnelbana 13', destination: 'Ropsten', direction_code: 1,
   minutes: 5, time: '08:42', transportType: 'metro'
 };
 
@@ -41,11 +41,11 @@ describe('computeArrivalTime', () => {
       ['1001', [dep]],
       ['1002', [
         {
-          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', direction_code: 1,
           minutes: 17, time: '08:54', transportType: 'bus'
         },
         {
-          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+          line: '74', lineName: 'Buss 74', destination: 'Frihamnen', direction_code: 1,
           minutes: 23, time: '09:00', transportType: 'bus'
         }
       ]]
@@ -71,12 +71,12 @@ describe('computeArrivalTime', () => {
   it('defaults transferBufferMinutes to 0 for older saved routes', () => {
     const oldRoute: Route = {
       ...route,
-      segments: route.segments.map(({ transferBufferMinutes, ...segment }) => segment)
-    };
+      segments: route.segments.map(({ transferBufferMinutes, ...segment }) => ({ ...segment, transferBufferMinutes: undefined }))
+    } as any;
     const deps = new Map<string, Departure[]>([
       ['1001', [dep]],
       ['1002', [{
-        line: '74', lineName: 'Buss 74', destination: 'Frihamnen', directionText: 'Frihamnen',
+        line: '74', lineName: 'Buss 74', destination: 'Frihamnen', direction_code: 1,
         minutes: 17, time: '08:54', transportType: 'bus'
       }]]
     ]);

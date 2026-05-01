@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Direction, Stop, TransportType } from "../types/route";
+  import type { Direction, Stop, TransportType, SegmentDirection } from "../types/route";
   import { routeStore } from "../stores/routeStore";
   import { settingsStore } from "../stores/settingsStore";
   import { t } from "../stores/localeStore";
@@ -13,7 +13,7 @@
   let selectedSegment = $state<{
     line: string;
     lineName: string;
-    directionText: string;
+    direction: SegmentDirection;
     fromStop: Stop;
     toStop: Stop;
     transportType: TransportType;
@@ -27,7 +27,7 @@
   function handleSelect(
     line: string,
     lineName: string,
-    directionText: string,
+    direction: SegmentDirection,
     fromStop: Stop,
     toStop: Stop,
     transportType: TransportType,
@@ -35,7 +35,7 @@
     selectedSegment = {
       line,
       lineName,
-      directionText,
+      direction,
       fromStop,
       toStop,
       transportType,
@@ -101,7 +101,7 @@
         <div class="summary">
           <div>{selectedSegment.fromStop.name}</div>
           <div>{selectedSegment.lineName || selectedSegment.line}</div>
-          <div>{selectedSegment.directionText}</div>
+          <div>{selectedSegment.direction.destination}</div>
         </div>
       {/if}
       <label class="check">

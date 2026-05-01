@@ -42,8 +42,43 @@ const defaultSettings: Settings = {
 export function loadRoutes(): Route[] {
   try {
     const data = localStorage.getItem(ROUTES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
+    if (!data) return [];
+    
+    const routes: any[] = JSON.parse(data);
+    if (!Array.isArray(routes)) return [];
+
+    let migrated = false;
+    const cleanRoutes = routes.map(route => {
+      if (!route || !Array.isArray(route.segments)) return route;
+      
+      const cleanSegments = route.segments.map((seg: any) => {
+        // If it's an old segment with directionText but no direction object
+        if (seg && seg.directionText && !seg.direction) {
+          migrated = true;
+          const { directionText, ...rest } = seg;
+          return {
+            ...rest,
+            direction: {
+              code: 1,
+              destination: directionText,
+              stopPointId: ''
+            }
+          };
+        }
+        return seg;
+      });
+      
+      return { ...route, segments: cleanSegments };
+    });
+
+    if (migrated) {
+      console.log('[Storage] Migrated legacy route data to new format');
+      saveRoutes(cleanRoutes);
+    }
+    
+    return cleanRoutes;
+  } catch (e) {
+    console.error('[Storage] Failed to load routes:', e);
     return [];
   }
 }

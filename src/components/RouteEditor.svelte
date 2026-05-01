@@ -1,11 +1,12 @@
 <script lang="ts">
-  import type { Route, TransportType, Stop } from '../types/route';
+  import type { Route, TransportType, Stop, SegmentDirection } from '../types/route';
   import { routeStore } from '../stores/routeStore';
   import { settingsStore } from '../stores/settingsStore';
   import { THEMES } from '../themes';
   import { t } from '../stores/localeStore';
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
+  import DuplicateRoutePanel from './DuplicateRoutePanel.svelte';
 
   let {
     routes,
@@ -24,6 +25,7 @@
   let route = $derived(routes.find(r => r.id === activeRouteId));
   let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
+  let duplicatingRoute = $state<Omit<Route, "id"> | null>(null);
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
@@ -41,11 +43,11 @@
   }
 
   function addSegment(
-    line: string, lineName: string, directionText: string,
+    line: string, lineName: string, direction: SegmentDirection,
     fromStop: Stop, toStop: Stop, transportType: TransportType
   ) {
     if (!route) return;
-    routeStore.addSegment(route.id, { line, lineName, directionText, fromStop, toStop, transportType });
+    routeStore.addSegment(route.id, { line, lineName, direction, fromStop, toStop, transportType });
     showSearch = false;
   }
 
@@ -96,6 +98,17 @@
     {#if otherRoute}
       <button class="switch-route-btn" onclick={() => onSwitchRoute(otherRoute!.id)}>
         {$t.switchTo}: {getRouteLabel(otherRoute)}
+      </button>
+    {:else if duplicatingRoute}
+      <DuplicateRoutePanel 
+        baseRouteId={route!.id}
+        pendingRoute={duplicatingRoute}
+        onComplete={() => duplicatingRoute = null}
+        onCancel={() => duplicatingRoute = null}
+      />
+    {:else}
+      <button class="switch-route-btn" onclick={() => duplicatingRoute = routeStore.duplicateRoute(route!.id)}>
+        {$t.createReturnTrip ?? 'Skapa returresa'}
       </button>
     {/if}
 

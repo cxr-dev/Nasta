@@ -17,6 +17,7 @@
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import Onboarding from './components/Onboarding.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
+  import UpdateBanner from './components/UpdateBanner.svelte';
 
   let editing = $state(false);
   let lastRefreshTime = $state(Date.now());
@@ -94,7 +95,7 @@
       }));
       const segmentMetaBySiteId = new Map(currentRoute.segments.map(s => {
         const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { line: s.line, directionText: s.directionText }];
+        return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
       }));
       // Pass request ID to prevent stale responses from overwriting current route
       departureStore.startAutoRefresh(
@@ -142,7 +143,7 @@
       }));
       const segmentMetaBySiteId = new Map(route.segments.map(s => {
         const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { line: s.line, directionText: s.directionText }];
+        return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
       }));
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(
@@ -319,7 +320,7 @@ function handleRouteSwitch(routeId: string) {
     }));
     const segmentMetaBySiteId = new Map(route.segments.map(s => {
       const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, { line: s.line, directionText: s.directionText }];
+      return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
     }));
     try {
       await departureStore.refresh(
@@ -405,7 +406,7 @@ function handleRouteSwitch(routeId: string) {
           }));
           const segmentMetaBySiteId = new Map(route.segments.map(s => {
             const siteId = s.fromStop.siteId || s.toStop.siteId;
-            return [siteId, { line: s.line, directionText: s.directionText }];
+          return [siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }];
           }));
           departureStore.refresh(
             siteIds,
@@ -543,6 +544,7 @@ function handleRouteSwitch(routeId: string) {
     {/if}
   </main>
   </ErrorBoundary>
+  <UpdateBanner />
 {/if}
 
 <footer class="attribution">

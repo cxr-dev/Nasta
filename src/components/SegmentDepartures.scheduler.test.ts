@@ -62,7 +62,7 @@ const route: Route = {
       id: "seg-1",
       line: "76",
       lineName: "76",
-      directionText: "Norra Hammarbyhamnen",
+      direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
       fromStop: { id: "from", name: "Lindarängsvägen", siteId: "100" },
       toStop: { id: "to", name: "Norra Hammarbyhamnen", siteId: "300" },
       transportType: "bus",

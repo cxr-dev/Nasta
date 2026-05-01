@@ -124,7 +124,7 @@ function isValidDeparture(obj: unknown): obj is Departure {
     typeof o.line === "object" &&
     o.line !== null &&
     typeof o.destination === "string" &&
-    typeof o.direction === "string"
+    typeof o.direction_code === "number"
   );
 }
 
@@ -209,17 +209,18 @@ export async function getDepartures(
 
     if (liveTime && !isNaN(parsedTime)) {
       // Compute from absolute timestamp (most reliable)
-      minutes = Math.max(0, Math.floor((parsedTime - Date.now()) / 60000));
+      // Use Math.max(1, Math.ceil(...)) to avoid 0 min display for imminent departures
+      minutes = Math.max(1, Math.ceil((parsedTime - Date.now()) / 60000));
       isFromParsedTime = true;
     } else if (
       dep.timeToDeparture !== undefined &&
       typeof dep.timeToDeparture === "number"
     ) {
       // Fallback to API-provided timeToDeparture
-      minutes = Math.max(0, dep.timeToDeparture);
+      minutes = Math.max(1, dep.timeToDeparture);
     } else {
-      // Last resort: use 0 if both fail
-      minutes = 0;
+      // Last resort: use 1 if both fail (avoid 0 min display)
+      minutes = 1;
     }
 
     // Dev diagnostics for stale/invalid timestamps
@@ -243,28 +244,30 @@ export async function getDepartures(
     // Extract scheduled time from API response and cache it
     if (dep.scheduled) {
       const scheduledDate = new Date(parseSlTimestamp(dep.scheduled));
-      const direction = dep.direction || "";
       const line = dep.line?.designation || dep.line?.name || "";
-      cacheScheduleTime(siteId, line, direction, scheduledDate);
+      const direction_code = dep.direction_code ?? 0;
+      cacheScheduleTime(siteId, line, direction_code, scheduledDate);
     }
 
-     return {
-       line: dep.line?.designation || dep.line?.name || "",
-       lineName: dep.line?.name || "",
-       destination: dep.destination || "",
-       directionText: dep.direction || "",
-       minutes,
-       time: formattedTime,
-       expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
-       deviation: dep.deviation,
-       transportType: getTransportType(dep.line?.transport_mode),
-       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
-       journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
-       // SL API exposes trip.id — fallback for cache key when journeyRef is missing
-       tripId: dep.trip?.id != null ? String(dep.trip.id) : undefined,
-       // SL's pre-calculated display — always correct, use as fallback
-       display: dep.display,
-     };
+    return {
+      line: dep.line?.designation || dep.line?.name || "",
+      lineName: dep.line?.name || "",
+      destination: dep.destination || "",
+      direction_code: dep.direction_code ?? 0,
+      minutes,
+      time: formattedTime,
+      expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
+      deviation: dep.deviation,
+      transportType: getTransportType(dep.line?.transport_mode),
+      // SL API exposes journey.id — used for vehicle position estimation in the progress strip
+      journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
+      // SL API exposes trip.id — fallback for cache key when journeyRef is missing
+      tripId: dep.trip?.id != null ? String(dep.trip.id) : undefined,
+      // SL's pre-calculated display — always correct, use as fallback
+      display: dep.display,
+      // SL API provides stop point ID
+      stop_point_id: dep.stop_point?.id ?? undefined,
+    };
   });
 }
 

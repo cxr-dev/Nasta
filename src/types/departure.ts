@@ -1,10 +1,11 @@
-import type { TransportType } from './route';
+import type { TransportType } from "./route";
 
 export interface Departure {
   line: string;
   lineName: string;
   destination: string;
-  directionText: string;
+  /** Direction code from SL API - used for filtering and matching */
+  direction_code: number;
   minutes: number;
   time: string;
   expectedAt?: number;
@@ -18,12 +19,14 @@ export interface Departure {
   tripId?: string;
   /** Raw display string from SL API — e.g., "Nu", "9 min", "01:22" */
   display?: string;
+  /** Stop point ID from SL API */
+  stop_point_id?: string;
 }
 
 export interface SiteSearchResult {
   siteId: string;
   name: string;
-  type: 'stop' | 'station';
+  type: "stop" | "station";
   note?: string;
   lat?: number;
   lon?: number;
