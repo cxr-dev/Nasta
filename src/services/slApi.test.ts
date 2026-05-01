@@ -105,12 +105,12 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("9001");
-      expect(result).toHaveLength(1);
-      expect(result[0].line).toBe("76");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].line).toBe("76");
       // Parsed time 07:04 UTC, now is 08:00:30 UTC
       // Minutes = Math.max(1, Math.ceil((07:04 - 08:00:30) / 60)) = 1
       // This shows the timestamp is in the past, but we never show 0 or negative
-      expect(result[0].minutes).toBe(1);
+      expect(result.departures[0].minutes).toBe(1);
     });
 
     it("correctly handles future departures", async () => {
@@ -136,10 +136,10 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("9001");
-      expect(result).toHaveLength(1);
+      expect(result.departures).toHaveLength(1);
       // Parsed time 08:10 UTC, now is 08:00:30 UTC
       // Minutes = Math.ceil((08:10 - 08:00:30) / 60) = Math.ceil(9.5) = 10
-      expect(result[0].minutes).toBe(10);
+      expect(result.departures[0].minutes).toBe(10);
     });
 
     it("extracts journeyRef and tripId from API response", async () => {
@@ -161,9 +161,9 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("9001");
-      expect(result).toHaveLength(1);
-      expect(result[0].journeyRef).toBe("journey-xyz");
-      expect(result[0].tripId).toBe("trip-123");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].journeyRef).toBe("journey-xyz");
+      expect(result.departures[0].tripId).toBe("trip-123");
     });
 
     it("throws on API error", async () => {
@@ -186,8 +186,9 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("001172");
-      expect(result).toEqual([]);
-      expect(Array.isArray(result)).toBe(true);
+      expect(result.departures).toEqual([]);
+      expect(Array.isArray(result.departures)).toBe(true);
+      expect(result.stopDeviations).toEqual([]);
     });
 
     it("handles null/undefined departures array gracefully", async () => {
@@ -199,7 +200,8 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("001172");
-      expect(result).toEqual([]);
+      expect(result.departures).toEqual([]);
+      expect(result.stopDeviations).toEqual([]);
     });
 
     it("filters out invalid departure objects", async () => {
@@ -240,9 +242,9 @@ describe("slApi service", () => {
 
       const result = await getDepartures("001172");
       // Should only include 2 valid departures
-      expect(result).toHaveLength(2);
-      expect(result[0].line).toBe("76");
-      expect(result[1].line).toBe("2");
+      expect(result.departures).toHaveLength(2);
+      expect(result.departures[0].line).toBe("76");
+      expect(result.departures[1].line).toBe("2");
     });
   });
 });

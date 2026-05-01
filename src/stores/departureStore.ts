@@ -18,6 +18,7 @@ export interface SegmentCacheMeta {
 
 function createDepartureStore() {
   const data = writable<Map<string, Departure[]>>(new Map());
+  const stopDeviations = writable<Map<string, any[]>>(new Map());
   const { subscribe, set, update } = data;
   const isLoading = writable(false);
   const isUpdating = writable(false);
@@ -149,15 +150,22 @@ function createDepartureStore() {
               }
 
               // Use API data (which auto-caches)
-              results.set(seg.siteId, apiDepartures);
+              results.set(seg.siteId, apiDepartures.departures);
 
               // Update store with API results
               update((store) => {
-                store.set(seg.siteId, apiDepartures);
+                store.set(seg.siteId, apiDepartures.departures);
                 return store;
               });
+
+              // Update stop deviations
+              stopDeviations.update((store) => {
+                store.set(seg.siteId, apiDepartures.stopDeviations);
+                return store;
+              });
+
               // Mark successful fetch time
-              if (apiDepartures.length > 0) {
+              if (apiDepartures.departures.length > 0) {
                 lastSuccessfulFetch.set(Date.now());
               }
             } catch (e) {
@@ -217,6 +225,9 @@ function createDepartureStore() {
 
   return {
     subscribe,
+    stopDeviations: {
+      subscribe: stopDeviations.subscribe,
+    },
     isLoading: {
       subscribe: (cb: (val: boolean) => void) => {
         const unsub = isLoading.subscribe(cb);

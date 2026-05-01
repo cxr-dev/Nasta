@@ -25,6 +25,7 @@
   } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
+  let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
   let now = $state(Date.now());
   let expandedIndex = $state<number | null>(null);
   let isLoading = $state(false);
@@ -124,6 +125,11 @@
       }),
     );
     UNSUBSCRIBERS.push(
+      departureStore.stopDeviations.subscribe((data) => {
+        stopDeviationsMap = data;
+      }),
+    );
+    UNSUBSCRIBERS.push(
       departureStore.isLoading.subscribe((val) => (isLoading = val)),
     );
     UNSUBSCRIBERS.push(
@@ -181,15 +187,16 @@
       {@const subsequent = formatSubsequent(deps)}
       {@const hasDeparture = deps.length > 0 && !!departure}
       {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
+      {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
       {@const isExpanded = expandedIndex === index}
 
       <button
         class="departure-row"
-        class:expandable={hasDeparture}
+        class:expandable={hasDeparture || siteDevs.length > 0}
         class:expanded={isExpanded}
         type="button"
         aria-expanded={isExpanded}
-        onclick={() => toggleExpanded(index)}
+        onclick={() => (hasDeparture || siteDevs.length > 0) && toggleExpanded(index)}
         style="--delay: {Math.min(index, 3) * 40}ms"
       >
         <div class="row-left">
@@ -225,14 +232,45 @@
               {/if}
             </div>
           {:else}
-            <div class="no-departure">—</div>
+            {#if siteDevs.length > 0}
+              <div class="site-deviation-badge" class:active={isExpanded}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12" y2="17.01"/>
+                </svg>
+              </div>
+            {:else}
+              <div class="no-departure">—</div>
+            {/if}
           {/if}
         </div>
       </button>
 
-      {#if isExpanded && hasDeparture}
+      {#if isExpanded}
         <div transition:slide={{ duration: 280, easing: cubicOut }}>
-          <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
+          {#if hasDeparture}
+            <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
+          {:else}
+            {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
+            {#if siteDevs.length > 0}
+              <div class="disruption-strip">
+                <div class="disruption-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12" y2="16.01"/>
+                  </svg>
+                  <span>{$t.disruptions || "Disruptions"}</span>
+                </div>
+                <div class="disruption-content">
+                  {#each siteDevs as dev}
+                    <p>{dev.message}</p>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {/if}
         </div>
       {/if}
     {/each}
@@ -284,4 +322,13 @@
   .skeleton-line { flex: 1; height: 14px; margin: 0 12px; border-radius: 4px; background: var(--border); animation: pulse 1.5s ease-in-out infinite; }
   .skeleton-time { width: 80px; height: 32px; border-radius: 4px; background: var(--border); animation: pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .site-deviation-badge { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); border-radius: 12px; transition: transform 0.2s ease; }
+  .site-deviation-badge.active { transform: scale(1.1) rotate(5deg); background: #f59e0b; color: #fff; }
+  .site-deviation-badge svg { width: 22px; height: 22px; }
+
+  .disruption-strip { padding: 16px; border-top: 1px solid var(--border); background: color-mix(in srgb, #f59e0b 4%, transparent); }
+  .disruption-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #f59e0b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .disruption-header svg { width: 18px; height: 18px; }
+  .disruption-content { display: flex; flex-direction: column; gap: 12px; }
+  .disruption-content p { font-size: 14px; line-height: 1.5; color: var(--text); }
 </style>

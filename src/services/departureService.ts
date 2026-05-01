@@ -9,20 +9,20 @@ export async function getDepartures(
   line?: string, 
   direction_code?: number,
   destId?: string
-): Promise<Departure[]> {
+): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
   if (isSjostadstrafikenStop(stopName)) {
-    return getNextDepartures(stopName, 2);
+    return { departures: getNextDepartures(stopName, 2), stopDeviations: [] };
   }
   
-  const departures = await slGetDepartures(siteId);
+  const { departures, stopDeviations } = await slGetDepartures(siteId);
 
   // If no departures found and we have specific line info, try the resolver fallback
   if (departures.length === 0 && line && direction_code !== undefined) {
     const resolved = await getNextDeparture(siteId, line, direction_code, destId);
     if (resolved.departure) {
-      return [resolved.departure];
+      return { departures: [resolved.departure], stopDeviations };
     }
   }
   
-  return departures;
+  return { departures, stopDeviations };
 }

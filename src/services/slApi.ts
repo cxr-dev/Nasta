@@ -188,7 +188,7 @@ export async function searchSites(
 export async function getDepartures(
   siteId: string,
   forecast = DEFAULT_FORECAST_MINUTES,
-): Promise<Departure[]> {
+): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
   const response = await fetch(
     `${TRANSPORT_URL}/sites/${siteId}/departures?forecast=${forecast}`,
   );
@@ -198,9 +198,10 @@ export async function getDepartures(
   learnFromApiResponse(siteId, data.departures || []);
 
   const rawDeps = Array.isArray(data.departures) ? data.departures : [];
+  const stopDeviations = Array.isArray(data.stop_deviations) ? data.stop_deviations : [];
   const validDeps = rawDeps.filter(isValidDeparture);
 
-  return validDeps.map((dep: any) => {
+  const departures = validDeps.map((dep: any) => {
     const liveTime = dep.expected || dep.scheduled || "";
     const parsedTime = liveTime ? parseSlTimestamp(liveTime) : NaN;
 
@@ -270,6 +271,8 @@ export async function getDepartures(
       stop_point_id: dep.stop_point?.id ?? undefined,
     };
   });
+
+  return { departures, stopDeviations };
 }
 
 
