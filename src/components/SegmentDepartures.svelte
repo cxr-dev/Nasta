@@ -195,6 +195,7 @@
 
       <button
         class="departure-row"
+        data-testid="segment-row"
         class:expandable={hasDeparture || siteDevs.length > 0}
         class:expanded={isExpanded}
         type="button"
@@ -210,7 +211,7 @@
           </div>
 
           <div class="line-details">
-            <span class="line-info">{segment.lineName || segment.line}</span>
+            <span class="line-info" data-testid="segment-line">{segment.lineName || segment.line}</span>
             <div class="stop-route-container">
               <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
             </div>
@@ -222,13 +223,13 @@
             <div class="time-stack">
               <div class="primary-time">
                 {#if departure.isFirstMorning}
-                  <span class="planned-label">{$t.morningFirst || "Morning first"}</span>
+                  <span class="planned-label" data-testid="planned-badge">{$t.morningFirst || "Morning first"}</span>
                   <span class="clock-time">{departure.time}</span>
                 {:else}
                   {#if departure.predicted}
-                    <span class="planned-label">{$t.planned || "Planned"}</span>
+                    <span class="planned-label" data-testid="planned-badge">{$t.planned || "Planned"}</span>
                   {/if}
-                  <span class="minutes">{liveMinutes}</span>
+                  <span class="minutes" data-testid="countdown-minutes">{liveMinutes}</span>
                   <span class="unit">{$t.minutesShort}</span>
                 {/if}
               </div>

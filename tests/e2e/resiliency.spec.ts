@@ -14,21 +14,15 @@ test.describe("SL API Resiliency", () => {
             id: "test-seg-id",
             line: "76",
             lineName: "Linje 76",
-            fromStop: { name: "Ljusterögatan", siteId: "9001" },
-            toStop: { name: "Ropsten", siteId: "9002" },
+            fromStop: { id: "from-9001", name: "Ljusterögatan", siteId: "9001" },
+            toStop: { id: "to-9002", name: "Ropsten", siteId: "9002" },
             transportType: "bus",
-            direction: { code: 1, destination: "Ropsten" }
+            direction: { code: 1, destination: "Ropsten", stopPointId: "" }
           }
         ],
       };
 
       localStorage.setItem("nasta_routes", JSON.stringify([testRoute]));
-    });
-    await page.goto("/");
-    
-    // Disable animations
-    await page.addStyleTag({
-      content: `*, *::before, *::after { transition: none !important; animation: none !important; }`
     });
   });
 
@@ -56,7 +50,7 @@ test.describe("SL API Resiliency", () => {
             {
               legs: [
                 {
-                  origin: { id: "9091001000009001", name: "Ljusterögatan", time: timeStr, date: dateStr },
+                  origin: { id: "90910010009001", name: "Ljusterögatan", time: timeStr, date: dateStr },
                   destination: { name: "Ropsten" },
                   line: { designation: "76", name: "Linje 76" },
                   direction: { code: 1 },
@@ -69,12 +63,17 @@ test.describe("SL API Resiliency", () => {
       });
     });
 
+    await page.goto("/");
+    await page.addStyleTag({
+      content: `*, *::before, *::after { transition: none !important; animation: none !important; }`
+    });
+
     // 3. Wait for the departure row to appear
-    const departureRow = page.locator(".departure-row").first();
+    const departureRow = page.getByTestId("segment-row").first();
     await departureRow.waitFor({ state: "visible", timeout: 15000 });
 
     // 4. Verify that the "Planned" (or "Planerad") label is visible
-    const plannedLabel = departureRow.locator(".planned-label");
+    const plannedLabel = departureRow.getByTestId("planned-badge");
     await plannedLabel.waitFor({ state: "visible", timeout: 5000 });
     await expect(plannedLabel).toBeVisible();
     await expect(plannedLabel).toContainText(/PLANNED|PLANERAD/i);

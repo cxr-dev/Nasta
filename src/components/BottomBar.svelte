@@ -26,14 +26,14 @@
 
 <div class="bottom-bar">
   {#if arrivalSummary && !editing}
-    <div class="arrival-info">
+    <div class="arrival-info" data-testid="arrival-info">
       <div class="arrival-copy">
         <span class="arrival-label">{$t.realisticArrival}</span>
         {#if transferHint(arrivalSummary)}
           <span class="arrival-hint">{transferHint(arrivalSummary)}</span>
         {/if}
       </div>
-      <span class="arrival-time">{arrivalSummary.time}</span>
+      <span class="arrival-time" data-testid="arrival-time">{arrivalSummary.time}</span>
     </div>
   {/if}
   <button
