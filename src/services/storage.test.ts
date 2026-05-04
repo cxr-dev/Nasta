@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadRoutes, saveRoutes, loadSettings, saveSettings } from './storage';
+import type { Settings } from './storage';
 
 describe('storage service', () => {
   beforeEach(() => {
@@ -101,7 +102,7 @@ describe('storage service', () => {
     });
 
     it('saves settings to localStorage', () => {
-      const settings = {
+      const settings: Settings = {
         darkMode: false,
         refreshInterval: 60000,
         funMode: false,

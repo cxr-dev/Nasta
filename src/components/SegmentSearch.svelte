@@ -623,12 +623,6 @@ interface StopInterface {
     opacity: 0.7;
   }
 
-  .dep-schedule {
-    color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 400;
-  }
-
   .direction-view {
     display: flex;
     flex-direction: column;

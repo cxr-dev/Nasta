@@ -44,9 +44,9 @@
         // The pendingRoute segments are already reversed in order
         for (const seg of pendingRoute.segments) {
           // Fetch departures for the new pickup stop (seg.fromStop)
-          const deps = await getDepartures(seg.fromStop.siteId, 240);
+          const { departures } = await getDepartures(seg.fromStop.siteId, 240);
           // Filter to just this line
-          const lineDeps = deps.filter(d => d.line === seg.line);
+          const lineDeps = departures.filter((d: Departure) => d.line === seg.line);
           
           // Suggest opposite direction: if original was 1, suggest 2
           const origDirectionCode = seg.direction?.code;
@@ -54,7 +54,7 @@
           
           let selected = suggestedCode;
           // Verify suggested code exists in departures
-          if (selected !== null && !lineDeps.some(d => d.direction_code === selected)) {
+          if (selected !== null && !lineDeps.some((d: Departure) => d.direction_code === selected)) {
             selected = lineDeps[0]?.direction_code ?? null;
           }
 
