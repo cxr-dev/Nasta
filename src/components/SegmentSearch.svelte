@@ -3,7 +3,7 @@
   import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
   import { getKnownRoutes } from '../services/timetableCache';
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
-  import type { SiteSearchResult, Departure } from '../types/departure';
+import type { SiteSearchResult, Departure } from '../types/departure';
 import type { TransportType, Stop, SegmentDirection } from '../types/route';
 import { transportIcons } from '../icons/transport';
 import { t } from '../stores/localeStore';
@@ -14,6 +14,7 @@ import { onMount } from 'svelte';
 const SEARCH_MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 300;
 const MIN_LOAD_DELAY_MS = 80;
+const ALL_TRANSPORT_TYPES: TransportType[] = ['metro', 'train', 'bus', 'boat'];
 
 let { 
   onSelect = (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => {}
@@ -32,14 +33,14 @@ interface StopInterface {
   let allDepartures = $state<Departure[]>([]);
   let userLocation = $state<[number, number] | null>(null);
   let recentStops = $state<SiteSearchResult[]>([]);
+  let activeTransportTypes = $state<TransportType[]>([...ALL_TRANSPORT_TYPES]);
 
   // Filtering logic: Enforcement at data level
   let filteredStations = $derived.by(() => {
-    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
     return stations.filter(s => {
       if (!s.productClasses || s.productClasses.length === 0) return true; // Allow if unknown
       const types = mapProductClassesToTransportTypes(s.productClasses);
-      return types.some(t => enabled.includes(t));
+      return types.some(t => activeTransportTypes.includes(t));
     });
   });
 
@@ -59,16 +60,14 @@ interface StopInterface {
   let selectedLineDepartures = $derived(allDepartures.filter(d => {
     const isLineMatch = selectedLine && d.line === selectedLine.line;
     if (!isLineMatch) return false;
-    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
-    return enabled.includes(d.transportType);
+    return activeTransportTypes.includes(d.transportType);
   }));
 
   let uniqueLinesFiltered = $derived.by(() => {
-    const enabled = settings.enabledTransportTypes || ['bus', 'train', 'metro', 'boat'];
     const seen = new Set<string>();
     const lines: Departure[] = [];
     for (const d of allDepartures) {
-      if (!seen.has(d.line) && enabled.includes(d.transportType)) {
+      if (!seen.has(d.line) && activeTransportTypes.includes(d.transportType)) {
         seen.add(d.line);
         lines.push(d);
       }
@@ -226,6 +225,7 @@ interface StopInterface {
     selectedLine = null;
     departureError = null;
     step = 'search';
+    activeTransportTypes = [...ALL_TRANSPORT_TYPES];
   }
   
   function goBack() {
@@ -242,6 +242,14 @@ interface StopInterface {
   function applyAnchor(value: string) {
     query = value;
     handleInput();
+  }
+
+  function toggleTransportType(type: TransportType) {
+    if (activeTransportTypes.includes(type)) {
+      activeTransportTypes = activeTransportTypes.filter(t => t !== type);
+      return;
+    }
+    activeTransportTypes = [...activeTransportTypes, type];
   }
 
   onMount(async () => {
@@ -335,6 +343,23 @@ interface StopInterface {
       {:else if allDepartures.length === 0}
         <div class="msg">{$t.noDepartures}</div>
       {:else if step === 'select'}
+        <div class="transport-filter-row" data-testid="transport-filter-row">
+          {#each ALL_TRANSPORT_TYPES as type}
+            <button
+              class="transport-filter-btn"
+              class:active={activeTransportTypes.includes(type)}
+              onclick={() => toggleTransportType(type)}
+              aria-label={type}
+              aria-pressed={activeTransportTypes.includes(type)}
+              data-testid={`transport-filter-${type}`}
+            >
+              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
+                {@html transportIcons[type]}
+              </svg>
+              <span>{type}</span>
+            </button>
+          {/each}
+        </div>
         <div class="departures-list">
           {#each uniqueLinesFiltered as dep}
             <button class="dep-item" class:dep-cached={dep.predicted} onmousedown={() => handleLineSelect(dep)}>
@@ -543,6 +568,49 @@ interface StopInterface {
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .transport-filter-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .transport-filter-btn {
+    min-height: 52px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    text-transform: capitalize;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .transport-filter-btn .transport-icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  .transport-filter-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .transport-filter-btn:active {
+    transform: scale(0.97);
   }
 
   .dep-item {

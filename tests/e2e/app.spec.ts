@@ -364,4 +364,91 @@ test.describe("Nästa App", () => {
     // Error text is locale-dependent; match both Swedish and English
     await expect(errorMsg).toContainText(/(Kunde inte hämta|Failed to fetch departures)/i);
   });
+
+  test("should show touch-friendly transport filters in segment search results and apply multi-select filtering", async ({
+    page,
+  }) => {
+    await page.route("https://journeyplanner.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          locations: [
+            {
+              id: "9091001000003980",
+              name: "Slussen (Stockholm)",
+              disassembledName: "Slussen",
+              type: "stop",
+              matchQuality: 1000,
+              productClasses: [2, 8, 128],
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route("https://transport.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          departures: [
+            {
+              line: { designation: "13", name: "13", transport_mode: "metro" },
+              direction_code: 1,
+              destination: "Ropsten",
+              display: "5 min",
+              expected: new Date(Date.now() + 5 * 60000).toISOString(),
+            },
+            {
+              line: { designation: "41", name: "41", transport_mode: "train" },
+              direction_code: 1,
+              destination: "Märsta",
+              display: "7 min",
+              expected: new Date(Date.now() + 7 * 60000).toISOString(),
+            },
+            {
+              line: { designation: "2", name: "2", transport_mode: "bus" },
+              direction_code: 1,
+              destination: "Sofia",
+              display: "9 min",
+              expected: new Date(Date.now() + 9 * 60000).toISOString(),
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.locator(".action-btn").click();
+    await page.waitForTimeout(500);
+    await page.locator(".add-btn").click();
+
+    const searchInput = page.locator(".search-input");
+    await searchInput.waitFor({ state: "visible", timeout: 5000 });
+    await searchInput.fill("Slussen");
+    await page.waitForTimeout(400);
+
+    await page.locator(".results .item").first().click();
+
+    const filterRow = page.getByTestId("transport-filter-row");
+    await expect(filterRow).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId("transport-filter-metro")).toBeVisible();
+    await expect(page.getByTestId("transport-filter-train")).toBeVisible();
+    await expect(page.getByTestId("transport-filter-bus")).toBeVisible();
+    await expect(page.getByTestId("transport-filter-boat")).toBeVisible();
+
+    // Start with mixed transport results
+    await expect(page.locator(".dep-item")).toHaveCount(3);
+
+    // Turn off non-metro types to get metro-only result
+    await page.getByTestId("transport-filter-train").click();
+    await page.getByTestId("transport-filter-bus").click();
+    await page.getByTestId("transport-filter-boat").click();
+    await expect(page.locator(".dep-item")).toHaveCount(1);
+    await expect(page.locator(".dep-item .dep-line").first()).toContainText("13");
+
+    // Re-enable bus and verify union behavior
+    await page.getByTestId("transport-filter-bus").click();
+    await expect(page.locator(".dep-item")).toHaveCount(2);
+  });
 });
