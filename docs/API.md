@@ -4,24 +4,6 @@
 
 Base URL: `https://transport.integration.sl.se/v1`
 
-### Search Sites
-
-```
-GET /sites?search={query}
-```
-
-Response:
-
-```json
-[
-  {
-    "siteId": "9001",
-    "name": "Lindarängsvägen",
-    "type": "stop"
-  }
-]
-```
-
 ### Get Departures
 
 ```
@@ -56,14 +38,6 @@ Response:
 
 > [!NOTE]
 > The `stop_deviations` field provides site-specific context (e.g. why a station is currently empty) that may not always be present in the main Deviations API due to filtering differences.
-
-### Get Journey Patterns
-
-```
-GET /journey-planner/{lineDesignation}/stops
-```
-
-Returns stop sequence for a specific line, used for live vehicle position tracking.
 
 ## SL Deviations API
 
@@ -207,11 +181,15 @@ interface Segment {
   id: string;
   line: string;
   lineName: string;
-  directionText: string;
+  direction: {
+    code: number;
+    destination: string;
+    stopPointId: string;
+  };
   fromStop: Stop;
   toStop: Stop;
   transportType: TransportType;
-  travelTimeMinutes: number;
+  travelTimeMinutes?: number;
   transferBufferMinutes?: number;
 }
 
@@ -231,13 +209,18 @@ interface Departure {
   line: string;
   lineName: string;
   destination: string;
-  directionText: string;
+  direction_code: number;
   minutes: number;
   time: string;
-  source: "live" | "cached" | "predicted";
   expectedAt?: number;
-  deviation?: number;
+  deviation?: string;
   transportType: TransportType;
+  predicted?: boolean;
+  journeyRef?: string;
+  tripId?: string;
+  display?: string;
+  stop_point_id?: string;
+  isFirstMorning?: boolean;
 }
 ```
 
@@ -301,14 +284,20 @@ User Route Change → App.svelte
 
 ```typescript
 interface Settings {
-  theme?: string;
-  themeVariant?: "A" | "B";
-  language?: "auto" | "sv" | "en";
-  refreshInterval?: number;
-  disruptionAlertsEnabled?: boolean;
-  disruptionLanguage?: "auto" | "sv" | "en";
-  disruptionSeverityThreshold?: "info" | "warning" | "critical";
-  commuteNudgesEnabled?: boolean;
-  transferBufferMinutes?: number;
+  darkMode: boolean;
+  refreshInterval: number;
+  funMode: boolean;
+  hasSwipedRoutes: boolean;
+  showNotifications: boolean;
+  theme: string;
+  themeVariant: "A" | "B";
+  language: "auto" | "sv" | "en";
+  disruptionAlertsEnabled: boolean;
+  disruptionSeverityThreshold: "info" | "warning" | "critical";
+  disruptionLanguage: "sv" | "en" | "auto";
+  commuteNudgesEnabled: boolean;
+  homeAnchor: string;
+  workAnchor: string;
+  enabledTransportTypes: TransportType[];
 }
 ```

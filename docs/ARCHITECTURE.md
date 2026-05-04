@@ -50,7 +50,7 @@ Svelte 5 Runes ($state, $derived, $effect)
 
 | Service             | Endpoint                                           | Purpose                                             |
 | ------------------- | -------------------------------------------------- | --------------------------------------------------- |
-| `slApi.ts`          | `https://transport.integration.sl.se/v1`           | Stop search, real-time departures, journey patterns |
+| `slApi.ts`          | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2` | Real-time departures, stop search (`stop-finder`), planned trip fallback (`trip`) |
 | `slDeviations.ts`   | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring        |
 | `journeyService.ts` | Journey planner via slApi                          | Vehicle stop patterns, live position calculation    |
 | `geo.ts`            | Native Geolocation API                             | User distance to stops, walking time calculations   |
@@ -91,7 +91,7 @@ Svelte 5 Runes ($state, $derived, $effect)
 
 ```
 Navigation requests    → Network First (30-entry cache, instant fallback)
-SL /sites endpoint     → Stale-While-Revalidate (50-entry, 24h TTL)
+Journey Planner stop-finder endpoint → Stale-While-Revalidate (50-entry, 24h TTL)
 SL /departures endpoint → Network First (20-entry, 60s TTL)
 Static assets          → Cache First (hashed filenames)
 ```

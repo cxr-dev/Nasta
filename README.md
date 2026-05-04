@@ -115,7 +115,7 @@ Each segment defines:
 
 - `fromStop` / `toStop` — with `id`, `name`, `siteId` (SL stop ID)
 - `line` — transit line number (e.g., `"76"`)
-- `directionText` — final destination label
+- `direction` — object: `{ code, destination, stopPointId }`
 - `transportType` — `"bus"`, `"train"`, `"metro"`, or `"boat"`
 - `travelTimeMinutes` — estimated travel duration
 - `transferBufferMinutes` — optional transfer wait time between segments
@@ -137,8 +137,8 @@ Available in the Settings panel (tap **"Inställningar"**):
 | **Theme**               | 16 color palettes            | "default"  | Visual appearance and colors                |
 | **Language**            | Auto, Swedish, English       | "auto"     | App UI language                             |
 | **Refresh interval**    | 10-60 seconds                | 30 seconds | How often to fetch departures               |
-| **Disruption alerts**   | On/Off                       | Off        | Show transit disruptions and alerts         |
-| **Disruption level**    | All, Warning+, Critical only | "all"      | Filter disruptions by severity              |
+| **Disruption alerts**   | On/Off                       | On         | Show transit disruptions and alerts         |
+| **Disruption level**    | All, Warning+, Critical only | "warning"  | Filter disruptions by severity              |
 | **Disruption language** | Auto, Swedish, English       | "auto"     | Language for disruption text                |
 | **Commute nudges**      | On/Off                       | Off        | Weekday morning/afternoon notifications     |
 | **Transfer buffer**     | Minutes                      | 2-5        | Time allowed for transfers between segments |
@@ -152,9 +152,16 @@ Available in the Settings panel (tap **"Inställningar"**):
 ```
 Base URL: https://transport.integration.sl.se/v1
 
-GET /sites?search={query}              → Search stops & stations
 GET /sites/{siteId}/departures         → Get real-time departures
-GET /journey-planner/{line}            → Get journey stops and patterns
+```
+
+### SL Journey Planner API (Trafiklab)
+
+```
+Base URL: https://journeyplanner.integration.sl.se/v2
+
+GET /stop-finder?name_sf={query}&...   → Search stops & stations
+GET /trip?originId={id}&destId={id}    → Planned trip fallback / direction lookup
 ```
 
 ### SL Deviations API
@@ -257,6 +264,7 @@ See [`src/themes.ts`](src/themes.ts) for the full palette list.
 - **E2E tests:** Playwright tests run against built app (`pnpm run test:e2e`)
 - **Type safety:** `pnpm run check` runs `svelte-check` with `tsconfig.json`
 - **Build smoke:** `pnpm run verify:build` fails if server-only Svelte runtime markers are present in production JS bundles
+- **Stable E2E selectors:** Test IDs used by Playwright include `segment-row`, `segment-line`, `countdown-minutes`, `planned-badge`, `arrival-info`, and `arrival-time`
 
 ---
 
