@@ -7,16 +7,36 @@ test.describe("Onboarding hint", () => {
     });
 
     await page.goto("/");
+
+    // Verify empty state button is visible
+    const emptyBtn = page.locator(".empty-cta");
+    await expect(emptyBtn).toBeVisible();
+
+    // Click "Lägg till segment" button to create first route
+    await emptyBtn.click();
+
+    // Wait for RouteEditor to open with search visible
+    await expect(page.locator(".search-container")).toBeVisible();
+
+    // Verify tooltip appears
     const hint = page.locator(".onboarding-hint");
-    await expect(page.locator(".action-btn")).toBeVisible();
     await expect(hint).toBeVisible();
 
-    await hint.getByRole("button").click({ force: true });
+    // Verify pulsating button is visible
+    await expect(page.locator(".add-btn.onboarding-highlight")).toBeVisible();
+
+    // Dismiss the hint
+    await hint.getByRole("button").click();
+
+    // Verify hint is gone
     await expect(hint).toHaveCount(0);
 
+    // Verify localStorage is set
     await expect
       .poll(async () => {
-        return page.evaluate(() => localStorage.getItem("nasta_onboarding_seen"));
+        return page.evaluate(() =>
+          localStorage.getItem("nasta_onboarding_seen"),
+        );
       })
       .toBe("true");
   });

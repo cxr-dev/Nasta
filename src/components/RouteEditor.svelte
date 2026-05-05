@@ -13,23 +13,34 @@
     activeRouteId,
     isOpen,
     onClose,
-    onSwitchRoute
+    onSwitchRoute,
+    startWithSearch = false,
+    onboardingHighlight = false
   }: {
     routes: Route[];
     activeRouteId: string;
     isOpen: boolean;
     onClose: () => void;
     onSwitchRoute: (routeId: string) => void;
+    startWithSearch?: boolean;
+    onboardingHighlight?: boolean;
   } = $props();
 
   let route = $derived(routes.find(r => r.id === activeRouteId));
   let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
+  let hintDismissed = $state(false);
   let duplicatingRoute = $state<Omit<Route, "id"> | null>(null);
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let activeDisruptionLanguage = $derived(settings.disruptionLanguage ?? 'auto');
+
+  $effect(() => {
+    if (startWithSearch) {
+      showSearch = true;
+    }
+  });
 
   function getRouteLabel(r: Route): string {
     return r.direction === 'toWork' ? $t.toWork : $t.home;
@@ -40,6 +51,11 @@
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255 >= 0.5;
+  }
+
+  function dismissOnboardingHint() {
+    localStorage.setItem('nasta_onboarding_seen', 'true');
+    hintDismissed = true;
   }
 
   function addSegment(
@@ -66,6 +82,14 @@
       </span>
     </div>
 
+    {#if onboardingHighlight && showSearch && !hintDismissed}
+      <div class="onboarding-hint" role="tooltip" aria-live="polite">
+        <div class="hint-badge">NYTT</div>
+        <span>Klicka här för att lägga till ditt första segment!</span>
+        <button onclick={dismissOnboardingHint} aria-label="Stäng tips">×</button>
+      </div>
+    {/if}
+
     {#if route}
       {#if showSearch}
         <div class="search-container">
@@ -77,7 +101,7 @@
       {:else}
         <div class="segment-area">
           <SegmentList route={route} />
-          <button class="add-btn" onclick={() => showSearch = true}>
+          <button class="add-btn" class:onboarding-highlight={onboardingHighlight} onclick={() => showSearch = true}>
             {$t.addSegment}
           </button>
         </div>
@@ -574,6 +598,111 @@
   font-size: 13px;
   font-weight: 900;
   flex-shrink: 0;
+}
+
+.onboarding-hint {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 200px;
+  max-width: 360px;
+  width: calc(100% - 32px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 90%, #fff), color-mix(in srgb, var(--accent-subtle) 25%, #fff));
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 300;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
+  animation: hint-slide-in 600ms ease-out;
+}
+
+.onboarding-hint::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -30px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 30px solid color-mix(in srgb, var(--surface) 90%, #fff);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+}
+
+.onboarding-hint span {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.onboarding-hint button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hint-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  color: #fff;
+  background: var(--accent);
+}
+
+.add-btn.onboarding-highlight {
+  box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
+  animation: pulse-ring 1300ms ease-out infinite;
+}
+
+.add-btn.onboarding-highlight::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
+  animation: pulse-dot 1300ms ease-out infinite;
+}
+
+@keyframes hint-slide-in {
+  0% {
+    transform: translateX(-50%) translateY(20px);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-50%) translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.34); }
+  80% { box-shadow: 0 0 0 12px rgba(23, 23, 23, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35); }
+  75% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(23, 23, 23, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
 }
 
 </style>

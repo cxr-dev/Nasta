@@ -23,6 +23,7 @@
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let showOnboardingHint = $state(false);
   let siteLookupError = $state<string | null>(null);
+  let startFirstRouteSearch = $state(false);
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -249,6 +250,7 @@ function handleRouteSwitch(routeId: string) {
       routeStore.addRoute("Arbete", "fromWork");
       selectedRouteId.set(toWorkId);
       editing = true;
+      startFirstRouteSearch = true;
       return;
     }
 
@@ -258,6 +260,7 @@ function handleRouteSwitch(routeId: string) {
       deviationStore.stopAutoRefresh();
     } else {
       loadDepartures();
+      startFirstRouteSearch = false;
     }
   }
 
@@ -482,7 +485,7 @@ function handleRouteSwitch(routeId: string) {
           <h2>{$t.noRoutes}</h2>
           <p>{$t.noRoutesDesc}</p>
           <button class="empty-cta" onclick={toggleEdit}>
-            <span>{$t.createRoute}</span>
+            <span>{$t.addSegment}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
             </svg>
@@ -520,7 +523,6 @@ function handleRouteSwitch(routeId: string) {
     <BottomBar
       arrivalSummary={arrivalSummary}
       {editing}
-      onboardingHighlight={showOnboardingHint}
       onclick={toggleEdit}
       activeRouteDirection={route?.direction ?? 'toWork'}
     />
@@ -532,19 +534,14 @@ function handleRouteSwitch(routeId: string) {
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchRoute={handleRouteSwitch}
+        startWithSearch={startFirstRouteSearch}
+        onboardingHighlight={startFirstRouteSearch && !hasSeenOnboarding}
       />
     {/if}
   </main>
 </ErrorBoundary>
 <UpdateBanner />
 
-{#if showOnboardingHint}
-  <div class="onboarding-hint">
-    <div class="hint-badge">NEW</div>
-    <span>{$t.onboardingHint}</span>
-    <button onclick={dismissOnboardingHint} aria-label={$t.dismissHint}>×</button>
-  </div>
-{/if}
 
 <footer class="attribution">
   {$t.attribution} <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
@@ -799,73 +796,18 @@ function handleRouteSwitch(routeId: string) {
     padding: 0 4px;
   }
 
-  .onboarding-hint {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(env(safe-area-inset-bottom) + 140px);
-    max-width: 360px;
-    width: calc(100% - 32px);
-    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 86%, #fff), color-mix(in srgb, var(--accent-subtle) 30%, #fff));
-    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-    border-radius: 14px;
-    padding: 11px 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 9px;
-    z-index: 300;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
-    animation: hint-float 2200ms ease-in-out infinite;
-  }
-
-  .onboarding-hint::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: -8px;
-    width: 44px;
-    height: 24px;
-    background: transparent;
-    border-bottom: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-    border-right: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-    border-radius: 0 0 20px 0;
-    rotate: 30deg;
-    bottom: -22px;
-    left: 65%;
-    transform: translateX(-50%);
-  }
-
-  .onboarding-hint span {
-    font-size: 13px;
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .onboarding-hint button {
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .hint-badge {
-    flex-shrink: 0;
-    border-radius: 999px;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    padding: 3px 7px;
-    color: #fff;
-    background: var(--accent);
-  }
-
-  @keyframes hint-float {
-    0%, 100% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-2px); }
+  @keyframes hint-slide-in {
+    0% {
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+    }
+    60% {
+      transform: translateX(-50%) translateY(-2px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
   }
 </style>
