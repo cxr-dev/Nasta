@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Direction, Stop, TransportType, SegmentDirection } from "../types/route";
   import { routeStore } from "../stores/routeStore";
-  import { settingsStore } from "../stores/settingsStore";
   import { t } from "../stores/localeStore";
   import SegmentSearch from "./SegmentSearch.svelte";
 
@@ -9,7 +8,6 @@
 
   let step = $state<0 | 1 | 2>(0);
   let direction = $state<Direction>("toWork");
-  let duplicateReturnRoute = $state(true);
   let selectedSegment = $state<{
     line: string;
     lineName: string;
@@ -53,25 +51,6 @@
       transferBufferMinutes: 0,
     });
 
-    if (duplicateReturnRoute) {
-      const oppositeDirection: Direction =
-        direction === "toWork" ? "fromWork" : "toWork";
-      const returnRouteId = routeStore.addRoute("Arbete", oppositeDirection);
-      routeStore.addSegment(returnRouteId, {
-        ...selectedSegment,
-        travelTimeMinutes: 0,
-        transferBufferMinutes: 0,
-      });
-    }
-
-    if (direction === "toWork") {
-      settingsStore.setAnchor("homeAnchor", selectedSegment.fromStop.name);
-      settingsStore.setAnchor("workAnchor", selectedSegment.toStop.name);
-    } else {
-      settingsStore.setAnchor("homeAnchor", selectedSegment.toStop.name);
-      settingsStore.setAnchor("workAnchor", selectedSegment.fromStop.name);
-    }
-
     onComplete();
   }
 </script>
@@ -104,10 +83,6 @@
           <div>{selectedSegment.direction.destination}</div>
         </div>
       {/if}
-      <label class="check">
-        <input type="checkbox" bind:checked={duplicateReturnRoute} />
-        <span>{$t.duplicateReturnRoute}</span>
-      </label>
       <div class="stack">
         <button class="primary" onclick={completeSetup}>
           {$t.createFirstRoute}
@@ -189,11 +164,4 @@
     font-size: 14px;
   }
 
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-  }
 </style>
-

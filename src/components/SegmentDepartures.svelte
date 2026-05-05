@@ -15,11 +15,15 @@
 
   let {
     route,
+    onManualRefresh = async () => {},
+    isManualRefreshing = false,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationUsedCache = false,
     deviationLastUpdatedAt = 0,
   }: {
     route: Route;
+    onManualRefresh?: () => Promise<void>;
+    isManualRefreshing?: boolean;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationUsedCache?: boolean;
     deviationLastUpdatedAt?: number;
@@ -32,7 +36,6 @@
   let isLoading = $state(false);
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
-  let isRefreshing = $state(false);
   let userLocation = $state<[number, number] | null>(null);
 
   const UNSUBSCRIBERS: Array<() => void> = [];
@@ -109,15 +112,7 @@
   }
 
   async function handleRefreshClick() {
-    const segments = route.segments ?? [];
-    const siteIds = segments.map((s) => s.fromStop.siteId).filter(Boolean);
-    const stopNames = new Map(segments.map((s) => [s.fromStop.siteId, s.fromStop.name]));
-    const segmentMetaBySiteId = new Map(
-      segments.map((s) => [s.fromStop.siteId, { line: s.line, direction_code: s.direction?.code ?? 0 }]),
-    );
-    isRefreshing = true;
-    await departureStore.refresh(siteIds, stopNames, segmentMetaBySiteId, false);
-    isRefreshing = false;
+    await onManualRefresh();
   }
 
   onMount(() => {
@@ -173,7 +168,8 @@
       <h3 class="departures-title">{$t.departures}</h3>
       <button
         class="refresh-btn"
-        class:spinning={isRefreshing}
+        class:spinning={isManualRefreshing}
+        disabled={isManualRefreshing}
         onclick={handleRefreshClick}
         title={$t.refreshDepartures}
         aria-label={$t.refreshDepartures}
@@ -211,7 +207,7 @@
           </div>
 
           <div class="line-details">
-            <span class="line-info" data-testid="segment-line">{segment.lineName || segment.line}</span>
+            <span class="line-info" data-testid="segment-line">{segment.line}</span>
             <div class="stop-route-container">
               <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
             </div>
@@ -360,6 +356,8 @@
   .refresh-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; border: none; background: var(--surface); color: var(--text); cursor: pointer; transition: all 200ms ease; font-size: 0; }
   .refresh-btn:hover { background: var(--accent); color: var(--bg); }
   .refresh-btn:active { transform: scale(0.95); }
+  .refresh-btn:disabled { opacity: 0.7; cursor: default; }
+  .refresh-btn.spinning svg { animation: spin 800ms linear infinite; }
   .error-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
   .error-bar button { background: none; border: none; color: #991b1b; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
   .loading-skeleton { padding: 12px 0; }
@@ -391,5 +389,10 @@
     width: 14px;
     height: 14px;
     opacity: 0.6;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 </style>

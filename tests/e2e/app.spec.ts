@@ -451,4 +451,15 @@ test.describe("Nästa App", () => {
     await page.getByTestId("transport-filter-bus").click();
     await expect(page.locator(".dep-item")).toHaveCount(2);
   });
+
+  test("should not show quick stop anchors or commute nudges", async ({ page }) => {
+    await page.locator(".action-btn").click();
+    await expect(page.locator("text=Hemma / Jobb")).toHaveCount(0);
+    await expect(page.locator("text=Snabbval i hållplatssök")).toHaveCount(0);
+    await expect(page.locator("text=Pendlingspåminnelser")).toHaveCount(0);
+    await expect(page.locator("text=Commute nudges")).toHaveCount(0);
+
+    await page.locator(".add-btn").click();
+    await expect(page.locator(".anchor-row .anchor-btn")).toHaveCount(0);
+  });
 });

@@ -7,7 +7,6 @@ import type { SiteSearchResult, Departure } from '../types/departure';
 import type { TransportType, Stop, SegmentDirection } from '../types/route';
 import { transportIcons } from '../icons/transport';
 import { t } from '../stores/localeStore';
-import { settingsStore } from '../stores/settingsStore';
 import DirectionSelector from './DirectionSelector.svelte';
 import { onMount } from 'svelte';
 
@@ -40,6 +39,7 @@ interface StopInterface {
     return stations.filter(s => {
       if (!s.productClasses || s.productClasses.length === 0) return true; // Allow if unknown
       const types = mapProductClassesToTransportTypes(s.productClasses);
+      if (types.length === 0) return true; // Allow if product classes not mapped
       return types.some(t => activeTransportTypes.includes(t));
     });
   });
@@ -80,7 +80,6 @@ interface StopInterface {
   let loading = $state(false);
   let loadingDeps = $state(false);
   let departureError = $state<string | null>(null);
-  let settings = $derived($settingsStore);
   let step = $state<'search' | 'select' | 'direction'>('search');
   let debounceTimer: ReturnType<typeof setTimeout>;
   let abortController: AbortController | null = null;
@@ -239,11 +238,6 @@ interface StopInterface {
     }
   }
 
-  function applyAnchor(value: string) {
-    query = value;
-    handleInput();
-  }
-
   function toggleTransportType(type: TransportType) {
     if (activeTransportTypes.includes(type)) {
       activeTransportTypes = activeTransportTypes.filter(t => t !== type);
@@ -281,18 +275,8 @@ interface StopInterface {
        spellcheck="false"
      />
 
-    {#if settings.homeAnchor || settings.workAnchor || nearbyStops.length > 0}
+    {#if nearbyStops.length > 0}
       <div class="anchor-row">
-        {#if settings.homeAnchor}
-          <button class="anchor-btn" onclick={() => applyAnchor(settings.homeAnchor)}>
-            Hemma
-          </button>
-        {/if}
-        {#if settings.workAnchor}
-          <button class="anchor-btn" onclick={() => applyAnchor(settings.workAnchor)}>
-            Jobb
-          </button>
-        {/if}
         {#if nearbyStops.length > 0}
           <div class="nearby-label">{$t.nearby || "Nära dig"}:</div>
           {#each nearbyStops as stop}

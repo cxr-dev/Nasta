@@ -15,14 +15,13 @@
   import BottomBar from './components/BottomBar.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
-  import Onboarding from './components/Onboarding.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
 
   let editing = $state(false);
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
-  let showOnboarding = $state(false);
+  let showOnboardingHint = $state(false);
   let siteLookupError = $state<string | null>(null);
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
@@ -38,17 +37,11 @@
   let isRefreshing = $state(false);
   let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
 
-  const hasSeenOnboarding = typeof localStorage !== 'undefined'
-    && localStorage.getItem('nasta_onboarding_seen');
+  const hasSeenOnboarding = typeof localStorage !== 'undefined' && localStorage.getItem('nasta_onboarding_seen');
 
-  function completeOnboarding() {
-    showOnboarding = false;
+  function dismissOnboardingHint() {
+    showOnboardingHint = false;
     localStorage.setItem('nasta_onboarding_seen', 'true');
-    const allRoutes = $routeStore ?? [];
-    if (!$selectedRouteId && allRoutes.length > 0) {
-      selectedRouteId.set(allRoutes[0].id);
-    }
-    loadDepartures(true);
   }
 
   let route = $derived($selectedRoute);
@@ -251,6 +244,14 @@ function handleRouteSwitch(routeId: string) {
   }
 
   function toggleEdit() {
+    if (hasNoRoutes) {
+      const toWorkId = routeStore.addRoute("Arbete", "toWork");
+      routeStore.addRoute("Arbete", "fromWork");
+      selectedRouteId.set(toWorkId);
+      editing = true;
+      return;
+    }
+
     editing = !editing;
     if (editing) {
       departureStore.stopAutoRefresh();
@@ -364,9 +365,7 @@ function handleRouteSwitch(routeId: string) {
     initializeCacheLifecycle();
     const initialRoutes = $routeStore ?? [];
 
-    if (!hasSeenOnboarding && initialRoutes.length === 0) {
-      showOnboarding = true;
-    }
+    showOnboardingHint = !hasSeenOnboarding;
     if (initialRoutes.length > 0 && !$selectedRouteId) {
       selectedRouteId.set(initialRoutes[0].id);
     }
@@ -378,26 +377,6 @@ function handleRouteSwitch(routeId: string) {
       deviationUsedCache = state.usedCache;
       deviationLastUpdatedAt = state.lastUpdatedAt;
     });
-
-    let nudgeTimer: ReturnType<typeof setInterval> | null = null;
-    if (settings.commuteNudgesEnabled && typeof Notification !== 'undefined') {
-      nudgeTimer = setInterval(() => {
-        if (Notification.permission !== 'granted' || document.hidden) return;
-        const now = new Date();
-        const day = now.getDay();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-        if (day === 0 || day === 6) return;
-        const nudgeKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${hour}:${minute}`;
-        if ((hour === 7 && minute === 30) || (hour === 16 && minute === 30)) {
-          if (localStorage.getItem('nasta_last_nudge') === nudgeKey) return;
-          new Notification('Nästa', {
-            body: 'Kolla läget innan du går till hållplatsen.',
-          });
-          localStorage.setItem('nasta_last_nudge', nudgeKey);
-        }
-      }, 60_000);
-    }
 
     lastRefreshInterval = setInterval(() => {
       if (!document.hidden) {
@@ -440,7 +419,6 @@ function handleRouteSwitch(routeId: string) {
     return () => {
       unsub();
       unsubDeviations();
-      if (nudgeTimer) clearInterval(nudgeTimer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   });
@@ -454,10 +432,7 @@ function handleRouteSwitch(routeId: string) {
   });
 </script>
 
-{#if showOnboarding}
-  <Onboarding onComplete={completeOnboarding} />
-{:else}
-  <ErrorBoundary>
+<ErrorBoundary>
     <main
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
@@ -506,7 +481,7 @@ function handleRouteSwitch(routeId: string) {
           </div>
           <h2>{$t.noRoutes}</h2>
           <p>{$t.noRoutesDesc}</p>
-          <button class="empty-cta" onclick={() => showOnboarding = true}>
+          <button class="empty-cta" onclick={toggleEdit}>
             <span>{$t.createRoute}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
@@ -516,6 +491,8 @@ function handleRouteSwitch(routeId: string) {
       {:else if route && route.segments.length > 0}
         <SegmentDepartures
           {route}
+          onManualRefresh={triggerManualRefresh}
+          isManualRefreshing={isRefreshing}
           deviationHealthBySegment={deviationHealthBySegment}
           deviationUsedCache={deviationUsedCache}
           deviationLastUpdatedAt={deviationLastUpdatedAt}
@@ -540,14 +517,13 @@ function handleRouteSwitch(routeId: string) {
       {/if}
     </div>
 
-    {#if !hasNoRoutes}
-      <BottomBar
-        arrivalSummary={arrivalSummary}
-        {editing}
-        onclick={toggleEdit}
-        activeRouteDirection={route?.direction ?? 'toWork'}
-      />
-    {/if}
+    <BottomBar
+      arrivalSummary={arrivalSummary}
+      {editing}
+      onboardingHighlight={showOnboardingHint}
+      onclick={toggleEdit}
+      activeRouteDirection={route?.direction ?? 'toWork'}
+    />
 
     {#if !hasNoRoutes && route}
       <RouteEditor
@@ -559,8 +535,15 @@ function handleRouteSwitch(routeId: string) {
       />
     {/if}
   </main>
-  </ErrorBoundary>
-  <UpdateBanner />
+</ErrorBoundary>
+<UpdateBanner />
+
+{#if showOnboardingHint}
+  <div class="onboarding-hint">
+    <div class="hint-badge">NEW</div>
+    <span>{$t.onboardingHint}</span>
+    <button onclick={dismissOnboardingHint} aria-label={$t.dismissHint}>×</button>
+  </div>
 {/if}
 
 <footer class="attribution">
@@ -814,5 +797,75 @@ function handleRouteSwitch(routeId: string) {
     font-size: 18px;
     line-height: 1;
     padding: 0 4px;
+  }
+
+  .onboarding-hint {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom) + 140px);
+    max-width: 360px;
+    width: calc(100% - 32px);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 86%, #fff), color-mix(in srgb, var(--accent-subtle) 30%, #fff));
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+    border-radius: 14px;
+    padding: 11px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+    z-index: 300;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+    animation: hint-float 2200ms ease-in-out infinite;
+  }
+
+  .onboarding-hint::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -8px;
+    width: 44px;
+    height: 24px;
+    background: transparent;
+    border-bottom: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    border-right: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    border-radius: 0 0 20px 0;
+    rotate: 30deg;
+    bottom: -22px;
+    left: 65%;
+    transform: translateX(-50%);
+  }
+
+  .onboarding-hint span {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .onboarding-hint button {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .hint-badge {
+    flex-shrink: 0;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 3px 7px;
+    color: #fff;
+    background: var(--accent);
+  }
+
+  @keyframes hint-float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-2px); }
   }
 </style>

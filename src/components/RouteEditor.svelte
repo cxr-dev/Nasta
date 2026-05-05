@@ -51,17 +51,6 @@
     showSearch = false;
   }
 
-  async function toggleCommuteNudges() {
-    const next = !(settings.commuteNudgesEnabled ?? false);
-    settingsStore.setCommuteNudgesEnabled(next);
-    if (
-      next &&
-      typeof Notification !== 'undefined' &&
-      Notification.permission === 'default'
-    ) {
-      await Notification.requestPermission();
-    }
-  }
 </script>
 
 <div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen}>
@@ -135,6 +124,7 @@
       <div class="setting-block">
         <div class="toggle-label">
           <span class="toggle-name">{$t.disruptionThreshold}</span>
+          <span class="toggle-desc">{$t.disruptionThresholdDesc}</span>
         </div>
         <div class="segmented-control" role="group" aria-label={$t.disruptionThreshold}>
           <button
@@ -194,42 +184,6 @@
             {$t.languageEnglish}
           </button>
         </div>
-      </div>
-
-      <label class="toggle-row">
-        <div class="toggle-label">
-          <span class="toggle-name">{$t.commuteNudges}</span>
-          <span class="toggle-desc">{$t.commuteNudgesDesc}</span>
-        </div>
-        <button
-          class="toggle-btn"
-          class:on={settings.commuteNudgesEnabled ?? false}
-          onclick={toggleCommuteNudges}
-          aria-label={$t.commuteNudges}
-          role="switch"
-          aria-checked={settings.commuteNudgesEnabled ?? false}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </label>
-
-      <div class="setting-block">
-        <div class="toggle-label">
-          <span class="toggle-name">Hemma / Jobb</span>
-          <span class="toggle-desc">Snabbval i hållplatssök</span>
-        </div>
-        <input
-          class="anchor-input"
-          placeholder="Hemma hållplats"
-          value={settings.homeAnchor}
-          oninput={(e) => settingsStore.setAnchor('homeAnchor', (e.currentTarget as HTMLInputElement).value)}
-        />
-        <input
-          class="anchor-input"
-          placeholder="Jobb hållplats"
-          value={settings.workAnchor}
-          oninput={(e) => settingsStore.setAnchor('workAnchor', (e.currentTarget as HTMLInputElement).value)}
-        />
       </div>
 
       <div class="setting-block">
@@ -535,16 +489,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
-}
-
-.anchor-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
 }
 
 .theme-list {

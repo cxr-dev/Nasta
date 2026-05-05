@@ -10,9 +10,8 @@ const sv = {
   // BottomBar
   arriving: 'Anländer',
   save: 'Spara',
-  edit: 'Redigera',
   saveAriaLabel: 'Spara ändringar',
-  editAriaLabel: 'Redigera rutter',
+  settingsAriaLabel: 'Öppna inställningar',
 
   // RouteEditor
   closeEditor: 'Stäng redigering',
@@ -26,13 +25,12 @@ const sv = {
   disruptionAlerts: 'Störningsvarningar',
   disruptionAlertsDesc: 'Visa störningar för dina sparade segment',
   disruptionThreshold: 'Störningsnivå',
-  disruptionThresholdInfo: 'Alla',
-  disruptionThresholdWarning: 'Varning + kritisk',
-  disruptionThresholdCritical: 'Endast kritisk',
+  disruptionThresholdDesc: 'Välj hur allvarliga störningar som visas',
+  disruptionThresholdInfo: 'Alla störningar',
+  disruptionThresholdWarning: 'Viktiga + kritiska',
+  disruptionThresholdCritical: 'Endast kritiska',
   disruptionLanguage: 'Störningsspråk',
   disruptionLanguageAuto: 'Automatiskt',
-  commuteNudges: 'Pendlingspåminnelser',
-  commuteNudgesDesc: 'Lokal notis vardagar morgon och eftermiddag',
   theme: 'Tema',
   language: 'Språk',
   languageAuto: 'Automatiskt',
@@ -142,6 +140,8 @@ const sv = {
   setupReviewDesc: 'Skapa rutten och duplicera vid behov för retur',
   duplicateReturnRoute: 'Duplicera som returrutt',
   createFirstRoute: 'Skapa första rutt',
+  onboardingHint: 'Lägg till segment i Inställningar.',
+  dismissHint: 'Stäng',
 
   // Direction selector
   selectDirection: 'Välj riktning',
@@ -166,9 +166,8 @@ const en: typeof sv = {
 
   arriving: 'Arriving',
   save: 'Save',
-  edit: 'Edit',
   saveAriaLabel: 'Save changes',
-  editAriaLabel: 'Edit routes',
+  settingsAriaLabel: 'Open settings',
 
   closeEditor: 'Close editor',
   editingRoute: 'Editing',
@@ -181,13 +180,12 @@ const en: typeof sv = {
   disruptionAlerts: 'Disruption alerts',
   disruptionAlertsDesc: 'Show disruptions for saved segments',
   disruptionThreshold: 'Disruption level',
-  disruptionThresholdInfo: 'All',
-  disruptionThresholdWarning: 'Warning + critical',
+  disruptionThresholdDesc: 'Choose how severe disruptions must be to be shown',
+  disruptionThresholdInfo: 'All disruptions',
+  disruptionThresholdWarning: 'Important + critical',
   disruptionThresholdCritical: 'Critical only',
   disruptionLanguage: 'Disruption language',
   disruptionLanguageAuto: 'Automatic',
-  commuteNudges: 'Commute nudges',
-  commuteNudgesDesc: 'Local weekday morning and afternoon reminders',
   theme: 'Theme',
   language: 'Language',
   languageAuto: 'Automatic',
@@ -290,6 +288,8 @@ const en: typeof sv = {
   setupReviewDesc: 'Create the route and optionally duplicate return',
   duplicateReturnRoute: 'Duplicate as return route',
   createFirstRoute: 'Create first route',
+  onboardingHint: 'Add segments from Settings.',
+  dismissHint: 'Dismiss',
 
   // Direction selector
   selectDirection: 'Select direction',

@@ -75,11 +75,14 @@ const route: Route = {
   ],
 };
 
+const onManualRefresh = vi.fn(async () => {});
+
 describe("SegmentDepartures refresh behavior", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     departureStoreMockState.refresh.mockReset();
     departureStoreMockState.data.set(new Map());
+    onManualRefresh.mockClear();
   });
 
   afterEach(() => {
@@ -88,7 +91,7 @@ describe("SegmentDepartures refresh behavior", () => {
   });
 
   it("does not auto-refresh on timer ticks", () => {
-    render(SegmentDepartures, { props: { route } });
+    render(SegmentDepartures, { props: { route, onManualRefresh } });
     departureStoreMockState.refresh.mockClear();
 
     vi.advanceTimersByTime(60_000);
@@ -96,12 +99,12 @@ describe("SegmentDepartures refresh behavior", () => {
   });
 
   it("refreshes when user clicks refresh button", async () => {
-    const view = render(SegmentDepartures, { props: { route } });
+    const view = render(SegmentDepartures, { props: { route, onManualRefresh } });
     const refreshButton = view.getByRole("button", {
       name: /refresh|uppdatera/i,
     });
     await fireEvent.click(refreshButton);
-    expect(departureStoreMockState.refresh).toHaveBeenCalledTimes(1);
+    expect(onManualRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("renders without errors when no matching departures exist", () => {

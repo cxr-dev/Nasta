@@ -17,9 +17,6 @@ export interface Settings {
   disruptionAlertsEnabled: boolean;
   disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
   disruptionLanguage: 'sv' | 'en' | 'auto';
-  commuteNudgesEnabled: boolean;
-  homeAnchor: string;
-  workAnchor: string;
   enabledTransportTypes: TransportType[];
 }
 
@@ -35,9 +32,6 @@ const defaultSettings: Settings = {
   disruptionAlertsEnabled: true,
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
-  commuteNudgesEnabled: false,
-  homeAnchor: '',
-  workAnchor: '',
   enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
 };
 

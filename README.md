@@ -21,8 +21,8 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Arrival calculation** — Sums travel times plus transfer buffers to show expected arrival time
 - **Pull-to-refresh** — Manual refresh on mobile with visual feedback and stale data indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
-- **Commute nudges** — Local weekday morning and afternoon reminder notifications
 - **Live vehicle tracking** — Shows vehicle stops along selected routes with real-time position updates
+- **Guided first run** — In-app hint points users to Settings for adding segments
 - **Dark mode & themes** — 16 color themes, auto-detected system preference with contrast adjustment
 - **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
 
@@ -122,7 +122,7 @@ Each segment defines:
 
 **To edit routes:**
 
-1. Tap the **"Redigera"** button (bottom bar)
+1. Tap the **"Inställningar"/"Settings"** button (bottom bar)
 2. Search for stops using the debounced search input
 3. Add segments between stops and set travel time
 4. Drag to reorder segments on mobile
@@ -138,9 +138,8 @@ Available in the Settings panel (tap **"Inställningar"**):
 | **Language**            | Auto, Swedish, English       | "auto"     | App UI language                             |
 | **Refresh interval**    | 10-60 seconds                | 30 seconds | How often to fetch departures               |
 | **Disruption alerts**   | On/Off                       | On         | Show transit disruptions and alerts         |
-| **Disruption level**    | All, Warning+, Critical only | "warning"  | Filter disruptions by severity              |
+| **Disruption level**    | All disruptions, Important + critical, Critical only | "warning"  | Filter disruptions by severity              |
 | **Disruption language** | Auto, Swedish, English       | "auto"     | Language for disruption text                |
-| **Commute nudges**      | On/Off                       | Off        | Weekday morning/afternoon notifications     |
 | **Transfer buffer**     | Minutes                      | 2-5        | Time allowed for transfers between segments |
 
 ---
@@ -202,7 +201,7 @@ User Action → Svelte Store → Service → API/Storage
 | `src/stores/departureStore.ts`      | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
 | `src/stores/deviationStore.ts`      | Disruption fetching, segment health tracking, severity thresholding                 |
 | `src/stores/localeStore.ts`         | Automatic locale detection, i18n translation store                                  |
-| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, notification toggles           |
+| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, disruption display              |
 | `src/services/slApi.ts`             | SL Transport API client, stop search with result ranking                            |
 | `src/services/slDeviations.ts`      | SL Deviations API client, message parsing, severity scoring                         |
 | `src/services/journeyService.ts`    | Journey planner, stop patterns, live vehicle position calculation                   |
@@ -324,15 +323,6 @@ When you delete a segment from "Till jobbet", the same-index segment is automati
 
 Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
 
-### Commute Nudges
-
-Optional weekday morning/afternoon reminders:
-
-- Enabled via Settings → "Commute nudges"
-- Requests notification permission on first enable
-- Triggers on configured weekday hours
-- Hidden if browser tab is in background or permission denied
-
 ### Live Vehicle Tracking
 
 The `DepartureStrip` component shows vehicle stops along a route:
@@ -413,6 +403,6 @@ The app is served as a static SPA from the `/Nasta/` base path.
 ## Acknowledgements
 
 - Transit data provided by [Trafiklab](https://trafiklab.se) — SL API
-- Icons from internal `transportIcons` SVG paths
+- Icons from curated transit-style SVG paths in `src/icons/transport.ts`
 - Fonts from [Fontshare](https://fontshare.com) — Neue Machina & Satoshi
 - Built with ❤️ using Svelte & TypeScript

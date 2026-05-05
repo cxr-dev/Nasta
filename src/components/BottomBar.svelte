@@ -5,11 +5,13 @@
   let {
     arrivalSummary,
     editing,
+    onboardingHighlight = false,
     onclick,
     activeRouteDirection
   }: {
     arrivalSummary: ArrivalSummary | null;
     editing: boolean;
+    onboardingHighlight?: boolean;
     onclick: () => void;
     activeRouteDirection: 'toWork' | 'fromWork';
   } = $props();
@@ -39,8 +41,9 @@
   <button
     class="action-btn"
     class:is-editing={editing}
+    class:onboarding-highlight={onboardingHighlight && !editing}
     {onclick}
-    aria-label={editing ? $t.saveAriaLabel : $t.editAriaLabel}
+    aria-label={editing ? $t.saveAriaLabel : $t.settingsAriaLabel}
   >
     {#if editing}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
@@ -52,7 +55,7 @@
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 3h5M12 8h5M12 13h5M7 3l-4 4M7 8l-4 4M7 13l-4 4"/>
       </svg>
-      <span>{$t.edit}</span>
+      <span>{$t.settings}</span>
     {/if}
   </button>
 </div>
@@ -116,6 +119,8 @@
   }
 
   .action-btn {
+    position: relative;
+    overflow: visible;
     width: 100%;
     padding: 14px 20px;
     background: var(--accent-subtle);
@@ -151,5 +156,35 @@
 
   .action-btn.is-editing:hover {
     opacity: 0.88;
+  }
+
+  .action-btn.onboarding-highlight {
+    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
+    animation: pulse-ring 1300ms ease-out infinite;
+  }
+
+  .action-btn.onboarding-highlight::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
+    animation: pulse-dot 1300ms ease-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.34); }
+    80% { box-shadow: 0 0 0 12px rgba(23, 23, 23, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
+  }
+
+  @keyframes pulse-dot {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35); }
+    75% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(23, 23, 23, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
   }
 </style>

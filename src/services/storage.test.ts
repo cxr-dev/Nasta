@@ -87,9 +87,6 @@ describe('storage service', () => {
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: 'warning',
         disruptionLanguage: 'auto',
-        commuteNudgesEnabled: false,
-        homeAnchor: '',
-        workAnchor: '',
         enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
       });
     });
@@ -114,9 +111,6 @@ describe('storage service', () => {
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: 'critical' as const,
         disruptionLanguage: 'sv' as const,
-        commuteNudgesEnabled: true,
-        homeAnchor: 'Liljeholmen',
-        workAnchor: 'T-Centralen',
         enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
       };
       saveSettings(settings);

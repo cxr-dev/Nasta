@@ -1,4 +1,4 @@
-import { writable, get } from 'svelte/store';
+import { writable } from 'svelte/store';
 import type { Settings } from '../services/storage';
 import { loadSettings, saveSettings } from '../services/storage';
 
@@ -86,20 +86,6 @@ function createSettingsStore() {
         return updated;
       });
     },
-    setCommuteNudgesEnabled: (enabled: boolean) => {
-      update(settings => {
-        const updated = { ...settings, commuteNudgesEnabled: enabled };
-        saveSettings(updated);
-        return updated;
-      });
-    },
-    setAnchor: (type: 'homeAnchor' | 'workAnchor', value: string) => {
-      update(settings => {
-        const updated = { ...settings, [type]: value };
-        saveSettings(updated);
-        return updated;
-      });
-    }
   };
 }
 

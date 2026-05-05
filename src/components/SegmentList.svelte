@@ -81,8 +81,20 @@
     switch (transportType) {
       case 'metro': return `T${line}`;
       case 'train': return `J${line}`;
-      default: return line;
+      default: return '';
     }
+  }
+
+  function primaryLineText(segment: Segment): string {
+    const fallback = segment.line;
+    if (!segment.lineName) return fallback;
+    return segment.lineName;
+  }
+
+  function showLineBadge(segment: Segment): boolean {
+    const badge = getLineBadge(segment.transportType, segment.line);
+    if (!badge) return false;
+    return !primaryLineText(segment).includes(badge);
   }
 
 </script>
@@ -115,8 +127,10 @@
         </div>
         <div class="segment-info">
           <div class="segment-line">
-            {segment.lineName}
-            <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
+            {primaryLineText(segment)}
+            {#if showLineBadge(segment)}
+              <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
+            {/if}
           </div>
           <div class="segment-route">
             {segment.fromStop.name} → {segment.toStop.name}
