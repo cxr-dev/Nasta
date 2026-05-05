@@ -484,7 +484,11 @@ function handleRouteSwitch(routeId: string) {
           </div>
           <h2>{$t.noRoutes}</h2>
           <p>{$t.noRoutesDesc}</p>
-          <button class="empty-cta" onclick={toggleEdit}>
+          <button 
+            class="empty-cta" 
+            class:onboarding-highlight={startFirstRouteSearch && !hasSeenOnboarding}
+            onclick={toggleEdit}
+          >
             <span>{$t.addSegment}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
@@ -510,7 +514,11 @@ function handleRouteSwitch(routeId: string) {
           </div>
           <h2>{$t.noSegments}</h2>
           <p>{$t.noSegmentsDesc}</p>
-          <button class="empty-cta" onclick={toggleEdit}>
+          <button 
+            class="empty-cta" 
+            class:onboarding-highlight={startFirstRouteSearch && !hasSeenOnboarding}
+            onclick={toggleEdit}
+          >
             <span>{$t.add}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
@@ -756,6 +764,50 @@ function handleRouteSwitch(routeId: string) {
   .empty-cta svg {
     width: 18px;
     height: 18px;
+  }
+
+  .empty-cta.onboarding-highlight {
+    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
+    animation: pulse-ring 1300ms ease-out infinite;
+    position: relative;
+  }
+
+  .empty-cta.onboarding-highlight::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
+    animation: pulse-dot 1300ms ease-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.34); }
+    80% { box-shadow: 0 0 0 12px rgba(23, 23, 23, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
+  }
+
+  @keyframes pulse-dot {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35); }
+    75% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(23, 23, 23, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .empty-cta.onboarding-highlight,
+    .empty-cta.onboarding-highlight::after {
+      animation: none;
+    }
+    .empty-cta.onboarding-highlight {
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+    .empty-cta.onboarding-highlight::after {
+      display: none;
+    }
   }
 
   .attribution {

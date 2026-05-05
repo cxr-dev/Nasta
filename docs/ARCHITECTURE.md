@@ -98,12 +98,13 @@ Static assets          → Cache First (hashed filenames)
 
 ### LocalStorage Keys
 
-| Key                     | Content              | TTL                       |
-| ----------------------- | -------------------- | ------------------------- |
-| `nasta_routes`          | Serialized Route[]   | Permanent                 |
-| `nasta_settings`        | Serialized settings  | Permanent                 |
-| `nasta_onboarding_seen` | Boolean flag         | Permanent                 |
-| `nasta_recent_stops`    | SiteSearchResult[]   | Permanent (Recent searches) |
+| Key                       | Content              | TTL                       |
+| ------------------------- | -------------------- | ------------------------- |
+| `nasta_routes`            | Serialized Route[]   | Permanent                 |
+| `nasta_settings`          | Serialized settings  | Permanent                 |
+| `nasta_onboarding_seen`  | Boolean flag         | Permanent                 |
+| `nasta_location_prompted`| `"enabled"` \| `"skipped"` | Permanent           |
+| `nasta_recent_stops`     | SiteSearchResult[]   | Permanent (Recent searches) |
 | (Computed schedules)    | Predicted departures | As configured per service |
 
 ### IndexedDB Keys (Deviations)

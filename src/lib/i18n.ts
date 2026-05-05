@@ -141,6 +141,8 @@ const sv = {
   duplicateReturnRoute: 'Duplicera som returrutt',
   createFirstRoute: 'Skapa första rutt',
   onboardingHint: 'Lägg till segment i Inställningar.',
+  onboardingHintNew: 'NYTT',
+  onboardingHintText: 'Klicka här för att lägga till ditt första segment!',
   dismissHint: 'Stäng',
 
   // Direction selector
@@ -156,6 +158,12 @@ const sv = {
 
   // Attribution
   attribution: 'Trafikdata via',
+
+  // Location prompt
+  locationPromptTitle: 'Hitta närliggande hållplatser',
+  locationPromptDesc: 'Vi använder din plats för att automatiskt visa de närmaste hållplaterna och gångavståndet.',
+  locationEnableBtn: 'Aktivera plats',
+  locationSkipBtn: 'Kanske senare',
 };
 
 const en: typeof sv = {
@@ -289,6 +297,8 @@ const en: typeof sv = {
   duplicateReturnRoute: 'Duplicate as return route',
   createFirstRoute: 'Create first route',
   onboardingHint: 'Add segments from Settings.',
+  onboardingHintNew: 'NEW',
+  onboardingHintText: 'Click here to add your first segment!',
   dismissHint: 'Dismiss',
 
   // Direction selector
@@ -304,6 +314,12 @@ const en: typeof sv = {
 
   // Attribution
   attribution: 'Transit data via',
+
+  // Location prompt
+  locationPromptTitle: 'Find nearby stops',
+  locationPromptDesc: 'We use your location to automatically show the nearest stops and walking distance.',
+  locationEnableBtn: 'Enable location',
+  locationSkipBtn: 'Maybe later',
 };
 
 export const translations = { sv, en };
