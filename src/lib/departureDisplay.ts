@@ -12,7 +12,7 @@ const DUPLICATE_WINDOW_MS = 90_000;
 
 export function getLiveMinutes(dep: Departure, now: number): number {
   if (dep.expectedAt !== undefined) {
-    return Math.max(0, Math.floor((dep.expectedAt - now) / 60000));
+    return Math.max(0, Math.ceil((dep.expectedAt - now) / 60000));
   }
   return dep.minutes;
 }

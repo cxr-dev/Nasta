@@ -3,7 +3,7 @@
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore";
   import { getPredictedDepartures } from "../services/timetableCache";
-  import { getLiveMinutes, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
+  import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
   import { deduplicateDeparturesByKey } from "../lib/departureDeduplication";
   import { onMount, onDestroy } from "svelte";
   import { transportIcons } from "../icons/transport";
@@ -189,7 +189,7 @@
       {@const departure = deps[0]}
       {@const subsequent = formatSubsequent(deps)}
       {@const hasDeparture = deps.length > 0 && !!departure}
-      {@const liveMinutes = hasDeparture ? getLiveMinutes(departure, now) : 0}
+      {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
       {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
       {@const isExpanded = expandedIndex === index}
 
@@ -229,8 +229,7 @@
                   {#if departure.predicted}
                     <span class="planned-label" data-testid="planned-badge">{$t.planned || "Planned"}</span>
                   {/if}
-                  <span class="minutes" data-testid="countdown-minutes">{liveMinutes}</span>
-                  <span class="unit">{$t.minutesShort}</span>
+                  <span class="minutes" data-testid="countdown-minutes">{primaryDepartureText}</span>
                 {/if}
               </div>
               {#if subsequent && !departure.isFirstMorning}
@@ -351,7 +350,6 @@
   .planned-label { position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; opacity: 0.8; }
   .clock-time { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 800; letter-spacing: -2px; color: var(--accent); }
   .minutes { font-family: "Neue Machina", sans-serif; font-size: 68px; font-weight: 800; letter-spacing: -4px; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .unit { font-size: 16px; font-weight: 500; color: var(--accent); opacity: 0.5; padding-bottom: 10px; }
   .secondary-time { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .more { color: var(--text-muted); font-size: 12px; }
   .no-departure { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }
