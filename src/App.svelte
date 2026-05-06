@@ -6,7 +6,6 @@
   import { settingsStore } from './stores/settingsStore';
   import { timeOfDay } from './lib/stores/timeOfDay';
   import { applyTheme } from './themes';
-  import { computeArrivalSummary } from './lib/arrivalTime';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { locale, resolveLocale, t } from './stores/localeStore';
   import { searchSites } from './services/slApi';
@@ -53,7 +52,6 @@
   let deviationHealthBySegment = $state<Map<string, import('./types/deviation').SegmentHealth>>(new Map());
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
-  let arrivalSummary = $derived(route ? computeArrivalSummary(route, departures) : null);
 
   $effect(() => {
     applyTheme($settingsStore.theme ?? 'default', $settingsStore.themeVariant ?? 'A');
@@ -456,11 +454,28 @@ function handleRouteSwitch(routeId: string) {
       style="--pull: {pullDistance}px; --progress: {Math.min(pullDistance / PULL_THRESHOLD, 1)}"
     >
       {#if isRefreshing}
-        <div class="ptr-spinner"></div>
+        <div class="ptr-spinner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="4" y="5" width="16" height="12" rx="2.5"/>
+            <circle cx="8" cy="17.5" r="1.5"/>
+            <circle cx="16" cy="17.5" r="1.5"/>
+          </svg>
+        </div>
       {:else}
-        <svg class="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <polyline points="19 12 12 19 5 12"/>
+        <svg class="ptr-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          {#if pullDistance < PULL_THRESHOLD * 0.25}
+            <rect x="4" y="5" width="16" height="12" rx="2.5"/>
+            <circle cx="8" cy="17.5" r="1.5"/>
+            <circle cx="16" cy="17.5" r="1.5"/>
+          {:else if pullDistance < PULL_THRESHOLD * 0.5}
+            <rect x="6" y="3.5" width="12" height="13.5" rx="4"/>
+            <path d="M8.5 7.5h7M9 19l-2 2M15 19l2 2"/>
+          {:else if pullDistance < PULL_THRESHOLD * 0.75}
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M8 8.5h8M12 8.5v7"/>
+          {:else}
+            <path d="M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v2h2c1.38 0 2.74-.35 4-.99 2.52 1.29 5.48 1.29 8 0 1.26.65 2.62.99 4 .99h2v-2h-2z"/>
+          {/if}
         </svg>
       {/if}
     </div>
@@ -529,10 +544,8 @@ function handleRouteSwitch(routeId: string) {
     </div>
 
     <BottomBar
-      arrivalSummary={arrivalSummary}
       {editing}
       onclick={toggleEdit}
-      activeRouteDirection={route?.direction ?? 'toWork'}
     />
 
     {#if !hasNoRoutes && route}
@@ -597,6 +610,19 @@ function handleRouteSwitch(routeId: string) {
     }
   }
 
+  /* Global button press feedback for snappy feel */
+  :global(button) {
+    transition: transform 120ms ease, opacity 120ms ease;
+  }
+  :global(button:active) {
+    transform: scale(0.965);
+    opacity: 0.9;
+  }
+  :global(button:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Default theme tokens — overridden at runtime by applyTheme() on :root */
   :global(:root) {
     --bg:              #FAFAF9;
@@ -640,9 +666,9 @@ function handleRouteSwitch(routeId: string) {
     transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .ptr-arrow {
-    width: 22px;
-    height: 22px;
+  .ptr-icon {
+    width: 26px;
+    height: 26px;
     color: var(--accent);
     opacity: var(--progress, 0);
     transform: rotate(calc(var(--progress, 0) * 180deg));
@@ -650,16 +676,24 @@ function handleRouteSwitch(routeId: string) {
   }
 
   .ptr-spinner {
-    width: 20px;
-    height: 20px;
-    border: 2.5px solid var(--accent-subtle);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: ptr-spin 0.65s linear infinite;
+    width: 26px;
+    height: 26px;
+    animation: ptr-spin 1s linear infinite;
+  }
+  .ptr-spinner svg {
+    width: 100%;
+    height: 100%;
+    color: var(--accent);
+    animation: transport-rotate 2s ease-in-out infinite;
   }
 
   @keyframes ptr-spin {
     to { transform: rotate(360deg); }
+  }
+
+  @keyframes transport-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   .scroll-container {
@@ -782,7 +816,7 @@ function handleRouteSwitch(routeId: string) {
     border-radius: 999px;
     background: var(--accent);
     box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
-    animation: pulse-dot 1300ms ease-out infinite;
+    animation: pulse-dot 800ms ease-out infinite;
   }
 
   @keyframes pulse-ring {

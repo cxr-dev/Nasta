@@ -132,15 +132,15 @@ Each segment defines:
 
 Available in the Settings panel (tap **"Inställningar"**):
 
-| Setting                 | Options                      | Default    | Purpose                                     |
-| ----------------------- | ---------------------------- | ---------- | ------------------------------------------- |
-| **Theme**               | 16 color palettes            | "default"  | Visual appearance and colors                |
-| **Language**            | Auto, Swedish, English       | "auto"     | App UI language                             |
-| **Refresh interval**    | 10-60 seconds                | 30 seconds | How often to fetch departures               |
-| **Disruption alerts**   | On/Off                       | On         | Show transit disruptions and alerts         |
+| Setting                 | Options                                              | Default    | Purpose                                     |
+| ----------------------- | ---------------------------------------------------- | ---------- | ------------------------------------------- |
+| **Theme**               | 16 color palettes                                    | "default"  | Visual appearance and colors                |
+| **Language**            | Auto, Swedish, English                               | "auto"     | App UI language                             |
+| **Refresh interval**    | 10-60 seconds                                        | 30 seconds | How often to fetch departures               |
+| **Disruption alerts**   | On/Off                                               | On         | Show transit disruptions and alerts         |
 | **Disruption level**    | All disruptions, Important + critical, Critical only | "warning"  | Filter disruptions by severity              |
-| **Disruption language** | Auto, Swedish, English       | "auto"     | Language for disruption text                |
-| **Transfer buffer**     | Minutes                      | 2-5        | Time allowed for transfers between segments |
+| **Disruption language** | Auto, Swedish, English                               | "auto"     | Language for disruption text                |
+| **Transfer buffer**     | Minutes                                              | 2-5        | Time allowed for transfers between segments |
 
 ---
 
@@ -201,7 +201,7 @@ User Action → Svelte Store → Service → API/Storage
 | `src/stores/departureStore.ts`      | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
 | `src/stores/deviationStore.ts`      | Disruption fetching, segment health tracking, severity thresholding                 |
 | `src/stores/localeStore.ts`         | Automatic locale detection, i18n translation store                                  |
-| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, disruption display              |
+| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, disruption display             |
 | `src/services/slApi.ts`             | SL Transport API client, stop search with result ranking                            |
 | `src/services/slDeviations.ts`      | SL Deviations API client, message parsing, severity scoring                         |
 | `src/services/journeyService.ts`    | Journey planner, stop patterns, live vehicle position calculation                   |
@@ -209,7 +209,6 @@ User Action → Svelte Store → Service → API/Storage
 | `src/services/staticTimetable.ts`   | Sjöstadstrafiken ferry static schedule                                              |
 | `src/services/deviationCache.ts`    | Disk persistence for disruption data (fallback when API unavailable)                |
 | `src/services/storage.ts`           | LocalStorage persistence for routes, settings, and schedule cache                   |
-| `src/lib/arrivalTime.ts`            | Computes expected arrival given departures & travel times                           |
 | `src/lib/departureDisplay.ts`       | Merges live and predicted departures, computes minutes remaining                    |
 | `src/lib/departureDeduplication.ts` | Deduplicates arrivals by stable key (avoids double-counting)                        |
 | `src/lib/departureEnrichment.ts`    | Adds deviation minutes and source metadata to departures                            |
@@ -263,7 +262,7 @@ See [`src/themes.ts`](src/themes.ts) for the full palette list.
 - **E2E tests:** Playwright tests run against built app (`pnpm run test:e2e`)
 - **Type safety:** `pnpm run check` runs `svelte-check` with `tsconfig.json`
 - **Build smoke:** `pnpm run verify:build` fails if server-only Svelte runtime markers are present in production JS bundles
-- **Stable E2E selectors:** Test IDs used by Playwright include `segment-row`, `segment-line`, `countdown-minutes`, `planned-badge`, `arrival-info`, and `arrival-time`
+- **Stable E2E selectors:** Test IDs used by Playwright include `segment-row`, `segment-line`, `countdown-minutes`, and `planned-badge`
 
 ---
 

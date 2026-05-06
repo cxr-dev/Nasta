@@ -362,10 +362,10 @@
   .error-bar button { background: none; border: none; color: #991b1b; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
   .loading-skeleton { padding: 12px 0; }
   .skeleton-row { display: flex; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); }
-  .skeleton-badge { width: 36px; height: 36px; border-radius: 8px; background: var(--accent-subtle); animation: pulse 1.5s ease-in-out infinite; }
-  .skeleton-line { flex: 1; height: 14px; margin: 0 12px; border-radius: 4px; background: var(--border); animation: pulse 1.5s ease-in-out infinite; }
-  .skeleton-time { width: 80px; height: 32px; border-radius: 4px; background: var(--border); animation: pulse 1.5s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .skeleton-badge { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(90deg, var(--accent-subtle) 0%, var(--border) 50%, var(--accent-subtle) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  .skeleton-line { flex: 1; height: 14px; margin: 0 12px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  .skeleton-time { width: 80px; height: 32px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   .site-deviation-badge { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); border-radius: 12px; transition: transform 0.2s ease; }
   .site-deviation-badge.active { transform: scale(1.1) rotate(5deg); background: #f59e0b; color: #fff; }
   .site-deviation-badge svg { width: 22px; height: 22px; }

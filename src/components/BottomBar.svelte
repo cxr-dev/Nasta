@@ -1,43 +1,18 @@
 <script lang="ts">
   import { t } from '../stores/localeStore';
-  import type { ArrivalSummary } from '../lib/arrivalTime';
 
   let {
-    arrivalSummary,
     editing,
     onboardingHighlight = false,
-    onclick,
-    activeRouteDirection
+    onclick
   }: {
-    arrivalSummary: ArrivalSummary | null;
     editing: boolean;
     onboardingHighlight?: boolean;
     onclick: () => void;
-    activeRouteDirection: 'toWork' | 'fromWork';
   } = $props();
-
-  function transferHint(summary: ArrivalSummary): string | null {
-    if (summary.transferState === 'tight') return $t.tightTransfer;
-    if (summary.transferState === 'comfortable') return $t.comfortableTransfer;
-    if (summary.transferSlackMinutes !== null) {
-      return $t.transferWindow.replace('{minutes}', String(summary.transferSlackMinutes));
-    }
-    return null;
-  }
 </script>
 
 <div class="bottom-bar">
-  {#if arrivalSummary && !editing}
-    <div class="arrival-info" data-testid="arrival-info">
-      <div class="arrival-copy">
-        <span class="arrival-label">{$t.realisticArrival}</span>
-        {#if transferHint(arrivalSummary)}
-          <span class="arrival-hint">{transferHint(arrivalSummary)}</span>
-        {/if}
-      </div>
-      <span class="arrival-time" data-testid="arrival-time">{arrivalSummary.time}</span>
-    </div>
-  {/if}
   <button
     class="action-btn"
     class:is-editing={editing}
@@ -66,7 +41,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    max-width: 480px;
+    width: min(100%, 480px);
     margin: 0 auto;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     background: var(--bg);
@@ -76,46 +51,11 @@
     z-index: 200;
   }
 
-  .arrival-info {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    background: var(--bg);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-  }
-
-  .arrival-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .arrival-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-
-  .arrival-hint {
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .arrival-time {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
+  @media (min-width: 481px) {
+    .bottom-bar {
+      width: 100%;
+      max-width: none;
+    }
   }
 
   .action-btn {

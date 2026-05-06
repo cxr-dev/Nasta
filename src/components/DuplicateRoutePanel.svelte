@@ -124,7 +124,15 @@
   </div>
 
   {#if loading}
-    <div class="msg">{$t.loadingDepartures}</div>
+    <div class="loading-skeleton">
+      {#each Array(3) as _}
+        <div class="skeleton-row">
+          <div class="skeleton-badge"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-time"></div>
+        </div>
+      {/each}
+    </div>
   {:else if error}
     <div class="error">{error}</div>
   {:else if segmentStates.length > 0}
@@ -207,4 +215,10 @@
     border-radius: 4px;
     margin-right: 6px;
   }
+  .loading-skeleton { padding: 12px 0; }
+  .skeleton-row { display: flex; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .skeleton-badge { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(90deg, var(--accent-subtle) 0%, var(--border) 50%, var(--accent-subtle) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  .skeleton-line { flex: 1; height: 14px; margin: 0 12px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  .skeleton-time { width: 80px; height: 32px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 </style>

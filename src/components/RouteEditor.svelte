@@ -562,17 +562,31 @@
   border: none;
   cursor: pointer;
   position: relative;
-  transition: filter 80ms ease;
+  transition: transform 180ms ease, filter 80ms ease, box-shadow 180ms ease;
   text-align: left;
 }
 
+.palette-half:hover {
+  transform: scale(1.02);
+  z-index: 1;
+}
+
 .palette-half:active {
-  filter: brightness(0.88);
+  transform: scale(0.96);
+  filter: brightness(0.9);
 }
 
 /* Inset glow ring when selected */
 .palette-half.active {
   box-shadow: inset 0 0 0 3px rgba(255,255,255,0.55), inset 0 0 0 5px rgba(0,0,0,0.15);
+}
+
+.palette-half .ph-check {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.palette-half.active .ph-check {
+  transform: scale(1);
 }
 
 .ph-name {
@@ -613,7 +627,7 @@
   justify-content: space-between;
   gap: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
-  animation: hint-slide-in 600ms ease-out;
+  animation: hint-slide-in 250ms ease-out;
 }
 
 .onboarding-hint span {
