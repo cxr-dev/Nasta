@@ -7,7 +7,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     });
     // Disable CSS transitions
     await page.addStyleTag({
-      content: `*, *::before, *::after { transition: none !important; animation: animation: none !important; }`
+      content: `*, *::before, *::after { transition: none !important; animation: animation: none !important; }`,
     });
   });
 
@@ -25,39 +25,47 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             directionText: "Norra Hammarbyhamnen",
             fromStop: { id: "f", name: "Lindarängsvägen", siteId: "100" },
             toStop: { id: "t", name: "Destination", siteId: "300" },
-            transportType: "bus"
-          }
-        ]
-      }
+            transportType: "bus",
+          },
+        ],
+      },
     ];
 
     await page.addInitScript((data) => {
-      console.log('[InitScript] Setting legacy routes');
+      console.log("[InitScript] Setting legacy routes");
       localStorage.setItem("nasta_onboarding_seen", "true");
       localStorage.setItem("nasta_routes", JSON.stringify(data));
     }, legacyRoutes);
 
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.waitForLoadState("domcontentloaded");
 
     // Verify app loads without crash
     const routeHeader = page.locator("h1.route-name");
     await expect(routeHeader).toBeVisible({ timeout: 10000 });
 
     // The migration happens in loadRoutes() which is called during store init.
-    await expect.poll(async () => {
-      const data = await page.evaluate(() => {
-        const d = localStorage.getItem("nasta_routes");
-        console.log('[Test] Raw nasta_routes in localStorage:', d);
-        return d;
-      });
-      if (!data) return false;
-      const parsed = JSON.parse(data);
-      if (parsed.length === 0) return false;
-      const hasDirection = parsed[0].segments && parsed[0].segments[0] && parsed[0].segments[0].direction !== undefined;
-      console.log('[Test] hasDirection:', hasDirection);
-      return hasDirection;
-    }, { timeout: 10000 }).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          const data = await page.evaluate(() => {
+            const d = localStorage.getItem("nasta_routes");
+            console.log("[Test] Raw nasta_routes in localStorage:", d);
+            return d;
+          });
+          if (!data) return false;
+          const parsed = JSON.parse(data);
+          if (parsed.length === 0) return false;
+          const hasDirection =
+            parsed[0].segments &&
+            parsed[0].segments[0] &&
+            parsed[0].segments[0].direction !== undefined;
+          console.log("[Test] hasDirection:", hasDirection);
+          return hasDirection;
+        },
+        { timeout: 10000 },
+      )
+      .toBe(true);
 
     const migrated = await page.evaluate(() => {
       const data = localStorage.getItem("nasta_routes");
@@ -65,7 +73,9 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     });
 
     expect(migrated[0].segments[0].direction.code).toBe(1);
-    expect(migrated[0].segments[0].direction.destination).toBe("Norra Hammarbyhamnen");
+    expect(migrated[0].segments[0].direction.destination).toBe(
+      "Norra Hammarbyhamnen",
+    );
   });
 
   test("should handle multi-segment route countdowns", async ({ page }) => {
@@ -84,7 +94,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             toStop: { id: "t1", name: "Transfer", siteId: "200" },
             transportType: "bus",
             travelTimeMinutes: 10,
-            transferBufferMinutes: 5
+            transferBufferMinutes: 5,
           },
           {
             id: "s2",
@@ -95,10 +105,10 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             toStop: { id: "t2", name: "Work", siteId: "300" },
             transportType: "metro",
             travelTimeMinutes: 15,
-            transferBufferMinutes: 0
-          }
-        ]
-      }
+            transferBufferMinutes: 0,
+          },
+        ],
+      },
     ];
 
     await page.addInitScript((data) => {
@@ -118,14 +128,16 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-              departures: [{
-                line: { designation: "76" },
-                direction_code: 1,
-                destination: "Ropsten",
-                display: "5 min",
-                expected: new Date(Date.now() + 5 * 60000).toISOString()
-              }]
-            })
+              departures: [
+                {
+                  line: { designation: "76" },
+                  direction_code: 1,
+                  destination: "Ropsten",
+                  display: "5 min",
+                  expected: new Date(Date.now() + 5 * 60000).toISOString(),
+                },
+              ],
+            }),
           });
         } else if (siteId === "200") {
           // Metro segment: 25 min away
@@ -133,42 +145,48 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-              departures: [{
-                line: { designation: "13" },
-                direction_code: 1,
-                destination: "Mörby",
-                display: "25 min",
-                expected: new Date(Date.now() + 25 * 60000).toISOString()
-              }]
-            })
+              departures: [
+                {
+                  line: { designation: "13" },
+                  direction_code: 1,
+                  destination: "Mörby",
+                  display: "25 min",
+                  expected: new Date(Date.now() + 25 * 60000).toISOString(),
+                },
+              ],
+            }),
           });
         } else {
-          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ departures: [] }) });
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ departures: [] }),
+          });
         }
       } else if (url.includes("deviations") || url.includes("messages")) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify([])
+          body: JSON.stringify([]),
         });
       } else if (url.includes("journeyplanner.integration.sl.se/v2/trip")) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ trips: [] })
+          body: JSON.stringify({ trips: [] }),
         });
       } else {
         await route.continue();
       }
     });
 
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    
+    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.waitForLoadState("domcontentloaded");
+
     // Check if app is in empty state
     const emptyState = page.locator(".empty-state");
     if (await emptyState.isVisible()) {
-      console.log('[Test] App is in empty state!');
+      console.log("[Test] App is in empty state!");
     }
 
     // Verify segments are rendered first
@@ -176,19 +194,30 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     await expect(segments).toHaveCount(2, { timeout: 15000 });
 
     // Wait for departures to load into the store and UI and verify lines
-    await expect(segments.nth(0).getByTestId("segment-line")).toContainText("76", { timeout: 15000 });
-    await expect(segments.nth(1).getByTestId("segment-line")).toContainText("13", { timeout: 15000 });
+    await expect(segments.nth(0).getByTestId("segment-line")).toContainText(
+      "76",
+      { timeout: 15000 },
+    );
+    await expect(segments.nth(1).getByTestId("segment-line")).toContainText(
+      "13",
+      { timeout: 15000 },
+    );
 
     // Check main countdown (first segment)
     const mainCountdown = segments.nth(0).getByTestId("countdown-minutes");
     await expect(mainCountdown).toBeVisible({ timeout: 15000 });
-    
+
     // The value might be 'Now', '5', or '4'.
-    await expect.poll(async () => {
-      const text = await mainCountdown.textContent();
-      console.log('[Test] mainCountdown text:', text);
-      return text && text.length > 0 && !text.includes("--");
-    }, { timeout: 15000 }).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          const text = await mainCountdown.textContent();
+          console.log("[Test] mainCountdown text:", text);
+          return text && text.length > 0 && !text.includes("--");
+        },
+        { timeout: 15000 },
+      )
+      .toBe(true);
 
     // Arrival summary can be absent depending on resolver state; row/countdown checks are the core assertion.
   });

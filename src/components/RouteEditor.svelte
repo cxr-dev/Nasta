@@ -85,6 +85,13 @@
     {#if route}
       {#if showSearch}
         <div class="search-container">
+          {#if onboardingHighlight && !hintDismissed}
+            <div class="onboarding-hint" role="tooltip" aria-live="polite">
+              <div class="hint-badge">{$t.onboardingHintNew}</div>
+              <span>{$t.onboardingHintText}</span>
+              <button onclick={dismissOnboardingHint} aria-label={$t.dismissHint}>×</button>
+            </div>
+          {/if}
           <SegmentSearch onSelect={addSegment} />
           <button class="cancel-search-btn" onclick={() => showSearch = false}>
             {$t.cancel}
@@ -93,13 +100,6 @@
       {:else}
         <div class="segment-area">
           <SegmentList route={route} />
-          {#if onboardingHighlight && showSearch && !hintDismissed}
-            <div class="onboarding-hint" role="tooltip" aria-live="polite">
-              <div class="hint-badge">{$t.onboardingHintNew}</div>
-              <span>{$t.onboardingHintText}</span>
-              <button onclick={dismissOnboardingHint} aria-label={$t.dismissHint}>×</button>
-            </div>
-          {/if}
           <button class="add-btn" class:onboarding-highlight={onboardingHighlight} onclick={() => showSearch = true}>
             {$t.addSegment}
           </button>

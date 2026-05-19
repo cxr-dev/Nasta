@@ -26,6 +26,29 @@ interface StopInterface {
   name: string;
   siteId: string;
 }
+
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+    }
+  } catch {
+    // Ignore storage failures in restricted environments.
+  }
+}
+
+function getDistanceSortValue(station: SiteSearchResult): number {
+  if (!userLocation || station.lat === undefined || station.lon === undefined) return Infinity;
+  return getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1]);
+}
   
   let query = $state('');
   let stations = $state<SiteSearchResult[]>([]);
@@ -118,6 +141,11 @@ interface StopInterface {
           if (bNorm === q) return 1;
           if (aNorm.startsWith(q)) return -1;
           if (bNorm.startsWith(q)) return 1;
+
+          const distanceA = getDistanceSortValue(a);
+          const distanceB = getDistanceSortValue(b);
+          if (distanceA !== distanceB) return distanceA - distanceB;
+
           return a.name.localeCompare(b.name);
         });
 
@@ -254,27 +282,38 @@ interface StopInterface {
     isLoadingLocation = false;
   }
 
-  function handleLocationEnable() {
-    localStorage.setItem('nasta_location_prompted', 'enabled');
+  async function handleLocationEnable() {
+    safeLocalStorageSet('nasta_location_prompted', 'enabled');
     locationPrompted = true;
     fetchLocation();
   }
 
   function handleLocationSkip() {
-    localStorage.setItem('nasta_location_prompted', 'skipped');
+    safeLocalStorageSet('nasta_location_prompted', 'skipped');
     locationPrompted = true;
   }
 
   onMount(async () => {
-    const stored = localStorage.getItem('nasta_location_prompted');
+    const stored = safeLocalStorageGet('nasta_location_prompted');
     if (stored) {
       locationPrompted = true;
       if (stored === 'enabled') {
-        fetchLocation();
+        let shouldFetch = true;
+        if (navigator.permissions) {
+          try {
+            const status = await navigator.permissions.query({ name: 'geolocation' });
+            shouldFetch = status.state !== 'denied';
+          } catch {
+            shouldFetch = true;
+          }
+        }
+        if (shouldFetch) {
+          fetchLocation();
+        }
       }
     }
 
-    const recentStored = localStorage.getItem('nasta_recent_stops');
+    const recentStored = safeLocalStorageGet('nasta_recent_stops');
     if (recentStored) {
       try {
         recentStops = JSON.parse(recentStored);

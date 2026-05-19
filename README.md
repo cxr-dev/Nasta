@@ -364,7 +364,7 @@ The app is served as a static SPA from the `/Nasta/` base path.
 4. `pnpm run build`
 5. `pnpm run verify:build`
 6. `pnpm run test:e2e`
-7. `pnpm run preview` and verify `http://localhost:4173/Nasta/` renders correctly
+7. `pnpm run preview` and verify `http://localhost:5173/Nasta/` renders correctly
 
 ### Troubleshooting: `lifecycle_function_unavailable`
 

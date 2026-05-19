@@ -20,9 +20,29 @@
 let editing = $state(false);
    let lastRefreshTime = $state(Date.now());
    let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
-   let showOnboardingHint = $state(!hasSeenOnboarding);
-   let siteLookupError = $state<string | null>(null);
-   let startFirstRouteSearch = $state(false);
+
+  function safeLocalStorageGet(key: string): string | null {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function safeLocalStorageSet(key: string, value: string): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+    } catch {
+      // Ignore storage failures in privacy-restricted environments.
+    }
+  }
+
+  const hasSeenOnboarding = safeLocalStorageGet('nasta_onboarding_seen');
+  let showOnboardingHint = $state(!hasSeenOnboarding);
+  let siteLookupError = $state<string | null>(null);
+  let startFirstRouteSearch = $state(false);
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -37,11 +57,9 @@ let editing = $state(false);
   let isRefreshing = $state(false);
   let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
 
-  const hasSeenOnboarding = typeof localStorage !== 'undefined' && localStorage.getItem('nasta_onboarding_seen');
-
   function dismissOnboardingHint() {
     showOnboardingHint = false;
-    localStorage.setItem('nasta_onboarding_seen', 'true');
+    safeLocalStorageSet('nasta_onboarding_seen', 'true');
   }
 
   let route = $derived($selectedRoute);
