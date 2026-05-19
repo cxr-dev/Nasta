@@ -122,9 +122,7 @@ let editing = $state(false);
         actualRequestId
       );
       if (settings.disruptionAlertsEnabled) {
-        const preferredLanguage = settings.disruptionLanguage === 'auto'
-          ? resolveLocale(settings.language ?? 'auto')
-          : settings.disruptionLanguage;
+        const preferredLanguage = resolveLocale(settings.language ?? 'auto');
         deviationStore.startAutoRefresh(
           currentRoute.segments,
           preferredLanguage,
@@ -174,9 +172,7 @@ let editing = $state(false);
           newRequestId
         );
         if (settings.disruptionAlertsEnabled) {
-          const preferredLanguage = settings.disruptionLanguage === 'auto'
-            ? resolveLocale(settings.language ?? 'auto')
-            : settings.disruptionLanguage;
+          const preferredLanguage = resolveLocale(settings.language ?? 'auto');
           deviationStore.startAutoRefresh(
             route.segments,
             preferredLanguage,
@@ -204,9 +200,7 @@ let editing = $state(false);
             newRequestId
           );
           if (settings.disruptionAlertsEnabled) {
-            const preferredLanguage = settings.disruptionLanguage === 'auto'
-              ? resolveLocale(settings.language ?? 'auto')
-              : settings.disruptionLanguage;
+            const preferredLanguage = resolveLocale(settings.language ?? 'auto');
             deviationStore.startAutoRefresh(
               route.segments,
               preferredLanguage,
@@ -363,9 +357,7 @@ function handleRouteSwitch(routeId: string) {
         route.direction
       );
       if (settings.disruptionAlertsEnabled) {
-        const preferredLanguage = settings.disruptionLanguage === 'auto'
-          ? resolveLocale(settings.language ?? 'auto')
-          : settings.disruptionLanguage;
+        const preferredLanguage = resolveLocale(settings.language ?? 'auto');
         await deviationStore.refresh(
           route.segments,
           preferredLanguage,

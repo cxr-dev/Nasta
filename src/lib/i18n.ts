@@ -44,6 +44,9 @@ const sv = {
   transportModes: "Transportmedel",
   transportModesDesc: "Visa endast dessa i sökning",
   openInMaps: "Visa på karta",
+  walkingEta: "Gång-ETA",
+  walkingEtaDesc: "Använd plats för gångavstånd och ETA.",
+  enableLocationForWalkEta: "Aktivera plats för gång-ETA.",
 
   // SegmentList
   addSegmentHint: "Lägg till resesegment nedan",
@@ -204,6 +207,9 @@ const en: typeof sv = {
   transportModes: "Transport modes",
   transportModesDesc: "Only show these in search",
   openInMaps: "Open in Maps",
+  walkingEta: "Walking ETA",
+  walkingEtaDesc: "Use location for walking distance and ETA.",
+  enableLocationForWalkEta: "Enable location for live walk ETA.",
 
   addSegmentHint: "Add travel segments below",
   remove: "Remove",

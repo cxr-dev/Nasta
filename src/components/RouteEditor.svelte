@@ -34,7 +34,6 @@
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
-  let activeDisruptionLanguage = $derived(settings.disruptionLanguage ?? 'auto');
 
   $effect(() => {
     if (startWithSearch) {
@@ -146,8 +145,8 @@
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">Walking ETA</span>
-          <span class="toggle-desc">Use your location to show walking distance and ETA.</span>
+          <span class="toggle-name">{$t.walkingEta}</span>
+          <span class="toggle-desc">{$t.walkingEtaDesc}</span>
         </div>
         <button
           class="toggle-btn"
@@ -196,49 +195,10 @@
 
       <div class="setting-block">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.disruptionLanguage}</span>
-        </div>
-        <div class="segmented-control" role="group" aria-label={$t.disruptionLanguage}>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionLanguage === 'auto'}
-            onclick={() => settingsStore.setDisruptionLanguage('auto')}
-            aria-pressed={activeDisruptionLanguage === 'auto'}
-          >
-            {$t.disruptionLanguageAuto}
-          </button>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionLanguage === 'sv'}
-            onclick={() => settingsStore.setDisruptionLanguage('sv')}
-            aria-pressed={activeDisruptionLanguage === 'sv'}
-          >
-            {$t.languageSwedish}
-          </button>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionLanguage === 'en'}
-            onclick={() => settingsStore.setDisruptionLanguage('en')}
-            aria-pressed={activeDisruptionLanguage === 'en'}
-          >
-            {$t.languageEnglish}
-          </button>
-        </div>
-      </div>
-
-      <div class="setting-block">
-        <div class="toggle-label">
-          <span class="toggle-name">{$t.language}</span>
+          <span class="toggle-name">{$t.language} (App)</span>
+          <span class="toggle-desc">App interface language.</span>
         </div>
         <div class="segmented-control" role="group" aria-label={$t.language}>
-          <button
-            class="segment-choice"
-            class:active={activeLanguage === 'auto'}
-            onclick={() => settingsStore.setLanguage('auto')}
-            aria-pressed={activeLanguage === 'auto'}
-          >
-            {$t.languageAuto}
-          </button>
           <button
             class="segment-choice"
             class:active={activeLanguage === 'en'}

@@ -7,6 +7,7 @@ interface TimetableEntry {
   time: string;
   line: string;
   destination: string;
+  directionCode: number;
   transportType: TransportType;
 }
 
@@ -36,7 +37,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:05', '21:25', '21:45',
       '22:05', '22:25', '22:45',
       '23:05', '23:25', '23:45'
-    ], '421', 'Henriksdal', 'boat'),
+    ], 'SJO', 'Henriksdal', 1, 'boat'),
     weekends: generateTimes([
       '08:05', '08:25', '08:45',
       '09:05', '09:25', '09:45',
@@ -54,7 +55,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:05', '21:25', '21:45',
       '22:05', '22:25', '22:45',
       '23:05', '23:25', '23:45'
-    ], '421', 'Henriksdal', 'boat'),
+    ], 'SJO', 'Henriksdal', 1, 'boat'),
   },
   barnangen: {
     weekdays: generateTimes([
@@ -76,7 +77,28 @@ const timetables: Record<StopKey, Timetable> = {
       '21:00', '21:20', '21:40',
       '22:00', '22:20', '22:40',
       '23:00', '23:20', '23:40'
-    ], '422', 'Sjöstadshamnen', 'boat'),
+    ], 'SJO', 'Luma brygga', 1, 'boat').concat(
+      generateTimes([
+        '06:10', '06:30', '06:50',
+        '07:10', '07:20', '07:30', '07:40', '07:50',
+        '08:10', '08:20', '08:30', '08:40', '08:50',
+        '09:10', '09:30', '09:50',
+        '10:10', '10:30', '10:50',
+        '11:10', '11:30', '11:50',
+        '12:10', '12:30', '12:50',
+        '13:10', '13:30', '13:50',
+        '14:10', '14:30', '14:50',
+        '15:10', '15:30', '15:50',
+        '16:10', '16:20', '16:30', '16:40', '16:50',
+        '17:10', '17:20', '17:30', '17:40', '17:50',
+        '18:10', '18:30', '18:50',
+        '19:10', '19:30', '19:50',
+        '20:10', '20:30', '20:50',
+        '21:10', '21:30', '21:50',
+        '22:10', '22:30', '22:50',
+        '23:10', '23:30', '23:50'
+      ], 'SJO', 'Henriksdal', 2, 'boat')
+    ),
     weekends: generateTimes([
       '08:00', '08:20', '08:40',
       '09:00', '09:20', '09:40',
@@ -94,7 +116,26 @@ const timetables: Record<StopKey, Timetable> = {
       '21:00', '21:20', '21:40',
       '22:00', '22:20', '22:40',
       '23:00', '23:20', '23:40'
-    ], '422', 'Sjöstadshamnen', 'boat'),
+    ], 'SJO', 'Luma brygga', 1, 'boat').concat(
+      generateTimes([
+        '08:10', '08:30', '08:50',
+        '09:10', '09:30', '09:50',
+        '10:10', '10:30', '10:50',
+        '11:10', '11:30', '11:50',
+        '12:10', '12:30', '12:50',
+        '13:10', '13:30', '13:50',
+        '14:10', '14:30', '14:50',
+        '15:10', '15:30', '15:50',
+        '16:10', '16:30', '16:50',
+        '17:10', '17:30', '17:50',
+        '18:10', '18:30', '18:50',
+        '19:10', '19:30', '19:50',
+        '20:10', '20:30', '20:50',
+        '21:10', '21:30', '21:50',
+        '22:10', '22:30', '22:50',
+        '23:10', '23:30', '23:50'
+      ], 'SJO', 'Henriksdal', 2, 'boat')
+    ),
   },
   henriksdal: {
     weekdays: generateTimes([
@@ -116,7 +157,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:10', '21:30', '21:50',
       '22:10', '22:30', '22:50',
       '23:10', '23:30', '23:50'
-    ], '421', 'Luma brygga', 'boat'),
+    ], 'SJO', 'Luma brygga', 1, 'boat'),
     weekends: generateTimes([
       '08:10', '08:30', '08:50',
       '09:10', '09:30', '09:50',
@@ -134,15 +175,22 @@ const timetables: Record<StopKey, Timetable> = {
       '21:10', '21:30', '21:50',
       '22:10', '22:30', '22:50',
       '23:10', '23:30', '23:50'
-    ], '421', 'Luma brygga', 'boat'),
+    ], 'SJO', 'Luma brygga', 1, 'boat'),
   },
 };
 
-function generateTimes(times: string[], line: string, destination: string, type: TransportType): TimetableEntry[] {
+function generateTimes(
+  times: string[],
+  line: string,
+  destination: string,
+  directionCode: number,
+  type: TransportType
+): TimetableEntry[] {
   return times.map(time => ({
     time,
     line,
     destination,
+    directionCode,
     transportType: type,
   }));
 }
@@ -195,9 +243,9 @@ export function getNextDepartures(stopName: string, count: number = 2): Departur
     if (minutesUntil >= 0) {
       departures.push({
         line: entry.line,
-        lineName: entry.line,
+        lineName: "Sjöstadstrafiken",
         destination: entry.destination,
-        direction_code: 1,
+        direction_code: entry.directionCode,
         minutes: minutesUntil,
         time: entry.time,
         transportType: entry.transportType,
@@ -220,9 +268,9 @@ export function getNextDepartures(stopName: string, count: number = 2): Departur
       
       departures.push({
         line: entry.line,
-        lineName: entry.line,
+        lineName: "Sjöstadstrafiken",
         destination: entry.destination,
-        direction_code: 1,
+        direction_code: entry.directionCode,
         minutes: minutesUntil,
         time: entry.time,
         transportType: entry.transportType,
