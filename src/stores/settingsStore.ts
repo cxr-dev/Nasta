@@ -86,6 +86,13 @@ function createSettingsStore() {
         return updated;
       });
     },
+    setWalkingEtaEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, walkingEtaEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
   };
 }
 

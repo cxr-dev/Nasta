@@ -12,6 +12,7 @@
   import { getQuickLocation, getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import DepartureStrip from "./DepartureStrip.svelte";
   import { t } from "../stores/localeStore";
+  import { settingsStore } from "../stores/settingsStore";
 
   let {
     route,
@@ -39,6 +40,7 @@
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
   let userLocation = $state<[number, number] | null>(null);
+  let settings = $derived($settingsStore);
   type MapApp = "default" | "google" | "apple" | "waze";
   const MAP_PREF_KEY = "nasta_map_app_preference";
 
@@ -48,6 +50,14 @@
   $effect(() => {
     route.id;
     expandedIndex = null;
+  });
+
+  $effect(() => {
+    if (settings.walkingEtaEnabled ?? true) {
+      getQuickLocation().then(loc => userLocation = loc);
+    } else {
+      userLocation = null;
+    }
   });
 
   function toggleExpanded(index: number) {
@@ -118,6 +128,12 @@
       .join(" · ");
   }
 
+  function stopLabel(name?: string): string {
+    if (!name) return "";
+    const cleaned = name.replace(/^[^,]+,\s*/u, "").trim();
+    return cleaned || name;
+  }
+
   function getDeparturesForSegment(segment: Segment): Departure[] {
     // Strategy: Timetable first (instant display), API verification (background update)
     // This ensures users see times immediately, with live data filling in when available
@@ -132,12 +148,14 @@
 
     // Get live from API (for real-time updates: delays, cancellations, early arrivals)
     const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    const live = allDeps.filter(
-      (dep) =>
-        dep.line === segment.line &&
-        (dep.destination === segment.direction?.destination ||
-          dep.destination === segment.toStop.name),
-    );
+    const targetDest = stopLabel(segment.direction?.destination ?? segment.toStop.name).toLowerCase();
+    const live = allDeps.filter((dep) => {
+      if (dep.line !== segment.line) return false;
+      if ((dep.direction_code ?? -1) !== (segment.direction?.code ?? -1)) return false;
+      if (!dep.destination) return true;
+      const d = stopLabel(dep.destination).toLowerCase();
+      return d === targetDest || d.includes(targetDest) || targetDest.includes(d);
+    });
 
     // If we have live data, use it to update predicted times
     // Otherwise, predicted times are shown and updated when API responds
@@ -190,7 +208,6 @@
     UNSUBSCRIBERS.push(
       departureStore.lastSuccessfulFetch.subscribe((val) => (lastSuccessfulFetch = val)),
     );
-    getQuickLocation().then(loc => userLocation = loc);
     startClockTimer();
   });
 
@@ -266,7 +283,7 @@
           <div class="line-details">
             <span class="line-info" data-testid="segment-line">{segment.line}</span>
             <div class="stop-route-container">
-              <span class="stop-route">{segment.fromStop.name} → {segment.direction?.destination}</span>
+              <span class="stop-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
             </div>
           </div>
         </div>
@@ -354,12 +371,12 @@
                     </svg>
                     <div class="route-preview-labels">
                       <span class="rp-you">You</span>
-                      <span class="rp-stop">{segment.fromStop.name}</span>
+                      <span class="rp-stop">{stopLabel(segment.fromStop.name)}</span>
                     </div>
                   </div>
                   {#if dist !== null}
                     <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
-                  {:else}
+                  {:else if (settings.walkingEtaEnabled ?? true)}
                     <span class="location-hint">Enable location for live walk ETA.</span>
                   {/if}
                 </div>

@@ -18,6 +18,7 @@ export interface Settings {
   disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
   disruptionLanguage: 'sv' | 'en' | 'auto';
   enabledTransportTypes: TransportType[];
+  walkingEtaEnabled: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -32,7 +33,8 @@ const defaultSettings: Settings = {
   disruptionAlertsEnabled: true,
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
-  enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
+  enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+  walkingEtaEnabled: true
 };
 
 export function loadRoutes(): Route[] {

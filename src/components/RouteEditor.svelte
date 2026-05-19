@@ -144,6 +144,23 @@
         </button>
       </label>
 
+      <label class="toggle-row">
+        <div class="toggle-label">
+          <span class="toggle-name">Walking ETA</span>
+          <span class="toggle-desc">Use your location to show walking distance and ETA.</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.walkingEtaEnabled ?? true}
+          onclick={() => settingsStore.setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? true))}
+          aria-label="Walking ETA"
+          role="switch"
+          aria-checked={settings.walkingEtaEnabled ?? true}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
       <div class="setting-block">
         <div class="toggle-label">
           <span class="toggle-name">{$t.disruptionThreshold}</span>

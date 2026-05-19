@@ -87,7 +87,8 @@ describe('storage service', () => {
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: 'warning',
         disruptionLanguage: 'auto',
-        enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
+        enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+        walkingEtaEnabled: true
       });
     });
 
@@ -111,7 +112,8 @@ describe('storage service', () => {
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: 'critical' as const,
         disruptionLanguage: 'sv' as const,
-        enabledTransportTypes: ['bus', 'train', 'metro', 'boat']
+        enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+        walkingEtaEnabled: true
       };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));
