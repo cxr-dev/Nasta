@@ -4,6 +4,7 @@ test.describe("Onboarding hint", () => {
   test("shows and dismisses in-app hint for first run", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.clear();
+      localStorage.setItem("nasta_settings", JSON.stringify({ language: "sv" }));
     });
 
     await page.goto("/");
@@ -45,6 +46,7 @@ test.describe("Onboarding hint", () => {
   test("location prompt appears on first visit to SegmentSearch", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.clear();
+      localStorage.setItem("nasta_settings", JSON.stringify({ language: "sv" }));
     });
 
     await page.goto("/");
@@ -66,6 +68,7 @@ test.describe("Onboarding hint", () => {
   test("location prompt can be skipped", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.clear();
+      localStorage.setItem("nasta_settings", JSON.stringify({ language: "sv" }));
     });
 
     await page.goto("/");

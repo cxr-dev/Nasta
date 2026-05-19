@@ -20,3 +20,4 @@ test-results/
 tsconfig.tsbuildinfo
 docs\superpowers\
 git-ref-recovery-20260423-215541.txt
+test-results/.last-run.json

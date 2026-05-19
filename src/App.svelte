@@ -17,12 +17,12 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
 
-  let editing = $state(false);
-  let lastRefreshTime = $state(Date.now());
-  let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
-  let showOnboardingHint = $state(false);
-  let siteLookupError = $state<string | null>(null);
-  let startFirstRouteSearch = $state(false);
+let editing = $state(false);
+   let lastRefreshTime = $state(Date.now());
+   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
+   let showOnboardingHint = $state(!hasSeenOnboarding);
+   let siteLookupError = $state<string | null>(null);
+   let startFirstRouteSearch = $state(false);
   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -501,7 +501,7 @@ function handleRouteSwitch(routeId: string) {
           <p>{$t.noRoutesDesc}</p>
           <button 
             class="empty-cta" 
-            class:onboarding-highlight={startFirstRouteSearch && !hasSeenOnboarding}
+            class:onboarding-highlight={showOnboardingHint}
             onclick={toggleEdit}
           >
             <span>{$t.addSegment}</span>
@@ -531,7 +531,7 @@ function handleRouteSwitch(routeId: string) {
           <p>{$t.noSegmentsDesc}</p>
           <button 
             class="empty-cta" 
-            class:onboarding-highlight={startFirstRouteSearch && !hasSeenOnboarding}
+            class:onboarding-highlight={showOnboardingHint}
             onclick={toggleEdit}
           >
             <span>{$t.add}</span>
