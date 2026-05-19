@@ -313,7 +313,7 @@
 
 <style>
   .departures-list { display: flex; flex-direction: column; padding: 12px 0 20px; }
-  .departure-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; border-bottom: 1px solid var(--border); animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: var(--delay, 0ms); contain: layout paint style; width: 100%; background: transparent; border-left: none; border-right: none; border-top: none; text-align: left; }
+  .departure-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; border-bottom: 1px solid var(--border); animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: var(--delay, 0ms); contain: layout style; width: 100%; background: transparent; border-left: none; border-right: none; border-top: none; text-align: left; }
   .departure-row.expandable { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity 120ms ease; }
   .departure-row.expandable:active { opacity: 0.7; }
   .departure-row.expanded { border-bottom: none; }
@@ -340,12 +340,12 @@
   }
   .map-link:active { background: var(--accent-subtle); }
   .map-link svg { width: 16px; height: 16px; }
-  .row-right { flex-shrink: 0; text-align: right; }
+  .row-right { flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; position: relative; }
   .planned-label { position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; opacity: 0.8; }
   .clock-time { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 800; letter-spacing: -2px; color: var(--accent); }
-  .minutes { font-family: "Neue Machina", sans-serif; font-size: 68px; font-weight: 800; letter-spacing: -4px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .minutes { font-family: "Neue Machina", sans-serif; font-size: clamp(56px, 14vw, 68px); font-weight: 800; letter-spacing: -2.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .secondary-time { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .more { color: var(--text-muted); font-size: 12px; }
   .no-departure { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }

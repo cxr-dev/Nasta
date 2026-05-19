@@ -423,7 +423,7 @@
 
 /* Settings section */
 .settings-section {
-  margin: 0 16px 32px;
+  margin: 0 16px calc(env(safe-area-inset-bottom) + 140px);
   display: flex;
   flex-direction: column;
   gap: 20px;
