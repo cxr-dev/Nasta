@@ -32,7 +32,7 @@ test.describe("Onboarding hint", () => {
   test("shows and dismisses in-app hint for first run", async ({ page }) => {
     await initFreshState(page);
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
     const emptyBtn = page.locator(".empty-cta");
     await expect(emptyBtn).toBeVisible({ timeout: TEST_TIMEOUT });
@@ -69,7 +69,7 @@ test.describe("Onboarding hint", () => {
   }) => {
     await initFreshState(page);
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
     await openFirstRouteEditor(page);
 
@@ -90,7 +90,7 @@ test.describe("Onboarding hint", () => {
   test("location prompt can be skipped", async ({ page }) => {
     await initFreshState(page);
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
     await openFirstRouteEditor(page);
     await expect(page.locator(".location-prompt")).toBeVisible({
@@ -124,7 +124,7 @@ test.describe("Onboarding hint", () => {
       localStorage.setItem("nasta_location_prompted", "skipped");
     });
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
     await openFirstRouteEditor(page);
     await expect(page.locator(".location-prompt")).toHaveCount(0, {

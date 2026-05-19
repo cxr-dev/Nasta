@@ -369,7 +369,8 @@ function handleRouteSwitch(routeId: string) {
         await deviationStore.refresh(
           route.segments,
           preferredLanguage,
-          settings.disruptionSeverityThreshold
+          settings.disruptionSeverityThreshold,
+          { force: true }
         );
       }
       lastRefreshTime = Date.now();

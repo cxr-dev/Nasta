@@ -17,6 +17,7 @@ interface DeviationStoreState {
 }
 
 const MIN_REFRESH_MS = 60_000;
+type RefreshOptions = { force?: boolean };
 
 function transportModeForSegment(type: TransportType): string {
   switch (type) {
@@ -103,11 +104,38 @@ function createDeviationStore() {
   });
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let lastRequestSignature = "";
+  let lastRequestStartedAt = 0;
+  let inFlightRequest:
+    | {
+        signature: string;
+        promise: Promise<void>;
+      }
+    | null = null;
+
+  function buildRequestSignature(
+    segments: Segment[],
+    preferredLanguage: "sv" | "en",
+    threshold: SeverityThreshold,
+  ): string {
+    const fingerprint = segments
+      .map((segment) => [
+        segment.id,
+        segment.line,
+        segment.transportType,
+        segment.fromStop.siteId,
+        segment.toStop.siteId,
+      ].join(":"))
+      .sort()
+      .join("|");
+    return `${preferredLanguage}|${threshold}|${fingerprint}`;
+  }
 
   async function refresh(
     segments: Segment[],
     preferredLanguage: "sv" | "en" = "sv",
     threshold: SeverityThreshold = "info",
+    options: RefreshOptions = {},
   ) {
     if (!segments.length) {
       set({
@@ -118,63 +146,98 @@ function createDeviationStore() {
       });
       return;
     }
-    update((state) => ({ ...state, isLoading: true }));
-
-    // Filter out Sjostadstrafiken (external timetable) segments before fetching deviations
-    // These don't have SL deviations and should always show as "ok"
-    const slSegments = segments.filter(
-      (segment) =>
-        !isExternalTimetableSource({
-          siteId: segment.fromStop.siteId,
-          stopName: segment.fromStop.name,
-        }),
+    const signature = buildRequestSignature(
+      segments,
+      preferredLanguage,
+      threshold,
     );
+    const now = Date.now();
 
-    let messages: DeviationMessage[] = [];
-    let fromCache = false;
-
-    // Only fetch deviations if there are SL segments
-    if (slSegments.length > 0) {
-      const siteIds = slSegments.flatMap((segment) => [
-        segment.fromStop.siteId,
-        segment.toStop.siteId,
-      ]);
-      const lines = slSegments.map((segment) => segment.line);
-      const result = await getDeviations(siteIds, lines);
-      messages = result.messages;
-      fromCache = result.fromCache;
+    if (!options.force) {
+      if (inFlightRequest && inFlightRequest.signature === signature) {
+        return inFlightRequest.promise;
+      }
+      if (
+        lastRequestSignature === signature &&
+        now - lastRequestStartedAt < MIN_REFRESH_MS
+      ) {
+        return;
+      }
     }
 
-    const bySegmentId = new Map<string, SegmentHealth>();
-    segments.forEach((segment) => {
-      // External timetable segments always show as "ok" with no deviations
-      if (
-        isExternalTimetableSource({
-          siteId: segment.fromStop.siteId,
-          stopName: segment.fromStop.name,
-        })
-      ) {
-        bySegmentId.set(segment.id, {
-          state: "ok",
-          severity: null,
-          reason: null,
-          messages: [],
-          updatedAt: Date.now(),
-        });
-      } else {
-        bySegmentId.set(
-          segment.id,
-          buildSegmentHealth(segment, messages, preferredLanguage, threshold),
-        );
+    update((state) => ({ ...state, isLoading: true }));
+
+    const execute = async () => {
+      // Filter out Sjostadstrafiken (external timetable) segments before fetching deviations
+      // These don't have SL deviations and should always show as "ok"
+      const slSegments = segments.filter(
+        (segment) =>
+          !isExternalTimetableSource({
+            siteId: segment.fromStop.siteId,
+            stopName: segment.fromStop.name,
+          }),
+      );
+
+      let messages: DeviationMessage[] = [];
+      let fromCache = false;
+
+      // Only fetch deviations if there are SL segments
+      if (slSegments.length > 0) {
+        const siteIds = slSegments.flatMap((segment) => [
+          segment.fromStop.siteId,
+          segment.toStop.siteId,
+        ]);
+        const lines = slSegments.map((segment) => segment.line);
+        const result = await getDeviations(siteIds, lines);
+        messages = result.messages;
+        fromCache = result.fromCache;
+      }
+
+      const bySegmentId = new Map<string, SegmentHealth>();
+      segments.forEach((segment) => {
+        // External timetable segments always show as "ok" with no deviations
+        if (
+          isExternalTimetableSource({
+            siteId: segment.fromStop.siteId,
+            stopName: segment.fromStop.name,
+          })
+        ) {
+          bySegmentId.set(segment.id, {
+            state: "ok",
+            severity: null,
+            reason: null,
+            messages: [],
+            updatedAt: Date.now(),
+          });
+        } else {
+          bySegmentId.set(
+            segment.id,
+            buildSegmentHealth(segment, messages, preferredLanguage, threshold),
+          );
+        }
+      });
+
+      set({
+        bySegmentId,
+        lastUpdatedAt: Date.now(),
+        isLoading: false,
+        usedCache: fromCache,
+      });
+    };
+
+    const requestPromise = execute().finally(() => {
+      if (inFlightRequest?.signature === signature) {
+        inFlightRequest = null;
       }
     });
 
-    set({
-      bySegmentId,
-      lastUpdatedAt: Date.now(),
-      isLoading: false,
-      usedCache: fromCache,
-    });
+    inFlightRequest = {
+      signature,
+      promise: requestPromise,
+    };
+    lastRequestSignature = signature;
+    lastRequestStartedAt = now;
+    return requestPromise;
   }
 
   function startAutoRefresh(

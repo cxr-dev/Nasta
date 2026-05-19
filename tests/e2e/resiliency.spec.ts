@@ -83,7 +83,7 @@ test.describe("SL API Resiliency", () => {
       },
     );
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.addStyleTag({
       content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });

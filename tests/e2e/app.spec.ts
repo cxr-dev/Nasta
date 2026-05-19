@@ -36,7 +36,7 @@ test.describe("Nästa App", () => {
 
       localStorage.setItem("nasta_routes", JSON.stringify(defaultRoutes));
     });
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
 
     // Disable CSS transitions to avoid Playwright waiting for animations or elements outside viewport

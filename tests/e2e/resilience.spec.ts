@@ -37,7 +37,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
       localStorage.setItem("nasta_routes", JSON.stringify(data));
     }, legacyRoutes);
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
 
     // Verify app loads without crash
@@ -180,7 +180,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
       }
     });
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
 
     // Check if app is in empty state

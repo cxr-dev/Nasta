@@ -135,15 +135,14 @@ export async function getDeviations(
 ): Promise<{ messages: DeviationMessage[]; fromCache: boolean }> {
   const params = new URLSearchParams();
   params.set("future", "true");
-  siteIds
-    .filter(Boolean)
-    .forEach((siteId) => params.append("site", String(siteId)));
-  lineDesignations
-    .filter(Boolean)
-    .forEach((line) => {
-      const parsed = Number.parseInt(line, 10);
-      if (!Number.isNaN(parsed)) params.append("line", String(parsed));
-    });
+  const uniqueSiteIds = [...new Set(siteIds.filter(Boolean).map(String))];
+  uniqueSiteIds.forEach((siteId) => params.append("site", siteId));
+
+  const uniqueLines = [...new Set(lineDesignations.filter(Boolean))];
+  uniqueLines.forEach((line) => {
+    const parsed = Number.parseInt(line, 10);
+    if (!Number.isNaN(parsed)) params.append("line", String(parsed));
+  });
 
   const url = `${DEVIATIONS_URL}?${params.toString()}`;
 

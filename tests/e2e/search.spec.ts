@@ -46,7 +46,7 @@ test.describe("Segment search", () => {
       );
     });
 
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.addStyleTag({
       content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
@@ -109,7 +109,7 @@ test.describe("Segment search", () => {
   test("should attempt the real SL stop-finder API when available", async ({
     page,
   }) => {
-    await page.goto("/Nasta/", { waitUntil: "networkidle" });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
 
     const rawResult = await page.evaluate(async () => {

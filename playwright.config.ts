@@ -2,15 +2,15 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 2,
   reporter: "html",
   use: {
     baseURL: "http://localhost:5173/Nasta/",
-    trace: "on",
-    screenshot: "on",
+    trace: process.env.CI ? "retain-on-failure" : "off",
+    screenshot: "only-on-failure",
     // Block service workers so Playwright's page.route() mocks work correctly.
     // The VitePWA service worker (active in preview builds) would otherwise intercept
     // fetch calls to transport.integration.sl.se before Playwright can mock them.
