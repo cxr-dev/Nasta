@@ -137,60 +137,67 @@
   });
 </script>
 
-{#if journeyData && journeyData.availability !== 'unavailable'}
+{#if journeyData}
   {@const visible = visibleStops(journeyData)}
   <div class="strip" role="region" aria-label={$t.vehiclePosition} bind:this={stripEl}>
-    <div class="strip-summary">
-      {#if journeyData.availability === 'scheduled'}
-        <div class="summary-prefix">{$t.estimatedPosition}</div>
-      {/if}
-      <div class="summary-primary">{progressText(journeyData)}</div>
-      <div class="summary-secondary">{vehicleContextText(journeyData)}</div>
-    </div>
+    {#if journeyData.availability === 'unavailable'}
+      <div class="strip-summary">
+        <div class="summary-primary">{$t.positionUnavailablePrimary || "Live position unavailable"}</div>
+        <div class="summary-secondary">{$t.arrivingAt.replace('{time}', formatArrival())}</div>
+      </div>
+    {:else}
+      <div class="strip-summary">
+        {#if journeyData.availability === 'scheduled'}
+          <div class="summary-prefix">{$t.estimatedPosition}</div>
+        {/if}
+        <div class="summary-primary">{progressText(journeyData)}</div>
+        <div class="summary-secondary">{vehicleContextText(journeyData)}</div>
+      </div>
 
-    <div class="track-scroll">
-      <div class="track-row">
-        {#each visible as stop, i}
-          {@const origIdx = journeyData.stops.indexOf(stop)}
-          {@const state = stopState(journeyData, origIdx, stop)}
-          {@const isLast = i === visible.length - 1}
+      <div class="track-scroll">
+        <div class="track-row">
+          {#each visible as stop, i}
+            {@const origIdx = journeyData.stops.indexOf(stop)}
+            {@const state = stopState(journeyData, origIdx, stop)}
+            {@const isLast = i === visible.length - 1}
 
-          <div
-            class="stop-node stop-{state}"
-            aria-label={stop.name ? $t.stopLabel.replace('{stop}', stop.name) : undefined}
-          >
-            {#if state === 'vehicle'}
-              <div class="vehicle-bubble">{departure.line}</div>
-            {:else}
-              <div class="dot"></div>
-            {/if}
-            {#if stop.name}
-              <span class="stop-label">{stop.name}</span>
-            {/if}
-          </div>
-
-          {#if !isLast}
-            {@const nextOrigIdx = journeyData.stops.indexOf(visible[i + 1])}
             <div
-              class="segment-line"
-              class:passed={origIdx < vehicleIdx && nextOrigIdx <= vehicleIdx}
-              class:active={origIdx === vehicleIdx || (origIdx < vehicleIdx && nextOrigIdx > vehicleIdx)}
-            ></div>
-          {/if}
-        {/each}
+              class="stop-node stop-{state}"
+              aria-label={stop.name ? $t.stopLabel.replace('{stop}', stop.name) : undefined}
+            >
+              {#if state === 'vehicle'}
+                <div class="vehicle-bubble">{departure.line}</div>
+              {:else}
+                <div class="dot"></div>
+              {/if}
+              {#if stop.name}
+                <span class="stop-label">{stop.name}</span>
+              {/if}
+            </div>
 
-        {#if journeyData.destination}
-          <div class="terminus">{journeyData.destination}</div>
+            {#if !isLast}
+              {@const nextOrigIdx = journeyData.stops.indexOf(visible[i + 1])}
+              <div
+                class="segment-line"
+                class:passed={origIdx < vehicleIdx && nextOrigIdx <= vehicleIdx}
+                class:active={origIdx === vehicleIdx || (origIdx < vehicleIdx && nextOrigIdx > vehicleIdx)}
+              ></div>
+            {/if}
+          {/each}
+
+          {#if journeyData.destination}
+            <div class="terminus">{journeyData.destination}</div>
+          {/if}
+        </div>
+      </div>
+
+      <div class="strip-footer">
+        <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
+        {#if journeyData.availability === 'live'}
+          <span class="badge badge-live">{$t.live} ✦</span>
         {/if}
       </div>
-    </div>
-
-    <div class="strip-footer">
-      <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
-      {#if journeyData.availability === 'live'}
-        <span class="badge badge-live">{$t.live} ✦</span>
-      {/if}
-    </div>
+    {/if}
   </div>
 {/if}
 

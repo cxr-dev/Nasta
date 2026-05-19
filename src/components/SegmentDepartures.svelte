@@ -33,10 +33,14 @@
   let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
   let now = $state(Date.now());
   let expandedIndex = $state<number | null>(null);
+  let mapsSheetForIndex = $state<number | null>(null);
+  let rememberMapChoice = $state(true);
   let isLoading = $state(false);
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
   let userLocation = $state<[number, number] | null>(null);
+  type MapApp = "default" | "google" | "apple" | "waze";
+  const MAP_PREF_KEY = "nasta_map_app_preference";
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -48,6 +52,57 @@
 
   function toggleExpanded(index: number) {
     expandedIndex = expandedIndex === index ? null : index;
+  }
+
+  function loadMapPreference(): MapApp {
+    try {
+      const stored = localStorage.getItem(MAP_PREF_KEY);
+      if (stored === "google" || stored === "apple" || stored === "waze" || stored === "default") {
+        return stored;
+      }
+    } catch {}
+    return "default";
+  }
+
+  function saveMapPreference(app: MapApp) {
+    try {
+      localStorage.setItem(MAP_PREF_KEY, app);
+    } catch {}
+  }
+
+  function openMapWithPreference(lat: number, lng: number, forcePick = false, rowIndex: number | null = null) {
+    const pref = loadMapPreference();
+    if (forcePick || pref === "default") {
+      if (rowIndex !== null) mapsSheetForIndex = rowIndex;
+      return;
+    }
+    openMapApp(pref, lat, lng);
+  }
+
+  function openMapApp(app: Exclude<MapApp, "default">, lat: number, lng: number) {
+    const enc = `${lat},${lng}`;
+    const urls = {
+      google: `https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=walking`,
+      apple: `https://maps.apple.com/?daddr=${enc}&dirflg=w`,
+      waze: `https://waze.com/ul?ll=${enc}&navigate=yes`,
+    };
+    if (rememberMapChoice) saveMapPreference(app);
+    window.open(urls[app], "_blank", "noopener,noreferrer");
+    mapsSheetForIndex = null;
+  }
+
+  function mapAppOptions() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isiOS = /iphone|ipad|ipod/.test(ua);
+    return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
+  }
+
+  function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
+    const m = message.toLowerCase();
+    if (/(protest|demonstration|strejk|demonstration|march|blockad)/i.test(m)) return "protest";
+    if (/(signal|switch|technical|fault|fel|teknisk|power|el|track|spår)/i.test(m)) return "technical";
+    if (/(snow|rain|storm|wind|väder|snö|regn|is|storm)/i.test(m)) return "weather";
+    return "general";
   }
 
   function getTransportIcon(type: TransportType): string {
@@ -188,6 +243,8 @@
       {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
       {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
       {@const isExpanded = expandedIndex === index}
+      {@const topDevMessage = siteDevs[0]?.message ?? ""}
+      {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
       <button
         class="departure-row"
@@ -231,6 +288,31 @@
               {#if subsequent && !departure.isFirstMorning}
                 <div class="secondary-time"><span class="more">{subsequent}</span></div>
               {/if}
+              {#if siteDevs.length > 0}
+                <div class="event-chip event-{topDevType}">
+                  {#if topDevType === "protest"}
+                    <svg viewBox="0 0 24 24" class="event-icon protest-icon" aria-hidden="true">
+                      <path d="M6 20v-5m0-6V4m0 5 8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      <rect x="14" y="9" width="5" height="5" rx="1" fill="currentColor" />
+                    </svg>
+                  {:else if topDevType === "technical"}
+                    <svg viewBox="0 0 24 24" class="event-icon tech-icon" aria-hidden="true">
+                      <path d="M12 2v4m0 12v4m7-10h-4M9 12H5m10.5-5.5-3 3m-1 5-3 3m7 0-3-3m-1-5-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  {:else if topDevType === "weather"}
+                    <svg viewBox="0 0 24 24" class="event-icon weather-icon" aria-hidden="true">
+                      <path d="M8 16a4 4 0 1 1 .8-7.92A5 5 0 0 1 18 10a3 3 0 1 1 0 6H8Z" fill="none" stroke="currentColor" stroke-width="2"/>
+                      <path d="M9 18v3m3-3v3m3-3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  {:else}
+                    <svg viewBox="0 0 24 24" class="event-icon" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+                      <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  {/if}
+                  <span>{topDevType === "general" ? "Disruption" : topDevType}</span>
+                </div>
+              {/if}
             </div>
           {:else}
             {#if siteDevs.length > 0}
@@ -252,30 +334,56 @@
         <div transition:slide={{ duration: 280, easing: cubicOut }}>
           {#if hasDeparture}
             <div class="expanded-actions">
-              {#if userLocation && segment.fromStop.coord}
-                {@const dist = getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1])}
-                <div class="expanded-geo-info">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="geo-icon">
-                    <circle cx="12" cy="12" r="10"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <span>{formatDistance(dist)} ({getWalkingTime(dist)}m till hållplatsen)</span>
+              {#if segment.fromStop.coord}
+                {@const dist = userLocation ? getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1]) : null}
+                <div class="expanded-geo-info geo-map-card">
+                  <div class="route-preview" aria-label={`Route preview to ${segment.fromStop.name}`}>
+                    <svg viewBox="0 0 320 108" class="mini-map" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="routeBg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="var(--surface)" />
+                          <stop offset="100%" stop-color="color-mix(in srgb, var(--accent-subtle) 35%, var(--surface))" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="1" y="1" width="318" height="106" rx="14" fill="url(#routeBg)" stroke="var(--border)"/>
+                      <path d="M48 76 C98 38, 164 34, 238 46" fill="none" stroke="var(--accent)" stroke-opacity="0.32" stroke-width="3.5" stroke-dasharray="6 6"/>
+                      <circle cx="40" cy="78" r="8" fill="var(--accent)"/>
+                      <circle cx="40" cy="78" r="15" fill="none" stroke="var(--accent)" stroke-opacity="0.22"/>
+                      <path d="M248 32c0 9-10 20-10 20s-10-11-10-20a10 10 0 1 1 20 0z" fill="var(--accent)"/>
+                      <circle cx="238" cy="32" r="3.2" fill="var(--bg)"/>
+                    </svg>
+                    <div class="route-preview-labels">
+                      <span class="rp-you">You</span>
+                      <span class="rp-stop">{segment.fromStop.name}</span>
+                    </div>
+                  </div>
+                  {#if dist !== null}
+                    <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
+                  {:else}
+                    <span class="location-hint">Enable location for live walk ETA.</span>
+                  {/if}
                 </div>
               {/if}
               <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
               {#if segment.fromStop.coord}
-                <a 
-                  href="https://www.google.com/maps/search/?api=1&query={segment.fromStop.coord[0]},{segment.fromStop.coord[1]}"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
                   class="map-link"
+                  onclick={() => openMapWithPreference(segment.fromStop.coord[0], segment.fromStop.coord[1], false, index)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                     <circle cx="12" cy="10" r="3" />
                   </svg>
                   {$t.openInMaps || "Open in Maps"}
-                </a>
+                </button>
+                <button
+                  type="button"
+                  class="map-link map-link-subtle"
+                  onclick={() => openMapWithPreference(segment.fromStop.coord[0], segment.fromStop.coord[1], true, index)}
+                >
+                  Choose map app
+                </button>
               {/if}
             </div>
           {:else}
@@ -301,6 +409,44 @@
         </div>
       {/if}
     {/each}
+
+    {#if mapsSheetForIndex !== null}
+      {@const seg = route.segments[mapsSheetForIndex]}
+      {#if seg?.fromStop?.coord}
+        <div
+          class="maps-sheet-backdrop"
+          role="button"
+          tabindex="0"
+          aria-label="Close map app picker"
+          onclick={() => (mapsSheetForIndex = null)}
+          onkeydown={(e) => e.key === "Escape" && (mapsSheetForIndex = null)}
+        >
+          <div
+            class="maps-sheet"
+            role="dialog"
+            aria-label="Choose map app"
+            tabindex="-1"
+            onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => e.stopPropagation()}
+          >
+            <div class="maps-sheet-title">Choose map app</div>
+            <label class="maps-sheet-remember-toggle">
+              <input type="checkbox" bind:checked={rememberMapChoice} />
+              <span>Remember my choice</span>
+            </label>
+            {#each mapAppOptions() as app}
+              <button
+                type="button"
+                class="maps-sheet-option"
+                onclick={() => openMapApp(app, seg.fromStop.coord![0], seg.fromStop.coord![1])}
+              >
+                {app === "google" ? "Google Maps" : app === "apple" ? "Apple Maps" : "Waze"}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    {/if}
 
     {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
       <div class="empty-state">
@@ -329,17 +475,23 @@
   .map-link { 
     display: flex; 
     align-items: center; 
+    justify-content: center;
     gap: 6px; 
     padding: 12px 16px; 
     font-size: 13px; 
     color: var(--accent); 
-    text-decoration: none; 
+    border: none;
     border-top: 1px solid var(--border); 
     background: var(--surface);
     transition: background 0.2s ease;
+    width: 100%;
   }
   .map-link:active { background: var(--accent-subtle); }
   .map-link svg { width: 16px; height: 16px; }
+  .map-link-subtle {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
   .row-right { flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; position: relative; }
@@ -389,6 +541,110 @@
     width: 14px;
     height: 14px;
     opacity: 0.6;
+  }
+  .geo-map-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .route-preview {
+    position: relative;
+  }
+  .mini-map {
+    width: 100%;
+    height: 108px;
+    display: block;
+  }
+  .route-preview-labels {
+    position: absolute;
+    inset: auto 10px 8px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
+  .rp-you,
+  .rp-stop {
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 8px;
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .location-hint {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .event-chip {
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    opacity: 0.9;
+  }
+  .event-icon { width: 14px; height: 14px; }
+  .protest-icon { animation: bob 1.8s ease-in-out infinite; transform-origin: 6px 18px; }
+  .tech-icon { animation: spinSlow 2.6s linear infinite; transform-origin: 12px 12px; }
+  .weather-icon { animation: drift 2.2s ease-in-out infinite; }
+  .maps-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.2);
+    display: flex;
+    align-items: flex-end;
+    z-index: 350;
+    border: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+  }
+  .maps-sheet {
+    width: min(100%, 480px);
+    margin: 0 auto;
+    background: var(--surface);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 8px;
+  }
+  .maps-sheet-title { font-size: 13px; font-weight: 700; color: var(--text); padding: 6px 4px; }
+  .maps-sheet-option {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 11px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .maps-sheet-remember-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 2px 2px;
+  }
+  @keyframes bob { 0%,100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-1px); } }
+  @keyframes spinSlow { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  @keyframes drift { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-1px);} }
+  @media (prefers-reduced-motion: reduce) {
+    .protest-icon, .tech-icon, .weather-icon { animation: none !important; }
   }
 
   @keyframes spin {
