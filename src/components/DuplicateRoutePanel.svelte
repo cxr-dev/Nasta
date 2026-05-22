@@ -187,13 +187,9 @@
     font-size: 14px;
   }
 
-  .msg, .error {
+  .error {
     text-align: center;
     padding: 16px;
-    color: var(--text-secondary);
-  }
-
-  .error {
     color: #dc2626;
   }
 

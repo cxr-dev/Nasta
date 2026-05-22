@@ -142,7 +142,8 @@
   <div class="strip" role="region" aria-label={$t.vehiclePosition} bind:this={stripEl}>
     {#if journeyData.availability === 'unavailable'}
       <div class="strip-summary">
-        <div class="summary-primary">{$t.positionUnavailablePrimary || "Live position unavailable"}</div>
+        <div class="summary-prefix">{$t.scheduledEstimateLabel}</div>
+        <div class="summary-primary">{$t.estimatedPosition}</div>
         <div class="summary-secondary">{$t.arrivingAt.replace('{time}', formatArrival())}</div>
       </div>
     {:else}

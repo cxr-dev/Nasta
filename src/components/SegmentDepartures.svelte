@@ -107,6 +107,45 @@
     return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
   }
 
+  function lon2tile(lon: number, z: number): number {
+    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+  }
+
+  function lat2tile(lat: number, z: number): number {
+    const rad = (lat * Math.PI) / 180;
+    return Math.floor(
+      ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * Math.pow(2, z),
+    );
+  }
+
+  function tilePreviewUrl(lat: number, lon: number, zoom = 15): string {
+    const x = lon2tile(lon, zoom);
+    const y = lat2tile(lat, zoom);
+    return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+  }
+
+  function markerPercent(
+    centerLat: number,
+    centerLon: number,
+    pointLat: number,
+    pointLon: number,
+    zoom = 15,
+  ): { left: number; top: number } {
+    const n = Math.pow(2, zoom);
+    const worldX = ((pointLon + 180) / 360) * n * 256;
+    const sinLat = Math.sin((pointLat * Math.PI) / 180);
+    const worldY =
+      (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * n * 256;
+    const cX = ((centerLon + 180) / 360) * n * 256;
+    const cSin = Math.sin((centerLat * Math.PI) / 180);
+    const cY = (0.5 - Math.log((1 + cSin) / (1 - cSin)) / (4 * Math.PI)) * n * 256;
+    const dx = worldX - cX;
+    const dy = worldY - cY;
+    const left = Math.max(6, Math.min(94, 50 + (dx / 256) * 100));
+    const top = Math.max(6, Math.min(94, 50 + (dy / 256) * 100));
+    return { left, top };
+  }
+
   function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
     const m = message.toLowerCase();
     if (/(protest|demonstration|strejk|demonstration|march|blockad)/i.test(m)) return "protest";
@@ -349,27 +388,32 @@
             <div class="expanded-actions">
               {#if segment.fromStop.coord}
                 {@const dist = userLocation ? getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1]) : null}
+                {@const stopLat = segment.fromStop.coord[0]}
+                {@const stopLon = segment.fromStop.coord[1]}
                 <div class="expanded-geo-info geo-map-card">
                   <div class="route-preview" aria-label={`Route preview to ${segment.fromStop.name}`}>
-                    <svg viewBox="0 0 320 108" class="mini-map" aria-hidden="true">
-                      <defs>
-                        <linearGradient id="routeBg" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stop-color="var(--surface)" />
-                          <stop offset="100%" stop-color="color-mix(in srgb, var(--accent-subtle) 35%, var(--surface))" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="1" y="1" width="318" height="106" rx="14" fill="url(#routeBg)" stroke="var(--border)"/>
-                      <path d="M48 76 C98 38, 164 34, 238 46" fill="none" stroke="var(--accent)" stroke-opacity="0.32" stroke-width="3.5" stroke-dasharray="6 6"/>
-                      <circle cx="40" cy="78" r="8" fill="var(--accent)"/>
-                      <circle cx="40" cy="78" r="15" fill="none" stroke="var(--accent)" stroke-opacity="0.22"/>
-                      <path d="M248 32c0 9-10 20-10 20s-10-11-10-20a10 10 0 1 1 20 0z" fill="var(--accent)"/>
-                      <circle cx="238" cy="32" r="3.2" fill="var(--bg)"/>
-                    </svg>
+                    <img
+                      class="mini-map"
+                      src={tilePreviewUrl(stopLat, stopLon)}
+                      alt={`Map preview for ${stopLabel(segment.fromStop.name)}`}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div class="map-marker map-marker-stop" style={`left:${markerPercent(stopLat, stopLon, stopLat, stopLon).left}%;top:${markerPercent(stopLat, stopLon, stopLat, stopLon).top}%`}>
+                      <span class="sr-only">Stop</span>
+                    </div>
+                    {#if userLocation}
+                      {@const userPos = markerPercent(stopLat, stopLon, userLocation[0], userLocation[1])}
+                      <div class="map-marker map-marker-user" style={`left:${userPos.left}%;top:${userPos.top}%`}>
+                        <span class="sr-only">You</span>
+                      </div>
+                    {/if}
                     <div class="route-preview-labels">
                       <span class="rp-you">You</span>
                       <span class="rp-stop">{stopLabel(segment.fromStop.name)}</span>
                     </div>
                   </div>
+                  <span class="map-attrib">© OpenStreetMap</span>
                   {#if dist !== null}
                     <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
                   {:else if (settings.walkingEtaEnabled ?? true)}
@@ -379,10 +423,11 @@
               {/if}
               <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
               {#if segment.fromStop.coord}
+                {@const coord = segment.fromStop.coord}
                 <button
                   type="button"
                   class="map-link"
-                  onclick={() => openMapWithPreference(segment.fromStop.coord[0], segment.fromStop.coord[1], false, index)}
+                  onclick={() => openMapWithPreference(coord[0], coord[1], false, index)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -393,9 +438,9 @@
                 <button
                   type="button"
                   class="map-link map-link-subtle"
-                  onclick={() => openMapWithPreference(segment.fromStop.coord[0], segment.fromStop.coord[1], true, index)}
+                  onclick={() => openMapWithPreference(coord[0], coord[1], true, index)}
                 >
-                  Choose map app
+                  {$t.chooseMapApp || "Choose map app"}
                 </button>
               {/if}
             </div>
@@ -426,6 +471,7 @@
     {#if mapsSheetForIndex !== null}
       {@const seg = route.segments[mapsSheetForIndex]}
       {#if seg?.fromStop?.coord}
+        {@const coord = seg.fromStop.coord}
         <div
           class="maps-sheet-backdrop"
           role="button"
@@ -437,21 +483,21 @@
           <div
             class="maps-sheet"
             role="dialog"
-            aria-label="Choose map app"
+            aria-label={$t.chooseMapApp || "Choose map app"}
             tabindex="-1"
             onclick={(e) => e.stopPropagation()}
             onkeydown={(e) => e.stopPropagation()}
           >
-            <div class="maps-sheet-title">Choose map app</div>
+            <div class="maps-sheet-title">{$t.chooseMapApp || "Choose map app"}</div>
             <label class="maps-sheet-remember-toggle">
               <input type="checkbox" bind:checked={rememberMapChoice} />
-              <span>Remember my choice</span>
+              <span>{$t.rememberMapChoice || "Remember my choice"}</span>
             </label>
             {#each mapAppOptions() as app}
               <button
                 type="button"
                 class="maps-sheet-option"
-                onclick={() => openMapApp(app, seg.fromStop.coord![0], seg.fromStop.coord![1])}
+                onclick={() => openMapApp(app, coord[0], coord[1])}
               >
                 {app === "google" ? "Google Maps" : app === "apple" ? "Apple Maps" : "Waze"}
               </button>
@@ -566,6 +612,40 @@
     width: 100%;
     height: 108px;
     display: block;
+    object-fit: cover;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .map-marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    z-index: 2;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  }
+  .map-marker-stop {
+    width: 14px;
+    height: 14px;
+    background: #111;
+    border: 2px solid #fff;
+  }
+  .map-marker-user {
+    width: 10px;
+    height: 10px;
+    background: #2f80ed;
+    border: 2px solid #fff;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
   }
   .route-preview-labels {
     position: absolute;
@@ -593,6 +673,12 @@
   .location-hint {
     color: var(--text-muted);
     font-size: 12px;
+  }
+  .map-attrib {
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.8;
+    margin-top: -2px;
   }
   .event-chip {
     margin-top: 6px;
