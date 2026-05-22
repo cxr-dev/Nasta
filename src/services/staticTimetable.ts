@@ -1,5 +1,6 @@
 import type { Departure } from '../types/departure';
 import type { TransportType } from '../types/route';
+import { isExternalTimetableStop } from '../lib/sourceClassification';
 
 type StopKey = 'luma_brygga' | 'barnangen' | 'henriksdal';
 
@@ -184,24 +185,22 @@ function generateTimes(
   line: string,
   destination: string,
   directionCode: number,
-  type: TransportType
+  transportType: TransportType
 ): TimetableEntry[] {
   return times.map(time => ({
     time,
     line,
     destination,
     directionCode,
-    transportType: type,
+    transportType,
   }));
 }
 
-const SJOSTAD_KEYS = ['luma', 'barn', 'henrik'];
+// SJOSTAD_KEYS removed — only `sourceClassification.ts` should be the single source of truth
 
 export function isSjostadstrafikenStop(stopName: string): boolean {
-  const normalized = stopName.toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-  return SJOSTAD_KEYS.some(s => normalized.includes(s));
+  // Delegate to shared source classification for consistent matching
+  return isExternalTimetableStop(stopName);
 }
 
 export function getStopKey(stopName: string): StopKey | null {
@@ -259,7 +258,8 @@ export function getNextDepartures(stopName: string, count: number = 2): Departur
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowIsWeekend = isWeekend(tomorrow);
-    const tomorrowSchedule = tomorrowIsWeekend ? table.weekends : table.weekdays;
+    const tomorrowTable = timetables[key];          // re-capture for the correct day
+    const tomorrowSchedule = tomorrowIsWeekend ? tomorrowTable.weekends : tomorrowTable.weekdays;
     
     for (const entry of tomorrowSchedule) {
       const [hours, mins] = entry.time.split(':').map(Number);

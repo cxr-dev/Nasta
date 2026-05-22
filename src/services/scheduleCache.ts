@@ -31,7 +31,7 @@ interface CacheEntry {
   validDate: string;
 }
 
-type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionText"
+export type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionText"
 
 /**
  * Generate cache key from route parameters

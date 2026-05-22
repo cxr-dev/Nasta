@@ -54,7 +54,11 @@
 
   $effect(() => {
     if (settings.walkingEtaEnabled ?? true) {
-      getQuickLocation().then(loc => userLocation = loc);
+      const controller = new AbortController();
+      getQuickLocation(controller.signal)
+        .then(loc => { if (!controller.signal.aborted) userLocation = loc; })
+        .catch(() => { /* denied or error — keep userLocation null */ });
+      return () => controller.abort();
     } else {
       userLocation = null;
     }
@@ -148,7 +152,7 @@
 
   function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
     const m = message.toLowerCase();
-    if (/(protest|demonstration|strejk|demonstration|march|blockad)/i.test(m)) return "protest";
+    if (/(protest|demonstration|strejk|march|blockad)/i.test(m)) return "protest";
     if (/(signal|switch|technical|fault|fel|teknisk|power|el|track|spår)/i.test(m)) return "technical";
     if (/(snow|rain|storm|wind|väder|snö|regn|is|storm)/i.test(m)) return "weather";
     return "general";
@@ -329,17 +333,13 @@
 
         <div class="row-right">
           {#if hasDeparture}
-            <div class="time-stack">
-              <div class="primary-time">
-                {#if departure.isFirstMorning}
-                  <span class="clock-time">{departure.time}</span>
-                {:else}
-                  <span class="minutes" data-testid="countdown-minutes">{primaryDepartureText}</span>
-                {/if}
-              </div>
-              {#if subsequent && !departure.isFirstMorning}
-                <div class="secondary-time"><span class="more">{subsequent}</span></div>
-              {/if}
+          <div class="time-stack">
+            <div class="primary-time">
+              <span class="minutes" data-testid="countdown-minutes">{primaryDepartureText}</span>
+            </div>
+            {#if subsequent}
+              <div class="secondary-time"><span class="more">{subsequent}</span></div>
+            {/if}
               {#if siteDevs.length > 0}
                 <div class="event-chip event-{topDevType}">
                   {#if topDevType === "protest"}
@@ -478,11 +478,12 @@
           tabindex="0"
           aria-label="Close map app picker"
           onclick={() => (mapsSheetForIndex = null)}
-          onkeydown={(e) => e.key === "Escape" && (mapsSheetForIndex = null)}
+          onkeydown={(e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mapsSheetForIndex = null; } }}
         >
           <div
             class="maps-sheet"
             role="dialog"
+            aria-modal="true"
             aria-label={$t.chooseMapApp || "Choose map app"}
             tabindex="-1"
             onclick={(e) => e.stopPropagation()}
@@ -643,7 +644,7 @@
     padding: 0;
     margin: -1px;
     overflow: hidden;
-    clip: rect(0,0,0,0);
+    clip-path: inset(50%);
     white-space: nowrap;
     border: 0;
   }

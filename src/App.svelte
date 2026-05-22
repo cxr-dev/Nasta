@@ -9,6 +9,7 @@
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { locale, resolveLocale, t } from './stores/localeStore';
   import { searchSites } from './services/slApi';
+  import type { Segment } from './types/route';
   
   import RouteHeader from './components/RouteHeader.svelte';
   import BottomBar from './components/BottomBar.svelte';
@@ -16,8 +17,10 @@
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
+  import type { Departure } from './stores/departureStore';
+  import type { SegmentHealth } from './types/deviation';
 
-let editing = $state(false);
+  let editing = $state(false);
    let lastRefreshTime = $state(Date.now());
    let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -66,10 +69,46 @@ let editing = $state(false);
   let routes = $derived($routeStore ?? []);
   let hasNoRoutes = $derived(!routes || routes.length === 0);
   let settings = $derived($settingsStore);
-  let departures = $state<Map<string, import('./stores/departureStore').Departure[]>>(new Map());
-  let deviationHealthBySegment = $state<Map<string, import('./types/deviation').SegmentHealth>>(new Map());
+  let departures = $state<Map<string, Departure[]>>(new Map());
+  let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
+
+  /** Extract segment metadata into the structures needed by departureStore. */
+  function extractSegmentData(segments: Segment[]) {
+    const siteIds = segments
+      .map(s => s.fromStop.siteId || s.toStop.siteId)
+      .filter(Boolean);
+    const stopNames = new Map(segments.map(s => {
+      const siteId = s.fromStop.siteId || s.toStop.siteId;
+      return [siteId, s.fromStop.name || s.toStop.name];
+    }));
+    const segmentMetaBySiteId = new Map(segments.map(s => {
+      const siteId = s.fromStop.siteId || s.toStop.siteId;
+      return [siteId, {
+        line: s.line,
+        direction_code: s.direction?.code ?? 0,
+        destId: s.toStop.siteId
+      }];
+    }));
+    return { siteIds, stopNames, segmentMetaBySiteId };
+  }
+
+  async function startDisruptionsForRoute(segments: Segment[]) {
+    if (!settings.disruptionAlertsEnabled) return;
+    const preferredLanguage = resolveLocale(settings.language ?? 'auto');
+    await deviationStore.startAutoRefresh(
+      segments,
+      preferredLanguage,
+      settings.disruptionSeverityThreshold
+    );
+  }
+
+  async function refreshDisruptions(segments: Segment[], opts?: { force?: boolean }) {
+    if (!settings.disruptionAlertsEnabled) return;
+    const preferredLanguage = resolveLocale(settings.language ?? 'auto');
+    await deviationStore.refresh(segments, preferredLanguage, settings.disruptionSeverityThreshold, opts);
+  }
 
   $effect(() => {
     applyTheme($settingsStore.theme ?? 'default', $settingsStore.themeVariant ?? 'A');
@@ -95,22 +134,8 @@ let editing = $state(false);
     
     // Use current request ID (whether newly created or existing)
     const actualRequestId = currentRequestId;
-    const siteIds = currentRoute.segments
-      .map(s => s.fromStop.siteId || s.toStop.siteId)
-      .filter(Boolean);
+    const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(currentRoute.segments);
     if (siteIds.length > 0) {
-      const stopNames = new Map(currentRoute.segments.map(s => {
-        const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, s.fromStop.name || s.toStop.name];
-      }));
-      const segmentMetaBySiteId = new Map(currentRoute.segments.map(s => {
-        const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { 
-          line: s.line, 
-          direction_code: s.direction?.code ?? 0,
-          destId: s.toStop.siteId
-        }];
-      }));
       // Pass request ID to prevent stale responses from overwriting current route
       departureStore.startAutoRefresh(
         siteIds,
@@ -121,16 +146,7 @@ let editing = $state(false);
         currentRoute.direction,
         actualRequestId
       );
-      if (settings.disruptionAlertsEnabled) {
-        const preferredLanguage = resolveLocale(settings.language ?? 'auto');
-        deviationStore.startAutoRefresh(
-          currentRoute.segments,
-          preferredLanguage,
-          settings.disruptionSeverityThreshold
-        );
-      } else {
-        deviationStore.stopAutoRefresh();
-      }
+      startDisruptionsForRoute(currentRoute.segments);
       lastRefreshTime = Date.now();
     }
   });
@@ -145,22 +161,7 @@ let editing = $state(false);
       }
       
       const newRequestId = currentRequestId || `route-${route.id}-manual-${Date.now()}`;
-      
-      const siteIds = route.segments
-        .map(s => s.fromStop.siteId || s.toStop.siteId)
-        .filter(Boolean);
-      const stopNames = new Map(route.segments.map(s => {
-        const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, s.fromStop.name || s.toStop.name];
-      }));
-      const segmentMetaBySiteId = new Map(route.segments.map(s => {
-        const siteId = s.fromStop.siteId || s.toStop.siteId;
-        return [siteId, { 
-          line: s.line, 
-          direction_code: s.direction?.code ?? 0,
-          destId: s.toStop.siteId
-        }];
-      }));
+      const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
       if (siteIds.length > 0) {
         departureStore.startAutoRefresh(
           siteIds,
@@ -171,14 +172,7 @@ let editing = $state(false);
           route.direction,
           newRequestId
         );
-        if (settings.disruptionAlertsEnabled) {
-          const preferredLanguage = resolveLocale(settings.language ?? 'auto');
-          deviationStore.startAutoRefresh(
-            route.segments,
-            preferredLanguage,
-            settings.disruptionSeverityThreshold
-          );
-        }
+        startDisruptionsForRoute(route.segments);
         lastRefreshTime = Date.now();
       } else if (route.segments.length > 0) {
         if (import.meta.env.DEV) console.log('[App] siteIds empty, attempting proactive lookup');
@@ -199,14 +193,7 @@ let editing = $state(false);
             route.direction,
             newRequestId
           );
-          if (settings.disruptionAlertsEnabled) {
-            const preferredLanguage = resolveLocale(settings.language ?? 'auto');
-            deviationStore.startAutoRefresh(
-              route.segments,
-              preferredLanguage,
-              settings.disruptionSeverityThreshold
-            );
-          }
+          startDisruptionsForRoute(route.segments);
           lastRefreshTime = Date.now();
         }
       }
@@ -333,21 +320,7 @@ function handleRouteSwitch(routeId: string) {
   async function triggerManualRefresh() {
     if (!route?.segments || isRefreshing) return;
     isRefreshing = true;
-    const siteIds = route.segments
-      .map(s => s.fromStop.siteId || s.toStop.siteId)
-      .filter(Boolean);
-    const stopNames = new Map(route.segments.map(s => {
-      const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, s.fromStop.name || s.toStop.name];
-    }));
-    const segmentMetaBySiteId = new Map(route.segments.map(s => {
-      const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, { 
-        line: s.line, 
-        direction_code: s.direction?.code ?? 0,
-        destId: s.toStop.siteId
-      }];
-    }));
+    const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
     try {
       await departureStore.refresh(
         siteIds,
@@ -356,15 +329,7 @@ function handleRouteSwitch(routeId: string) {
         true,
         route.direction
       );
-      if (settings.disruptionAlertsEnabled) {
-        const preferredLanguage = resolveLocale(settings.language ?? 'auto');
-        await deviationStore.refresh(
-          route.segments,
-          preferredLanguage,
-          settings.disruptionSeverityThreshold,
-          { force: true }
-        );
-      }
+      await refreshDisruptions(route.segments, { force: true });
       lastRefreshTime = Date.now();
     } finally {
       isRefreshing = false;
@@ -400,21 +365,7 @@ function handleRouteSwitch(routeId: string) {
       if (!document.hidden && route?.segments) {
         const timeSinceLastRefresh = Date.now() - lastRefreshTime;
         if (timeSinceLastRefresh > 10000) {
-          const siteIds = route.segments
-            .map(s => s.fromStop.siteId || s.toStop.siteId)
-            .filter(Boolean);
-          const stopNames = new Map(route.segments.map(s => {
-            const siteId = s.fromStop.siteId || s.toStop.siteId;
-            return [siteId, s.fromStop.name || s.toStop.name];
-          }));
-          const segmentMetaBySiteId = new Map(route.segments.map(s => {
-            const siteId = s.fromStop.siteId || s.toStop.siteId;
-            return [siteId, { 
-              line: s.line, 
-              direction_code: s.direction?.code ?? 0,
-              destId: s.toStop.siteId
-            }];
-          }));
+          const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
           departureStore.refresh(
             siteIds,
             stopNames,

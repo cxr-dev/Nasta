@@ -194,9 +194,6 @@
 
       <div class="strip-footer">
         <span class="arrival-text">{$t.arrivingAt.replace('{time}', formatArrival())}</span>
-        {#if journeyData.availability === 'live'}
-          <span class="badge badge-live">{$t.live} ✦</span>
-        {/if}
       </div>
     {/if}
   </div>

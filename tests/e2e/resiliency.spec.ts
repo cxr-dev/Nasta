@@ -30,7 +30,7 @@ test.describe("SL API Resiliency", () => {
     });
   });
 
-  test("should show 'Planned' label when real-time API is empty and fallback is triggered", async ({
+  test("should show fallback departure when real-time API is empty", async ({
     page,
   }) => {
     // 1. Mock empty real-time departures
@@ -45,7 +45,7 @@ test.describe("SL API Resiliency", () => {
       },
     );
 
-    // 2. Mock Journey Planner v2 trip response (planned data)
+    // 2. Mock Journey Planner v2 trip response (planned fallback data)
     await page.route(
       "https://journeyplanner.integration.sl.se/v2/trip*",
       async (route) => {
@@ -92,10 +92,9 @@ test.describe("SL API Resiliency", () => {
     const departureRow = page.getByTestId("segment-row").first();
     await departureRow.waitFor({ state: "visible", timeout: 15000 });
 
-    // 4. Verify that the "Planned" (or "Planerad") label is visible
-    const plannedLabel = departureRow.getByTestId("planned-badge");
-    await plannedLabel.waitFor({ state: "visible", timeout: 5000 });
-    await expect(plannedLabel).toBeVisible();
-    await expect(plannedLabel).toContainText(/PLANNED|PLANERAD/i);
+    // 4. Verify the departure row is visible with a time displayed — fallback is working, no "Planned" badge expected
+    const departureTime = departureRow.getByTestId("countdown-minutes");
+    await expect(departureTime).toBeVisible();
+    await expect(departureTime).not.toHaveText("");
   });
 });

@@ -20,6 +20,7 @@
 
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let abortController: AbortController | null = null;
 
   // We need to fetch departures for each segment to let the user confirm the direction
   // But for simplicity, we might just fetch for the first segment if there's only one,
@@ -35,6 +36,9 @@
   let currentSegmentIndex = $state(0);
 
   $effect(() => {
+    abortController?.abort();
+    abortController = new AbortController();
+    const signal = abortController.signal;
     let active = true;
     async function load() {
       loading = true;
@@ -44,6 +48,7 @@
         // The pendingRoute segments are already reversed in order
         for (const seg of pendingRoute.segments) {
           // Fetch departures for the new pickup stop (seg.fromStop)
+          if (signal.aborted) return;
           const { departures } = await getDepartures(seg.fromStop.siteId, 240);
           // Filter to just this line
           const lineDeps = departures.filter((d: Departure) => d.line === seg.line);
@@ -52,11 +57,16 @@
           const origDirectionCode = seg.direction?.code;
           const suggestedCode = origDirectionCode === 1 ? 2 : (origDirectionCode === 2 ? 1 : null);
           
-          let selected = suggestedCode;
-          // Verify suggested code exists in departures
-          if (selected !== null && !lineDeps.some((d: Departure) => d.direction_code === selected)) {
-            selected = lineDeps[0]?.direction_code ?? null;
-          }
+           let selected = suggestedCode;
+           // Verify suggested code exists in departures
+           if (selected !== null && !lineDeps.some((d: Departure) => d.direction_code === selected)) {
+             selected = lineDeps[0]?.direction_code ?? null;
+           }
+          
+           // If no departures found at all, skip this segment gracefully with a recorded error
+           if (selected === null && lineDeps.length === 0) {
+             if (import.meta.env.DEV) console.warn("No departures found for segment", seg.line, seg.fromStop.siteId);
+           }
 
           states.push({
             originalSegment: seg,
@@ -77,7 +87,7 @@
       }
     }
     load();
-    return () => { active = false; };
+    return () => { active = false; abortController?.abort(); };
   });
 
   function handleDirectionSelect(dir: { code: number, destination: string, stopPointId: string }) {
@@ -91,14 +101,24 @@
   }
 
   function saveRoute() {
+    // Fail fast: no segment can be saved without a confirmed direction
+    for (const state of segmentStates) {
+      if (!state.selectedDirectionCode) {
+        error = $t.failedToFetchDepartures ?? "Could not resolve direction. Refresh and try again.";
+        loading = false;
+        return;
+      }
+    }
+
     // Generate new segments with confirmed directions
     const confirmedSegments = segmentStates.map((state) => {
       const dep = state.departures.find(d => d.direction_code === state.selectedDirectionCode);
+
       return {
         ...state.originalSegment,
         id: crypto.randomUUID(),
         direction: {
-          code: state.selectedDirectionCode || 1,
+          code: state.selectedDirectionCode!,
           destination: dep?.destination || state.originalSegment.direction?.destination || '',
           stopPointId: dep?.stop_point_id || '',
         }

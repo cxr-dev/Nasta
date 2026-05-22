@@ -8,22 +8,25 @@ const distanceCache = new Map<string, number>();
 
 /**
  * Returns the current position using a one-time request with a 4s timeout.
- * Fails silently by returning null on timeout or error.
+ * Fails silently by returning null on timeout, error, or abort.
  */
-export async function getQuickLocation(): Promise<[number, number] | null> {
+export async function getQuickLocation(signal?: AbortSignal): Promise<[number, number] | null> {
   if (cachedPosition) return cachedPosition;
 
   if (!navigator.geolocation) return null;
 
   return new Promise((resolve) => {
+    const callback = (pos: GeolocationPosition) => {
+      if (signal?.aborted) return resolve(null);
+      cachedPosition = [pos.coords.latitude, pos.coords.longitude];
+      resolve(cachedPosition);
+    };
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        cachedPosition = [pos.coords.latitude, pos.coords.longitude];
-        resolve(cachedPosition);
-      },
+      callback,
       () => resolve(null),
       { timeout: 4000, enableHighAccuracy: false }
     );
+    signal?.addEventListener('abort', () => resolve(null), { once: true });
   });
 }
 

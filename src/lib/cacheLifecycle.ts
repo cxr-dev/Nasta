@@ -7,7 +7,7 @@
  * - Auto-cleanup of old entries
  */
 
-import { getCacheStats, clearExpiredCache } from "../services/scheduleCache";
+import { getCacheStats, clearExpiredCache, type CacheStore } from "../services/scheduleCache";
 
 const CACHE_VERSION = "nasta_schedule_cache_v1";
 const MAX_CACHE_AGE_HOURS = 24;
@@ -85,7 +85,7 @@ function trimLargestCache(): void {
     const cacheStr = localStorage.getItem(CACHE_VERSION);
     if (!cacheStr) return;
 
-    const cache = JSON.parse(cacheStr) as Record<string, string[]>;
+    const cache = JSON.parse(cacheStr) as CacheStore;
     let largestKey = "";
     let largestSize = 0;
 

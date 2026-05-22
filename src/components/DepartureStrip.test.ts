@@ -95,7 +95,7 @@ describe("DepartureStrip", () => {
     expect(container.querySelector(".vehicle-bubble")).toBeNull();
   });
 
-  it("keeps live badge semantics for live journey data", async () => {
+  it("renders the departure strip without any source label", async () => {
     fetchJourneyStopsMock.mockResolvedValue({
       availability: "live",
       source: "live_journey",
@@ -109,12 +109,19 @@ describe("DepartureStrip", () => {
       reason: "live",
     });
 
-    const { getByText } = render(DepartureStrip, {
+    const { container } = render(DepartureStrip, {
       props: { departure, segment },
     });
 
+    // Strip should render with arrival info but no source badge
     await waitFor(() => {
-      expect(getByText(/Live/)).toBeTruthy();
+      expect(container.querySelector(".strip")).not.toBeNull();
     });
+
+    // No badge of any kind for live/planned/scheduled should appear
+    expect(container.querySelector(".badge")).toBeNull();
+    expect(container.querySelector(".badge-live")).toBeNull();
+    expect(container.querySelector(".badge-scheduled")).toBeNull();
+    expect(container.querySelector(".badge-unavailable")).toBeNull();
   });
 });

@@ -443,7 +443,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         </div>
         <div class="departures-list">
           {#each uniqueLinesFiltered as dep}
-            <button class="dep-item" class:dep-cached={dep.predicted} onmousedown={() => handleLineSelect(dep)}>
+            <button class="dep-item" onmousedown={() => handleLineSelect(dep)}>
               <div class="dep-transport">
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
                   {@html transportIcons[dep.transportType]}
@@ -768,11 +768,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     font-weight: 500;
   }
 
-  .dep-cached {
-    opacity: 0.7;
-  }
-
-  .direction-view {
+   .direction-view {
     display: flex;
     flex-direction: column;
     gap: 16px;
