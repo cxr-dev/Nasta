@@ -29,8 +29,7 @@ function createDepartureStore() {
   let currentSiteIds: string[] = [];
   let currentDirection: string | null = null;
   let currentRequestId: string | null = null;
-
-  let isFetching = false;
+  let activeFetchCount = 0;
 
   /**
    * Hybrid fetch strategy:
@@ -53,6 +52,8 @@ function createDepartureStore() {
     direction: string | null = null,
     requestId: string | null = null,
   ) => {
+    const previousRequestId = currentRequestId;
+
     // Detect direction change - force clear if different direction
     if (direction && direction !== currentDirection) {
       if (import.meta.env.DEV)
@@ -68,12 +69,15 @@ function createDepartureStore() {
         console.log(`[departureStore] Request ID set to ${requestId}`);
     }
 
-    if (isFetching) {
-      if (import.meta.env.DEV)
-        console.log("[departureStore] Fetch skipped - already fetching");
-      return;
+    if (activeFetchCount > 0) {
+      const sameRequest = !requestId || requestId === previousRequestId;
+      if (sameRequest) {
+        if (import.meta.env.DEV)
+          console.log("[departureStore] Fetch skipped - already fetching");
+        return;
+      }
     }
-    isFetching = true;
+    activeFetchCount += 1;
 
     // Set appropriate loading state
     if (clearFirst) {
@@ -198,9 +202,11 @@ function createDepartureStore() {
         console.error("[departureStore] Overall fetch error:", error);
       lastError.set("Failed to fetch departures");
     } finally {
-      isFetching = false;
-      isLoading.set(false);
-      isUpdating.set(false);
+      activeFetchCount = Math.max(0, activeFetchCount - 1);
+      if (activeFetchCount === 0) {
+        isLoading.set(false);
+        isUpdating.set(false);
+      }
     }
   };
 

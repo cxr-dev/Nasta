@@ -8,7 +8,7 @@ vi.mock("../services/scheduleCache", () => ({
 }));
 
 vi.mock("../services/departureService", () => ({
-  getDepartures: vi.fn(async () => []),
+  getDepartures: vi.fn(async () => ({ departures: [], stopDeviations: [] })),
 }));
 
 describe("departureStore cache key wiring", () => {
@@ -183,5 +183,42 @@ describe("departureStore - request identity and stale response filtering", () =>
     // With the fix: NO - responses from the SAME route should not be rejected
     // This is now handled at the App level by only creating new requestId on actual route change
     expect(departureStore.getCurrentRequestId?.()).toBe(requestId2);
+  });
+
+  it("starts a new fetch for a different route while one is already in flight", async () => {
+    const deferred: Array<(value: { departures: any[]; stopDeviations: any[] }) => void> = [];
+    const mockedGetDepartures = vi.mocked(getDepartures);
+
+    mockedGetDepartures.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          deferred.push(resolve);
+        }),
+    );
+
+    const firstRequest = departureStore.refresh(
+      ["1001"],
+      new Map([["1001", "Centralen"]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      true,
+      "toWork",
+      "route-a",
+    );
+
+    const secondRequest = departureStore.refresh(
+      ["1002"],
+      new Map([["1002", "City"]]),
+      new Map([["1002", { line: "3", direction_code: 2 }]]),
+      true,
+      "fromWork",
+      "route-b",
+    );
+
+    expect(mockedGetDepartures).toHaveBeenCalledTimes(2);
+
+    deferred[0]({ departures: [], stopDeviations: [] });
+    deferred[1]({ departures: [], stopDeviations: [] });
+
+    await Promise.all([firstRequest, secondRequest]);
   });
 });

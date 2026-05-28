@@ -74,24 +74,60 @@
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
 
-  /** Extract segment metadata into the structures needed by departureStore. */
-  function extractSegmentData(segments: Segment[]) {
-    const siteIds = segments
-      .map(s => s.fromStop.siteId || s.toStop.siteId)
-      .filter(Boolean);
-    const stopNames = new Map(segments.map(s => {
-      const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, s.fromStop.name || s.toStop.name];
+  type DepartureSegmentInput = {
+    siteId: string;
+    stopName: string;
+    line: string;
+    direction_code: number;
+    destId?: string;
+  };
+
+  function buildDepartureInputs(segments: Segment[]): DepartureSegmentInput[] {
+    return segments.map((segment) => ({
+      siteId: segment.fromStop.siteId || segment.toStop.siteId || '',
+      stopName: segment.fromStop.name || segment.toStop.name || '',
+      line: segment.line,
+      direction_code: segment.direction?.code ?? 0,
+      destId: segment.toStop.siteId || undefined
     }));
-    const segmentMetaBySiteId = new Map(segments.map(s => {
-      const siteId = s.fromStop.siteId || s.toStop.siteId;
-      return [siteId, {
-        line: s.line,
-        direction_code: s.direction?.code ?? 0,
-        destId: s.toStop.siteId
-      }];
-    }));
-    return { siteIds, stopNames, segmentMetaBySiteId };
+  }
+
+  function toDepartureStoreArgs(inputs: DepartureSegmentInput[]) {
+    const readyInputs = inputs.filter((input): input is DepartureSegmentInput => Boolean(input.siteId));
+    return {
+      siteIds: readyInputs.map((input) => input.siteId),
+      stopNames: new Map(readyInputs.map((input) => [input.siteId, input.stopName])),
+      segmentMetaBySiteId: new Map(readyInputs.map((input) => [input.siteId, {
+        line: input.line,
+        direction_code: input.direction_code,
+        destId: input.destId
+      }])),
+    };
+  }
+
+  async function resolveMissingSiteIds(inputs: DepartureSegmentInput[]): Promise<DepartureSegmentInput[]> {
+    let hadError = false;
+    const resolved: DepartureSegmentInput[] = [];
+
+    for (const input of inputs) {
+      if (input.siteId || !input.stopName) {
+        resolved.push(input);
+        continue;
+      }
+
+      try {
+        const sites = await searchSites(input.stopName);
+        const siteId = sites[0]?.siteId || '';
+        if (!siteId) hadError = true;
+        resolved.push({ ...input, siteId });
+      } catch {
+        hadError = true;
+        resolved.push(input);
+      }
+    }
+
+    siteLookupError = hadError ? $t.someStopsNotFound : null;
+    return resolved;
   }
 
   async function startDisruptionsForRoute(segments: Segment[]) {
@@ -108,6 +144,31 @@
     if (!settings.disruptionAlertsEnabled) return;
     const preferredLanguage = resolveLocale(settings.language ?? 'auto');
     await deviationStore.refresh(segments, preferredLanguage, settings.disruptionSeverityThreshold, opts);
+  }
+
+  async function startDeparturesForRoute(
+    segments: Segment[],
+    direction: string | null,
+    clearFirst = false,
+    requestId: string | null = null,
+  ) {
+    const inputs = await resolveMissingSiteIds(buildDepartureInputs(segments));
+    if (requestId && requestId !== currentRequestId) return;
+    const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
+
+    if (siteIds.length === 0) return;
+
+    departureStore.startAutoRefresh(
+      siteIds,
+      stopNames,
+      segmentMetaBySiteId,
+      settings.refreshInterval || 30000,
+      clearFirst,
+      direction,
+      requestId
+    );
+    startDisruptionsForRoute(segments);
+    lastRefreshTime = Date.now();
   }
 
   $effect(() => {
@@ -132,23 +193,7 @@
       if (import.meta.env.DEV) console.log(`[App] Route switched to ${currentRoute.id}, requestId: ${newRequestId}`);
     }
     
-    // Use current request ID (whether newly created or existing)
-    const actualRequestId = currentRequestId;
-    const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(currentRoute.segments);
-    if (siteIds.length > 0) {
-      // Pass request ID to prevent stale responses from overwriting current route
-      departureStore.startAutoRefresh(
-        siteIds,
-        stopNames,
-        segmentMetaBySiteId,
-        settings.refreshInterval || 30000,
-        true,
-        currentRoute.direction,
-        actualRequestId
-      );
-      startDisruptionsForRoute(currentRoute.segments);
-      lastRefreshTime = Date.now();
-    }
+    void startDeparturesForRoute(currentRoute.segments, currentRoute.direction, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
@@ -160,77 +205,10 @@
         currentRequestId = newRequestId;
       }
       
-      const newRequestId = currentRequestId || `route-${route.id}-manual-${Date.now()}`;
-      const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
-      if (siteIds.length > 0) {
-        departureStore.startAutoRefresh(
-          siteIds,
-          stopNames,
-          segmentMetaBySiteId,
-          settings.refreshInterval || 30000,
-          clearFirst,
-          route.direction,
-          newRequestId
-        );
-        startDisruptionsForRoute(route.segments);
-        lastRefreshTime = Date.now();
-      } else if (route.segments.length > 0) {
-        if (import.meta.env.DEV) console.log('[App] siteIds empty, attempting proactive lookup');
-        const resolvedIds = await lookupMissingSiteIds(route.segments);
-        if (resolvedIds.length > 0) {
-          const resolvedStopNames = new Map<string, string>();
-          route.segments.forEach((s, i) => {
-            if (resolvedIds[i] && (s.fromStop.name || s.toStop.name)) {
-              resolvedStopNames.set(resolvedIds[i], s.fromStop.name || s.toStop.name);
-            }
-          });
-          departureStore.startAutoRefresh(
-            resolvedIds.filter(Boolean),
-            resolvedStopNames,
-            new Map(),
-            settings.refreshInterval || 30000,
-            true,
-            route.direction,
-            newRequestId
-          );
-          startDisruptionsForRoute(route.segments);
-          lastRefreshTime = Date.now();
-        }
-      }
+      await startDeparturesForRoute(route.segments, route.direction, clearFirst, currentRequestId);
     } else {
       if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${route?.id} (direction: ${route?.direction})`);
     }
-  }
-
-  async function lookupMissingSiteIds(segments: Array<{ fromStop: { name: string; siteId: string }; toStop: { name: string; siteId: string } }>): Promise<string[]> {
-    const results: string[] = [];
-    let hadError = false;
-    for (const segment of segments) {
-      const fromId = segment.fromStop.siteId || segment.toStop.siteId;
-      if (fromId) {
-        results.push(fromId);
-      } else {
-        const stopName = segment.fromStop.name || segment.toStop.name;
-        if (stopName) {
-          try {
-            const sites = await searchSites(stopName);
-            if (!sites[0]?.siteId) {
-              hadError = true;
-            }
-            results.push(sites[0]?.siteId || '');
-          } catch {
-            hadError = true;
-            results.push('');
-          }
-        } else {
-          results.push('');
-        }
-      }
-    }
-    if (hadError) {
-      siteLookupError = $t.someStopsNotFound;
-    }
-    return results.filter(Boolean);
   }
 
 function handleRouteSwitch(routeId: string) {
@@ -238,7 +216,6 @@ function handleRouteSwitch(routeId: string) {
     if (!currentRoute) return;
     if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
     selectedRouteId.set(routeId);
-    loadDepartures(true);
   }
 
   function toggleEdit() {
@@ -320,8 +297,10 @@ function handleRouteSwitch(routeId: string) {
   async function triggerManualRefresh() {
     if (!route?.segments || isRefreshing) return;
     isRefreshing = true;
-    const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
     try {
+      const inputs = await resolveMissingSiteIds(buildDepartureInputs(route.segments));
+      const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
+      if (siteIds.length === 0) return;
       await departureStore.refresh(
         siteIds,
         stopNames,
@@ -331,6 +310,8 @@ function handleRouteSwitch(routeId: string) {
       );
       await refreshDisruptions(route.segments, { force: true });
       lastRefreshTime = Date.now();
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('[App] manual refresh failed', error);
     } finally {
       isRefreshing = false;
     }
@@ -365,15 +346,23 @@ function handleRouteSwitch(routeId: string) {
       if (!document.hidden && route?.segments) {
         const timeSinceLastRefresh = Date.now() - lastRefreshTime;
         if (timeSinceLastRefresh > 10000) {
-          const { siteIds, stopNames, segmentMetaBySiteId } = extractSegmentData(route.segments);
-          departureStore.refresh(
-            siteIds,
-            stopNames,
-            segmentMetaBySiteId,
-            false,
-            route.direction
-          );
-          lastRefreshTime = Date.now();
+          void (async () => {
+            try {
+              const inputs = await resolveMissingSiteIds(buildDepartureInputs(route.segments));
+              const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
+              if (siteIds.length === 0) return;
+              await departureStore.refresh(
+                siteIds,
+                stopNames,
+                segmentMetaBySiteId,
+                false,
+                route.direction
+              );
+              lastRefreshTime = Date.now();
+            } catch (error) {
+              if (import.meta.env.DEV) console.error('[App] visibility refresh failed', error);
+            }
+          })();
         }
       }
     };
