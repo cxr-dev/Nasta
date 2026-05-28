@@ -6,6 +6,8 @@
   import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
   import { deduplicateDeparturesByKey } from "../lib/departureDeduplication";
   import { onMount, onDestroy } from "svelte";
+  import maplibregl from "maplibre-gl";
+  import "maplibre-gl/dist/maplibre-gl.css";
   import { transportIcons } from "../icons/transport";
   import { slide } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
@@ -39,6 +41,7 @@
   let settings = $derived($settingsStore);
   type MapApp = "default" | "google" | "apple" | "waze";
   const MAP_PREF_KEY = "nasta_map_app_preference";
+  const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -107,43 +110,67 @@
     return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
   }
 
-  function lon2tile(lon: number, z: number): number {
-    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-  }
+  type MapPreviewParams = {
+    center: [number, number];
+    userLocation: [number, number] | null;
+  };
 
-  function lat2tile(lat: number, z: number): number {
-    const rad = (lat * Math.PI) / 180;
-    return Math.floor(
-      ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * Math.pow(2, z),
-    );
-  }
+  function mapPreview(node: HTMLDivElement, params: MapPreviewParams) {
+    let currentMap: maplibregl.Map | null = null;
+    let stopMarker: maplibregl.Marker | null = null;
+    let userMarker: maplibregl.Marker | null = null;
 
-  function tilePreviewUrl(lat: number, lon: number, zoom = 15): string {
-    const x = lon2tile(lon, zoom);
-    const y = lat2tile(lat, zoom);
-    return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
-  }
+    const render = (next: MapPreviewParams) => {
+      if (currentMap) {
+        currentMap.remove();
+      }
 
-  function markerPercent(
-    centerLat: number,
-    centerLon: number,
-    pointLat: number,
-    pointLon: number,
-    zoom = 15,
-  ): { left: number; top: number } {
-    const n = Math.pow(2, zoom);
-    const worldX = ((pointLon + 180) / 360) * n * 256;
-    const sinLat = Math.sin((pointLat * Math.PI) / 180);
-    const worldY =
-      (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * n * 256;
-    const cX = ((centerLon + 180) / 360) * n * 256;
-    const cSin = Math.sin((centerLat * Math.PI) / 180);
-    const cY = (0.5 - Math.log((1 + cSin) / (1 - cSin)) / (4 * Math.PI)) * n * 256;
-    const dx = worldX - cX;
-    const dy = worldY - cY;
-    const left = Math.max(6, Math.min(94, 50 + (dx / 256) * 100));
-    const top = Math.max(6, Math.min(94, 50 + (dy / 256) * 100));
-    return { left, top };
+      currentMap = new maplibregl.Map({
+        container: node,
+        style: MAP_STYLE,
+        center: next.center,
+        zoom: 14.5,
+        attributionControl: false,
+        dragPan: false,
+        scrollZoom: false,
+        doubleClickZoom: false,
+        touchZoomRotate: false,
+        keyboard: false,
+      });
+
+      currentMap.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+
+      currentMap.on("load", () => {
+        stopMarker = new maplibregl.Marker({ color: "#111111" })
+          .setLngLat(next.center)
+          .addTo(currentMap!);
+
+        if (next.userLocation) {
+          userMarker = new maplibregl.Marker({ color: "#2f80ed" })
+            .setLngLat(next.userLocation)
+            .addTo(currentMap!);
+        }
+      });
+    };
+
+    render(params);
+
+    return {
+      update(next: MapPreviewParams) {
+        const shouldRebuild =
+          next.center[0] !== params.center[0] ||
+          next.center[1] !== params.center[1] ||
+          next.userLocation?.[0] !== params.userLocation?.[0] ||
+          next.userLocation?.[1] !== params.userLocation?.[1];
+        params = next;
+        if (shouldRebuild) render(next);
+      },
+      destroy() {
+        stopMarker?.remove();
+        userMarker?.remove();
+        currentMap?.remove();
+      },
+    };
   }
 
   function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
@@ -371,29 +398,18 @@
                 {@const stopLat = segment.fromStop.coord[0]}
                 {@const stopLon = segment.fromStop.coord[1]}
                 <div class="expanded-geo-info geo-map-card">
-                  <div class="route-preview" aria-label={`Route preview to ${segment.fromStop.name}`}>
-                    <img
+                  <div class="route-preview" aria-label={`Map preview to ${segment.fromStop.name}`}>
+                    <div
                       class="mini-map"
-                      src={tilePreviewUrl(stopLat, stopLon)}
-                      alt={`Map preview for ${stopLabel(segment.fromStop.name)}`}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    <div class="map-marker map-marker-stop" style={`left:${markerPercent(stopLat, stopLon, stopLat, stopLon).left}%;top:${markerPercent(stopLat, stopLon, stopLat, stopLon).top}%`}>
-                      <span class="sr-only">Stop</span>
-                    </div>
-                    {#if userLocation}
-                      {@const userPos = markerPercent(stopLat, stopLon, userLocation[0], userLocation[1])}
-                      <div class="map-marker map-marker-user" style={`left:${userPos.left}%;top:${userPos.top}%`}>
-                        <span class="sr-only">You</span>
-                      </div>
-                    {/if}
+                      use:mapPreview={{
+                        center: [stopLon, stopLat],
+                        userLocation,
+                      }}
+                    ></div>
                     <div class="route-preview-labels">
-                      <span class="rp-you">You</span>
                       <span class="rp-stop">{stopLabel(segment.fromStop.name)}</span>
                     </div>
                   </div>
-                  <span class="map-attrib">© OpenStreetMap · © CARTO</span>
                   {#if dist !== null}
                     <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
                   {:else if (settings.walkingEtaEnabled ?? true)}
@@ -564,11 +580,11 @@
   .expanded-geo-info {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 14px 16px 16px;
     font-size: 13px;
     color: var(--text-secondary);
-    background: var(--surface);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), var(--surface));
     border-bottom: 1px solid var(--border);
   }
   .geo-icon {
@@ -579,55 +595,27 @@
   .geo-map-card {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 10px;
   }
   .route-preview {
     position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    background: color-mix(in srgb, var(--surface) 80%, #000 20%);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   }
   .mini-map {
     width: 100%;
-    height: 108px;
+    height: 160px;
     display: block;
-    object-fit: cover;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-  }
-  .map-marker {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    z-index: 2;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
-  }
-  .map-marker-stop {
-    width: 14px;
-    height: 14px;
-    background: #111;
-    border: 2px solid #fff;
-  }
-  .map-marker-user {
-    width: 10px;
-    height: 10px;
-    background: #2f80ed;
-    border: 2px solid #fff;
-  }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, #000 12%), var(--surface));
   }
   .route-preview-labels {
     position: absolute;
-    inset: auto 10px 8px 10px;
+    inset: auto 10px 10px 10px;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     font-size: 10px;
     font-weight: 700;
@@ -635,10 +623,10 @@
     letter-spacing: 0.04em;
     pointer-events: none;
   }
-  .rp-you,
   .rp-stop {
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(14px);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
     border-radius: 999px;
     padding: 3px 8px;
     max-width: 46%;
@@ -649,12 +637,6 @@
   .location-hint {
     color: var(--text-muted);
     font-size: 12px;
-  }
-  .map-attrib {
-    font-size: 10px;
-    color: var(--text-muted);
-    opacity: 0.8;
-    margin-top: -2px;
   }
   .event-chip {
     margin-top: 6px;
