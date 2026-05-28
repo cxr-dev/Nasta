@@ -150,8 +150,6 @@ const sv = {
   selectDirection: "Välj riktning",
   confirm: "Bekräfta",
 
-  // Create return trip
-  createReturnTrip: "Skapa returresa",
   from: "från",
 
   // No departures
@@ -309,8 +307,6 @@ const en: typeof sv = {
   selectDirection: "Select direction",
   confirm: "Confirm",
 
-  // Create return trip
-  createReturnTrip: "Create return trip",
   from: "from",
 
   // No departures

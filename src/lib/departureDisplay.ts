@@ -9,6 +9,21 @@ function getNowText(): string {
 }
 
 const DUPLICATE_WINDOW_MS = 90_000;
+const MINUTES_TO_CLOCK_THRESHOLD = 60;
+
+function formatClockTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Stockholm",
+  });
+}
+
+function formatMinutes(minutes: number): string {
+  if (minutes <= 0) return getNowText();
+  if (minutes === 1) return "1 min";
+  return `${minutes} min`;
+}
 
 export function getLiveMinutes(dep: Departure, now: number): number {
   if (dep.expectedAt !== undefined) {
@@ -18,37 +33,23 @@ export function getLiveMinutes(dep: Departure, now: number): number {
 }
 
 export function formatDepartureTime(dep: Departure, now: number): string {
-  // Priority 1: Live calculation from expectedAt timestamp (5-second clock uses this)
-  if (dep.expectedAt) {
-    const mins = getLiveMinutes(dep, now);
+  const mins = getLiveMinutes(dep, now);
 
-    if (mins <= 0) return getNowText();
-    if (mins === 1) return "1 min";
-    if (mins < 60) return `${mins} min`;
-
-    // Over 60 min: show clock time from expectedAt
-    const date = new Date(dep.expectedAt);
-    return date.toLocaleTimeString("sv-SE", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Europe/Stockholm",
-    });
+  if (mins <= MINUTES_TO_CLOCK_THRESHOLD) {
+    return formatMinutes(mins);
   }
 
-  // Priority 2: Static fallback - use display from API (for departures without live timestamp)
+  if (dep.expectedAt !== undefined) {
+    return formatClockTime(dep.expectedAt);
+  }
+
   if (dep.display) {
     return dep.display;
   }
 
-  // Priority 3: Fallback to dep.minutes / time for static timetable
   if (dep.time) return dep.time;
 
-  // Final fallback: calculate from dep.minutes
-  const mins = dep.minutes ?? 0;
-  if (mins <= 0) return getNowText();
-  const hours = Math.floor(mins / 60);
-  const minutes = mins % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return formatMinutes(mins);
 }
 
 function isDuplicatePrediction(live: Departure, predicted: Departure): boolean {

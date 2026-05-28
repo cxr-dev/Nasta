@@ -73,6 +73,13 @@
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
+  let freshnessText = $derived(
+    lastRefreshTime
+      ? dataOld
+        ? $t.dataMayBeStale || "Data may be stale"
+        : `${$t.updated || "Updated"} ${Math.max(0, Math.floor((Date.now() - lastRefreshTime) / 60000))} min ago`
+      : $t.loading || "Loading",
+  );
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -438,6 +445,14 @@ function handleRouteSwitch(routeId: string) {
       </div>
     {/if}
 
+    <div class="freshness-bar" aria-live="polite">
+      <span>{freshnessText}</span>
+      {#if dataOld}
+        <span class="freshness-dot">•</span>
+        <span>{$t.autoRefresh || "Auto-refresh on"}</span>
+      {/if}
+    </div>
+
     <div class="scroll-container" bind:this={scrollContainer}>
       {#if hasNoRoutes}
         <div class="empty-state">
@@ -464,8 +479,6 @@ function handleRouteSwitch(routeId: string) {
       {:else if route && route.segments.length > 0}
         <SegmentDepartures
           {route}
-          onManualRefresh={triggerManualRefresh}
-          isManualRefreshing={isRefreshing}
           deviationHealthBySegment={deviationHealthBySegment}
           deviationUsedCache={deviationUsedCache}
           deviationLastUpdatedAt={deviationLastUpdatedAt}
@@ -822,6 +835,16 @@ function handleRouteSwitch(routeId: string) {
     color: #92400E;
     font-size: 13px;
   }
+
+  .freshness-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .freshness-dot { opacity: 0.6; }
 
   .warning-banner button {
     background: none;

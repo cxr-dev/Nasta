@@ -6,7 +6,6 @@
   import { t } from '../stores/localeStore';
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
-  import DuplicateRoutePanel from './DuplicateRoutePanel.svelte';
 
   let {
     routes,
@@ -30,7 +29,6 @@
   let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
   let hintDismissed = $state(false);
-  let duplicatingRoute = $state<Omit<Route, "id"> | null>(null);
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
@@ -110,17 +108,10 @@
       <button class="switch-route-btn" onclick={() => onSwitchRoute(otherRoute!.id)}>
         {$t.switchTo}: {getRouteLabel(otherRoute)}
       </button>
-    {:else if duplicatingRoute}
-      <DuplicateRoutePanel 
-        baseRouteId={route!.id}
-        pendingRoute={duplicatingRoute}
-        onComplete={() => duplicatingRoute = null}
-        onCancel={() => duplicatingRoute = null}
-      />
-    {:else}
-      <button class="switch-route-btn" onclick={() => duplicatingRoute = routeStore.duplicateRoute(route!.id)}>
-        {$t.createReturnTrip ?? 'Skapa returresa'}
-      </button>
+    {:else if route}
+      <div class="return-trip-note" role="note">
+        Add the return route manually by creating a second route.
+      </div>
     {/if}
 
     <div class="settings-section">
@@ -221,7 +212,7 @@
       <div class="theme-section">
         <h3 class="theme-title">{$t.theme}</h3>
         <div class="theme-list">
-          {#each THEMES as palette}
+          {#each THEMES as palette (palette.id)}
             {@const activeTheme = settings.theme ?? 'default'}
             {@const activeVariant = settings.themeVariant ?? 'A'}
             {@const isActiveA = activeTheme === palette.id && activeVariant === 'A'}

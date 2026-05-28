@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Departure } from "../types/departure";
 import {
   getLiveMinutes,
+  formatDepartureTime,
   mergeDeparturesWithPredictions,
 } from "../lib/departureDisplay";
 
@@ -102,5 +103,48 @@ describe("mergeDeparturesWithPredictions", () => {
     expect(result[0].expectedAt).toBeDefined();
     expect(result[1].time).toBe("16:40");
     expect(result[1].predicted).toBe(true);
+  });
+});
+
+describe("formatDepartureTime", () => {
+  const baseDep: Departure = {
+    line: "SJO",
+    lineName: "Sjöstadstrafiken",
+    destination: "Henriksdal",
+    direction_code: 1,
+    minutes: 12,
+    time: "08:15",
+    transportType: "boat",
+  };
+
+  it("shows minutes for short live SL-style departures", () => {
+    const now = 1_000_000;
+    const dep = { ...baseDep, expectedAt: now + 12 * 60_000 };
+    expect(formatDepartureTime(dep, now)).toBe("12 min");
+  });
+
+  it("shows clock time for long live departures", () => {
+    const now = 1_000_000;
+    const expectedAt = now + 61 * 60_000;
+    const dep = { ...baseDep, expectedAt };
+    expect(formatDepartureTime(dep, now)).toBe(
+      new Date(expectedAt).toLocaleTimeString("sv-SE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Stockholm",
+      }),
+    );
+  });
+
+  it("shows minutes for short static Sjöstadstrafiken departures", () => {
+    const now = 1_000_000;
+    const dep = { ...baseDep, minutes: 18, expectedAt: undefined };
+    expect(formatDepartureTime(dep, now)).toBe("18 min");
+  });
+
+  it("shows the scheduled time for long static Sjöstadstrafiken departures", () => {
+    const now = 1_000_000;
+    const dep = { ...baseDep, minutes: 90, time: "19:45", expectedAt: undefined };
+    expect(formatDepartureTime(dep, now)).toBe("19:45");
   });
 });

@@ -16,15 +16,11 @@
 
   let {
     route,
-    onManualRefresh = async () => {},
-    isManualRefreshing = false,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationUsedCache = false,
     deviationLastUpdatedAt = 0,
   }: {
     route: Route;
-    onManualRefresh?: () => Promise<void>;
-    isManualRefreshing?: boolean;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationUsedCache?: boolean;
     deviationLastUpdatedAt?: number;
@@ -125,7 +121,7 @@
   function tilePreviewUrl(lat: number, lon: number, zoom = 15): string {
     const x = lon2tile(lon, zoom);
     const y = lat2tile(lat, zoom);
-    return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+    return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
   }
 
   function markerPercent(
@@ -227,10 +223,6 @@
     }, 5_000);
   }
 
-  async function handleRefreshClick() {
-    await onManualRefresh();
-  }
-
   onMount(() => {
     UNSUBSCRIBERS.push(
       departureStore.subscribe((data) => {
@@ -281,18 +273,6 @@
   {:else}
     <div class="departures-header">
       <h3 class="departures-title">{$t.departures}</h3>
-      <button
-        class="refresh-btn"
-        class:spinning={isManualRefreshing}
-        disabled={isManualRefreshing}
-        onclick={handleRefreshClick}
-        title={$t.refreshDepartures}
-        aria-label={$t.refreshDepartures}
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
-        </svg>
-      </button>
     </div>
 
     {#each route.segments ?? [] as segment, index (segment.id)}
@@ -413,7 +393,7 @@
                       <span class="rp-stop">{stopLabel(segment.fromStop.name)}</span>
                     </div>
                   </div>
-                  <span class="map-attrib">© OpenStreetMap</span>
+                  <span class="map-attrib">© OpenStreetMap · © CARTO</span>
                   {#if dist !== null}
                     <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
                   {:else if (settings.walkingEtaEnabled ?? true)}
@@ -564,11 +544,6 @@
   .empty-text { margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
   .departures-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 8px; border-bottom: 1px solid var(--border); gap: 8px; }
   .departures-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; }
-  .refresh-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; border: none; background: var(--surface); color: var(--text); cursor: pointer; transition: all 200ms ease; font-size: 0; }
-  .refresh-btn:hover { background: var(--accent); color: var(--bg); }
-  .refresh-btn:active { transform: scale(0.95); }
-  .refresh-btn:disabled { opacity: 0.7; cursor: default; }
-  .refresh-btn.spinning svg { animation: spin 800ms linear infinite; }
   .error-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
   .error-bar button { background: none; border: none; color: #991b1b; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
   .loading-skeleton { padding: 12px 0; }
@@ -744,10 +719,5 @@
   @keyframes drift { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-1px);} }
   @media (prefers-reduced-motion: reduce) {
     .protest-icon, .tech-icon, .weather-icon { animation: none !important; }
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
   }
 </style>
