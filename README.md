@@ -19,9 +19,8 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
 - **PWA installable** — Works offline with cached data, no app store required
 - **Arrival calculation** — Sums travel times plus transfer buffers to show expected arrival time
-- **Pull-to-refresh** — Manual refresh on mobile with visual feedback and stale data indicator
+- **Pull-to-refresh** — Manual refresh on mobile with freshness indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
-- **Live vehicle tracking** — Shows vehicle stops along selected routes with real-time position updates
 - **Guided first run** — In-app hint points users to Settings for adding segments
 - **Dark mode & themes** — 16 color themes, auto-detected system preference with contrast adjustment
 - **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
@@ -139,7 +138,6 @@ Available in the Settings panel (tap **"Inställningar"**):
 | **Refresh interval**    | 10-60 seconds                                        | 30 seconds | How often to fetch departures               |
 | **Disruption alerts**   | On/Off                                               | On         | Show transit disruptions and alerts         |
 | **Disruption level**    | All disruptions, Important + critical, Critical only | "warning"  | Filter disruptions by severity              |
-| **Disruption language** | Auto, Swedish, English                               | "auto"     | Language for disruption text                |
 | **Transfer buffer**     | Minutes                                              | 2-5        | Time allowed for transfers between segments |
 
 ---
@@ -173,10 +171,6 @@ GET /messages                          → Get all active disruptions/alerts
 
 Departures are enriched with real-time disruptions, severity levels (info/warning/critical), and text in both Swedish and English. Disruptions are cached locally and can be filtered by severity threshold.
 
-### Journey Service
-
-Fetches and caches vehicle stop patterns for lines, enabling live vehicle position tracking along routes. Patterns are cached for 14 days with 5-minute live cache TTL for fresh data.
-
 ### Static Timetable (Sjöstadstrafiken Ferries)
 
 For the Luma brygga ↔ Barnängen ↔ Henriksdal ferry line, the SL API does not return data. Nästa falls back to a hardcoded weekday/weekend schedule defined in `src/services/staticTimetable.ts`. Ferry stops are automatically detected by name and the static schedule is used instead of the live API.
@@ -204,7 +198,6 @@ User Action → Svelte Store → Service → API/Storage
 | `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, disruption display             |
 | `src/services/slApi.ts`             | SL Transport API client, stop search with result ranking                            |
 | `src/services/slDeviations.ts`      | SL Deviations API client, message parsing, severity scoring                         |
-| `src/services/journeyService.ts`    | Journey planner, stop patterns, live vehicle position calculation                   |
 | `src/services/departureService.ts`  | Routes departures to SL API or static timetable based on source                     |
 | `src/services/staticTimetable.ts`   | Sjöstadstrafiken ferry static schedule                                              |
 | `src/services/deviationCache.ts`    | Disk persistence for disruption data (fallback when API unavailable)                |
@@ -321,17 +314,6 @@ When you delete a segment from "Till jobbet", the same-index segment is automati
 ### Ferry Detection
 
 Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
-
-### Live Vehicle Tracking
-
-The `DepartureStrip` component shows vehicle stops along a route:
-
-- Fetches stop patterns from SL Journey Planner API
-- Estimates current vehicle position based on elapsed time since departure
-- Renders visual progress indicator showing upcoming stops
-- Updates position ~every 5 seconds during active viewing
-
-Patterns are cached for 14 days; live positions refresh every 5 minutes.
 
 ---
 

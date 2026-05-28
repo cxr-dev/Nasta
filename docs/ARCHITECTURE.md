@@ -52,7 +52,6 @@ Svelte 5 Runes ($state, $derived, $effect)
 | ------------------- | -------------------------------------------------- | --------------------------------------------------- |
 | `slApi.ts`          | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2` | Real-time departures, stop search (`stop-finder`), planned trip fallback (`trip`) |
 | `slDeviations.ts`   | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring        |
-| `journeyService.ts` | Journey planner via slApi                          | Vehicle stop patterns, live position calculation    |
 | `geo.ts`            | Native Geolocation API                             | User distance to stops, walking time calculations   |
 
 ### Data Processing
@@ -80,7 +79,7 @@ Svelte 5 Runes ($state, $derived, $effect)
 - `RouteHeader.svelte` — Route name, edit/save toggle, route selection
 - `BottomBar.svelte` — Arrival summary, "arriving in X min" CTA
 - `SegmentDepartures.svelte` — List of route segments with departures per stop
-- `DepartureStrip.svelte` — Individual departure with live vehicle tracking visualization
+- `DepartureStrip.svelte` — Individual departure summary and route context
 - `RouteEditor.svelte` — Route/segment CRUD, stop search, travel time inputs
 - `Onboarding.svelte` — First-run experience for new users
 - `QuirkyMoment.svelte` — Random Easter egg messages
@@ -164,17 +163,6 @@ Weekday morning and afternoon reminder notifications:
 - Requires notification permission (requested on first enable)
 - Triggered via `setInterval` on specific hour/minute slots
 - Hidden if browser tab is in background or permission not granted
-
-## Live Vehicle Tracking
-
-The `DepartureStrip` component integrates with `journeyService` to:
-
-1. Fetch route stop patterns from SL Journey Planner
-2. Estimate current vehicle position based on elapsed time since departure
-3. Render visual progress indicator showing vehicle stops
-4. Update position every ~5 seconds
-
-Caches patterns for 14 days; live position cache refreshes every 5 minutes.
 
 ## Transport Filtering
 
