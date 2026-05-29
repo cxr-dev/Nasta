@@ -88,7 +88,10 @@ describe('storage service', () => {
         disruptionSeverityThreshold: 'warning',
         disruptionLanguage: 'auto',
         enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
-        walkingEtaEnabled: true
+        walkingEtaEnabled: true,
+        afterworkVenuesEnabled: false,
+        afterworkTypes: [],
+        eventsEnabled: false
       });
     });
 
@@ -113,7 +116,10 @@ describe('storage service', () => {
         disruptionSeverityThreshold: 'critical' as const,
         disruptionLanguage: 'sv' as const,
         enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
-        walkingEtaEnabled: true
+        walkingEtaEnabled: true,
+        afterworkVenuesEnabled: false,
+        afterworkTypes: [],
+        eventsEnabled: false
       };
       saveSettings(settings);
       expect(localStorage.getItem('nasta_settings')).toBe(JSON.stringify(settings));

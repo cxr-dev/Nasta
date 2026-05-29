@@ -12,7 +12,6 @@
   import { slide } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { getQuickLocation, getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
-  import DepartureStrip from "./DepartureStrip.svelte";
   import { t } from "../stores/localeStore";
   import { settingsStore } from "../stores/settingsStore";
 
@@ -21,11 +20,13 @@
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationUsedCache = false,
     deviationLastUpdatedAt = 0,
+    openFeatureSheet = null,
   }: {
     route: Route;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationUsedCache?: boolean;
     deviationLastUpdatedAt?: number;
+    openFeatureSheet?: ((segment: Segment) => void) | null;
   } = $props();
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
@@ -320,7 +321,9 @@
         class:expanded={isExpanded}
         type="button"
         aria-expanded={isExpanded}
-        onclick={() => (hasDeparture || siteDevs.length > 0) && toggleExpanded(index)}
+        onclick={() => {
+          if (hasDeparture || siteDevs.length > 0) toggleExpanded(index);
+        }}
         style="--delay: {Math.min(index, 3) * 40}ms"
       >
         <div class="row-left">
@@ -340,39 +343,41 @@
 
         <div class="row-right">
           {#if hasDeparture}
-          <div class="time-stack">
-            <div class="primary-time">
-              <span class="minutes" data-testid="countdown-minutes">{primaryDepartureText}</span>
-            </div>
-            {#if subsequent}
-              <div class="secondary-time"><span class="more">{subsequent}</span></div>
-            {/if}
-              {#if siteDevs.length > 0}
-                <div class="event-chip event-{topDevType}">
-                  {#if topDevType === "protest"}
-                    <svg viewBox="0 0 24 24" class="event-icon protest-icon" aria-hidden="true">
-                      <path d="M6 20v-5m0-6V4m0 5 8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                      <rect x="14" y="9" width="5" height="5" rx="1" fill="currentColor" />
-                    </svg>
-                  {:else if topDevType === "technical"}
-                    <svg viewBox="0 0 24 24" class="event-icon tech-icon" aria-hidden="true">
-                      <path d="M12 2v4m0 12v4m7-10h-4M9 12H5m10.5-5.5-3 3m-1 5-3 3m7 0-3-3m-1-5-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                  {:else if topDevType === "weather"}
-                    <svg viewBox="0 0 24 24" class="event-icon weather-icon" aria-hidden="true">
-                      <path d="M8 16a4 4 0 1 1 .8-7.92A5 5 0 0 1 18 10a3 3 0 1 1 0 6H8Z" fill="none" stroke="currentColor" stroke-width="2"/>
-                      <path d="M9 18v3m3-3v3m3-3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                  {:else}
-                    <svg viewBox="0 0 24 24" class="event-icon" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
-                      <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                  {/if}
-                  <span>{topDevType === "general" ? "Disruption" : topDevType}</span>
-                </div>
+            {#if !isExpanded}
+            <div class="time-stack">
+              <div class="primary-time">
+                <span class="minutes" data-testid="countdown-minutes">{primaryDepartureText}</span>
+              </div>
+              {#if subsequent}
+                <div class="secondary-time"><span class="more">{subsequent}</span></div>
               {/if}
+                {#if siteDevs.length > 0}
+                  <div class="event-chip event-{topDevType}">
+                    {#if topDevType === "protest"}
+                      <svg viewBox="0 0 24 24" class="event-icon protest-icon" aria-hidden="true">
+                        <path d="M6 20v-5m0-6V4m0 5 8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <rect x="14" y="9" width="5" height="5" rx="1" fill="currentColor" />
+                      </svg>
+                    {:else if topDevType === "technical"}
+                      <svg viewBox="0 0 24 24" class="event-icon tech-icon" aria-hidden="true">
+                        <path d="M12 2v4m0 12v4m7-10h-4M9 12H5m10.5-5.5-3 3m-1 5-3 3m7 0-3-3m-1-5-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    {:else if topDevType === "weather"}
+                      <svg viewBox="0 0 24 24" class="event-icon weather-icon" aria-hidden="true">
+                        <path d="M8 16a4 4 0 1 1 .8-7.92A5 5 0 0 1 18 10a3 3 0 1 1 0 6H8Z" fill="none" stroke="currentColor" stroke-width="2"/>
+                        <path d="M9 18v3m3-3v3m3-3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    {:else}
+                      <svg viewBox="0 0 24 24" class="event-icon" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    {/if}
+                    <span>{topDevType === "general" ? "Disruption" : topDevType}</span>
+                  </div>
+                {/if}
             </div>
+            {/if}
           {:else}
             {#if siteDevs.length > 0}
               <div class="site-deviation-badge" class:active={isExpanded}>
@@ -397,8 +402,29 @@
                 {@const dist = userLocation ? getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1]) : null}
                 {@const stopLat = segment.fromStop.coord[0]}
                 {@const stopLon = segment.fromStop.coord[1]}
-                <div class="expanded-geo-info geo-map-card">
-                  <div class="route-preview" aria-label={`Map preview to ${segment.fromStop.name}`}>
+                <section class="journey-card">
+                  <div class="journey-head">
+                    <div class="journey-copy">
+                      <span class="journey-kicker">{$t.live}</span>
+                      <span class="journey-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
+                      <span class="journey-sub">{segment.line} · {segment.transportType}</span>
+                    </div>
+                    <div class="journey-badge" aria-label={primaryDepartureText}>
+                      <span class="journey-minutes">{primaryDepartureText}</span>
+                      <span class="journey-label">{$t.departing || 'Departing'}</span>
+                    </div>
+                  </div>
+
+                  <div class="journey-map-shell">
+                    <div class="journey-map-label">
+                      <span>{$t.walkToStop}</span>
+                      {#if dist !== null}
+                        <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
+                      {:else if (settings.walkingEtaEnabled ?? true)}
+                        <span>{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || "Enable location for live walk ETA."}</span>
+                      {/if}
+                    </div>
+
                     <div
                       class="mini-map"
                       use:mapPreview={{
@@ -406,38 +432,36 @@
                         userLocation,
                       }}
                     ></div>
-                    <div class="route-preview-labels">
-                      <span class="rp-stop">{stopLabel(segment.fromStop.name)}</span>
-                    </div>
                   </div>
-                  {#if dist !== null}
-                    <span>{formatDistance(dist)} · {getWalkingTime(dist)} min walk</span>
-                  {:else if (settings.walkingEtaEnabled ?? true)}
-                    <span class="location-hint">{$t.enableLocationForWalkEta || "Enable location for live walk ETA."}</span>
-                  {/if}
-                </div>
-              {/if}
-              <DepartureStrip {departure} {segment} onError={() => (expandedIndex = null)} />
-              {#if segment.fromStop.coord}
-                {@const coord = segment.fromStop.coord}
-                <button
-                  type="button"
-                  class="map-link"
-                  onclick={() => openMapWithPreference(coord[0], coord[1], false, index)}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                  {$t.openInMaps || "Open in Maps"}
-                </button>
-                <button
-                  type="button"
-                  class="map-link map-link-subtle"
-                  onclick={() => openMapWithPreference(coord[0], coord[1], true, index)}
-                >
-                  {$t.chooseMapApp || "Choose map app"}
-                </button>
+
+                  <div class="journey-actions">
+                    <button
+                      type="button"
+                      class="map-link map-link-primary"
+                      onclick={() => openMapWithPreference(stopLat, stopLon, false, index)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      {$t.openInMaps || "Open in Maps"}
+                    </button>
+                    <button
+                      type="button"
+                      class="map-link map-link-secondary"
+                      onclick={() => openMapWithPreference(stopLat, stopLon, true, index)}
+                    >
+                      {$t.chooseMapApp || "Choose map app"}
+                    </button>
+                    <button
+                      type="button"
+                      class="map-link map-link-tertiary"
+                      onclick={() => openFeatureSheet?.(segment)}
+                    >
+                      {$t.nearby || "Nearby"}
+                    </button>
+                  </div>
+                </section>
               {/if}
             </div>
           {:else}
@@ -528,25 +552,134 @@
   .stop-route { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stop-route-container { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .expanded-actions { position: relative; }
+  .journey-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 0 6px;
+  }
+  .journey-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .journey-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .journey-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .journey-route {
+    font-size: 18px;
+    line-height: 1.1;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .journey-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .journey-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .journey-minutes {
+    font-family: "Neue Machina", sans-serif;
+    font-size: clamp(34px, 10vw, 54px);
+    line-height: 0.9;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: var(--accent);
+  }
+  .journey-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: var(--text-muted);
+  }
+  .journey-map-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: var(--surface);
+  }
+  .journey-map-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .journey-map-label span:last-child {
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .mini-map {
+    width: 100%;
+    height: 120px;
+    display: block;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, #000 12%), var(--surface));
+  }
+  .journey-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+  }
   .map-link { 
-    display: flex; 
+    display: inline-flex; 
     align-items: center; 
     justify-content: center;
-    gap: 6px; 
-    padding: 12px 16px; 
+    gap: 8px; 
+    padding: 10px 12px; 
     font-size: 13px; 
-    color: var(--accent); 
-    border: none;
-    border-top: 1px solid var(--border); 
+    font-weight: 700;
+    border-radius: 12px;
+    min-width: 0;
+    border: 1px solid var(--border);
     background: var(--surface);
-    transition: background 0.2s ease;
-    width: 100%;
+    color: var(--text);
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
   }
-  .map-link:active { background: var(--accent-subtle); }
+  .map-link:active { transform: scale(0.985); }
   .map-link svg { width: 16px; height: 16px; }
-  .map-link-subtle {
+  .map-link-primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: #fff;
+    flex: 1 1 auto;
+  }
+  .map-link-secondary {
     color: var(--text-secondary);
-    font-size: 12px;
+    background: transparent;
+    flex: 0 0 auto;
+  }
+  .map-link-tertiary {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 12px;
   }
   .row-right { flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }

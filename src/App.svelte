@@ -15,6 +15,7 @@
   import BottomBar from './components/BottomBar.svelte';
   import RouteEditor from './components/RouteEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
+  import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
   import type { Departure } from './stores/departureStore';
@@ -52,6 +53,14 @@
   let scrollContainer = $state<HTMLElement | null>(null);
   let currentRequestId = $state<string | null>(null);
   let previousRouteId = $state<string | null>(null);
+  let activeFeatureContext = $state<{
+    lat: number;
+    lon: number;
+    label: string;
+    destination: string;
+    availableModes: Array<'venues' | 'events'>;
+    defaultMode: 'venues' | 'events';
+  } | null>(null);
 
   // Pull-to-refresh state
   const PULL_THRESHOLD = 64;
@@ -218,11 +227,29 @@
     }
   }
 
-function handleRouteSwitch(routeId: string) {
+  function handleRouteSwitch(routeId: string) {
     const currentRoute = $selectedRoute;
     if (!currentRoute) return;
     if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
     selectedRouteId.set(routeId);
+  }
+
+  function openSegmentPanels(segment: Segment) {
+    const coords = segment.fromStop.coord ?? segment.toStop.coord;
+    if (!coords) return;
+    const hour = new Date().getHours();
+    const availableModes: Array<'venues' | 'events'> = [];
+    if (settings.afterworkVenuesEnabled && hour >= 15 && hour <= 23) availableModes.push('venues');
+    if (settings.eventsEnabled) availableModes.push('events');
+    if (availableModes.length === 0) return;
+    activeFeatureContext = {
+      lat: coords[0],
+      lon: coords[1],
+      label: segment.fromStop.name,
+      destination: segment.direction?.destination ?? segment.toStop.name,
+      availableModes,
+      defaultMode: availableModes.includes('venues') ? 'venues' : 'events'
+    };
   }
 
   function toggleEdit() {
@@ -482,6 +509,7 @@ function handleRouteSwitch(routeId: string) {
           deviationHealthBySegment={deviationHealthBySegment}
           deviationUsedCache={deviationUsedCache}
           deviationLastUpdatedAt={deviationLastUpdatedAt}
+          openFeatureSheet={openSegmentPanels}
         />
       {:else if route}
         <div class="empty-segments">
@@ -522,6 +550,28 @@ function handleRouteSwitch(routeId: string) {
         startWithSearch={startFirstRouteSearch}
         onboardingHighlight={startFirstRouteSearch && !hasSeenOnboarding}
       />
+    {/if}
+
+    {#if activeFeatureContext}
+      <div
+        class="feature-drawer"
+        role="dialog"
+        aria-label={activeFeatureContext.availableModes.includes('venues') ? $t.afterwork : $t.events}
+        tabindex="0"
+        onkeydown={(e) => {
+          if (e.key === 'Escape') activeFeatureContext = null;
+        }}
+      >
+        <FeatureDiscoverySheet
+          lat={activeFeatureContext.lat}
+          lon={activeFeatureContext.lon}
+          label={activeFeatureContext.label}
+          destination={activeFeatureContext.destination}
+          availableModes={activeFeatureContext.availableModes}
+          defaultMode={activeFeatureContext.defaultMode}
+          onClose={() => (activeFeatureContext = null)}
+        />
+      </div>
     {/if}
   </main>
 </ErrorBoundary>
@@ -670,6 +720,23 @@ function handleRouteSwitch(routeId: string) {
 
     /* Fix Chrome 125+ double scrollbar bug */
     scrollbar-gutter: stable;
+  }
+
+  .feature-drawer {
+    position: fixed;
+    left: 50%;
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 150;
+    width: min(calc(100vw - 16px), 480px);
+    max-height: calc(100dvh - 156px);
+    overflow: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.18);
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
   }
 
   /* Normalize scrollbars across browsers and prevent double scrollbars */

@@ -100,14 +100,14 @@ function trimLargestCache(): void {
 
     if (largestKey) {
       // Remove oldest 50% of times from largest entry
-      const times = cache[largestKey];
+      const times = cache[largestKey].scheduledTimes;
       const newTimes = times.slice(Math.floor(times.length / 2));
 
       if (newTimes.length === 0) {
         delete cache[largestKey];
         if (import.meta.env.DEV) console.log(`[cacheLifecycle] Removed cache entry: ${largestKey}`);
       } else {
-        cache[largestKey] = newTimes;
+        cache[largestKey].scheduledTimes = newTimes;
         if (import.meta.env.DEV) console.log(
           `[cacheLifecycle] Trimmed cache entry ${largestKey}: ${times.length} → ${newTimes.length} times`,
         );

@@ -93,6 +93,38 @@ function createSettingsStore() {
         return updated;
       });
     },
+    setAfterworkVenuesEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, afterworkVenuesEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setAfterworkTypes: (types: Settings['afterworkTypes']) => {
+      update(settings => {
+        const updated = { ...settings, afterworkTypes: types };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    toggleAfterworkType: (type: Settings['afterworkTypes'][number]) => {
+      update(settings => {
+        const afterworkTypes = settings.afterworkTypes ?? [];
+        const updatedTypes = afterworkTypes.includes(type)
+          ? afterworkTypes.filter(item => item !== type)
+          : [...afterworkTypes, type];
+        const updated = { ...settings, afterworkTypes: updatedTypes };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setEventsEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, eventsEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
   };
 }
 

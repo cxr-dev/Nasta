@@ -151,6 +151,40 @@
         </button>
       </label>
 
+      <label class="toggle-row">
+        <div class="toggle-label">
+          <span class="toggle-name">Afterwork venues</span>
+          <span class="toggle-desc">Show nearby bars after 15:00.</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.afterworkVenuesEnabled ?? false}
+          onclick={() => settingsStore.setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
+          aria-label="Afterwork venues"
+          role="switch"
+          aria-checked={settings.afterworkVenuesEnabled ?? false}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
+      <label class="toggle-row">
+        <div class="toggle-label">
+          <span class="toggle-name">Events</span>
+          <span class="toggle-desc">Show nearby events on segment tap.</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.eventsEnabled ?? false}
+          onclick={() => settingsStore.setEventsEnabled(!(settings.eventsEnabled ?? false))}
+          aria-label="Events"
+          role="switch"
+          aria-checked={settings.eventsEnabled ?? false}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
       <div class="setting-block">
         <div class="toggle-label">
           <span class="toggle-name">{$t.disruptionThreshold}</span>

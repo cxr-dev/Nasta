@@ -19,6 +19,9 @@ export interface Settings {
   disruptionLanguage: 'sv' | 'en' | 'auto';
   enabledTransportTypes: TransportType[];
   walkingEtaEnabled: boolean;
+  afterworkVenuesEnabled: boolean;
+  afterworkTypes: Array<'beer' | 'wine' | 'cocktail'>;
+  eventsEnabled: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -34,7 +37,10 @@ const defaultSettings: Settings = {
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
   enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
-  walkingEtaEnabled: true
+  walkingEtaEnabled: true,
+  afterworkVenuesEnabled: false,
+  afterworkTypes: [],
+  eventsEnabled: false
 };
 
 export function loadRoutes(): Route[] {

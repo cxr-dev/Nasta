@@ -48,6 +48,13 @@ function calculateHaversine(lat1: number, lon1: number, lat2: number, lon2: numb
 }
 
 /**
+ * Haversine distance in meters - shared with venue/event services.
+ */
+export function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  return Math.round(calculateHaversine(lat1, lon1, lat2, lon2) * 1000);
+}
+
+/**
  * Returns memoized distance in km between a stop and the user's location.
  * Computes once per stop per session.
  */
@@ -71,7 +78,7 @@ export function getMemoizedDistance(
  * Converts distance in km to a formatted string (e.g. "350m" or "1.2km").
  */
 export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)}m`;
+if (km < 1) return `${Math.round(km * 1000)}m`;
   return `${km.toFixed(1)}km`;
 }
 
