@@ -1,0 +1,34 @@
+import { fetchNearbyEvents } from './eventService';
+import { fetchNearbyVenues } from './venueService';
+
+// Prefetch orchestration: iterate segments and fetch venues/events with controlled concurrency
+export async function prefetchSegments(segments: any[], settings: any, opts?: { concurrency?: number }) {
+  const concurrency = opts?.concurrency ?? 3;
+  const queue = segments.slice();
+  const workers: Promise<void>[] = [];
+
+  const worker = async () => {
+    while (queue.length > 0) {
+      const seg = queue.shift();
+      if (!seg) break;
+      const coords = seg.fromStop?.coord;
+      if (!coords || coords.length < 2) continue;
+      const lat = coords[0];
+      const lon = coords[1];
+      try {
+        if (settings.afterworkVenuesEnabled) {
+          const types = settings.afterworkTypes && settings.afterworkTypes.length ? settings.afterworkTypes : ['beer'];
+          await fetchNearbyVenues(lat, lon, 1200, types);
+        }
+        if (settings.eventsEnabled) {
+          await fetchNearbyEvents(lat, lon, 3000);
+        }
+      } catch (e) {
+        // ignore per-segment failures
+      }
+    }
+  };
+
+  for (let i = 0; i < concurrency; i++) workers.push(worker());
+  await Promise.all(workers);
+}

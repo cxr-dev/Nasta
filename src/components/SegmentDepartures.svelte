@@ -14,6 +14,8 @@
   import { getQuickLocation, getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import { t } from "../stores/localeStore";
   import { settingsStore } from "../stores/settingsStore";
+  import { fetchNearbyEvents } from "../services/eventService";
+  import { fetchNearbyVenues } from "../services/venueService";
 
   let {
     route,
@@ -66,6 +68,58 @@
 
   function toggleExpanded(index: number) {
     expandedIndex = expandedIndex === index ? null : index;
+  }
+
+  // Prefetch tuning: keep conservative defaults to avoid too many requests
+  const PREFETCH_SEGMENT_COUNT = 2;
+  const PREFETCH_VENUE_RADIUS = 1200; // meters
+  const PREFETCH_EVENT_RADIUS = 3000; // meters
+  const PREFETCH_ROOT_MARGIN = '150px';
+  const PREFETCH_THRESHOLD = 0.1;
+  const _prefetchInFlight = new Set<string>();
+
+  async function prefetchForSegment(segment: Segment) {
+    try {
+      const coords = segment.fromStop.coord;
+      if (!coords || coords.length < 2) return;
+      const lat = coords[0];
+      const lon = coords[1];
+      const key = `${lat.toFixed(4)}:${lon.toFixed(4)}`;
+      if (_prefetchInFlight.has(key)) return;
+      _prefetchInFlight.add(key);
+      // fire-and-forget: services implement caching and timeouts
+      try {
+        if (settings.afterworkVenuesEnabled) {
+          const types = settings.afterworkTypes && settings.afterworkTypes.length ? settings.afterworkTypes : ['beer'];
+          void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, types as any).catch(() => {});
+        }
+        if (settings.eventsEnabled) {
+          void fetchNearbyEvents(lat, lon, PREFETCH_EVENT_RADIUS).catch(() => {});
+        }
+      } finally {
+        // allow re-prefetch after short delay to keep cache warm if needed
+        setTimeout(() => _prefetchInFlight.delete(key), 30 * 1000);
+      }
+    } catch (e) {
+      // swallow errors — prefetch must not affect UI
+    }
+  }
+
+  function prefetch(node: HTMLElement, params: { index: number; segment: Segment }) {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          prefetchForSegment(params.segment);
+          observer.unobserve(node);
+        }
+      }
+    }, { root: null, rootMargin: PREFETCH_ROOT_MARGIN, threshold: PREFETCH_THRESHOLD });
+    observer.observe(node);
+    return {
+      destroy() {
+        observer.disconnect();
+      }
+    };
   }
 
   function loadMapPreference(): MapApp {
@@ -208,8 +262,19 @@
     const cleaned = name.replace(/^[^,]+,\s*/u, "").trim();
     return cleaned || name;
   }
-
-  function getDeparturesForSegment(segment: Segment): Departure[] {
+  
+    // Request location actively when user has enabled walk ETA but permission is not granted
+    async function requestLocation() {
+      try {
+        const controller = new AbortController();
+        const loc = await getQuickLocation(controller.signal);
+        if (loc) userLocation = loc;
+      } catch (e) {
+        // ignore; permission denied or timed out
+      }
+    }
+  
+    function getDeparturesForSegment(segment: Segment): Departure[] {
     // Strategy: Timetable first (instant display), API verification (background update)
     // This ensures users see times immediately, with live data filling in when available
     
@@ -280,6 +345,25 @@
       departureStore.lastSuccessfulFetch.subscribe((val) => (lastSuccessfulFetch = val)),
     );
     startClockTimer();
+
+    // Prefetch first visible segments for snappy UI
+    try {
+      const initial = (route.segments ?? []).slice(0, PREFETCH_SEGMENT_COUNT);
+      for (const seg of initial) prefetchForSegment(seg);
+    } catch (e) {}
+
+    // When user enables features, prefetch all segments in background and populate persistent cache
+    let prevSettings: any = null;
+    UNSUBSCRIBERS.push(
+      settingsStore.subscribe((s) => {
+        if (!prevSettings) { prevSettings = s; return; }
+        const becameEnabled = (s.afterworkVenuesEnabled && !prevSettings.afterworkVenuesEnabled) || (s.eventsEnabled && !prevSettings.eventsEnabled);
+        if (becameEnabled) {
+          import('../services/prefetchService').then(m => m.prefetchSegments(route.segments ?? [], s, { concurrency: 4 })).catch(() => {});
+        }
+        prevSettings = s;
+      })
+    );
   });
 
   onDestroy(() => {
@@ -324,6 +408,7 @@
 
       <button
         class="departure-row"
+        use:prefetch={{ index, segment }}
         data-testid="segment-row"
         class:expandable={hasDeparture || siteDevs.length > 0}
         class:expanded={isExpanded}
@@ -342,7 +427,7 @@
           </div>
 
           <div class="line-details">
-            <span class="line-info" data-testid="segment-line">{segment.line}</span>
+            <span class="line-info" data-testid="segment-line" class:hidden={isExpanded}>{segment.line}</span>
             <div class="stop-route-container" class:hidden={isExpanded}>
               <span class="stop-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
             </div>
@@ -415,7 +500,6 @@
                     <div class="journey-copy">
                       <span class="journey-kicker">{$t.live}</span>
                       <span class="journey-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
-                      <span class="journey-sub">{segment.line} · {segment.transportType}</span>
                     </div>
                     <div class="journey-badge" aria-label={primaryDepartureText}>
                       <span class="journey-minutes">{primaryDepartureText}</span>
@@ -429,7 +513,14 @@
                       {#if dist !== null}
                         <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
                       {:else if (settings.walkingEtaEnabled ?? true)}
-                        <span>{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || "Enable location for live walk ETA."}</span>
+                        {#if userLocation === null}
+                          <div class="location-request">
+                            <button type="button" class="ghost-btn" onclick={() => requestLocation()}>{$t.allowLocation || 'Tillåt platsåtkomst'}</button>
+                            <span class="hint">{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || 'Tillåt platsåtkomst i webbläsaren för gång-ETA.'}</span>
+                          </div>
+                        {:else}
+                          <span>{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || 'Tillåt platsåtkomst i webbläsaren för gång-ETA.'}</span>
+                        {/if}
                       {/if}
                     </div>
 
@@ -443,16 +534,18 @@
                   </div>
 
                   <div class="journey-actions">
-                    <button
-                      type="button"
-                      class="map-link map-link-primary"
-                      onclick={() => openFeatureSheet?.(segment)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
-                      </svg>
-                      {$t.nearby || "Nära dig"}
-                    </button>
+                    {#if settings.afterworkVenuesEnabled || settings.eventsEnabled}
+                      <button
+                        type="button"
+                        class="map-link map-link-primary"
+                        onclick={() => openFeatureSheet?.(segment)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
+                        </svg>
+                        {$t.nearby || "Nära dig"}
+                      </button>
+                    {/if}
 
                     <button
                       type="button"

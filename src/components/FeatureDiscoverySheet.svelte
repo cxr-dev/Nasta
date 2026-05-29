@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { t } from '../stores/localeStore';
   import { fetchNearbyEvents, type EventItem } from '../services/eventService';
   import { fetchNearbyVenues, type Venue } from '../services/venueService';
@@ -63,28 +63,46 @@
     }
   }
 
-  async function loadEvents() {
+  async function loadEvents(signal?: AbortSignal) {
     if (eventLoading || events.length > 0) return;
     eventLoading = true;
     try {
-      events = await fetchNearbyEvents(lat, lon, 5000);
-    } catch {
+      events = await fetchNearbyEvents(lat, lon, 5000, signal);
+    } catch (e) {
+      // if aborted, just return early
+      if ((e as any)?.name === 'AbortError') return;
       events = [];
     } finally {
       eventLoading = false;
     }
   }
 
+  let _controller: AbortController | null = null;
+
   onMount(() => {
     activeMode = defaultMode;
     if (!availableModes.includes(activeMode)) {
       activeMode = availableModes[0] ?? 'venues';
     }
+    // create a controller to abort pending fetches when sheet is closed
+    _controller = new AbortController();
     if (availableModes.includes('venues')) void loadVenues(venueGroup);
-    if (availableModes.includes('events')) void loadEvents();
+    if (availableModes.includes('events')) void loadEvents(_controller.signal);
   });
 
-  const currency = (value?: 1 | 2 | 3) => (value ? '€'.repeat(value) : '');
+  onDestroy(() => {
+    _controller?.abort();
+    _controller = null;
+  });
+
+  function closeAndAbort() {
+    _controller?.abort();
+    _controller = null;
+    onClose();
+  }
+
+  // priceLevel visual not used; show actual rawPrice in SEK when available
+  const currency = (_value?: 1 | 2 | 3) => '';
 
   function formatTime(value: string): string {
     const parsed = new Date(value);
@@ -99,8 +117,8 @@
   function venueStats(venue: Venue): string {
     const parts: string[] = [];
     if (venue.openingHours) parts.push(venue.openingHours);
-    const price = currency(venue.priceLevel);
-    if (price) parts.push(price);
+    if (venue.rawPrice !== undefined) parts.push(`${venue.rawPrice} kr`);
+    else if (venue.priceLevel) parts.push('Prisnivå');
     if (venue.distance !== undefined) parts.push(`${Math.round(venue.distance)} m`);
     return parts.join(' · ');
   }
@@ -136,14 +154,11 @@
         <div class="copy">
           <h2>{title}</h2>
           <p>{subtitle}</p>
-          {#if label || destination}
-            <span class="context">{label}{#if label && destination} → {/if}{destination}</span>
-          {/if}
         </div>
       </div>
     </div>
 
-    <button class="close-btn" type="button" onclick={() => onClose()} aria-label="Close panel">
+    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label="Close panel">
       ×
     </button>
   </header>
@@ -350,6 +365,8 @@
     line-height: 1;
     cursor: pointer;
     flex-shrink: 0;
+    z-index: 10;
+    position: relative;
   }
 
   .mode-switch {
