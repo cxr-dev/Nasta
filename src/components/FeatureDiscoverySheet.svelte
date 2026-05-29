@@ -84,11 +84,11 @@
     if (availableModes.includes('events')) void loadEvents();
   });
 
-  const currency = (value: 1 | 2 | 3) => '€'.repeat(value);
+  const currency = (value?: 1 | 2 | 3) => (value ? '€'.repeat(value) : '');
 
   function formatTime(value: string): string {
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
+    if (Number.isNaN(parsed.getTime())) return value ?? '';
     return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
@@ -97,7 +97,12 @@
   }
 
   function venueStats(venue: Venue): string {
-    return `${venue.openingHours} · ${currency(venue.priceLevel)} · ${Math.round(venue.distance)} m`;
+    const parts: string[] = [];
+    if (venue.openingHours) parts.push(venue.openingHours);
+    const price = currency(venue.priceLevel);
+    if (price) parts.push(price);
+    if (venue.distance !== undefined) parts.push(`${Math.round(venue.distance)} m`);
+    return parts.join(' · ');
   }
 
   function eventStats(event: EventItem): string {
@@ -203,9 +208,12 @@
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{venueGroup === 'beer' ? $t.beer : $t.wineCocktails}</span>
-            <span class="metric">{Math.round(venue.distance)}m</span>
+            <span class="metric">{venue.rawPrice !== undefined ? `${venue.rawPrice} kr` : venue.distance !== undefined ? `${Math.round(venue.distance)}m` : ''}</span>
           </div>
           <h3>{venue.name}</h3>
+          {#if venue.address}
+            <p class="support">{venue.address}</p>
+          {/if}
           <p class="support">{venueStats(venue)}</p>
           <div class="actions">
             <button type="button" class="ghost-btn" onclick={() => openMapsAt(venue.lat, venue.lon, venue.name)}>

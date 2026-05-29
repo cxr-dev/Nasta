@@ -10,33 +10,43 @@ export type EventItem = {
 };
 
 export async function fetchNearbyEvents(lat: number, lon: number, radius = 5000): Promise<EventItem[]> {
-  // Placeholder external API — keep defensive handling.
-  const url = `https://api.example.com/events?lat=${lat}&lon=${lon}&radius=${radius}`;
+  // Try Stockholm Stad Event API first
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      // In dev mode, return a small mocked list so the UI can be previewed locally
-      if (import.meta.env.DEV) {
-        return [
-          { id: 'mock-1', name: 'Live Music – Demo', startTime: new Date().toISOString(), location: 'Nearby pub', description: 'Local band playing tonight', lat, lon },
-          { id: 'mock-2', name: 'Cocktails & Friends', startTime: new Date(Date.now() + 3600_000).toISOString(), location: 'Bar XYZ', description: 'Happy hour tasting' , lat: lat + 0.001, lon: lon + 0.001},
-        ];
+    const base = 'https://eventapi.stockholm.se/events';
+    const params = new URLSearchParams({ lat: String(lat), lon: String(lon), radius: String(radius), upcoming: 'true', limit: '10' });
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${base}?${params.toString()}`, { signal: controller.signal });
+    clearTimeout(id);
+    if (res.ok) {
+      const payload = await res.json().catch(() => null);
+      // Try common shapes
+      const list = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.events) ? payload.events : (payload && Array.isArray(payload.data) ? payload.data : []));
+      const out: EventItem[] = [];
+      for (const e of list) {
+        out.push({
+          id: e.id ?? e.eventId ?? JSON.stringify(e),
+          name: e.name ?? e.title ?? e.eventName ?? 'Untitled',
+          startTime: e.startTime ?? e.start_date ?? e.date ?? undefined,
+          location: e.location?.name ?? e.venue ?? e.place ?? undefined,
+          ticketUrl: e.ticketUrl ?? e.ticket_url ?? e.url ?? undefined,
+          description: e.description ?? e.summary ?? undefined,
+          lat: e.location?.lat ?? e.lat ?? undefined,
+          lon: e.location?.lon ?? e.lon ?? undefined,
+        });
       }
-      return [];
+      if (out.length > 0) return out;
     }
-    const payload = await res.json().catch(() => null);
-
-    // Defensive parsing: accept either an array or an object with an `events` array
-    if (Array.isArray(payload)) return payload as EventItem[];
-    if (payload && Array.isArray(payload.events)) return payload.events as EventItem[];
-    if (payload && Array.isArray(payload.items)) return payload.items as EventItem[];
-    return [];
   } catch (e) {
-    if (import.meta.env.DEV) {
-      return [
-        { id: 'mock-1', name: 'Live Music – Demo', startTime: new Date().toISOString(), location: 'Nearby pub', description: 'Local band playing tonight', lat, lon },
-      ];
-    }
-    return [];
+    // ignore and fall back to placeholder or Overpass fallback
   }
+
+  // Fallback dev/demo when local development
+  if (import.meta.env.DEV) {
+    return [
+      { id: 'mock-1', name: 'Live Music – Demo', startTime: new Date().toISOString(), location: 'Nearby pub', description: 'Local band playing tonight', lat, lon },
+    ];
+  }
+
+  return [];
 }

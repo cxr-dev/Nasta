@@ -86,8 +86,16 @@
 
   function openMapWithPreference(lat: number, lng: number, forcePick = false, rowIndex: number | null = null) {
     const pref = loadMapPreference();
-    if (forcePick || pref === "default") {
-      if (rowIndex !== null) mapsSheetForIndex = rowIndex;
+    // Resolve a concrete app: on iOS prefer apple, otherwise google
+    if (pref === 'default') {
+      const ua = navigator.userAgent.toLowerCase();
+      const isiOS = /iphone|ipad|ipod/.test(ua);
+      const app = isiOS ? 'apple' : 'google';
+      openMapApp(app, lat, lng);
+      return;
+    }
+    if (pref === 'default') {
+      openMapApp('google', lat, lng);
       return;
     }
     openMapApp(pref, lat, lng);
@@ -335,7 +343,7 @@
 
           <div class="line-details">
             <span class="line-info" data-testid="segment-line">{segment.line}</span>
-            <div class="stop-route-container">
+            <div class="stop-route-container" class:hidden={isExpanded}>
               <span class="stop-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
             </div>
           </div>
@@ -438,27 +446,24 @@
                     <button
                       type="button"
                       class="map-link map-link-primary"
+                      onclick={() => openFeatureSheet?.(segment)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
+                      </svg>
+                      {$t.nearby || "Nära dig"}
+                    </button>
+
+                    <button
+                      type="button"
+                      class="map-link map-link-secondary"
                       onclick={() => openMapWithPreference(stopLat, stopLon, false, index)}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                         <circle cx="12" cy="10" r="3" />
                       </svg>
-                      {$t.openInMaps || "Open in Maps"}
-                    </button>
-                    <button
-                      type="button"
-                      class="map-link map-link-secondary"
-                      onclick={() => openMapWithPreference(stopLat, stopLon, true, index)}
-                    >
-                      {$t.chooseMapApp || "Choose map app"}
-                    </button>
-                    <button
-                      type="button"
-                      class="map-link map-link-tertiary"
-                      onclick={() => openFeatureSheet?.(segment)}
-                    >
-                      {$t.nearby || "Nearby"}
+                      {$t.openInMaps || "Visa på karta"}
                     </button>
                   </div>
                 </section>
@@ -488,45 +493,6 @@
       {/if}
     {/each}
 
-    {#if mapsSheetForIndex !== null}
-      {@const seg = route.segments[mapsSheetForIndex]}
-      {#if seg?.fromStop?.coord}
-        {@const coord = seg.fromStop.coord}
-        <div
-          class="maps-sheet-backdrop"
-          role="button"
-          tabindex="0"
-          aria-label="Close map app picker"
-          onclick={() => (mapsSheetForIndex = null)}
-          onkeydown={(e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mapsSheetForIndex = null; } }}
-        >
-          <div
-            class="maps-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={$t.chooseMapApp || "Choose map app"}
-            tabindex="-1"
-            onclick={(e) => e.stopPropagation()}
-            onkeydown={(e) => e.stopPropagation()}
-          >
-            <div class="maps-sheet-title">{$t.chooseMapApp || "Choose map app"}</div>
-            <label class="maps-sheet-remember-toggle">
-              <input type="checkbox" bind:checked={rememberMapChoice} />
-              <span>{$t.rememberMapChoice || "Remember my choice"}</span>
-            </label>
-            {#each mapAppOptions() as app}
-              <button
-                type="button"
-                class="maps-sheet-option"
-                onclick={() => openMapApp(app, coord[0], coord[1])}
-              >
-                {app === "google" ? "Google Maps" : app === "apple" ? "Apple Maps" : "Waze"}
-              </button>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    {/if}
 
     {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
       <div class="empty-state">
@@ -551,6 +517,7 @@
   .line-info { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stop-route { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stop-route-container { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .stop-route-container.hidden { display: none; }
   .expanded-actions { position: relative; }
   .journey-card {
     display: flex;
