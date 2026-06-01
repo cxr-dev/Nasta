@@ -135,10 +135,35 @@
   // priceLevel visual not used; show actual rawPrice in SEK when available
   const currency = (_value?: 1 | 2 | 3) => '';
 
-  function formatTime(value: string): string {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value ?? '';
-    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  function getStockholmDateParts(date: Date) {
+    const formatter = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    const parts = formatter.formatToParts(date);
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
+    return {
+      year: parseInt(getPart('year'), 10),
+      month: parseInt(getPart('month'), 10) - 1,
+      day: parseInt(getPart('day'), 10),
+      hour: parseInt(getPart('hour'), 10),
+      minute: parseInt(getPart('minute'), 10),
+    };
+  }
+
+  function getStockholmDayDifference(date1: Date, date2: Date): number {
+    const p1 = getStockholmDateParts(date1);
+    const p2 = getStockholmDateParts(date2);
+    const d1 = new Date(Date.UTC(p1.year, p1.month, p1.day));
+    const d2 = new Date(Date.UTC(p2.year, p2.month, p2.day));
+    const diffTime = d1.getTime() - d2.getTime();
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
   }
 
   function formatStockholmTime(date: Date): string {
@@ -148,6 +173,69 @@
       minute: '2-digit',
       hourCycle: 'h23',
     }).format(date);
+  }
+
+  function formatEventDateTime(startTimeStr?: string): string {
+    if (!startTimeStr) return '—';
+    const date = new Date(startTimeStr);
+    if (Number.isNaN(date.getTime())) return startTimeStr;
+
+    const parts = getStockholmDateParts(date);
+    const now = new Date();
+    const dayDiff = getStockholmDayDifference(date, now);
+
+    // Detect if this is a date-only string (no hour/minute information, or explicitly midnight UTC)
+    const isDateOnly = 
+      /^\d{4}-\d{2}-\d{2}$/.test(startTimeStr) || 
+      /T00:00:00/.test(startTimeStr) ||
+      (startTimeStr.includes('00:00:00') && (parts.hour === 1 || parts.hour === 2 || parts.hour === 0));
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timeText = isDateOnly ? ' (Heldag)' : ` kl. ${pad(parts.hour)}:${pad(parts.minute)}`;
+
+    if (dayDiff === 0) {
+      return `Idag${timeText}`;
+    } else if (dayDiff === 1) {
+      return `Imorgon${timeText}`;
+    } else {
+      const weekday = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Stockholm',
+        weekday: 'long',
+      }).format(date);
+      const dayAndMonth = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Stockholm',
+        day: 'numeric',
+        month: 'short',
+      }).format(date);
+      
+      const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+      return `${capitalizedWeekday} ${dayAndMonth}${timeText}`;
+    }
+  }
+
+  function formatEventRelativeShort(startTimeStr?: string): string {
+    if (!startTimeStr) return '—';
+    const date = new Date(startTimeStr);
+    if (Number.isNaN(date.getTime())) return '—';
+    
+    const now = new Date();
+    const dayDiff = getStockholmDayDifference(date, now);
+    
+    if (dayDiff === 0) return 'Idag';
+    if (dayDiff === 1) return 'Imorgon';
+    
+    const weekday = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      weekday: 'short',
+    }).format(date);
+    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+
+    const day = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      day: 'numeric',
+    }).format(date);
+
+    return `${capitalizedWeekday} ${day}`;
   }
 
   function computeVenueOpenState(venue: Venue) {
@@ -206,9 +294,9 @@
   }
 
   function eventStats(event: EventItem): string {
-    const start = event.startTime ? formatTime(event.startTime) : '—';
+    const timeText = event.startTime ? formatEventDateTime(event.startTime) : '—';
     const location = event.location || 'Stockholm';
-    return `${start} · ${location}`;
+    return `${timeText} · ${location}`;
   }
 
   $effect(() => {
@@ -382,7 +470,7 @@
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{$t.events}</span>
-            <span class="metric">{event.startTime ? formatTime(event.startTime) : '—'}</span>
+            <span class="metric">{event.startTime ? formatEventRelativeShort(event.startTime) : '—'}</span>
           </div>
           <h3>{event.name}</h3>
           <p class="support">{eventStats(event)}</p>
