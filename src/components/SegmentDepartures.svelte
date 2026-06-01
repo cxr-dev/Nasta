@@ -88,6 +88,22 @@
     expandedIndex = expandedIndex === index ? null : index;
   }
 
+  function scrollExpandedIntoView(node: HTMLElement, isExpanded: boolean) {
+    if (!isExpanded) return { update: (_: boolean) => {} };
+    requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    });
+    return {
+      update(nextExpanded: boolean) {
+        if (nextExpanded) {
+          requestAnimationFrame(() => {
+            node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          });
+        }
+      },
+    };
+  }
+
   // Prefetch tuning: keep conservative defaults to avoid too many requests
   const PREFETCH_SEGMENT_COUNT = 2;
   const PREFETCH_VENUE_RADIUS = 1200; // meters
@@ -439,9 +455,10 @@
       {@const topDevMessage = siteDevs[0]?.message ?? ""}
       {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
-      <button
-        class="departure-row"
-        use:prefetch={{ index, segment }}
+      <div class="departure-item" class:expanded={isExpanded} use:scrollExpandedIntoView={isExpanded}>
+        <button
+          class="departure-row"
+          use:prefetch={{ index, segment }}
         data-testid="segment-row"
         class:expandable={isExpandable}
         class:expanded={isExpanded}
@@ -521,7 +538,7 @@
       </button>
 
       {#if isExpanded}
-        <div transition:slide={{ duration: 280, easing: cubicOut }}>
+        <div class="expanded-panel" transition:slide={{ duration: 280, easing: cubicOut }}>
           {#if hasDeparture}
             <div class="expanded-actions">
               {#if segment.fromStop.coord}
@@ -531,7 +548,6 @@
                 <section class="journey-card">
                   <div class="journey-head">
                     <div class="journey-copy">
-                      <span class="journey-kicker">{$t.live}</span>
                       <span class="journey-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
                     </div>
                     <div class="journey-badge" aria-label={primaryDepartureText}>
@@ -610,6 +626,7 @@
           {/if}
         </div>
       {/if}
+      </div>
     {/each}
 
 
@@ -623,13 +640,18 @@
 </div>
 
 <style>
-  .departures-list { display: flex; flex-direction: column; padding: 12px 0 20px; }
+  .departures-list { display: flex; flex-direction: column; padding: 12px 0 calc(220px + env(safe-area-inset-bottom)); }
+  .departure-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 8px 0;
+  }
   .departure-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 18px 16px;
-    margin: 8px 0;
     border-radius: 22px;
     border: 1px solid transparent;
     animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -639,6 +661,23 @@
     background: var(--surface);
     text-align: left;
     transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+  }
+  .departure-item.expanded .departure-row {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .expanded-panel {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .expanded-panel > .expanded-actions {
+    padding: 0 16px 16px;
   }
   .departure-row.expandable {
     cursor: pointer;
@@ -654,7 +693,6 @@
     transform: translateY(1px);
   }
   .departure-row.expanded {
-    border-bottom: none;
     border-color: var(--accent-subtle);
     box-shadow: 0 16px 50px rgba(0, 0, 0, 0.13);
   }

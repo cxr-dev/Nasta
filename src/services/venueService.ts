@@ -11,11 +11,44 @@ export type Venue = {
   happyHourPrice?: number | null;
   distance?: number;
   source?: string;
+  hasOutdoorSeating?: boolean;
+  isSpecificWine?: boolean;
+  isSpecificCocktail?: boolean;
 };
 
 import { persistentCache } from "./persistentCache";
 
 const venuesInflight = new Map<string, Promise<Venue[]>>();
+const OVERPASS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function readLocalOverpassCache(key: string): Venue[] | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.expires !== "number" || Date.now() > parsed.expires) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return parsed.value as Venue[];
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalOverpassCache(key: string, value: Venue[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify({ expires: Date.now() + OVERPASS_CACHE_TTL, value }),
+    );
+  } catch {
+    // ignore storage failures
+  }
+}
 
 function haversineDistance(
   lat1: number,
@@ -75,6 +108,10 @@ export async function fetchNearbyVenues(
   const request = (async () => {
     console.log("venueService: fetchNearbyVenues", { lat, lon, radius, types });
     try {
+      const localCacheKey = `nasta_overpass:${key}`;
+      const localCache = readLocalOverpassCache(localCacheKey);
+      if (localCache) return localCache;
+
       try {
         const p = await persistentCache.get(`venues:${key}`);
         if (p) return p as Venue[];
@@ -260,43 +297,93 @@ export async function fetchNearbyVenues(
       try {
         console.log("venueService: preparing Overpass query");
         const beerOnly = types.length === 1 && types[0] === "beer";
-        const amenities = beerOnly
-          ? [
-              "bar",
-              "pub",
-              "restaurant",
-              "nightclub",
-              "cafe",
-              "brewery",
-              "taproom",
-            ]
-          : ["bar", "pub", "restaurant", "nightclub", "cafe"];
-        const nameKeywords = beerOnly
-          ? []
-          : [
-              "vinbar",
-              "wine bar",
-              "vinbaren",
-              "natural wine",
-              "naturvin",
-              "enoteca",
-              "vino",
-              "vinoteca",
-              "wine lounge",
-              "cave",
-              "cellar",
-              "bodega",
-              "cocktailbar",
-              "cocktail bar",
-              "cocktail",
-              "speakeasy",
-              "mixology",
-              "aperitivo",
-              "lounge",
-              "martini",
-              "negroni",
-              "highball",
-            ];
+        const wineOrCocktail = types.some((t) => t === "wine" || t === "cocktail");
+        const queryRadius = Math.min(radius, beerOnly ? 2500 : 1500);
+        let elements: any[] = [];
+        const url = "https://overpass-api.de/api/interpreter";
+        const useProxy = Boolean(import.meta.env.VITE_USE_CORS_PROXY);
+        const proxyBase =
+          (import.meta.env.VITE_CORS_PROXY_BASE as string | undefined) ??
+          "https://corsproxy.io/?";
+        let overpassQuerySucceeded = false;
+
+        let q: string;
+        if (!beerOnly && wineOrCocktail) {
+          q = `[out:json][timeout:25];
+(
+  node["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
+  way["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
+  rel["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
+  node["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
+  way["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
+  rel["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
+  node["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
+  way["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
+  rel["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
+);
+out center;`;
+        } else {
+          const amenities = beerOnly
+            ? [
+                "bar",
+                "pub",
+                "restaurant",
+                "nightclub",
+                "cafe",
+                "brewery",
+                "taproom",
+              ]
+            : ["bar", "pub", "restaurant", "nightclub", "cafe"];
+          const nameKeywords = beerOnly
+            ? []
+            : [
+                "vinbar",
+                "wine bar",
+                "vinbaren",
+                "natural wine",
+                "naturvin",
+                "enoteca",
+                "vino",
+                "vinoteca",
+                "wine lounge",
+                "cave",
+                "cellar",
+                "bodega",
+                "cocktailbar",
+                "cocktail bar",
+                "cocktail",
+                "speakeasy",
+                "mixology",
+                "aperitivo",
+                "lounge",
+                "martini",
+                "negroni",
+                "highball",
+              ];
+          const qParts = [
+            `node["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+            `way["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+            `rel["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+          ];
+
+          if (!beerOnly) {
+            qParts.push(
+              `node["shop"~"wine|beverages"](around:${queryRadius},${lat},${lon});`,
+            );
+            qParts.push(
+              `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            );
+            qParts.push(
+              `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            );
+            qParts.push(
+              `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            );
+          }
+
+          q = `[out:json][timeout:20];(\n${qParts.join("\n")}\n);out center;`;
+        }
+
         const excludeNameKeywords = [
           "irish pub",
           "sports bar",
@@ -304,36 +391,10 @@ export async function fetchNearbyVenues(
           "bishop arms",
           "pitchers",
         ];
-        const queryRadius = Math.min(radius, 2500);
-        let elements: any[] = [];
-        const url = "https://overpass-api.de/api/interpreter";
-
-        const qParts = [
-          `node["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-          `way["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-          `rel["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-        ];
-
-        if (!beerOnly) {
-          qParts.push(
-            `node["shop"~"wine|beverages"](around:${queryRadius},${lat},${lon});`,
-          );
-          qParts.push(
-            `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-          );
-          qParts.push(
-            `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-          );
-          qParts.push(
-            `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-          );
-        }
-
-        const q = `[out:json][timeout:20];(\n${qParts.join("\n")}\n);out center;`;
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(url, {
+        let res = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -341,14 +402,31 @@ export async function fetchNearbyVenues(
           body: `data=${encodeURIComponent(q)}`,
           signal: controller.signal,
         }).catch(() => null as any);
-        clearTimeout(id);
+
+        if ((!res || !res.ok) && useProxy) {
+          try {
+            const proxyUrl = `${proxyBase}${encodeURIComponent(url)}`;
+            res = await fetch(proxyUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              },
+              body: `data=${encodeURIComponent(q)}`,
+              signal: controller.signal,
+            }).catch(() => null as any);
+          } catch {
+            res = null as any;
+          }
+        }
 
         if (res && res.ok) {
           const payload = await res.json().catch(() => null);
           if (payload && Array.isArray(payload.elements)) {
             elements = payload.elements;
           }
+          overpassQuerySucceeded = true;
         }
+        clearTimeout(id);
 
         for (const el of elements) {
           const tags = el.tags ?? {};
@@ -466,6 +544,25 @@ export async function fetchNearbyVenues(
           if (highest && highest[1] >= 8)
             classified = highest[0] as "beer" | "wine" | "cocktail";
 
+          const normalizedBar = String(tags.bar ?? "").toLowerCase();
+          const normalizedCuisine = String(tags.cuisine ?? "").toLowerCase();
+          const nameWineKeyword = /(?:vinbar|wine bar|vinbaren|naturvin|natural wine|enoteca|vino|vinoteca|wine lounge|bistrot)/i.test(
+            name,
+          );
+          const nameCocktailKeyword = /(?:cocktail|cocktailbar|cocktail bar|speakeasy|mixology|aperitivo|martini|negroni|highball)/i.test(
+            name,
+          );
+          const hasWineTag = normalizedBar === "wine" || normalizedCuisine === "wine";
+          const hasCocktailTag =
+            normalizedBar === "cocktail" || normalizedCuisine === "cocktail";
+          const isSpecificWine =
+            (hasWineTag || nameWineKeyword) && !hasCocktailTag && !nameCocktailKeyword;
+          const isSpecificCocktail =
+            (hasCocktailTag || nameCocktailKeyword) && !hasWineTag && !nameWineKeyword;
+          const hasOutdoorSeating =
+            /^(?:yes|true)$/i.test(String(tags.outdoor_seating ?? "")) ||
+            /^(?:yes|terrace)$/i.test(String(tags.terrace ?? ""));
+
           results.push({
             id: `osm-${el.id}`,
             name,
@@ -475,6 +572,9 @@ export async function fetchNearbyVenues(
             priceLevel: 2,
             distance,
             source: "overpass",
+            hasOutdoorSeating,
+            isSpecificWine,
+            isSpecificCocktail,
           });
           (results[results.length - 1] as any)._classified = classified;
           (results[results.length - 1] as any)._score = score;
@@ -513,14 +613,24 @@ export async function fetchNearbyVenues(
         })
         .slice(0, 12);
 
-      cache.set(key, { expiry: now + TTL, data: out });
-      try {
-        await persistentCache.set(
-          `venues:${key}`,
-          out,
-          7 * 24 * 60 * 60 * 1000,
+      const shouldPersist =
+        overpassQuerySucceeded ||
+        results.some(
+          (r) =>
+            r.source === "supabase" || r.source === "supabase-proxy",
         );
-      } catch (e) {}
+
+      if (shouldPersist) {
+        cache.set(key, { expiry: now + TTL, data: out });
+        writeLocalOverpassCache(localCacheKey, out);
+        try {
+          await persistentCache.set(
+            `venues:${key}`,
+            out,
+            7 * 24 * 60 * 60 * 1000,
+          );
+        } catch (e) {}
+      }
       return out;
     } finally {
       venuesInflight.delete(key);

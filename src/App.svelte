@@ -725,9 +725,9 @@
   .feature-drawer {
     position: fixed;
     left: 50%;
-    bottom: calc(88px + env(safe-area-inset-bottom));
+    bottom: 0;
     transform: translateX(-50%);
-    z-index: 150;
+    z-index: 260;
     width: min(calc(100vw - 16px), 480px);
     max-height: calc(100dvh - 156px);
     overflow: auto;
@@ -736,7 +736,7 @@
     border-bottom: 0;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.18);
-    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom) + 88px);
   }
 
   /* Normalize scrollbars across browsers and prevent double scrollbars */

@@ -41,6 +41,8 @@
   });
   let events = $state<EventItem[]>([]);
   let eventLoading = $state(false);
+  let venueOpenState = $state<Record<string, { isOpenNow: boolean; statusText: string; statusClass: string }>>({});
+  let openingHoursParser: any = null;
 
   $effect(() => {
     if (!availableModes.includes(activeMode)) {
@@ -94,13 +96,20 @@
 
   let _controller: AbortController | null = null;
 
-  onMount(() => {
+  onMount(async () => {
     activeMode = defaultMode;
     if (!availableModes.includes(activeMode)) {
       activeMode = availableModes[0] ?? 'venues';
     }
     // create a controller to abort pending fetches when sheet is closed
     _controller = new AbortController();
+    try {
+      const module = await import('opening_hours');
+      openingHoursParser = module.default ?? module;
+    } catch {
+      openingHoursParser = null;
+    }
+    updateVenueOpenStates(currentVenues);
     if (availableModes.includes('events')) {
       void loadEvents(_controller.signal);
     }
@@ -132,6 +141,57 @@
     return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  function formatStockholmTime(date: Date): string {
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(date);
+  }
+
+  function computeVenueOpenState(venue: Venue) {
+    if (!openingHoursParser || !venue.openingHours) {
+      return {
+        isOpenNow: false,
+        statusText: venue.openingHours ? venue.openingHours : '–',
+        statusClass: 'unknown',
+      };
+    }
+
+    try {
+      const oh = new openingHoursParser(venue.openingHours, {
+        timezone: 'Europe/Stockholm',
+      });
+      const isOpenNow = Boolean(oh.getState());
+      const nextChange = oh.getNextChange?.(new Date());
+      const nextChangeText = nextChange ? formatStockholmTime(nextChange) : '';
+      const statusText = isOpenNow
+        ? `Öppet nu${nextChangeText ? ` · stänger ${nextChangeText}` : ''}`
+        : `Stängt${nextChangeText ? ` · öppnar ${nextChangeText}` : ''}`;
+
+      return {
+        isOpenNow,
+        statusText,
+        statusClass: isOpenNow ? 'open' : 'closed',
+      };
+    } catch {
+      return {
+        isOpenNow: false,
+        statusText: venue.openingHours ? venue.openingHours : '–',
+        statusClass: 'unknown',
+      };
+    }
+  }
+
+  function updateVenueOpenStates(venues: Venue[]) {
+    const nextState: Record<string, { isOpenNow: boolean; statusText: string; statusClass: string }> = {};
+    for (const venue of venues) {
+      nextState[venue.id] = computeVenueOpenState(venue);
+    }
+    venueOpenState = nextState;
+  }
+
   function openMapsAt(lat: number, lon: number, label: string) {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon} ${encodeURIComponent(label)}`, '_blank', 'noopener,noreferrer');
   }
@@ -156,9 +216,19 @@
     if (activeMode === 'events') void loadEvents();
   });
 
-  let currentVenues = $derived(venuesByGroup[venueGroup] ?? []);
+  let currentVenues = $derived(venuesByGroup[venueGroup] ?? []) as Venue[];
+  $effect(() => {
+    updateVenueOpenStates(currentVenues);
+  });
+  let filteredVenues = $derived(
+    currentVenues.filter((venue) => {
+      if (!venue.openingHours) return true;
+      const state = venueOpenState[venue.id];
+      return state?.statusClass !== 'closed';
+    }),
+  ) as Venue[];
   let currentVenueLoading = $derived(venueLoadingByGroup[venueGroup] ?? false);
-  let items = $derived(activeMode === 'venues' ? currentVenues : events);
+  let items = $derived(activeMode === 'venues' ? filteredVenues : events);
   let count = $derived(items.length);
   let showTabs = $derived(availableModes.length > 1);
   let title = $derived(activeMode === 'venues' ? $t.afterwork : $t.events);
@@ -234,20 +304,38 @@
   {/if}
 
   <section class="rail" aria-label={title}>
-    {#if activeMode === 'venues' && currentVenueLoading && currentVenues.length === 0}
+    {#if activeMode === 'venues' && currentVenueLoading && filteredVenues.length === 0}
       <div class="empty-card">Loading venues…</div>
     {:else if activeMode === 'events' && eventLoading && events.length === 0}
       <div class="empty-card">Loading events…</div>
     {:else if items.length === 0}
       <div class="empty-card">{activeMode === 'venues' ? $t.noVenuesFound : $t.noEventsFound}</div>
     {:else if activeMode === 'venues'}
-      {#each currentVenues as venue, index (venue.id)}
+      {#each filteredVenues as venue, index (venue.id)}
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{venueGroup === 'beer' ? $t.beer : $t.wineCocktails}</span>
             <span class="metric">{venue.rawPrice !== undefined ? `${venue.rawPrice} kr` : venue.distance !== undefined ? `${Math.round(venue.distance)}m` : ''}</span>
           </div>
-          <h3>{venue.name}</h3>
+          <h3>
+            {venue.name}
+            {#if venue.isSpecificWine}
+              <span class="venue-flag" aria-label="Wine">🍷</span>
+            {/if}
+            {#if venue.isSpecificCocktail}
+              <span class="venue-flag" aria-label="Cocktail">🍸</span>
+            {/if}
+          </h3>
+          <div class="meta-row">
+            {#if venue.hasOutdoorSeating}
+              <span class="badge outdoor">☀️ Uteservering</span>
+            {/if}
+            {#if venueOpenState[venue.id]?.statusText}
+              <span class={`status ${venueOpenState[venue.id]?.statusClass}`}>
+                {venueOpenState[venue.id]?.statusText}
+              </span>
+            {/if}
+          </div>
           {#if venue.address}
             <p class="support">{venue.address}</p>
           {/if}
@@ -546,6 +634,56 @@
     gap: 8px;
     margin-top: auto;
     flex-wrap: wrap;
+  }
+
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .status.open {
+    background: rgba(60, 176, 124, 0.12);
+    color: #3ca07c;
+  }
+
+  .status.closed {
+    background: rgba(215, 63, 91, 0.12);
+    color: #d73f5b;
+  }
+
+  .status.unknown {
+    background: rgba(111, 111, 111, 0.1);
+    color: var(--text-secondary);
+  }
+
+  .venue-flag {
+    margin-left: 8px;
+    font-size: 1rem;
+  }
+
+  .badge.outdoor {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 190, 61, 0.14);
+    color: #b26a00;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .ghost-btn {
