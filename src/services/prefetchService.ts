@@ -25,7 +25,13 @@ export async function prefetchSegments(
             settings.afterworkTypes && settings.afterworkTypes.length
               ? settings.afterworkTypes
               : ["beer"];
-          await fetchNearbyVenues(lat, lon, 1200, types);
+          // Prefetch individual groups separately to warm the exact cache keys that the UI tabs will query.
+          if (types.includes("beer")) {
+            await fetchNearbyVenues(lat, lon, 1200, ["beer"]);
+          }
+          if (types.includes("wine") || types.includes("cocktail")) {
+            await fetchNearbyVenues(lat, lon, 1200, ["wine", "cocktail"]);
+          }
         }
         if (settings.eventsEnabled) {
           await fetchNearbyEvents(lat, lon, 3000);

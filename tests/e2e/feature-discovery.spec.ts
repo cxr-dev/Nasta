@@ -192,11 +192,6 @@ test.describe("feature discovery sheet", () => {
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("button", { name: /Beer|Öl/ })).toBeVisible();
-    // Wait for the curated venues function to respond so prefetches complete
-    await page.waitForResponse(
-      (r) => r.url().includes("/get-venues") && r.status() === 200,
-      { timeout: 10000 },
-    );
     await expect(page.getByText("Tap Room")).toBeVisible({ timeout: 10000 });
 
     await page

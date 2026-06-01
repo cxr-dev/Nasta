@@ -89,16 +89,59 @@
   }
 
   function scrollExpandedIntoView(node: HTMLElement, isExpanded: boolean) {
-    if (!isExpanded) return { update: (_: boolean) => {} };
-    requestAnimationFrame(() => {
-      node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-    });
+    const scrollPanelAboveBottomBar = (panel: HTMLElement) => {
+      const container = node.closest('.scroll-container') as HTMLElement | null;
+      const bottomBar = document.querySelector('.bottom-bar') as HTMLElement | null;
+      if (!container || !bottomBar) return;
+
+      const panelRect = panel.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const bottomBarHeight = bottomBar.getBoundingClientRect().height;
+      const gap = 16;
+
+      const desiredBottom = containerRect.bottom - bottomBarHeight - gap;
+      const currentBottom = panelRect.bottom;
+      
+      // If the panel bottom goes below the desired visible area (behind the bottom bar),
+      // delta will be positive. We want to scroll container down by this positive amount.
+      const delta = currentBottom - desiredBottom;
+
+      if (delta > 0) {
+        container.scrollBy({ top: delta, behavior: 'smooth' });
+      }
+    };
+
+    const attachAndScroll = () => {
+      const panel = node.querySelector('.expanded-panel') as HTMLElement | null;
+      if (!panel) return;
+
+      let handled = false;
+      const onEnd = () => {
+        if (handled) return;
+        handled = true;
+        panel.removeEventListener('introend', onEnd);
+        panel.removeEventListener('transitionend', onEnd);
+        panel.removeEventListener('animationend', onEnd);
+        scrollPanelAboveBottomBar(panel);
+      };
+
+      panel.addEventListener('introend', onEnd, { once: true });
+      panel.addEventListener('transitionend', onEnd, { once: true });
+      panel.addEventListener('animationend', onEnd, { once: true });
+
+      // Fallback: in case transition events do not fire (common with CSS transition/animation runtimes),
+      // run the scroll logic after the transition duration (280ms) has completed.
+      setTimeout(onEnd, 350);
+    };
+
+    if (isExpanded) {
+      requestAnimationFrame(attachAndScroll);
+    }
+
     return {
       update(nextExpanded: boolean) {
         if (nextExpanded) {
-          requestAnimationFrame(() => {
-            node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-          });
+          requestAnimationFrame(attachAndScroll);
         }
       },
     };
@@ -125,7 +168,13 @@
       try {
         if (settings.afterworkVenuesEnabled) {
           const types = settings.afterworkTypes && settings.afterworkTypes.length ? settings.afterworkTypes : ['beer'];
-          void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, types as any).catch(() => {});
+          // Prefetch individual groups separately to warm the exact cache keys that the UI tabs will query.
+          if (types.includes('beer')) {
+            void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, ['beer']).catch(() => {});
+          }
+          if (types.includes('wine') || types.includes('cocktail')) {
+            void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, ['wine', 'cocktail']).catch(() => {});
+          }
         }
         if (settings.eventsEnabled) {
           void fetchNearbyEvents(lat, lon, PREFETCH_EVENT_RADIUS).catch(() => {});

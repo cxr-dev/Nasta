@@ -294,10 +294,13 @@ export async function fetchNearbyVenues(
         } catch (_e) {}
       }
 
+      let overpassQuerySucceeded = false;
       try {
         console.log("venueService: preparing Overpass query");
         const beerOnly = types.length === 1 && types[0] === "beer";
-        const wineOrCocktail = types.some((t) => t === "wine" || t === "cocktail");
+        const wineOrCocktail = types.some(
+          (t) => t === "wine" || t === "cocktail",
+        );
         const queryRadius = Math.min(radius, beerOnly ? 2500 : 1500);
         let elements: any[] = [];
         const url = "https://overpass-api.de/api/interpreter";
@@ -305,84 +308,66 @@ export async function fetchNearbyVenues(
         const proxyBase =
           (import.meta.env.VITE_CORS_PROXY_BASE as string | undefined) ??
           "https://corsproxy.io/?";
-        let overpassQuerySucceeded = false;
 
-        let q: string;
-        if (!beerOnly && wineOrCocktail) {
-          q = `[out:json][timeout:25];
-(
-  node["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
-  way["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
-  rel["amenity"~"bar|pub"]["bar"~"cocktail|wine", i](around:${queryRadius},${lat},${lon});
-  node["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
-  way["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
-  rel["amenity"~"bar|pub"]["cuisine"~"wine|cocktail", i](around:${queryRadius},${lat},${lon});
-  node["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
-  way["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
-  rel["amenity"="bar"]["name"~"wine|vin|cocktail|bistrot", i](around:${queryRadius},${lat},${lon});
-);
-out center;`;
-        } else {
-          const amenities = beerOnly
-            ? [
-                "bar",
-                "pub",
-                "restaurant",
-                "nightclub",
-                "cafe",
-                "brewery",
-                "taproom",
-              ]
-            : ["bar", "pub", "restaurant", "nightclub", "cafe"];
-          const nameKeywords = beerOnly
-            ? []
-            : [
-                "vinbar",
-                "wine bar",
-                "vinbaren",
-                "natural wine",
-                "naturvin",
-                "enoteca",
-                "vino",
-                "vinoteca",
-                "wine lounge",
-                "cave",
-                "cellar",
-                "bodega",
-                "cocktailbar",
-                "cocktail bar",
-                "cocktail",
-                "speakeasy",
-                "mixology",
-                "aperitivo",
-                "lounge",
-                "martini",
-                "negroni",
-                "highball",
-              ];
-          const qParts = [
-            `node["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-            `way["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-            `rel["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
-          ];
+        const amenities = beerOnly
+          ? [
+              "bar",
+              "pub",
+              "restaurant",
+              "nightclub",
+              "cafe",
+              "brewery",
+              "taproom",
+            ]
+          : ["bar", "pub", "restaurant", "nightclub", "cafe"];
+        const nameKeywords = beerOnly
+          ? []
+          : [
+              "vinbar",
+              "wine bar",
+              "vinbaren",
+              "natural wine",
+              "naturvin",
+              "enoteca",
+              "vino",
+              "vinoteca",
+              "wine lounge",
+              "cave",
+              "cellar",
+              "bodega",
+              "cocktailbar",
+              "cocktail bar",
+              "cocktail",
+              "speakeasy",
+              "mixology",
+              "aperitivo",
+              "lounge",
+              "martini",
+              "negroni",
+              "highball",
+            ];
+        const qParts = [
+          `node["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+          `way["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+          `rel["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
+        ];
 
-          if (!beerOnly) {
-            qParts.push(
-              `node["shop"~"wine|beverages"](around:${queryRadius},${lat},${lon});`,
-            );
-            qParts.push(
-              `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-            );
-            qParts.push(
-              `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-            );
-            qParts.push(
-              `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
-            );
-          }
-
-          q = `[out:json][timeout:20];(\n${qParts.join("\n")}\n);out center;`;
+        if (!beerOnly) {
+          qParts.push(
+            `node["shop"~"wine|beverages"](around:${queryRadius},${lat},${lon});`,
+          );
+          qParts.push(
+            `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+          );
+          qParts.push(
+            `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+          );
+          qParts.push(
+            `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+          );
         }
+
+        const q = `[out:json][timeout:20];(\n${qParts.join("\n")}\n);out center;`;
 
         const excludeNameKeywords = [
           "irish pub",
@@ -409,7 +394,8 @@ out center;`;
             res = await fetch(proxyUrl, {
               method: "POST",
               headers: {
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "Content-Type":
+                  "application/x-www-form-urlencoded;charset=UTF-8",
               },
               body: `data=${encodeURIComponent(q)}`,
               signal: controller.signal,
@@ -483,6 +469,8 @@ out center;`;
             score += 8;
             typeScores.cocktail += 8;
           }
+
+          // 2. Pubs and cheap beer bars (beer category)
           if (
             /(bryggeri|brewery|pub|öl|ölbar|taproom)/i.test(lname) ||
             tags.amenity === "pub"
@@ -490,6 +478,27 @@ out center;`;
             score += 4;
             typeScores.beer += 4;
           }
+
+          // 3. Upscale / Fancy / Premium restaurants & bars (gets medium scores so they rank beautifully under generic Wine/Cocktail views)
+          const cuisine = String(tags.cuisine ?? "").toLowerCase();
+          const isFancyCuisine = /(fine_dining|french|italian|tapas|spanish|bistrot|bistro|seafood|mediterranean|brasserie)/i.test(cuisine);
+          const nameFancyKeyword = /(bistrot|bistro|brasserie|gastropub|dining|takbar|roof|lounge|krog|grill|restaurang)/i.test(lname);
+          
+          if (tags.amenity === "restaurant") {
+            if (isFancyCuisine || nameFancyKeyword) {
+              score += 5; // Fancy dining gets a strong boost
+            } else {
+              score += 1; // Generic restaurant gets a tiny boost
+            }
+          }
+          
+          if (tags.amenity === "bar") {
+            score += 4; // Baseline boost for generic drink spots
+            if (isFancyCuisine || nameFancyKeyword) {
+              score += 4; // Premium/fancy bars get more
+            }
+          }
+
           if (tags.outdoor_seating === "yes" || tags.terrace === "yes") {
             score += 3;
           }
@@ -537,28 +546,47 @@ out center;`;
             Number(elLat),
             Number(elLon),
           );
+
           let classified: "beer" | "wine" | "cocktail" | undefined = undefined;
-          const highest = Object.entries(typeScores).sort(
-            (a, b) => b[1] - a[1],
-          )[0];
-          if (highest && highest[1] >= 8)
-            classified = highest[0] as "beer" | "wine" | "cocktail";
+          if (typeScores.wine > 0 || typeScores.cocktail > 0 || typeScores.beer > 0) {
+            const highest = Object.entries(typeScores).sort(
+              (a, b) => b[1] - a[1],
+            )[0];
+            // Only classify if it strictly meets a strong score to keep generic upscale places unclassified
+            if (highest && highest[1] >= 8) {
+              classified = highest[0] as "beer" | "wine" | "cocktail";
+            } else if (highest && highest[0] === "beer" && highest[1] > 0) {
+              // Pubs/breweries easily classify as beer
+              classified = "beer";
+            }
+          }
+          
+          if (!classified && tags.amenity === "pub") {
+            classified = "beer";
+          }
 
           const normalizedBar = String(tags.bar ?? "").toLowerCase();
           const normalizedCuisine = String(tags.cuisine ?? "").toLowerCase();
-          const nameWineKeyword = /(?:vinbar|wine bar|vinbaren|naturvin|natural wine|enoteca|vino|vinoteca|wine lounge|bistrot)/i.test(
-            name,
-          );
-          const nameCocktailKeyword = /(?:cocktail|cocktailbar|cocktail bar|speakeasy|mixology|aperitivo|martini|negroni|highball)/i.test(
-            name,
-          );
-          const hasWineTag = normalizedBar === "wine" || normalizedCuisine === "wine";
+          const nameWineKeyword =
+            /(?:vinbar|wine bar|vinbaren|naturvin|natural wine|enoteca|vino|vinoteca|wine lounge|bistrot)/i.test(
+              name,
+            );
+          const nameCocktailKeyword =
+            /(?:cocktail|cocktailbar|cocktail bar|speakeasy|mixology|aperitivo|martini|negroni|highball)/i.test(
+              name,
+            );
+          const hasWineTag =
+            normalizedBar === "wine" || normalizedCuisine === "wine";
           const hasCocktailTag =
             normalizedBar === "cocktail" || normalizedCuisine === "cocktail";
           const isSpecificWine =
-            (hasWineTag || nameWineKeyword) && !hasCocktailTag && !nameCocktailKeyword;
+            (hasWineTag || nameWineKeyword) &&
+            !hasCocktailTag &&
+            !nameCocktailKeyword;
           const isSpecificCocktail =
-            (hasCocktailTag || nameCocktailKeyword) && !hasWineTag && !nameWineKeyword;
+            (hasCocktailTag || nameCocktailKeyword) &&
+            !hasWineTag &&
+            !nameWineKeyword;
           const hasOutdoorSeating =
             /^(?:yes|true)$/i.test(String(tags.outdoor_seating ?? "")) ||
             /^(?:yes|terrace)$/i.test(String(tags.terrace ?? ""));
@@ -616,8 +644,7 @@ out center;`;
       const shouldPersist =
         overpassQuerySucceeded ||
         results.some(
-          (r) =>
-            r.source === "supabase" || r.source === "supabase-proxy",
+          (r) => r.source === "supabase" || r.source === "supabase-proxy",
         );
 
       if (shouldPersist) {

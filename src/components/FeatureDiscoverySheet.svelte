@@ -59,7 +59,7 @@
     venueLoadingByGroup = { ...venueLoadingByGroup, [group]: true };
     try {
       const types: Array<'beer' | 'wine' | 'cocktail'> = group === 'beer' ? ['beer'] : ['wine', 'cocktail'];
-      const loadedVenues = await fetchNearbyVenues(lat, lon, 2000, types);
+      const loadedVenues = await fetchNearbyVenues(lat, lon, 1200, types);
       if (token !== venueFetchTokenByGroup[group]) return;
       venuesByGroup = { ...venuesByGroup, [group]: loadedVenues };
       venueLoadedByGroup = { ...venueLoadedByGroup, [group]: true };
@@ -305,9 +305,35 @@
 
   <section class="rail" aria-label={title}>
     {#if activeMode === 'venues' && currentVenueLoading && filteredVenues.length === 0}
-      <div class="empty-card">Loading venues…</div>
+      <div class="skeleton-list">
+        {#each Array(3) as _, i}
+          <div class="skeleton-card" style={`--index:${i}`}>
+            <div class="card-top">
+              <div class="skeleton-element skeleton-pill"></div>
+              <div class="skeleton-element skeleton-metric"></div>
+            </div>
+            <div class="skeleton-element skeleton-title"></div>
+            <div class="skeleton-element skeleton-text"></div>
+            <div class="skeleton-element skeleton-text short"></div>
+            <div class="skeleton-element skeleton-button"></div>
+          </div>
+        {/each}
+      </div>
     {:else if activeMode === 'events' && eventLoading && events.length === 0}
-      <div class="empty-card">Loading events…</div>
+      <div class="skeleton-list">
+        {#each Array(3) as _, i}
+          <div class="skeleton-card" style={`--index:${i}`}>
+            <div class="card-top">
+              <div class="skeleton-element skeleton-pill"></div>
+              <div class="skeleton-element skeleton-metric"></div>
+            </div>
+            <div class="skeleton-element skeleton-title"></div>
+            <div class="skeleton-element skeleton-text"></div>
+            <div class="skeleton-element skeleton-text short"></div>
+            <div class="skeleton-element skeleton-button"></div>
+          </div>
+        {/each}
+      </div>
     {:else if items.length === 0}
       <div class="empty-card">{activeMode === 'venues' ? $t.noVenuesFound : $t.noEventsFound}</div>
     {:else if activeMode === 'venues'}
@@ -720,5 +746,67 @@
     .card {
       animation: none;
     }
+  }
+
+  /* Skeleton Loading Styles */
+  .skeleton-list {
+    display: flex;
+    gap: 14px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .skeleton-card {
+    min-width: min(86%, 320px);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    min-height: 194px;
+    animation: card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--index) * 70ms);
+  }
+  .skeleton-element {
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 95%, #000 5%)) 50%, var(--border) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+  }
+  .skeleton-pill {
+    width: 80px;
+    height: 22px;
+    border-radius: 12px;
+  }
+  .skeleton-metric {
+    width: 60px;
+    height: 22px;
+    border-radius: 6px;
+  }
+  .skeleton-title {
+    width: 70%;
+    height: 18px;
+    border-radius: 6px;
+    margin-top: 4px;
+  }
+  .skeleton-text {
+    width: 90%;
+    height: 12px;
+    border-radius: 4px;
+  }
+  .skeleton-text.short {
+    width: 50%;
+  }
+  .skeleton-button {
+    width: 100px;
+    height: 34px;
+    border-radius: 18px;
+    margin-top: auto;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 </style>
