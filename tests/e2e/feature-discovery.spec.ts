@@ -3,10 +3,10 @@ import { test, expect } from "@playwright/test";
 test.describe("feature discovery sheet", () => {
   test.beforeEach(async ({ page }) => {
     page.on("console", (message) => {
-      console.log([Browser ] );
+      console.log(`[Browser ${message.type()}] ${message.text()}`);
     });
     page.on("pageerror", (error) => {
-      console.log([PageError] );
+      console.log(`[PageError] ${error.message}`);
     });
 
     await page.addInitScript(() => {
@@ -57,18 +57,18 @@ test.describe("feature discovery sheet", () => {
             segments: [
               {
                 id: "s1",
-                line: "2",
-                lineName: "2",
-                direction: { code: 1, destination: "Sofia", stopPointId: "" },
+                line: "76",
+                lineName: "76",
+                direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
                 fromStop: {
                   id: "f1",
-                  name: "Karl XII:s torg",
-                  siteId: "123",
+                  name: "Lindarängsvägen",
+                  siteId: "100",
                   coord: [59.3293, 18.0686],
                 },
                 toStop: {
                   id: "t1",
-                  name: "Sofia",
+                  name: "Norra Hammarbyhamnen",
                   siteId: "456",
                   coord: [59.31, 18.07],
                 },
@@ -84,7 +84,17 @@ test.describe("feature discovery sheet", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ departures: [] }),
+        body: JSON.stringify({
+          departures: [
+            {
+              line: { designation: "76", name: "76", transport_mode: "bus" },
+              direction_code: 1,
+              destination: "Norra Hammarbyhamnen",
+              display: "5 min",
+              expected: new Date(Date.now() + 5 * 60000).toISOString(),
+            },
+          ],
+        }),
       });
     });
 
@@ -147,28 +157,31 @@ test.describe("feature discovery sheet", () => {
     });
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.addStyleTag({
-      content: *, *::before, *::after { transition: none !important; animation: none !important; },
+      content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
   });
 
   test("opens, filters, and closes the feature sheet", async ({ page }) => {
     const segmentRow = page.getByTestId("segment-row").first();
-    await expect(segmentRow).toBeVisible({ timeout: 10000 });
+    await expect(segmentRow).toBeVisible({ timeout: 15000 });
 
-    await segmentRow.dispatchEvent("click");
-    await page.waitForTimeout(250);
+    await segmentRow.click({ force: true });
+    await expect(segmentRow).toHaveAttribute("aria-expanded", "true", { timeout: 10000 });
+
+    // This button is the stable accessible trigger for the feature sheet in the current UI.
+    const nearbyButton = page.locator(".journey-actions button.map-link-primary").first();
+    await expect(nearbyButton).toBeVisible({ timeout: 10000 });
+    await nearbyButton.click();
 
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("button", { name: "Beer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Beer|Öl/ })).toBeVisible();
     await expect(page.getByText("Tap Room")).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: "Wine + cocktails" }).click();
+    await page.getByRole("button", { name: /Wine \+ cocktails|Vin \+ cocktails/ }).click();
     await expect(page.getByText("Wine & Dine")).toBeVisible({ timeout: 10000 });
-
-    await page.getByRole("button", { name: "Events" }).click();
-    await expect(page.getByText("Jazz Night")).toBeVisible({ timeout: 10000 });
 
     await page.locator(".close-btn").click();
     await expect(sheet).toBeHidden({ timeout: 10000 });

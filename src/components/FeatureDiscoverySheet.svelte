@@ -124,7 +124,7 @@
   }
 
   function eventStats(event: EventItem): string {
-    const start = formatTime(event.startTime);
+    const start = event.startTime ? formatTime(event.startTime) : '—';
     const location = event.location || 'Stockholm';
     return `${start} · ${location}`;
   }
@@ -231,9 +231,13 @@
           {/if}
           <p class="support">{venueStats(venue)}</p>
           <div class="actions">
-            <button type="button" class="ghost-btn" onclick={() => openMapsAt(venue.lat, venue.lon, venue.name)}>
-              {$t.openInMaps}
-            </button>
+            {#if venue.lat !== undefined && venue.lon !== undefined}
+              {@const venueLat = venue.lat}
+              {@const venueLon = venue.lon}
+              <button type="button" class="ghost-btn" onclick={() => openMapsAt(venueLat, venueLon, venue.name)}>
+                {$t.openInMaps}
+              </button>
+            {/if}
           </div>
         </article>
       {/each}
@@ -242,7 +246,7 @@
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{$t.events}</span>
-            <span class="metric">{formatTime(event.startTime)}</span>
+            <span class="metric">{event.startTime ? formatTime(event.startTime) : '—'}</span>
           </div>
           <h3>{event.name}</h3>
           <p class="support">{eventStats(event)}</p>
@@ -341,17 +345,6 @@
     margin: 6px 0 0;
     color: var(--text-secondary);
     font-size: 13px;
-  }
-
-  .context {
-    display: inline-flex;
-    margin-top: 10px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-size: 12px;
-    font-weight: 600;
   }
 
   .close-btn {

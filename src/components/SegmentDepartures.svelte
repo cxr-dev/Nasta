@@ -148,10 +148,6 @@
       openMapApp(app, lat, lng);
       return;
     }
-    if (pref === 'default') {
-      openMapApp('google', lat, lng);
-      return;
-    }
     openMapApp(pref, lat, lng);
   }
 
@@ -515,7 +511,7 @@
                       {:else if (settings.walkingEtaEnabled ?? true)}
                         {#if userLocation === null}
                           <div class="location-request">
-                            <button type="button" class="ghost-btn" onclick={() => requestLocation()}>{$t.allowLocation || 'Tillåt platsåtkomst'}</button>
+                            <button type="button" class="ghost-btn" onclick={() => requestLocation()}>Tillåt platsåtkomst</button>
                             <span class="hint">{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || 'Tillåt platsåtkomst i webbläsaren för gång-ETA.'}</span>
                           </div>
                         {:else}

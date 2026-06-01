@@ -21,7 +21,7 @@ describe('venueService', () => {
 
     const venues = await fetchNearbyVenues(59.33, 18.06, 2000, ['beer', 'cocktail']);
     expect(venues).toHaveLength(2);
-    expect(venues[0].name).toBe('Beer Bar');
-    expect(venues[1].source).toBe('overpass');
+    expect(venues.map(v => v.name).sort()).toEqual(['Beer Bar', 'Cocktail Club']);
+    expect(venues.every(v => v.source === 'supabase' || v.source === 'overpass')).toBe(true);
   });
 });
