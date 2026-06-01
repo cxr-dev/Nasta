@@ -18,6 +18,7 @@ export interface Settings {
   disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
   disruptionLanguage: 'sv' | 'en' | 'auto';
   enabledTransportTypes: TransportType[];
+  locationServicesEnabled: boolean;
   walkingEtaEnabled: boolean;
   afterworkVenuesEnabled: boolean;
   afterworkTypes: Array<'beer' | 'wine' | 'cocktail'>;
@@ -37,6 +38,7 @@ const defaultSettings: Settings = {
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
   enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+  locationServicesEnabled: false,
   walkingEtaEnabled: true,
   afterworkVenuesEnabled: false,
   afterworkTypes: [],
@@ -95,7 +97,14 @@ export function loadSettings(): Settings {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
     const parsed = data ? JSON.parse(data) : {};
-    return { ...defaultSettings, ...parsed };
+    const merged = { ...defaultSettings, ...parsed };
+    if (typeof parsed.locationServicesEnabled !== 'boolean') {
+      const legacyLocationPrompt = localStorage.getItem('nasta_location_prompted');
+      if (legacyLocationPrompt === 'enabled') {
+        merged.locationServicesEnabled = true;
+      }
+    }
+    return merged;
   } catch {
     return defaultSettings;
   }

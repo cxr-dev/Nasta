@@ -86,6 +86,13 @@ function createSettingsStore() {
         return updated;
       });
     },
+    setLocationServicesEnabled: (enabled: boolean) => {
+      update(settings => {
+        const updated = { ...settings, locationServicesEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
     setWalkingEtaEnabled: (enabled: boolean) => {
       update(settings => {
         const updated = { ...settings, walkingEtaEnabled: enabled };

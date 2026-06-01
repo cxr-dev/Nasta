@@ -41,6 +41,8 @@
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
   let userLocation = $state<[number, number] | null>(null);
+  let locationRequestInFlight = $state(false);
+  let lastNearbyPrefetchKey = $state('');
   let settings = $derived($settingsStore);
   type MapApp = "default" | "google" | "apple" | "waze";
   const MAP_PREF_KEY = "nasta_map_app_preference";
@@ -55,15 +57,31 @@
   });
 
   $effect(() => {
-    if (settings.walkingEtaEnabled ?? true) {
-      const controller = new AbortController();
-      getQuickLocation(controller.signal)
-        .then(loc => { if (!controller.signal.aborted) userLocation = loc; })
-        .catch(() => { /* denied or error — keep userLocation null */ });
-      return () => controller.abort();
-    } else {
+    const locationEnabled = settings.locationServicesEnabled ?? false;
+    const etaEnabled = settings.walkingEtaEnabled ?? true;
+    const active = locationEnabled && etaEnabled;
+
+    if (!active) {
+      locationRequestInFlight = false;
       userLocation = null;
+      return;
     }
+
+    if (locationRequestInFlight || userLocation) return;
+
+    const controller = new AbortController();
+    locationRequestInFlight = true;
+    getQuickLocation(controller.signal)
+      .then(loc => {
+        if (!controller.signal.aborted) userLocation = loc;
+      })
+      .catch(() => {
+        // denied or error — keep userLocation null
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) locationRequestInFlight = false;
+      });
+    return () => controller.abort();
   });
 
   function toggleExpanded(index: number) {
@@ -103,6 +121,19 @@
     } catch (e) {
       // swallow errors — prefetch must not affect UI
     }
+  }
+
+  function scheduleNearbyPrefetch() {
+    const shouldPrefetch = settings.afterworkVenuesEnabled || settings.eventsEnabled;
+    if (!shouldPrefetch || !(route.segments ?? []).length) return;
+
+    const prefKey = `${route.id}:${settings.afterworkVenuesEnabled ? 1 : 0}:${settings.eventsEnabled ? 1 : 0}`;
+    if (prefKey === lastNearbyPrefetchKey) return;
+    lastNearbyPrefetchKey = prefKey;
+
+    void import('../services/prefetchService')
+      .then((m) => m.prefetchSegments(route.segments ?? [], settings, { concurrency: 4 }))
+      .catch(() => {});
   }
 
   function prefetch(node: HTMLElement, params: { index: number; segment: Segment }) {
@@ -348,6 +379,11 @@
       for (const seg of initial) prefetchForSegment(seg);
     } catch (e) {}
 
+    // When features are already enabled, prefetch all segments in background immediately
+    if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
+      scheduleNearbyPrefetch();
+    }
+
     // When user enables features, prefetch all segments in background and populate persistent cache
     let prevSettings: any = null;
     UNSUBSCRIBERS.push(
@@ -355,7 +391,7 @@
         if (!prevSettings) { prevSettings = s; return; }
         const becameEnabled = (s.afterworkVenuesEnabled && !prevSettings.afterworkVenuesEnabled) || (s.eventsEnabled && !prevSettings.eventsEnabled);
         if (becameEnabled) {
-          import('../services/prefetchService').then(m => m.prefetchSegments(route.segments ?? [], s, { concurrency: 4 })).catch(() => {});
+          scheduleNearbyPrefetch();
         }
         prevSettings = s;
       })
@@ -399,6 +435,7 @@
       {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
       {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
       {@const isExpanded = expandedIndex === index}
+      {@const isExpandable = hasDeparture || siteDevs.length > 0}
       {@const topDevMessage = siteDevs[0]?.message ?? ""}
       {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
@@ -406,12 +443,12 @@
         class="departure-row"
         use:prefetch={{ index, segment }}
         data-testid="segment-row"
-        class:expandable={hasDeparture || siteDevs.length > 0}
+        class:expandable={isExpandable}
         class:expanded={isExpanded}
         type="button"
         aria-expanded={isExpanded}
         onclick={() => {
-          if (hasDeparture || siteDevs.length > 0) toggleExpanded(index);
+          if (isExpandable) toggleExpanded(index);
         }}
         style="--delay: {Math.min(index, 3) * 40}ms"
       >
@@ -508,15 +545,8 @@
                       <span>{$t.walkToStop}</span>
                       {#if dist !== null}
                         <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
-                      {:else if (settings.walkingEtaEnabled ?? true)}
-                        {#if userLocation === null}
-                          <div class="location-request">
-                            <button type="button" class="ghost-btn" onclick={() => requestLocation()}>Tillåt platsåtkomst</button>
-                            <span class="hint">{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || 'Tillåt platsåtkomst i webbläsaren för gång-ETA.'}</span>
-                          </div>
-                        {:else}
-                          <span>{$t.enableLocationForWalkEtaBrowser || $t.enableLocationForWalkEta || 'Tillåt platsåtkomst i webbläsaren för gång-ETA.'}</span>
-                        {/if}
+                      {:else if (settings.locationServicesEnabled && settings.walkingEtaEnabled && locationRequestInFlight)}
+                        <span class="hint">{$t.waitingForLocation || 'Hämtar position...'}</span>
                       {/if}
                     </div>
 
@@ -594,12 +624,57 @@
 
 <style>
   .departures-list { display: flex; flex-direction: column; padding: 12px 0 20px; }
-  .departure-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; border-bottom: 1px solid var(--border); animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: var(--delay, 0ms); contain: layout style; width: 100%; background: transparent; border-left: none; border-right: none; border-top: none; text-align: left; }
-  .departure-row.expandable { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity 120ms ease; }
-  .departure-row.expandable:active { opacity: 0.7; }
-  .departure-row.expanded { border-bottom: none; }
+  .departure-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 16px;
+    margin: 8px 0;
+    border-radius: 22px;
+    border: 1px solid transparent;
+    animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+    contain: layout style;
+    width: 100%;
+    background: var(--surface);
+    text-align: left;
+    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+  }
+  .departure-row.expandable {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .departure-row.expandable:hover,
+  .departure-row.expandable:focus-visible {
+    background: var(--surface-emphasis);
+    border-color: var(--border);
+  }
+  .departure-row.expandable:active {
+    opacity: 0.95;
+    transform: translateY(1px);
+  }
+  .departure-row.expanded {
+    border-bottom: none;
+    border-color: var(--accent-subtle);
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.13);
+  }
   @keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .row-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding-right: 12px; }
+  .row-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
+  .expand-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    transition: transform 180ms ease, background 180ms ease;
+    flex-shrink: 0;
+  }
+  .departure-row.expanded .expand-marker { transform: rotate(180deg); }
+  .expand-marker svg { width: 18px; height: 18px; }
   .transport-badge { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; background: var(--accent-subtle); color: var(--accent); }
   .transport-badge svg { width: 20px; height: 20px; }
   .line-details { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -737,7 +812,21 @@
     font-weight: 700;
     border-radius: 12px;
   }
-  .row-right { flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
+  .row-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
+  .expand-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    transition: transform 180ms ease, background 180ms ease;
+    flex-shrink: 0;
+  }
+  .departure-row.expanded .expand-marker { transform: rotate(180deg); }
+  .expand-marker svg { width: 18px; height: 18px; }
   .time-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .primary-time { display: flex; align-items: baseline; gap: 4px; line-height: 1; position: relative; }
   .clock-time { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 800; letter-spacing: -2px; color: var(--accent); }

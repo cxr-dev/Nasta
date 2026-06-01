@@ -227,6 +227,7 @@
   .segment-icon .transport-icon {
     width: 18px;
     height: 18px;
+    color: var(--accent);
     fill: var(--accent);
   }
 

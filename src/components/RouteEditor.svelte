@@ -136,16 +136,43 @@
 
       <label class="toggle-row">
         <div class="toggle-label">
+          <span class="toggle-name">{$t.locationServices}</span>
+          <span class="toggle-desc">{$t.locationServicesDesc}</span>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={settings.locationServicesEnabled ?? false}
+          onclick={() => settingsStore.setLocationServicesEnabled(!(settings.locationServicesEnabled ?? false))}
+          aria-label={$t.locationServices}
+          role="switch"
+          aria-checked={settings.locationServicesEnabled ?? false}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </label>
+
+      <label class="toggle-row" class:locked={!settings.locationServicesEnabled}>
+        <div class="toggle-label">
           <span class="toggle-name">{$t.walkingEta}</span>
-          <span class="toggle-desc">{$t.walkingEtaDesc}</span>
+          <span class="toggle-desc">
+            {#if settings.locationServicesEnabled}
+              {$t.walkingEtaDesc}
+            {:else}
+              {$t.walkingEtaLockedDesc}
+            {/if}
+          </span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.walkingEtaEnabled ?? true}
-          onclick={() => settingsStore.setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? true))}
+          onclick={() => {
+            if (!settings.locationServicesEnabled) return;
+            settingsStore.setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? true));
+          }}
           aria-label="Walking ETA"
           role="switch"
           aria-checked={settings.walkingEtaEnabled ?? true}
+          disabled={!settings.locationServicesEnabled}
         >
           <span class="toggle-knob"></span>
         </button>
@@ -449,6 +476,10 @@
   cursor: pointer;
 }
 
+.toggle-row.locked {
+  opacity: 0.72;
+}
+
 .toggle-label {
   display: flex;
   flex-direction: column;
@@ -477,6 +508,10 @@
   transition: background 200ms ease;
   flex-shrink: 0;
   padding: 0;
+}
+
+.toggle-btn:disabled {
+  cursor: not-allowed;
 }
 
 .toggle-btn.on {

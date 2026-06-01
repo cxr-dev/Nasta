@@ -52,7 +52,8 @@ const sv = {
   walkingEtaDesc: "Använd plats för gångavstånd och ETA.",
   walkingEtaLockedDesc: "Aktivera platsjänster för att använda gång-ETA.",
   enableLocationForWalkEta: "Aktivera plats för gång-ETA.",
-  enableLocationForWalkEtaBrowser: "Tillåt platsåtkomst i webbläsaren för gång-ETA.",
+  enableLocationForWalkEtaBrowser:
+    "Tillåt platsåtkomst i webbläsaren för gång-ETA.",
   waitingForLocation: "Hämtar position...",
   departing: "Avgår",
   afterwork: "Afterwork",
@@ -235,7 +236,8 @@ const en: typeof sv = {
   walkingEtaDesc: "Use location for walking distance and ETA.",
   walkingEtaLockedDesc: "Enable location services to use walking ETA.",
   enableLocationForWalkEta: "Enable location for live walk ETA.",
-  enableLocationForWalkEtaBrowser: "Allow location in the browser for walking ETA.",
+  enableLocationForWalkEtaBrowser:
+    "Allow location in the browser for walking ETA.",
   waitingForLocation: "Fetching location...",
   departing: "Departing",
   afterwork: "Afterwork",

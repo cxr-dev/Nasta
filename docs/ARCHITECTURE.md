@@ -36,23 +36,23 @@ Svelte 5 Runes ($state, $derived, $effect)
 
 ## Stores
 
-| Store            | Responsibility                                                      |
-| ---------------- | ------------------------------------------------------------------- |
-| `routeStore`     | Route/segment CRUD, reordering, persistence to LocalStorage         |
-| `departureStore` | Departure fetching, caching, auto-refresh every N seconds           |
-| `deviationStore` | Disruption fetching, segment health tracking, severity filtering    |
+| Store            | Responsibility                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `routeStore`     | Route/segment CRUD, reordering, persistence to LocalStorage                              |
+| `departureStore` | Departure fetching, caching, auto-refresh every N seconds                                |
+| `deviationStore` | Disruption fetching, segment health tracking, severity filtering                         |
 | `settingsStore`  | User preferences (theme, transport filtering, refresh interval, language, notifications) |
-| `localeStore`    | Automatic locale detection and i18n text retrieval                  |
+| `localeStore`    | Automatic locale detection and i18n text retrieval                                       |
 
 ## Services
 
 ### API Integration
 
-| Service             | Endpoint                                           | Purpose                                             |
-| ------------------- | -------------------------------------------------- | --------------------------------------------------- |
-| `slApi.ts`          | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2` | Real-time departures, stop search (`stop-finder`), planned trip fallback (`trip`) |
-| `slDeviations.ts`   | `https://deviations.integration.sl.se/v1/messages` | Active disruptions, alerts, severity scoring        |
-| `geo.ts`            | Native Geolocation API                             | User distance to stops, walking time calculations   |
+| Service           | Endpoint                                                                 | Purpose                                                                           |
+| ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `slApi.ts`        | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2` | Real-time departures, stop search (`stop-finder`), planned trip fallback (`trip`) |
+| `slDeviations.ts` | `https://deviations.integration.sl.se/v1/messages`                       | Active disruptions, alerts, severity scoring                                      |
+| `geo.ts`          | Native Geolocation API                                                   | User distance to stops, walking time calculations                                 |
 
 ### Data Processing
 
@@ -97,14 +97,14 @@ Static assets          → Cache First (hashed filenames)
 
 ### LocalStorage Keys
 
-| Key                       | Content              | TTL                       |
-| ------------------------- | -------------------- | ------------------------- |
-| `nasta_routes`            | Serialized Route[]   | Permanent                 |
-| `nasta_settings`          | Serialized settings  | Permanent                 |
-| `nasta_onboarding_seen`  | Boolean flag         | Permanent                 |
-| `nasta_location_prompted`| `"enabled"` \| `"skipped"` | Permanent           |
-| `nasta_recent_stops`     | SiteSearchResult[]   | Permanent (Recent searches) |
-| (Computed schedules)    | Predicted departures | As configured per service |
+| Key                       | Content                    | TTL                         |
+| ------------------------- | -------------------------- | --------------------------- |
+| `nasta_routes`            | Serialized Route[]         | Permanent                   |
+| `nasta_settings`          | Serialized settings        | Permanent                   |
+| `nasta_onboarding_seen`   | Boolean flag               | Permanent                   |
+| `nasta_location_prompted` | `"enabled"` \| `"skipped"` | Permanent                   |
+| `nasta_recent_stops`      | SiteSearchResult[]         | Permanent (Recent searches) |
+| (Computed schedules)      | Predicted departures       | As configured per service   |
 
 ### IndexedDB Keys (Deviations)
 
@@ -147,13 +147,13 @@ Score computed as: `importance * 2 + influence + urgency`
 2. Cache failures fall back to last successful fetch (up to 6 hours old)
 3. External timetable segments (ferries) always show as "ok"
 4. Language-specific text returned based on app locale setting
- 
- ### Inline Disruptions (Stop Deviations)
- 
- 1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
- 2. These are stored in `departureStore.stopDeviations` (site-mapped).
- 3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
- 4. Clicking the row expands to show the full disruption message(s).
+
+### Inline Disruptions (Stop Deviations)
+
+1.  The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
+2.  These are stored in `departureStore.stopDeviations` (site-mapped).
+3.  `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
+4.  Clicking the row expands to show the full disruption message(s).
 
 ## Commute Nudges
 
@@ -205,3 +205,17 @@ Enforced at the data layer to ensure unselected modes don't clutter the UI:
 - `src/types/deviation.ts` — Disruption, severity, segment health types
 
 All API responses are parsed and validated before store updates.
+
+## External APIs used by Feature Discovery
+
+- **Visit Stockholm (events):** `https://api.visitstockholm.com/api/public-v1/events/` — public events feed; returns event objects with `location.latitude` and `location.longitude`. This endpoint supports CORS (`Access-Control-Allow-Origin: *`) and is fetched directly from the browser.
+- **Supabase beer venues function:** `https://izrgqxgsuhogrukisfrd.supabase.co/functions/v1/get-venues` — POST contract: JSON body `{ city_id, mode }` returns `{ venues: [...] }`. Used for curated beer venue data (prices, happy hour). May require an anon key (`VITE_SUPABASE_ANON_KEY`). Playwright tests stub this exact host to intercept prefetches.
+- **Overpass (OpenStreetMap):** `https://overpass-api.de/api/interpreter` — POST Overpass QL queries used to discover wine/cocktail/other venues near coordinates.
+
+Fallback / CORS policy:
+
+- The app attempts direct browser fetches first. For services that may block CORS or be unreachable from GitHub Pages, a proxy fallback can be enabled via environment flags:
+  - `VITE_USE_CORS_PROXY=true` — enable proxy fallback for POST requests
+  - `VITE_CORS_PROXY_BASE` — base URL for the proxy (defaults to `https://corsproxy.io/?`)
+
+Note: Using a third-party CORS proxy has privacy implications (request bodies may contain location data). Only enable in environments where this is acceptable.

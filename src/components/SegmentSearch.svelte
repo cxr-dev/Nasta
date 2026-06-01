@@ -681,6 +681,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   .transport-filter-btn .transport-icon {
     width: 16px;
     height: 16px;
+    color: currentColor;
     fill: currentColor;
   }
 

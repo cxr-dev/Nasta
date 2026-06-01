@@ -48,32 +48,47 @@
     }
   });
 
+  let venueFetchTokenByGroup = { beer: 0, wineCocktail: 0 };
+  let eventFetchToken = 0;
+
   async function loadVenues(group: VenueGroup) {
     if (venueLoadingByGroup[group] || venueLoadedByGroup[group]) return;
+    const token = ++venueFetchTokenByGroup[group];
     venueLoadingByGroup = { ...venueLoadingByGroup, [group]: true };
     try {
       const types: Array<'beer' | 'wine' | 'cocktail'> = group === 'beer' ? ['beer'] : ['wine', 'cocktail'];
       const loadedVenues = await fetchNearbyVenues(lat, lon, 2000, types);
+      if (token !== venueFetchTokenByGroup[group]) return;
       venuesByGroup = { ...venuesByGroup, [group]: loadedVenues };
       venueLoadedByGroup = { ...venueLoadedByGroup, [group]: true };
     } catch {
+      if (token !== venueFetchTokenByGroup[group]) return;
       venuesByGroup = { ...venuesByGroup, [group]: [] };
     } finally {
-      venueLoadingByGroup = { ...venueLoadingByGroup, [group]: false };
+      if (token === venueFetchTokenByGroup[group]) {
+        venueLoadingByGroup = { ...venueLoadingByGroup, [group]: false };
+        const otherGroup: VenueGroup = group === 'beer' ? 'wineCocktail' : 'beer';
+        if (!venueLoadedByGroup[otherGroup] && !venueLoadingByGroup[otherGroup]) {
+          void loadVenues(otherGroup);
+        }
+      }
     }
   }
 
   async function loadEvents(signal?: AbortSignal) {
     if (eventLoading || events.length > 0) return;
+    const token = ++eventFetchToken;
     eventLoading = true;
     try {
-      events = await fetchNearbyEvents(lat, lon, 5000, signal);
+      const loadedEvents = await fetchNearbyEvents(lat, lon, 5000, signal);
+      if (token !== eventFetchToken) return;
+      events = loadedEvents;
     } catch (e) {
-      // if aborted, just return early
       if ((e as any)?.name === 'AbortError') return;
+      if (token !== eventFetchToken) return;
       events = [];
     } finally {
-      eventLoading = false;
+      if (token === eventFetchToken) eventLoading = false;
     }
   }
 
@@ -86,8 +101,13 @@
     }
     // create a controller to abort pending fetches when sheet is closed
     _controller = new AbortController();
-    if (availableModes.includes('venues')) void loadVenues(venueGroup);
-    if (availableModes.includes('events')) void loadEvents(_controller.signal);
+    if (availableModes.includes('events')) {
+      void loadEvents(_controller.signal);
+    }
+    if (availableModes.includes('venues')) {
+      void loadVenues('beer');
+      void loadVenues('wineCocktail');
+    }
   });
 
   onDestroy(() => {
@@ -98,6 +118,8 @@
   function closeAndAbort() {
     _controller?.abort();
     _controller = null;
+    // bump per-group tokens to ignore any in-flight responses
+    venueFetchTokenByGroup = { beer: venueFetchTokenByGroup.beer + 1, wineCocktail: venueFetchTokenByGroup.wineCocktail + 1 };
     onClose();
   }
 

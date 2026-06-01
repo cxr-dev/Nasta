@@ -59,7 +59,11 @@ test.describe("feature discovery sheet", () => {
                 id: "s1",
                 line: "76",
                 lineName: "76",
-                direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
+                direction: {
+                  code: 1,
+                  destination: "Norra Hammarbyhamnen",
+                  stopPointId: "",
+                },
                 fromStop: {
                   id: "f1",
                   name: "Lindarängsvägen",
@@ -98,24 +102,28 @@ test.describe("feature discovery sheet", () => {
       });
     });
 
-    await page.route("**/functions/v1/get-venues**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          venues: [
-            {
-              id: "beer-1",
-              name: "Tap Room",
-              lat: 59.3294,
-              lon: 18.069,
-              openingHours: "16:00-01:00",
-              priceLevel: 2,
-            },
-          ],
-        }),
-      });
-    });
+    // Intercept the real Supabase function host used by `fetchNearbyVenues`
+    await page.route(
+      "**/izrgqxgsuhogrukisfrd.supabase.co/functions/v1/get-venues",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            venues: [
+              {
+                id: "beer-1",
+                name: "Tap Room",
+                lat: 59.3294,
+                lon: 18.069,
+                openingHours: "16:00-01:00",
+                priceLevel: 2,
+              },
+            ],
+          }),
+        });
+      },
+    );
 
     await page.route("**/overpass-api.de/**", async (route) => {
       await route.fulfill({
@@ -146,7 +154,9 @@ test.describe("feature discovery sheet", () => {
             {
               id: "event-1",
               name: "Jazz Night",
-              startTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+              startTime: new Date(
+                Date.now() + 2 * 60 * 60 * 1000,
+              ).toISOString(),
               location: "Central Stockholm",
               lat: 59.33,
               lon: 18.07,
@@ -168,20 +178,36 @@ test.describe("feature discovery sheet", () => {
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
 
     await segmentRow.click({ force: true });
-    await expect(segmentRow).toHaveAttribute("aria-expanded", "true", { timeout: 10000 });
+    await expect(segmentRow).toHaveAttribute("aria-expanded", "true", {
+      timeout: 10000,
+    });
 
     // This button is the stable accessible trigger for the feature sheet in the current UI.
-    const nearbyButton = page.locator(".journey-actions button.map-link-primary").first();
+    const nearbyButton = page
+      .locator(".journey-actions button.map-link-primary")
+      .first();
     await expect(nearbyButton).toBeVisible({ timeout: 10000 });
     await nearbyButton.click();
 
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("button", { name: /Beer|Öl/ })).toBeVisible();
+    // Wait for the curated venues function to respond so prefetches complete
+    await page.waitForResponse(
+      (r) => r.url().includes("/get-venues") && r.status() === 200,
+      { timeout: 10000 },
+    );
     await expect(page.getByText("Tap Room")).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: /Wine \+ cocktails|Vin \+ cocktails/ }).click();
-    await expect(page.getByText("Wine & Dine")).toBeVisible({ timeout: 10000 });
+    await page
+      .getByRole("button", { name: /Wine \+ cocktails|Vin \+ cocktails/ })
+      .click();
+    // Target the heading specifically to avoid matching multiple elements (pill / button)
+    await expect(
+      page.getByRole("heading", {
+        name: /Wine\s*(&|and|\+)\s*Dine|Wine\s*(&|and|\+)\s*cocktails|Vin \+ cocktails/,
+      }),
+    ).toBeVisible({ timeout: 10000 });
 
     await page.locator(".close-btn").click();
     await expect(sheet).toBeHidden({ timeout: 10000 });
