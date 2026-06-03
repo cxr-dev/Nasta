@@ -145,7 +145,7 @@ test.describe("feature discovery sheet", () => {
       });
     });
 
-    await page.route("**/eventapi.stockholm.se/**", async (route) => {
+    await page.route("**/api.visitstockholm.com/**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

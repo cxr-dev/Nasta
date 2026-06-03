@@ -103,6 +103,13 @@
     }
     // create a controller to abort pending fetches when sheet is closed
     _controller = new AbortController();
+    if (availableModes.includes('venues')) {
+      void loadVenues('beer');
+      void loadVenues('wineCocktail');
+    }
+    if (availableModes.includes('events')) {
+      void loadEvents(_controller.signal);
+    }
     try {
       const module = await import('opening_hours');
       openingHoursParser = module.default ?? module;
@@ -110,13 +117,6 @@
       openingHoursParser = null;
     }
     updateVenueOpenStates(currentVenues);
-    if (availableModes.includes('events')) {
-      void loadEvents(_controller.signal);
-    }
-    if (availableModes.includes('venues')) {
-      void loadVenues('beer');
-      void loadVenues('wineCocktail');
-    }
   });
 
   onDestroy(() => {
