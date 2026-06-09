@@ -87,6 +87,11 @@ test.describe("feature discovery sheet", () => {
     await page.route("**/*.integration.sl.se/**", async (route) => {
       await route.fulfill({
         status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "*",
+        },
         contentType: "application/json",
         body: JSON.stringify({
           departures: [
@@ -108,6 +113,11 @@ test.describe("feature discovery sheet", () => {
       async (route) => {
         await route.fulfill({
           status: 200,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+          },
           contentType: "application/json",
           body: JSON.stringify({
             venues: [
@@ -128,6 +138,11 @@ test.describe("feature discovery sheet", () => {
     await page.route("**/overpass-api.de/**", async (route) => {
       await route.fulfill({
         status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "*",
+        },
         contentType: "application/json",
         body: JSON.stringify({
           elements: [
@@ -148,6 +163,11 @@ test.describe("feature discovery sheet", () => {
     await page.route("**/api.visitstockholm.com/**", async (route) => {
       await route.fulfill({
         status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "*",
+        },
         contentType: "application/json",
         body: JSON.stringify({
           events: [

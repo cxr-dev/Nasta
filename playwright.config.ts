@@ -15,6 +15,9 @@ export default defineConfig({
     // The VitePWA service worker (active in preview builds) would otherwise intercept
     // fetch calls to transport.integration.sl.se before Playwright can mock them.
     serviceWorkers: "block",
+    // Enforce consistent timezone and locale to make tests deterministic in local & CI
+    timezoneId: "Europe/Stockholm",
+    locale: "en-US",
   },
   projects: [
     {
