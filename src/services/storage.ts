@@ -39,7 +39,7 @@ const defaultSettings: Settings = {
   disruptionLanguage: 'auto',
   enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
   locationServicesEnabled: false,
-  walkingEtaEnabled: true,
+  walkingEtaEnabled: false,
   afterworkVenuesEnabled: false,
   afterworkTypes: [],
   eventsEnabled: false

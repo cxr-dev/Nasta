@@ -134,45 +134,57 @@
         </button>
       </label>
 
+      {#if settings.disruptionAlertsEnabled ?? true}
+        <div class="setting-block nested">
+          <div class="toggle-label">
+            <span class="toggle-name">{$t.disruptionThreshold}</span>
+            <span class="toggle-desc">{$t.disruptionThresholdDesc}</span>
+          </div>
+          <div class="segmented-control" role="group" aria-label={$t.disruptionThreshold}>
+            <button
+              class="segment-choice"
+              class:active={activeDisruptionThreshold === 'info'}
+              onclick={() => settingsStore.setDisruptionSeverityThreshold('info')}
+              aria-pressed={activeDisruptionThreshold === 'info'}
+            >
+              {$t.disruptionThresholdInfo}
+            </button>
+            <button
+              class="segment-choice"
+              class:active={activeDisruptionThreshold === 'warning'}
+              onclick={() => settingsStore.setDisruptionSeverityThreshold('warning')}
+              aria-pressed={activeDisruptionThreshold === 'warning'}
+            >
+              {$t.disruptionThresholdWarning}
+            </button>
+            <button
+              class="segment-choice"
+              class:active={activeDisruptionThreshold === 'critical'}
+              onclick={() => settingsStore.setDisruptionSeverityThreshold('critical')}
+              aria-pressed={activeDisruptionThreshold === 'critical'}
+            >
+              {$t.disruptionThresholdCritical}
+            </button>
+          </div>
+        </div>
+      {/if}
+
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.locationServices}</span>
-          <span class="toggle-desc">{$t.locationServicesDesc}</span>
-        </div>
-        <button
-          class="toggle-btn"
-          class:on={settings.locationServicesEnabled ?? false}
-          onclick={() => settingsStore.setLocationServicesEnabled(!(settings.locationServicesEnabled ?? false))}
-          aria-label={$t.locationServices}
-          role="switch"
-          aria-checked={settings.locationServicesEnabled ?? false}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </label>
-
-      <label class="toggle-row" class:locked={!settings.locationServicesEnabled}>
-        <div class="toggle-label">
           <span class="toggle-name">{$t.walkingEta}</span>
-          <span class="toggle-desc">
-            {#if settings.locationServicesEnabled}
-              {$t.walkingEtaDesc}
-            {:else}
-              {$t.walkingEtaLockedDesc}
-            {/if}
-          </span>
+          <span class="toggle-desc">{$t.walkingEtaDesc}</span>
         </div>
         <button
           class="toggle-btn"
-          class:on={settings.walkingEtaEnabled ?? true}
+          class:on={settings.walkingEtaEnabled ?? false}
           onclick={() => {
-            if (!settings.locationServicesEnabled) return;
-            settingsStore.setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? true));
+            const next = !(settings.walkingEtaEnabled ?? false);
+            settingsStore.setWalkingEtaEnabled(next);
+            settingsStore.setLocationServicesEnabled(next);
           }}
           aria-label={$t.walkingEta}
           role="switch"
-          aria-checked={settings.walkingEtaEnabled ?? true}
-          disabled={!settings.locationServicesEnabled}
+          aria-checked={settings.walkingEtaEnabled ?? false}
         >
           <span class="toggle-knob"></span>
         </button>
@@ -211,39 +223,6 @@
           <span class="toggle-knob"></span>
         </button>
       </label>
-
-      <div class="setting-block">
-        <div class="toggle-label">
-          <span class="toggle-name">{$t.disruptionThreshold}</span>
-          <span class="toggle-desc">{$t.disruptionThresholdDesc}</span>
-        </div>
-        <div class="segmented-control" role="group" aria-label={$t.disruptionThreshold}>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionThreshold === 'info'}
-            onclick={() => settingsStore.setDisruptionSeverityThreshold('info')}
-            aria-pressed={activeDisruptionThreshold === 'info'}
-          >
-            {$t.disruptionThresholdInfo}
-          </button>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionThreshold === 'warning'}
-            onclick={() => settingsStore.setDisruptionSeverityThreshold('warning')}
-            aria-pressed={activeDisruptionThreshold === 'warning'}
-          >
-            {$t.disruptionThresholdWarning}
-          </button>
-          <button
-            class="segment-choice"
-            class:active={activeDisruptionThreshold === 'critical'}
-            onclick={() => settingsStore.setDisruptionSeverityThreshold('critical')}
-            aria-pressed={activeDisruptionThreshold === 'critical'}
-          >
-            {$t.disruptionThresholdCritical}
-          </button>
-        </div>
-      </div>
 
       <div class="setting-block">
         <div class="toggle-label">
@@ -476,10 +455,6 @@
   cursor: pointer;
 }
 
-.toggle-row.locked {
-  opacity: 0.72;
-}
-
 .toggle-label {
   display: flex;
   flex-direction: column;
@@ -544,6 +519,14 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.setting-block.nested {
+  margin: -4px 0 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
 }
 
 .theme-title {

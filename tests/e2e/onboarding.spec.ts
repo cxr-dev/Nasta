@@ -64,7 +64,7 @@ test.describe("Onboarding hint", () => {
       .toBe("true");
   });
 
-  test("location prompt appears on first visit to SegmentSearch", async ({
+  test("segment search does not prompt for location until walking ETA is enabled", async ({
     page,
   }) => {
     await initFreshState(page);
@@ -73,60 +73,6 @@ test.describe("Onboarding hint", () => {
     await page.waitForLoadState("domcontentloaded");
     await openFirstRouteEditor(page);
 
-    const locationPrompt = page.locator(".location-prompt");
-    await expect(locationPrompt).toBeVisible({ timeout: TEST_TIMEOUT });
-    await expect(page.locator("#location-title")).toContainText(
-      "Hitta närliggande",
-    );
-
-    await expect(page.locator(".btn-primary")).toBeVisible({
-      timeout: TEST_TIMEOUT,
-    });
-    await expect(page.locator(".btn-secondary")).toBeVisible({
-      timeout: TEST_TIMEOUT,
-    });
-  });
-
-  test("location prompt can be skipped", async ({ page }) => {
-    await initFreshState(page);
-
-    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
-    await openFirstRouteEditor(page);
-    await expect(page.locator(".location-prompt")).toBeVisible({
-      timeout: TEST_TIMEOUT,
-    });
-
-    const skipButton = page.locator(".btn-secondary");
-    await expect(skipButton).toBeVisible({ timeout: TEST_TIMEOUT });
-    await expect(skipButton).toBeEnabled({ timeout: TEST_TIMEOUT });
-    await skipButton.click();
-
-    await expect(page.locator(".location-prompt")).toHaveCount(0, {
-      timeout: TEST_TIMEOUT,
-    });
-    await expect
-      .poll(async () => {
-        return page.evaluate(() =>
-          localStorage.getItem("nasta_location_prompted"),
-        );
-      })
-      .toBe("skipped");
-  });
-
-  test("location prompt does not reappear after skip", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.clear();
-      localStorage.setItem(
-        "nasta_settings",
-        JSON.stringify({ language: "sv" }),
-      );
-      localStorage.setItem("nasta_location_prompted", "skipped");
-    });
-
-    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
-    await openFirstRouteEditor(page);
     await expect(page.locator(".location-prompt")).toHaveCount(0, {
       timeout: TEST_TIMEOUT,
     });

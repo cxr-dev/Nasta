@@ -146,8 +146,8 @@
     const currentLocale = $locale;
     if (!openingHoursParser || !venue.openingHours) {
       return {
-        isOpenNow: false,
-        statusText: venue.openingHours ? venue.openingHours : strings.emDash,
+        isOpenNow: true,
+        statusText: '',
         statusClass: 'unknown',
       };
     }
@@ -168,8 +168,8 @@
       };
     } catch {
       return {
-        isOpenNow: false,
-        statusText: venue.openingHours ? venue.openingHours : strings.emDash,
+        isOpenNow: true,
+        statusText: '',
         statusClass: 'unknown',
       };
     }
@@ -187,13 +187,11 @@
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon} ${encodeURIComponent(label)}`, '_blank', 'noopener,noreferrer');
   }
 
-  function venueStats(venue: Venue): string {
-    const parts: string[] = [];
-    if (venue.openingHours) parts.push(venue.openingHours);
-    if (venue.rawPrice !== undefined) parts.push(`${venue.rawPrice} kr`);
-    else if (venue.priceLevel) parts.push($t.priceLevel);
-    if (venue.distance !== undefined) parts.push(`${Math.round(venue.distance)} m`);
-    return parts.join(' · ');
+  function venueMetric(venue: Venue): string {
+    if (venue.rawPrice !== undefined) return `${venue.rawPrice} kr`;
+    if (venue.priceLevel) return $t.priceLevel;
+    if (venue.distance !== undefined) return `${Math.round(venue.distance)} m`;
+    return '';
   }
 
   function eventStats(event: EventItem): string {
@@ -219,7 +217,8 @@
     currentVenues.filter((venue) => {
       if (!venue.openingHours) return true;
       const state = venueOpenState[venue.id];
-      return state?.statusClass !== 'closed';
+      if (!state || state.statusClass === 'unknown') return true;
+      return state.isOpenNow;
     }),
   ) as Venue[];
   let currentVenueLoading = $derived(venueLoadingByGroup[venueGroup] ?? false);
@@ -235,7 +234,7 @@
 
   <header class="sheet-header">
     <div class="header-copy">
-      <div class="eyebrow">{$t.nearby}</div>
+      <div class="eyebrow">{$t.nearbyVenues}</div>
       <div class="title-row">
         <div class="count">{count}</div>
         <div class="copy">
@@ -336,7 +335,7 @@
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{venueGroup === 'beer' ? $t.beer : $t.wineCocktails}</span>
-            <span class="metric">{venue.rawPrice !== undefined ? `${venue.rawPrice} kr` : venue.distance !== undefined ? `${Math.round(venue.distance)}m` : ''}</span>
+            <span class="metric">{venueMetric(venue)}</span>
           </div>
           <h3>
             {venue.name}
@@ -360,7 +359,6 @@
           {#if venue.address}
             <p class="support">{venue.address}</p>
           {/if}
-          <p class="support">{venueStats(venue)}</p>
           <div class="actions">
             {#if venue.lat !== undefined && venue.lon !== undefined}
               {@const venueLat = venue.lat}

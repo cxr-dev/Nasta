@@ -39,29 +39,22 @@
   .bottom-bar {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     width: min(100%, 480px);
-    margin: 0 auto;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     background: var(--bg);
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 10px;
     z-index: 200;
-  }
-
-  @media (min-width: 481px) {
-    .bottom-bar {
-      width: 100%;
-      max-width: none;
-    }
   }
 
   .action-btn {
     position: relative;
     overflow: visible;
-    width: 100%;
+    width: min(100%, 320px);
     padding: 14px 20px;
     background: var(--accent-subtle);
     border: 1px solid transparent;

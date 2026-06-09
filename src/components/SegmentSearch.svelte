@@ -7,6 +7,7 @@ import type { SiteSearchResult, Departure } from '../types/departure';
 import type { TransportType, Stop, SegmentDirection } from '../types/route';
 import { transportIcons } from '../icons/transport';
 import { t } from '../stores/localeStore';
+import { settingsStore } from '../stores/settingsStore';
 import DirectionSelector from './DirectionSelector.svelte';
 import { onMount } from 'svelte';
 
@@ -54,10 +55,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   let stations = $state<SiteSearchResult[]>([]);
   let allDepartures = $state<Departure[]>([]);
   let userLocation = $state<[number, number] | null>(null);
-  let locationPrompted = $state(false);
   let isLoadingLocation = $state(false);
   let recentStops = $state<SiteSearchResult[]>([]);
   let activeTransportTypes = $state<TransportType[]>([...ALL_TRANSPORT_TYPES]);
+  let settings = $derived($settingsStore);
 
   // Filtering logic: Enforcement at data level
   let filteredStations = $derived.by(() => {
@@ -276,41 +277,37 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     activeTransportTypes = [...activeTransportTypes, type];
   }
 
-  async function fetchLocation() {
+  async function fetchLocationIfEnabled() {
+    if (!(settings.walkingEtaEnabled ?? false)) return;
     isLoadingLocation = true;
     userLocation = await getQuickLocation();
     isLoadingLocation = false;
   }
 
-  async function handleLocationEnable() {
-    safeLocalStorageSet('nasta_location_prompted', 'enabled');
-    locationPrompted = true;
-    fetchLocation();
-  }
-
-  function handleLocationSkip() {
-    safeLocalStorageSet('nasta_location_prompted', 'skipped');
-    locationPrompted = true;
-  }
-
   onMount(async () => {
-    const stored = safeLocalStorageGet('nasta_location_prompted');
-    if (stored) {
-      locationPrompted = true;
-      if (stored === 'enabled') {
-        let shouldFetch = true;
-        if (navigator.permissions) {
-          try {
-            const status = await navigator.permissions.query({ name: 'geolocation' });
-            shouldFetch = status.state !== 'denied';
-          } catch {
-            shouldFetch = true;
-          }
-        }
-        if (shouldFetch) {
-          fetchLocation();
+    if (!(settings.walkingEtaEnabled ?? false)) {
+      const recentStored = safeLocalStorageGet('nasta_recent_stops');
+      if (recentStored) {
+        try {
+          recentStops = JSON.parse(recentStored);
+        } catch {
+          recentStops = [];
         }
       }
+      return;
+    }
+
+    let shouldFetch = true;
+    if (navigator.permissions) {
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' });
+        shouldFetch = status.state !== 'denied';
+      } catch {
+        shouldFetch = true;
+      }
+    }
+    if (shouldFetch) {
+      await fetchLocationIfEnabled();
     }
 
     const recentStored = safeLocalStorageGet('nasta_recent_stops');
@@ -320,6 +317,16 @@ function getDistanceSortValue(station: SiteSearchResult): number {
       } catch (e) {
         recentStops = [];
       }
+    }
+  });
+
+  $effect(() => {
+    if (!(settings.walkingEtaEnabled ?? false)) {
+      userLocation = null;
+      return;
+    }
+    if (!userLocation && !isLoadingLocation) {
+      void fetchLocationIfEnabled();
     }
   });
 </script>
@@ -339,38 +346,6 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         autocapitalize="off"
         spellcheck="false"
       />
-
-    {#if !userLocation && !locationPrompted}
-      <div class="location-prompt" role="alertdialog" aria-labelledby="location-title">
-        <div class="prompt-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-            <circle cx="12" cy="9" r="2.5"/>
-          </svg>
-        </div>
-        <h3 id="location-title">{$t.locationPromptTitle}</h3>
-        <p>{$t.locationPromptDesc}</p>
-        <div class="prompt-actions">
-          <button 
-            class="btn-primary" 
-            onclick={handleLocationEnable}
-            disabled={isLoadingLocation}
-          >
-            {#if isLoadingLocation}
-              <span class="spinner"></span>
-            {:else}
-              {$t.locationEnableBtn}
-            {/if}
-          </button>
-          <button 
-            class="btn-secondary" 
-            onclick={handleLocationSkip}
-          >
-            {$t.locationSkipBtn}
-          </button>
-        </div>
-      </div>
-    {/if}
 
     {#if nearbyStops.length > 0}
       <div class="anchor-row">
@@ -795,105 +770,5 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     font-size: 15px;
     color: var(--text-secondary);
     flex: 1;
-  }
-
-  /* Location Prompt */
-  .location-prompt {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 16px;
-    text-align: center;
-  }
-
-  .prompt-icon {
-    width: 48px;
-    height: 48px;
-    margin: 0 auto 12px;
-    color: var(--accent);
-  }
-
-  .prompt-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .location-prompt h3 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--text);
-  }
-
-  .location-prompt p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin-bottom: 16px;
-  }
-
-  .prompt-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    flex: 1;
-    max-width: 160px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    min-height: 44px;
-    font-family: inherit;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .btn-secondary {
-    background: transparent;
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover {
-    background: var(--bg-secondary);
-  }
-
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-      border-color: rgba(255, 255, 255, 0.5);
-      border-top-color: #fff;
-    }
   }
 </style>

@@ -556,9 +556,16 @@
     {/if}
 
     {#if activeFeatureContext}
+      <button
+        type="button"
+        class="feature-backdrop"
+        aria-label={$t.closePanel}
+        onclick={() => (activeFeatureContext = null)}
+      ></button>
       <div
         class="feature-drawer"
         role="dialog"
+        aria-modal="true"
         aria-label={activeFeatureContext.availableModes.includes('venues') ? $t.afterwork : $t.events}
         tabindex="0"
         onkeydown={(e) => {
@@ -725,21 +732,53 @@
     scrollbar-gutter: stable;
   }
 
+  .feature-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 480px;
+    width: 100%;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+    animation: fade-in 200ms ease-out;
+  }
+
   .feature-drawer {
     position: fixed;
     left: 50%;
-    bottom: 0;
     transform: translateX(-50%);
-    z-index: 260;
-    width: min(calc(100vw - 16px), 480px);
-    max-height: calc(100dvh - 156px);
+    z-index: 245;
+    width: min(calc(100% - 24px), 456px);
+    max-height: min(72dvh, 620px);
     overflow: auto;
-    background: var(--bg);
+    background: var(--surface);
     border: 1px solid var(--border);
-    border-bottom: 0;
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.18);
-    padding: 14px 16px calc(16px + env(safe-area-inset-bottom) + 88px);
+    border-radius: 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+    padding: 14px 16px 16px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    animation: sheet-rise 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes sheet-rise {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 
   /* Normalize scrollbars across browsers and prevent double scrollbars */
