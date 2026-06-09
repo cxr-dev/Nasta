@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { t } from '../stores/localeStore';
+  import { t, locale } from '../stores/localeStore';
+  import {
+    formatEventDateTime,
+    formatEventRelativeShort,
+    formatStockholmTime,
+    formatVenueOpenStatus,
+  } from '../lib/i18n';
   import { fetchNearbyEvents, type EventItem } from '../services/eventService';
   import { fetchNearbyVenues, type Venue } from '../services/venueService';
 
@@ -135,114 +141,13 @@
   // priceLevel visual not used; show actual rawPrice in SEK when available
   const currency = (_value?: 1 | 2 | 3) => '';
 
-  function getStockholmDateParts(date: Date) {
-    const formatter = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    });
-    const parts = formatter.formatToParts(date);
-    const getPart = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
-    return {
-      year: parseInt(getPart('year'), 10),
-      month: parseInt(getPart('month'), 10) - 1,
-      day: parseInt(getPart('day'), 10),
-      hour: parseInt(getPart('hour'), 10),
-      minute: parseInt(getPart('minute'), 10),
-    };
-  }
-
-  function getStockholmDayDifference(date1: Date, date2: Date): number {
-    const p1 = getStockholmDateParts(date1);
-    const p2 = getStockholmDateParts(date2);
-    const d1 = new Date(Date.UTC(p1.year, p1.month, p1.day));
-    const d2 = new Date(Date.UTC(p2.year, p2.month, p2.day));
-    const diffTime = d1.getTime() - d2.getTime();
-    return Math.round(diffTime / (1000 * 60 * 60 * 24));
-  }
-
-  function formatStockholmTime(date: Date): string {
-    return new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).format(date);
-  }
-
-  function formatEventDateTime(startTimeStr?: string): string {
-    if (!startTimeStr) return '—';
-    const date = new Date(startTimeStr);
-    if (Number.isNaN(date.getTime())) return startTimeStr;
-
-    const parts = getStockholmDateParts(date);
-    const now = new Date();
-    const dayDiff = getStockholmDayDifference(date, now);
-
-    // Detect if this is a date-only string (no hour/minute information, or explicitly midnight UTC)
-    const isDateOnly = 
-      /^\d{4}-\d{2}-\d{2}$/.test(startTimeStr) || 
-      /T00:00:00/.test(startTimeStr) ||
-      (startTimeStr.includes('00:00:00') && (parts.hour === 1 || parts.hour === 2 || parts.hour === 0));
-
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const timeText = isDateOnly ? ' (Heldag)' : ` kl. ${pad(parts.hour)}:${pad(parts.minute)}`;
-
-    if (dayDiff === 0) {
-      return `Idag${timeText}`;
-    } else if (dayDiff === 1) {
-      return `Imorgon${timeText}`;
-    } else {
-      const weekday = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Europe/Stockholm',
-        weekday: 'long',
-      }).format(date);
-      const dayAndMonth = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Europe/Stockholm',
-        day: 'numeric',
-        month: 'short',
-      }).format(date);
-      
-      const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-      return `${capitalizedWeekday} ${dayAndMonth}${timeText}`;
-    }
-  }
-
-  function formatEventRelativeShort(startTimeStr?: string): string {
-    if (!startTimeStr) return '—';
-    const date = new Date(startTimeStr);
-    if (Number.isNaN(date.getTime())) return '—';
-    
-    const now = new Date();
-    const dayDiff = getStockholmDayDifference(date, now);
-    
-    if (dayDiff === 0) return 'Idag';
-    if (dayDiff === 1) return 'Imorgon';
-    
-    const weekday = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      weekday: 'short',
-    }).format(date);
-    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-
-    const day = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      day: 'numeric',
-    }).format(date);
-
-    return `${capitalizedWeekday} ${day}`;
-  }
-
   function computeVenueOpenState(venue: Venue) {
+    const strings = $t;
+    const currentLocale = $locale;
     if (!openingHoursParser || !venue.openingHours) {
       return {
         isOpenNow: false,
-        statusText: venue.openingHours ? venue.openingHours : '–',
+        statusText: venue.openingHours ? venue.openingHours : strings.emDash,
         statusClass: 'unknown',
       };
     }
@@ -253,10 +158,8 @@
       });
       const isOpenNow = Boolean(oh.getState());
       const nextChange = oh.getNextChange?.(new Date());
-      const nextChangeText = nextChange ? formatStockholmTime(nextChange) : '';
-      const statusText = isOpenNow
-        ? `Öppet nu${nextChangeText ? ` · stänger ${nextChangeText}` : ''}`
-        : `Stängt${nextChangeText ? ` · öppnar ${nextChangeText}` : ''}`;
+      const nextChangeText = nextChange ? formatStockholmTime(nextChange, currentLocale) : '';
+      const statusText = formatVenueOpenStatus(isOpenNow, nextChangeText, strings);
 
       return {
         isOpenNow,
@@ -266,7 +169,7 @@
     } catch {
       return {
         isOpenNow: false,
-        statusText: venue.openingHours ? venue.openingHours : '–',
+        statusText: venue.openingHours ? venue.openingHours : strings.emDash,
         statusClass: 'unknown',
       };
     }
@@ -288,14 +191,16 @@
     const parts: string[] = [];
     if (venue.openingHours) parts.push(venue.openingHours);
     if (venue.rawPrice !== undefined) parts.push(`${venue.rawPrice} kr`);
-    else if (venue.priceLevel) parts.push('Prisnivå');
+    else if (venue.priceLevel) parts.push($t.priceLevel);
     if (venue.distance !== undefined) parts.push(`${Math.round(venue.distance)} m`);
     return parts.join(' · ');
   }
 
   function eventStats(event: EventItem): string {
-    const timeText = event.startTime ? formatEventDateTime(event.startTime) : '—';
-    const location = event.location || 'Stockholm';
+    const timeText = event.startTime
+      ? formatEventDateTime(event.startTime, $locale, $t)
+      : $t.emDash;
+    const location = event.location || $t.defaultCity;
     return `${timeText} · ${location}`;
   }
 
@@ -306,6 +211,8 @@
 
   let currentVenues = $derived(venuesByGroup[venueGroup] ?? []) as Venue[];
   $effect(() => {
+    $locale;
+    $t;
     updateVenueOpenStates(currentVenues);
   });
   let filteredVenues = $derived(
@@ -320,7 +227,7 @@
   let count = $derived(items.length);
   let showTabs = $derived(availableModes.length > 1);
   let title = $derived(activeMode === 'venues' ? $t.afterwork : $t.events);
-  let subtitle = $derived($t.browseNearby || 'Browse nearby');
+  let subtitle = $derived($t.browseNearby);
 </script>
 
 <div class="sheet-shell">
@@ -338,13 +245,13 @@
       </div>
     </div>
 
-    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label="Close panel">
+    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label={$t.closePanel}>
       ×
     </button>
   </header>
 
   {#if showTabs}
-    <div class="mode-switch" role="tablist" aria-label="Feature mode">
+    <div class="mode-switch" role="tablist" aria-label={$t.featureMode}>
       {#each availableModes as mode (mode)}
         <button
           type="button"
@@ -361,7 +268,7 @@
   {/if}
 
   {#if activeMode === 'venues'}
-    <div class="venue-switch" role="tablist" aria-label="Venue filter">
+    <div class="venue-switch" role="tablist" aria-label={$t.venueFilter}>
       <button
         type="button"
         class="venue-pill"
@@ -434,15 +341,15 @@
           <h3>
             {venue.name}
             {#if venue.isSpecificWine}
-              <span class="venue-flag" aria-label="Wine">🍷</span>
+              <span class="venue-flag" aria-label={$t.wineLabel}>🍷</span>
             {/if}
             {#if venue.isSpecificCocktail}
-              <span class="venue-flag" aria-label="Cocktail">🍸</span>
+              <span class="venue-flag" aria-label={$t.cocktailLabel}>🍸</span>
             {/if}
           </h3>
           <div class="meta-row">
             {#if venue.hasOutdoorSeating}
-              <span class="badge outdoor">☀️ Uteservering</span>
+              <span class="badge outdoor">☀️ {$t.outdoorSeating}</span>
             {/if}
             {#if venueOpenState[venue.id]?.statusText}
               <span class={`status ${venueOpenState[venue.id]?.statusClass}`}>
@@ -470,7 +377,7 @@
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
             <span class="pill">{$t.events}</span>
-            <span class="metric">{event.startTime ? formatEventRelativeShort(event.startTime) : '—'}</span>
+            <span class="metric">{event.startTime ? formatEventRelativeShort(event.startTime, $locale, $t) : $t.emDash}</span>
           </div>
           <h3>{event.name}</h3>
           <p class="support">{eventStats(event)}</p>

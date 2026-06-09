@@ -110,7 +110,7 @@
       </button>
     {:else if route}
       <div class="return-trip-note" role="note">
-        Add the return route manually by creating a second route.
+        {$t.returnTripNote}
       </div>
     {/if}
 
@@ -169,7 +169,7 @@
             if (!settings.locationServicesEnabled) return;
             settingsStore.setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? true));
           }}
-          aria-label="Walking ETA"
+          aria-label={$t.walkingEta}
           role="switch"
           aria-checked={settings.walkingEtaEnabled ?? true}
           disabled={!settings.locationServicesEnabled}
@@ -180,14 +180,14 @@
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">Afterwork venues</span>
-          <span class="toggle-desc">Show nearby bars after 15:00.</span>
+          <span class="toggle-name">{$t.afterwork}</span>
+          <span class="toggle-desc">{$t.afterworkVenuesDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.afterworkVenuesEnabled ?? false}
           onclick={() => settingsStore.setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
-          aria-label="Afterwork venues"
+          aria-label={$t.afterwork}
           role="switch"
           aria-checked={settings.afterworkVenuesEnabled ?? false}
         >
@@ -197,14 +197,14 @@
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">Events</span>
-          <span class="toggle-desc">Show nearby events on segment tap.</span>
+          <span class="toggle-name">{$t.events}</span>
+          <span class="toggle-desc">{$t.eventsDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.eventsEnabled ?? false}
           onclick={() => settingsStore.setEventsEnabled(!(settings.eventsEnabled ?? false))}
-          aria-label="Events"
+          aria-label={$t.events}
           role="switch"
           aria-checked={settings.eventsEnabled ?? false}
         >

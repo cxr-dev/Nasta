@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../stores/localeStore';
 
   let { children, fallbackMessage }: {
     children: Snippet;
@@ -7,7 +8,6 @@
   } = $props();
 
   let hasError = $state(false);
-  let errorMessage = $state('An unexpected error occurred');
 
   function reload() {
     hasError = false;
@@ -27,10 +27,10 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
-      <h2>Something went wrong</h2>
-      <p>{fallbackMessage || errorMessage}</p>
+      <h2>{$t.errorTitle}</h2>
+      <p>{fallbackMessage || $t.errorDefault}</p>
       <button onclick={reload}>
-        Reload App
+        {$t.reloadApp}
       </button>
     </div>
   </div>

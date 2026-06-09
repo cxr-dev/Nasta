@@ -1,6 +1,7 @@
 <script lang="ts">
   import { timeOfDay, quirkyMessage, weatherEmoji, isSunlightMode, type WeatherCondition, type TimePeriod, type DayType } from '../lib/stores/timeOfDay';
   import { settingsStore } from '../stores/settingsStore';
+  import { t } from '../stores/localeStore';
   import { fade, fly, scale } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -152,7 +153,7 @@
         showConfetti = true;
         setTimeout(() => showConfetti = false, 3000);
       }}
-      aria-label="Visa firande"
+      aria-label={$t.showCelebration}
     >
       <span class="confetti-icon">🎊</span>
     </button>

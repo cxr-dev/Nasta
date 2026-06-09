@@ -375,7 +375,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     {#if nearbyStops.length > 0}
       <div class="anchor-row">
         {#if nearbyStops.length > 0}
-          <div class="nearby-label">{$t.nearby || "Nära dig"}:</div>
+          <div class="nearby-label">{$t.nearby}:</div>
           {#each nearbyStops as stop}
              <button class="anchor-btn nearby-btn" onclick={() => selectStation(stop)}>
               {stop.name} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>
@@ -451,10 +451,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
               </div>
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
-                <span class="dep-dest">{dep.lineName || `Linje ${dep.line}`}</span>
+                <span class="dep-dest">{dep.lineName || $t.lineLabel.replace('{line}', dep.line)}</span>
               </div>
               <div class="dep-select">
-                {$t.select ?? 'Välj'}
+                {$t.select}
               </div>
             </button>
           {/each}
@@ -468,7 +468,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
               </svg>
             </div>
             <span class="selected-line-number">{selectedLine?.line}</span>
-            <span class="selected-line-name">{selectedLine?.lineName || `Linje ${selectedLine?.line}`}</span>
+            <span class="selected-line-name">{selectedLine?.lineName || $t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
           </div>
           <DirectionSelector departures={selectedLineDepartures} onSelect={handleDirectionSelect} />
         </div>

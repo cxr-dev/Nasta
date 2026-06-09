@@ -33,11 +33,11 @@
 {#if isVisible}
   <div class="update-banner">
     <div class="banner-content">
-      <p class="banner-text">{$t.updateAvailable ?? 'Update available'}</p>
+      <p class="banner-text">{$t.updateAvailable}</p>
       <button class="reload-btn" onclick={handleReload}>
-        {$t.reload ?? 'Reload'}
+        {$t.reload}
       </button>
-      <button class="dismiss-btn" onclick={handleDismiss} aria-label="Dismiss">
+      <button class="dismiss-btn" onclick={handleDismiss} aria-label={$t.dismissHint}>
         ✕
       </button>
     </div>

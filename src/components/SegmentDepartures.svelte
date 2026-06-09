@@ -565,7 +565,7 @@
                         <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                       </svg>
                     {/if}
-                    <span>{topDevType === "general" ? "Disruption" : topDevType}</span>
+                    <span>{topDevType === "general" ? $t.disruptionGeneral : topDevType}</span>
                   </div>
                 {/if}
             </div>
@@ -601,7 +601,7 @@
                     </div>
                     <div class="journey-badge" aria-label={primaryDepartureText}>
                       <span class="journey-minutes">{primaryDepartureText}</span>
-                      <span class="journey-label">{$t.departing || 'Departing'}</span>
+                      <span class="journey-label">{$t.departing}</span>
                     </div>
                   </div>
 
@@ -611,7 +611,7 @@
                       {#if dist !== null}
                         <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
                       {:else if (settings.locationServicesEnabled && settings.walkingEtaEnabled && locationRequestInFlight)}
-                        <span class="hint">{$t.waitingForLocation || 'Hämtar position...'}</span>
+                        <span class="hint">{$t.waitingForLocation}</span>
                       {/if}
                     </div>
 
@@ -634,7 +634,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
                         </svg>
-                        {$t.nearby || "Nära dig"}
+                        {$t.nearby}
                       </button>
                     {/if}
 
@@ -647,7 +647,7 @@
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                         <circle cx="12" cy="10" r="3" />
                       </svg>
-                      {$t.openInMaps || "Visa på karta"}
+                      {$t.openInMaps}
                     </button>
                   </div>
                 </section>
@@ -663,7 +663,7 @@
                     <line x1="12" y1="8" x2="12" y2="12"/>
                     <line x1="12" y1="16" x2="12" y2="16.01"/>
                   </svg>
-                  <span>{$t.disruptions || "Disruptions"}</span>
+                  <span>{$t.disruptions}</span>
                 </div>
                 <div class="disruption-content">
                   {#each siteDevs as dev}
@@ -682,7 +682,7 @@
     {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
       <div class="empty-state">
         <div class="no-departure">—</div>
-        <p class="empty-text">{$t.noDeparturesAvailable || "No departures available"}</p>
+        <p class="empty-text">{$t.noDeparturesAvailable}</p>
       </div>
     {/if}
   {/if}

@@ -39,7 +39,7 @@
   }
 </script>
 
-<div class="direction-selector" role="radiogroup" aria-label={$t.selectDirection ?? 'Välj riktning'}>
+<div class="direction-selector" role="radiogroup" aria-label={$t.selectDirection}>
   <div class="options">
     {#each directions as dir}
       <label class="direction-option" class:selected={selectedCode === dir.code}>
@@ -61,7 +61,7 @@
     disabled={selectedCode === null}
     onclick={handleConfirm}
   >
-    {$t.confirm ?? 'Bekräfta'}
+    {$t.confirm}
   </button>
 </div>
 

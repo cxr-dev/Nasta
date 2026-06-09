@@ -185,6 +185,45 @@ const sv = {
     "Vi använder din plats för att automatiskt visa de närmaste hållplaterna och gångavståndet.",
   locationEnableBtn: "Aktivera plats",
   locationSkipBtn: "Kanske senare",
+
+  // Settings extras
+  afterworkVenuesDesc: "Visa närliggande barer efter kl. 15:00.",
+  eventsDesc: "Visa närliggande evenemang när du trycker på ett segment.",
+  returnTripNote:
+    "Lägg till returrutten manuellt genom att skapa en andra rutt.",
+
+  // Error boundary
+  errorTitle: "Något gick fel",
+  errorDefault: "Ett oväntat fel inträffade",
+  reloadApp: "Ladda om appen",
+
+  // Feature discovery
+  closePanel: "Stäng panel",
+  featureMode: "Funktionsläge",
+  venueFilter: "Filtrera ställen",
+  wineLabel: "Vin",
+  cocktailLabel: "Cocktail",
+  outdoorSeating: "Uteservering",
+  priceLevel: "Prisnivå",
+  defaultCity: "Stockholm",
+  today: "Idag",
+  tomorrow: "Imorgon",
+  allDay: "Heldag",
+  atTime: "kl. {time}",
+  openNow: "Öppet nu",
+  closed: "Stängt",
+  closesAt: "stänger {time}",
+  opensAt: "öppnar {time}",
+  emDash: "—",
+
+  // Disruption types
+  disruptionGeneral: "Störning",
+
+  // Transit labels
+  lineLabel: "Linje {line}",
+
+  // Quirky moment
+  showCelebration: "Visa firande",
 };
 
 const en: typeof sv = {
@@ -363,10 +402,167 @@ const en: typeof sv = {
     "We use your location to automatically show the nearest stops and walking distance.",
   locationEnableBtn: "Enable location",
   locationSkipBtn: "Maybe later",
+
+  afterworkVenuesDesc: "Show nearby bars after 15:00.",
+  eventsDesc: "Show nearby events when you tap a segment.",
+  returnTripNote: "Add the return route manually by creating a second route.",
+
+  errorTitle: "Something went wrong",
+  errorDefault: "An unexpected error occurred",
+  reloadApp: "Reload app",
+
+  closePanel: "Close panel",
+  featureMode: "Feature mode",
+  venueFilter: "Venue filter",
+  wineLabel: "Wine",
+  cocktailLabel: "Cocktail",
+  outdoorSeating: "Outdoor seating",
+  priceLevel: "Price level",
+  defaultCity: "Stockholm",
+  today: "Today",
+  tomorrow: "Tomorrow",
+  allDay: "All day",
+  atTime: "at {time}",
+  openNow: "Open now",
+  closed: "Closed",
+  closesAt: "closes {time}",
+  opensAt: "opens {time}",
+  emDash: "—",
+
+  disruptionGeneral: "Disruption",
+
+  lineLabel: "Line {line}",
+
+  showCelebration: "Show celebration",
 };
 
 export const translations = { sv, en };
 export type Translations = typeof sv;
+
+const STOCKHOLM_TZ = "Europe/Stockholm";
+
+export function getIntlLocale(locale: Locale): string {
+  return locale === "sv" ? "sv-SE" : "en-GB";
+}
+
+function getStockholmDateParts(date: Date) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: STOCKHOLM_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(date);
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
+  return {
+    year: parseInt(getPart("year"), 10),
+    month: parseInt(getPart("month"), 10) - 1,
+    day: parseInt(getPart("day"), 10),
+    hour: parseInt(getPart("hour"), 10),
+    minute: parseInt(getPart("minute"), 10),
+  };
+}
+
+function getStockholmDayDifference(date1: Date, date2: Date): number {
+  const p1 = getStockholmDateParts(date1);
+  const p2 = getStockholmDateParts(date2);
+  const d1 = new Date(Date.UTC(p1.year, p1.month, p1.day));
+  const d2 = new Date(Date.UTC(p2.year, p2.month, p2.day));
+  return Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function formatStockholmTime(date: Date, locale: Locale): string {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
+    timeZone: STOCKHOLM_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+export function formatEventDateTime(
+  startTimeStr: string | undefined,
+  locale: Locale,
+  strings: Translations,
+): string {
+  if (!startTimeStr) return strings.emDash;
+  const date = new Date(startTimeStr);
+  if (Number.isNaN(date.getTime())) return startTimeStr;
+
+  const parts = getStockholmDateParts(date);
+  const dayDiff = getStockholmDayDifference(date, new Date());
+  const isDateOnly =
+    /^\d{4}-\d{2}-\d{2}$/.test(startTimeStr) ||
+    /T00:00:00/.test(startTimeStr) ||
+    (startTimeStr.includes("00:00:00") &&
+      (parts.hour === 1 || parts.hour === 2 || parts.hour === 0));
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const timeText = isDateOnly
+    ? ` (${strings.allDay})`
+    : ` ${strings.atTime.replace("{time}", `${pad(parts.hour)}:${pad(parts.minute)}`)}`;
+
+  if (dayDiff === 0) return `${strings.today}${timeText}`;
+  if (dayDiff === 1) return `${strings.tomorrow}${timeText}`;
+
+  const intlLocale = getIntlLocale(locale);
+  const weekday = new Intl.DateTimeFormat(intlLocale, {
+    timeZone: STOCKHOLM_TZ,
+    weekday: "long",
+  }).format(date);
+  const dayAndMonth = new Intl.DateTimeFormat(intlLocale, {
+    timeZone: STOCKHOLM_TZ,
+    day: "numeric",
+    month: "short",
+  }).format(date);
+  const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  return `${capitalizedWeekday} ${dayAndMonth}${timeText}`;
+}
+
+export function formatEventRelativeShort(
+  startTimeStr: string | undefined,
+  locale: Locale,
+  strings: Translations,
+): string {
+  if (!startTimeStr) return strings.emDash;
+  const date = new Date(startTimeStr);
+  if (Number.isNaN(date.getTime())) return strings.emDash;
+
+  const dayDiff = getStockholmDayDifference(date, new Date());
+  if (dayDiff === 0) return strings.today;
+  if (dayDiff === 1) return strings.tomorrow;
+
+  const intlLocale = getIntlLocale(locale);
+  const weekday = new Intl.DateTimeFormat(intlLocale, {
+    timeZone: STOCKHOLM_TZ,
+    weekday: "short",
+  }).format(date);
+  const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  const day = new Intl.DateTimeFormat(intlLocale, {
+    timeZone: STOCKHOLM_TZ,
+    day: "numeric",
+  }).format(date);
+  return `${capitalizedWeekday} ${day}`;
+}
+
+export function formatVenueOpenStatus(
+  isOpenNow: boolean,
+  nextChangeText: string,
+  strings: Translations,
+): string {
+  if (isOpenNow) {
+    return nextChangeText
+      ? `${strings.openNow} · ${strings.closesAt.replace("{time}", nextChangeText)}`
+      : strings.openNow;
+  }
+  return nextChangeText
+    ? `${strings.closed} · ${strings.opensAt.replace("{time}", nextChangeText)}`
+    : strings.closed;
+}
 
 export function detectLocale(): Locale {
   if (typeof navigator === "undefined") return "en";

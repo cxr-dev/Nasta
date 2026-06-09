@@ -85,9 +85,12 @@
   let freshnessText = $derived(
     lastRefreshTime
       ? dataOld
-        ? $t.dataMayBeStale || "Data may be stale"
-        : `${$t.updated || "Updated"} ${Math.max(0, Math.floor((Date.now() - lastRefreshTime) / 60000))} min ago`
-      : $t.loading || "Loading",
+        ? $t.dataMayBeStale
+        : $t.updatedMinutesAgo.replace(
+            '{minutes}',
+            String(Math.max(0, Math.floor((Date.now() - lastRefreshTime) / 60000))),
+          )
+      : $t.loading,
   );
 
   type DepartureSegmentInput = {
@@ -476,7 +479,7 @@
       <span>{freshnessText}</span>
       {#if dataOld}
         <span class="freshness-dot">•</span>
-        <span>{$t.autoRefresh || "Auto-refresh on"}</span>
+        <span>{$t.autoRefresh}</span>
       {/if}
     </div>
 
