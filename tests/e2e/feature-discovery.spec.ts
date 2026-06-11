@@ -53,7 +53,6 @@ test.describe("feature discovery sheet", () => {
           {
             id: "r1",
             name: "Route",
-            direction: "toWork",
             segments: [
               {
                 id: "s1",

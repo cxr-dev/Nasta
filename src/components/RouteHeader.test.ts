@@ -8,10 +8,10 @@ beforeEach(() => locale.set('sv'));
 afterEach(() => cleanup());
 
 const toWork: Route = {
-  id: 'r1', name: 'Till jobbet', direction: 'toWork', segments: []
+  id: 'r1', name: 'Till jobbet', segments: []
 };
 const fromWork: Route = {
-  id: 'r2', name: 'Hem', direction: 'fromWork', segments: []
+  id: 'r2', name: 'Hem', segments: []
 };
 
 describe('RouteHeader', () => {

@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { Route, Segment, Direction, TransportType } from './route';
+import type { Page, Segment, TransportType } from './route';
 
-describe('Route type', () => {
-  it('should accept valid route object with segments', () => {
-    const route: Route = {
+describe('Page type', () => {
+  it('should accept valid page object with segments', () => {
+    const page: Page = {
       id: '1',
       name: 'Arbete',
-      direction: 'toWork',
       segments: [
         {
           id: 's1',
@@ -19,36 +18,32 @@ describe('Route type', () => {
         }
       ]
     };
-    expect(route.id).toBe('1');
-    expect(route.name).toBe('Arbete');
-    expect(route.direction).toBe('toWork');
-    expect(route.segments).toHaveLength(1);
+    expect(page.id).toBe('1');
+    expect(page.name).toBe('Arbete');
+    expect(page.segments).toHaveLength(1);
   });
 
   it('should allow empty segments', () => {
-    const route: Route = {
+    const page: Page = {
       id: '1',
       name: 'Hem',
-      direction: 'fromWork',
       segments: []
     };
-    expect(route.segments).toHaveLength(0);
+    expect(page.segments).toHaveLength(0);
   });
 
-  it('should support both directions', () => {
-    const toWork: Route = {
+  it('should accept multiple pages without direction', () => {
+    const page1: Page = {
       id: '1',
       name: 'Arbete',
-      direction: 'toWork',
       segments: []
     };
-    const fromWork: Route = {
+    const page2: Page = {
       id: '2',
-      name: 'Arbete',
-      direction: 'fromWork',
+      name: 'Hem',
       segments: []
     };
-    expect(toWork.direction).toBe('toWork');
-    expect(fromWork.direction).toBe('fromWork');
+    expect(page1.name).toBe('Arbete');
+    expect(page2.name).toBe('Hem');
   });
 });

@@ -22,7 +22,6 @@ describe("departureStore cache key wiring", () => {
       new Map([["1001", "Centralen"]]),
       new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
-      "toWork",
     );
 
     expect(getCachedSchedule).toHaveBeenCalledWith(
@@ -52,8 +51,7 @@ describe("departureStore - request identity and stale response filtering", () =>
       new Map([["1001", "Centralen"]]),
       new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
-      "home", // direction
-      requestId1, // requestId
+      requestId1,
     );
     expect(departureStore.getCurrentRequestId?.()).toBe(requestId1);
 
@@ -63,8 +61,7 @@ describe("departureStore - request identity and stale response filtering", () =>
       new Map([["1002", "Work"]]),
       new Map([["1002", { line: "3", direction_code: 2 }]]),
       true,
-      "work", // direction
-      requestId2, // requestId
+      requestId2,
     );
     expect(departureStore.getCurrentRequestId?.()).toBe(requestId2);
   });
@@ -135,8 +132,7 @@ describe("departureStore - request identity and stale response filtering", () =>
       ["1001"],
       new Map([["1001", "Centralen"]]),
       new Map([["1001", { line: "14", direction_code: 1 }]]),
-      false, // Don't clear yet
-      "home",
+      false,
       requestId1,
     );
 
@@ -145,8 +141,7 @@ describe("departureStore - request identity and stale response filtering", () =>
       ["1002"],
       new Map([["1002", "Work"]]),
       new Map([["1002", { line: "3", direction_code: 2 }]]),
-      true, // Clear first
-      "work",
+      true,
       requestId2,
     );
 
@@ -171,7 +166,6 @@ describe("departureStore - request identity and stale response filtering", () =>
       new Map([["1001", "Centralen"]]),
       new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
-      "home",
       requestId1,
     );
 
@@ -201,7 +195,6 @@ describe("departureStore - request identity and stale response filtering", () =>
       new Map([["1001", "Centralen"]]),
       new Map([["1001", { line: "14", direction_code: 1 }]]),
       true,
-      "toWork",
       "route-a",
     );
 
@@ -210,7 +203,6 @@ describe("departureStore - request identity and stale response filtering", () =>
       new Map([["1002", "City"]]),
       new Map([["1002", { line: "3", direction_code: 2 }]]),
       true,
-      "fromWork",
       "route-b",
     );
 

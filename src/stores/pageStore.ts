@@ -1,9 +1,9 @@
 import { writable, derived, get } from "svelte/store";
-import type { Route, Direction } from "../types/route";
+import type { Page } from "../types/route";
 import { routeStore } from "./routeStore";
 
 interface PageStoreState {
-  pages: Route[];
+  pages: Page[];
   activePageId: string | null;
 }
 
@@ -36,10 +36,10 @@ function createPageStore() {
     );
   });
 
-  /** Create a new page with default direction */
+  /** Create a new page */
   function createPage(name?: string): string {
     const pageName = name || getDefaultName();
-    return routeStore.addRoute(pageName, "toWork");
+    return routeStore.addRoute(pageName);
   }
 
   /** Rename a page */
@@ -91,13 +91,12 @@ function createPageStore() {
     update((state) => {
       if (routes.length === 0) {
         // Create default page if no routes exist
-        const id = routeStore.addRoute(DEFAULT_PAGE_NAME, "toWork");
+        const id = routeStore.addRoute(DEFAULT_PAGE_NAME);
         return {
           pages: [
             {
               id,
               name: DEFAULT_PAGE_NAME,
-              direction: "toWork" as Direction,
               segments: [],
             },
           ],

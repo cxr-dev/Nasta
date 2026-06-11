@@ -23,13 +23,11 @@ test.describe("Nästa App", () => {
         {
           id: crypto.randomUUID(),
           name: "Arbete",
-          direction: "toWork",
           segments: [],
         },
         {
           id: crypto.randomUUID(),
           name: "Arbete",
-          direction: "fromWork",
           segments: [],
         },
       ];

@@ -18,7 +18,6 @@ describe("storage service", () => {
         {
           id: "1",
           name: "Arbete",
-          direction: "toWork" as const,
           segments: [],
         },
       ];
@@ -36,7 +35,6 @@ describe("storage service", () => {
         {
           id: "1",
           name: "Hem",
-          direction: "fromWork" as const,
           segments: [],
         },
       ];
@@ -49,7 +47,6 @@ describe("storage service", () => {
         {
           id: "1",
           name: "Arbete",
-          direction: "toWork" as const,
           segments: [
             {
               id: "s1",

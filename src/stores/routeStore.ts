@@ -1,35 +1,34 @@
 import { writable, derived, get } from "svelte/store";
-import type { Route, Segment, Direction, TransportType, Stop } from "../types/route";
+import type { Page, Segment, TransportType, Stop } from "../types/route";
 import { loadRoutes, saveRoutes } from "../services/storage";
 
 function createRouteStore() {
   const initial = loadRoutes();
-  const { subscribe, set, update } = writable<Route[]>(initial);
+  const { subscribe, set, update } = writable<Page[]>(initial);
 
   return {
     subscribe,
     getAll: () => get({ subscribe }),
 
-    addRoute: (name: string, direction: Direction) => {
-      const newRoute: Route = {
+    addRoute: (name: string) => {
+      const newPage: Page = {
         id: crypto.randomUUID(),
         name,
-        direction,
         segments: [],
       };
 
-      update((routes) => {
-        const updated = [...routes, newRoute];
+      update((pages) => {
+        const updated = [...pages, newPage];
 
         saveRoutes(updated);
         return updated;
       });
-      return newRoute.id;
+      return newPage.id;
     },
 
     removeRoute: (id: string) => {
-      update((routes) => {
-        const updated = routes.filter((r) => r.id !== id);
+      update((pages) => {
+        const updated = pages.filter((p) => p.id !== id);
         saveRoutes(updated);
         return updated;
       });
@@ -41,12 +40,12 @@ function createRouteStore() {
         id: crypto.randomUUID(),
       };
 
-      update((routes) => {
-        const updated = routes.map((route) => {
-          if (route.id === routeId) {
-            return { ...route, segments: [...route.segments, newSegment] };
+      update((pages) => {
+        const updated = pages.map((page) => {
+          if (page.id === routeId) {
+            return { ...page, segments: [...page.segments, newSegment] };
           }
-          return route;
+          return page;
         });
 
         saveRoutes(updated);
@@ -55,30 +54,16 @@ function createRouteStore() {
     },
 
     removeSegment: (routeId: string, segmentId: string) => {
-      update((routes) => {
-        const route = routes.find((r) => r.id === routeId);
-        const updated = routes.map((r) => {
-          if (r.id === routeId) {
+      update((pages) => {
+        const updated = pages.map((p) => {
+          if (p.id === routeId) {
             return {
-              ...r,
-              segments: r.segments.filter((s) => s.id !== segmentId),
+              ...p,
+              segments: p.segments.filter((s) => s.id !== segmentId),
             };
           }
-          return r;
+          return p;
         });
-
-        if (route && route.direction === "toWork") {
-          const segmentIndex = route.segments.findIndex(
-            (s) => s.id === segmentId,
-          );
-          if (segmentIndex >= 0) {
-            updated.forEach((r) => {
-              if (r.direction === "fromWork" && r.name === route.name) {
-                r.segments = r.segments.filter((_, i) => i !== segmentIndex);
-              }
-            });
-          }
-        }
 
         saveRoutes(updated);
         return updated;
@@ -90,12 +75,12 @@ function createRouteStore() {
       segmentId: string,
       transferBufferMinutes: number,
     ) => {
-      update((routes) => {
-        const updated = routes.map((route) => {
-          if (route.id !== routeId) return route;
+      update((pages) => {
+        const updated = pages.map((page) => {
+          if (page.id !== routeId) return page;
           return {
-            ...route,
-            segments: route.segments.map((segment) =>
+            ...page,
+            segments: page.segments.map((segment) =>
               segment.id === segmentId
                 ? { ...segment, transferBufferMinutes }
                 : segment,
@@ -109,9 +94,9 @@ function createRouteStore() {
     },
 
     renameRoute: (id: string, name: string) => {
-      update((routes) => {
-        const updated = routes.map((r) =>
-          r.id === id ? { ...r, name } : r,
+      update((pages) => {
+        const updated = pages.map((p) =>
+          p.id === id ? { ...p, name } : p,
         );
         saveRoutes(updated);
         return updated;
@@ -119,8 +104,8 @@ function createRouteStore() {
     },
 
     reorderRoutes: (fromIndex: number, toIndex: number) => {
-      update((routes) => {
-        const updated = [...routes];
+      update((pages) => {
+        const updated = [...pages];
         const [moved] = updated.splice(fromIndex, 1);
         updated.splice(toIndex, 0, moved);
         saveRoutes(updated);
@@ -129,38 +114,20 @@ function createRouteStore() {
     },
 
     reorderSegments: (routeId: string, fromIndex: number, toIndex: number) => {
-      update((routes) => {
-        const route = routes.find((r) => r.id === routeId);
-        if (!route) return routes;
+      update((pages) => {
+        const page = pages.find((p) => p.id === routeId);
+        if (!page) return pages;
 
-        const segments = [...route.segments];
+        const segments = [...page.segments];
         const [moved] = segments.splice(fromIndex, 1);
         segments.splice(toIndex, 0, moved);
 
-        const updated = routes.map((r) => {
-          if (r.id === routeId) {
-            return { ...r, segments };
+        const updated = pages.map((p) => {
+          if (p.id === routeId) {
+            return { ...p, segments };
           }
-          return r;
+          return p;
         });
-
-        if (route.direction === "toWork") {
-          const otherRoute = updated.find(
-            (r) => r.direction === "fromWork" && r.name === route.name,
-          );
-          if (otherRoute) {
-            const otherSegments = [...otherRoute.segments];
-            const [otherMoved] = otherSegments.splice(fromIndex, 1);
-            otherSegments.splice(toIndex, 0, otherMoved);
-
-            return updated.map((r) => {
-              if (r.id === otherRoute.id) {
-                return { ...r, segments: otherSegments };
-              }
-              return r;
-            });
-          }
-        }
 
         saveRoutes(updated);
         return updated;
@@ -181,6 +148,6 @@ export const selectedRoute = derived(
   ([$routes, $selectedId]) => {
     if (!$routes || $routes.length === 0) return null;
     if (!$selectedId) return $routes[0] ?? null;
-    return $routes.find((r) => r.id === $selectedId) ?? $routes[0] ?? null;
+    return $routes.find((p) => p.id === $selectedId) ?? $routes[0] ?? null;
   },
 );

@@ -27,7 +27,6 @@ function createDepartureStore() {
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let stopNamesMap = new Map<string, string>();
   let currentSiteIds: string[] = [];
-  let currentDirection: string | null = null;
   let currentRequestId: string | null = null;
   let activeFetchCount = 0;
 
@@ -49,18 +48,9 @@ function createDepartureStore() {
       destId?: string;
     }>,
     clearFirst = false,
-    direction: string | null = null,
     requestId: string | null = null,
   ) => {
     const previousRequestId = currentRequestId;
-
-    // Detect direction change - force clear if different direction
-    if (direction && direction !== currentDirection) {
-      if (import.meta.env.DEV)
-        console.log("[departureStore] Direction changed, clearing data");
-      currentDirection = direction;
-      clearFirst = true;
-    }
 
     // Set request ID if provided (atomic on route change)
     if (requestId && requestId !== currentRequestId) {
@@ -216,7 +206,6 @@ function createDepartureStore() {
     stopNames: Map<string, string>,
     segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
     clearFirst = false,
-    direction: string | null = null,
     requestId: string | null = null,
   ) => {
     const segmentData = siteIds.map((id) => ({
@@ -226,7 +215,7 @@ function createDepartureStore() {
       direction_code: segmentMetaBySiteId.get(id)?.direction_code ?? 0,
       destId: segmentMetaBySiteId.get(id)?.destId,
     }));
-    await fetchAllHybrid(segmentData, clearFirst, direction, requestId);
+    await fetchAllHybrid(segmentData, clearFirst, requestId);
   };
 
   return {
@@ -297,7 +286,6 @@ function createDepartureStore() {
       segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
       interval: number,
       clearFirst = false,
-      direction: string | null = null,
       requestId: string | null = null,
     ) => {
       if (refreshTimer) clearInterval(refreshTimer);
@@ -311,7 +299,6 @@ function createDepartureStore() {
         stopNames,
         segmentMetaBySiteId,
         clearFirst,
-        direction,
         requestId,
       );
       refreshTimer = setInterval(
@@ -321,7 +308,6 @@ function createDepartureStore() {
             stopNames,
             segmentMetaBySiteId,
             false,
-            direction,
             requestId,
           ),
         interval,
@@ -338,7 +324,6 @@ function createDepartureStore() {
       stopNames: Map<string, string>,
       segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
       clearFirst = false,
-      direction: string | null = null,
       requestId: string | null = null,
     ) => {
       await fetchAll(
@@ -346,7 +331,6 @@ function createDepartureStore() {
         stopNames,
         segmentMetaBySiteId,
         clearFirst,
-        direction,
         requestId,
       );
     },

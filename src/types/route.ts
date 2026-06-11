@@ -1,7 +1,5 @@
 export type TransportType = "bus" | "train" | "metro" | "boat";
 
-export type RouteDirection = "toWork" | "fromWork";
-
 export interface Stop {
   id: string;
   name: string;
@@ -30,12 +28,10 @@ export interface Segment {
   transferBufferMinutes?: number;
 }
 
-export interface Route {
+export interface Page {
   id: string;
   name: string;
-  direction: RouteDirection;
   segments: Segment[];
 }
 
-// Backwards compatibility export
-export type Direction = RouteDirection;
+export type Route = Page;

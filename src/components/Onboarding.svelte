@@ -1,13 +1,12 @@
 <script lang="ts">
-  import type { Direction, Stop, TransportType, SegmentDirection } from "../types/route";
+  import type { Stop, TransportType, SegmentDirection } from "../types/route";
   import { routeStore } from "../stores/routeStore";
   import { t } from "../stores/localeStore";
   import SegmentSearch from "./SegmentSearch.svelte";
 
   let { onComplete }: { onComplete: () => void } = $props();
 
-  let step = $state<0 | 1 | 2>(0);
-  let direction = $state<Direction>("toWork");
+  let step = $state<0 | 1>(0);
   let selectedSegment = $state<{
     line: string;
     lineName: string;
@@ -16,11 +15,6 @@
     toStop: Stop;
     transportType: TransportType;
   } | null>(null);
-
-  function pickDirection(nextDirection: Direction) {
-    direction = nextDirection;
-    step = 1;
-  }
 
   function handleSelect(
     line: string,
@@ -38,13 +32,13 @@
       toStop,
       transportType,
     };
-    step = 2;
+    step = 1;
   }
 
   function completeSetup() {
     if (!selectedSegment) return;
 
-    const firstRouteId = routeStore.addRoute("Arbete", direction);
+    const firstRouteId = routeStore.addRoute("Arbete");
     routeStore.addSegment(firstRouteId, {
       ...selectedSegment,
       travelTimeMinutes: 0,
@@ -58,21 +52,9 @@
 <div class="onboarding">
   <div class="sheet">
     {#if step === 0}
-      <h1>{$t.setupDirectionTitle}</h1>
-      <p class="sub">{$t.setupDirectionDesc}</p>
-      <div class="stack">
-        <button class="primary" onclick={() => pickDirection("toWork")}>
-          {$t.setupDirectionToWork}
-        </button>
-        <button class="secondary" onclick={() => pickDirection("fromWork")}>
-          {$t.setupDirectionFromWork}
-        </button>
-      </div>
-    {:else if step === 1}
       <h1>{$t.setupStopTitle}</h1>
       <p class="sub">{$t.setupStopDesc}</p>
       <SegmentSearch onSelect={handleSelect} />
-      <button class="ghost" onclick={() => (step = 0)}>{$t.previous}</button>
     {:else}
       <h1>{$t.setupReviewTitle}</h1>
       <p class="sub">{$t.setupReviewDesc}</p>
@@ -87,7 +69,6 @@
         <button class="primary" onclick={completeSetup}>
           {$t.createFirstRoute}
         </button>
-        <button class="ghost" onclick={() => (step = 1)}>{$t.previous}</button>
       </div>
     {/if}
   </div>

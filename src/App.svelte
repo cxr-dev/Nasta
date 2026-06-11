@@ -197,7 +197,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
       if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentRoute.id}, requestId: ${newRequestId}`);
     }
     
-    void startDeparturesForRoute(currentRoute.segments, currentRoute.direction, true, currentRequestId);
+    void startDeparturesForRoute(currentRoute.segments, null, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
@@ -210,9 +210,9 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
         currentRequestId = newRequestId;
       }
       
-      await startDeparturesForRoute(currentRoute.segments, currentRoute.direction, clearFirst, currentRequestId);
+      await startDeparturesForRoute(currentRoute.segments, null, clearFirst, currentRequestId);
     } else {
-      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentRoute?.id} (direction: ${currentRoute?.direction})`);
+      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentRoute?.id}`);
     }
   }
 
@@ -326,7 +326,7 @@ function toggleEdit() {
         stopNames,
         segmentMetaBySiteId,
         true,
-        currentRoute.direction
+        null
       );
       await refreshDisruptions(currentRoute.segments, { force: true });
       lastRefreshTime = Date.now();
@@ -374,7 +374,7 @@ function toggleEdit() {
                 stopNames,
                 segmentMetaBySiteId,
                 false,
-                currentRoute.direction
+                null
               );
               lastRefreshTime = Date.now();
             } catch (error) {

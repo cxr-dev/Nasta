@@ -16,7 +16,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
       {
         id: "legacy-1",
         name: "Old Route",
-        direction: "toWork",
         segments: [
           {
             id: "s1",
@@ -83,7 +82,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
       {
         id: "multi-1",
         name: "Commute",
-        direction: "toWork",
         segments: [
           {
             id: "s1",
