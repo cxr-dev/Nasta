@@ -84,13 +84,14 @@
   });
 
   function toggleExpanded(index: number) {
+    // Mutually exclusive: collapse any previously expanded segment
     expandedIndex = expandedIndex === index ? null : index;
   }
 
   function scrollExpandedIntoView(node: HTMLElement, isExpanded: boolean) {
     const scrollPanelAboveBottomBar = (panel: HTMLElement) => {
       const container = node.closest('.scroll-container') as HTMLElement | null;
-      const bottomBar = document.querySelector('.bottom-bar') as HTMLElement | null;
+      const bottomBar = document.querySelector('.floating-action-bar') as HTMLElement | null;
       if (!container || !bottomBar) return;
 
       const panelRect = panel.getBoundingClientRect();
@@ -689,7 +690,7 @@
 </div>
 
 <style>
-  .departures-list { display: flex; flex-direction: column; padding: 12px 0 calc(220px + env(safe-area-inset-bottom)); }
+  .departures-list { display: flex; flex-direction: column; padding: 12px 0; }
   .departure-item {
     display: flex;
     flex-direction: column;
@@ -882,7 +883,7 @@
   .map-link-primary {
     background: var(--accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--text-on-accent, #fff);
     flex: 1 1 auto;
   }
   .map-link-secondary {

@@ -15,41 +15,51 @@
 
   let settings = $derived($settingsStore);
   let activeRoute = $derived(routes.find(r => r.id === activeRouteId));
-  let inactiveRoute = $derived(routes.find(r => r.id !== activeRouteId));
-  let showSwipeHint = $derived(!settings.hasSwipedRoutes && routes.length === 2);
+  let currentIndex = $derived(routes.findIndex(r => r.id === activeRouteId));
+  let hasPrev = $derived(currentIndex > 0);
+  let hasNext = $derived(currentIndex < routes.length - 1);
+  let showSwipeHint = $derived(!settings.hasSwipedRoutes && routes.length >= 2);
 
-  function getLabel(route: Route | undefined): string {
-    if (!route) return '';
-    return route.direction === 'toWork' ? $t.toWork : $t.home;
+  function handlePrev() {
+    if (!hasPrev) return;
+    onSwitch(routes[currentIndex - 1].id);
   }
 
-  function handleSwitch() {
-    if (!inactiveRoute) return;
-    onSwitch(inactiveRoute.id);
-    if (!settings.hasSwipedRoutes) {
-      settingsStore.markSwiped();
-    }
+  function handleNext() {
+    if (!hasNext) return;
+    onSwitch(routes[currentIndex + 1].id);
   }
 
 </script>
 
-<header class="route-header">
+<header class="page-header">
   <div class="route-block">
-    <h1 class="route-name">{getLabel(activeRoute)}</h1>
+    {#if hasPrev}
+      <button class="nav-arrow" onclick={handlePrev} aria-label={$t.previousPage}>
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M10 3l-5 5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    {:else}
+      <div class="nav-arrow-placeholder"></div>
+    {/if}
 
-    {#if inactiveRoute}
-      <button class="route-switch" onclick={handleSwitch}>
-        <span class="switch-label">{getLabel(inactiveRoute)}</span>
+    <h1 class="route-name">{activeRoute?.name ?? ''}</h1>
+
+    {#if hasNext}
+      <button class="nav-arrow" onclick={handleNext} aria-label={$t.nextPage}>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
+    {:else}
+      <div class="nav-arrow-placeholder"></div>
     {/if}
   </div>
 
   {#if showSwipeHint}
     <p class="swipe-hint">
-      {activeRoute?.direction === 'toWork' ? $t.swipeHintToWork : $t.swipeHintHome}
+      {$t.swipeHint}
     </p>
   {/if}
 
@@ -57,7 +67,7 @@
 </header>
 
 <style>
-  .route-header {
+  .page-header {
     padding: 14px 20px 0;
     padding-top: calc(14px + env(safe-area-inset-top));
     background: var(--bg);
@@ -68,7 +78,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     padding-bottom: 18px;
   }
 
@@ -80,45 +90,43 @@
     line-height: 0.9;
     margin: 0;
     color: var(--accent);
-    /* Prevent overflow on narrow screens */
+    text-align: center;
     min-width: 0;
     flex: 1;
   }
 
-  .route-switch {
+  .nav-arrow {
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: var(--text-ghost);
-    background: none;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
     border: none;
-    padding: 6px 0 6px 8px;
+    background: var(--accent-subtle);
+    border-radius: 50%;
+    color: var(--accent);
     cursor: pointer;
     flex-shrink: 0;
-    transition: color 150ms ease;
-    white-space: nowrap;
-    align-self: flex-end;
-    padding-bottom: 4px;
+    transition: background 150ms ease, transform 150ms ease;
   }
 
-  .route-switch svg {
-    width: 12px;
-    height: 12px;
+  .nav-arrow:hover {
+    background: var(--border);
+  }
+
+  .nav-arrow:active {
+    transform: scale(0.92);
+  }
+
+  .nav-arrow svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .nav-arrow-placeholder {
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
-    transition: transform 150ms ease;
-  }
-
-  .route-switch:hover {
-    color: var(--text-muted);
-  }
-
-  .route-switch:hover svg {
-    transform: translateX(2px);
   }
 
   .swipe-hint {
@@ -127,6 +135,7 @@
     font-weight: 500;
     padding-bottom: 10px;
     padding-left: 1px;
+    text-align: center;
   }
 
   .header-rule {

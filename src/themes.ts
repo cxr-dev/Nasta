@@ -58,11 +58,15 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const accentB = parseInt(accent.slice(5, 7), 16);
   const accentSubtle = `rgba(${accentR},${accentG},${accentB},0.15)`;
 
+  const accentLuminance = (0.299 * accentR + 0.587 * accentG + 0.114 * accentB) / 255;
+  const textOnAccent = accentLuminance < 0.5 ? '#FFFFFF' : '#171717';
+
   const root = document.documentElement;
   root.style.setProperty('--bg',             bg);
   root.style.setProperty('--surface',        surface);
   root.style.setProperty('--accent',         accent);
   root.style.setProperty('--accent-subtle',  accentSubtle);
+  root.style.setProperty('--text-on-accent', textOnAccent);
   root.style.setProperty('--text',           textOnBg);
   root.style.setProperty('--text-secondary', textSecondary);
   root.style.setProperty('--text-muted',     textMuted);

@@ -108,6 +108,26 @@ function createRouteStore() {
       });
     },
 
+    renameRoute: (id: string, name: string) => {
+      update((routes) => {
+        const updated = routes.map((r) =>
+          r.id === id ? { ...r, name } : r,
+        );
+        saveRoutes(updated);
+        return updated;
+      });
+    },
+
+    reorderRoutes: (fromIndex: number, toIndex: number) => {
+      update((routes) => {
+        const updated = [...routes];
+        const [moved] = updated.splice(fromIndex, 1);
+        updated.splice(toIndex, 0, moved);
+        saveRoutes(updated);
+        return updated;
+      });
+    },
+
     reorderSegments: (routeId: string, fromIndex: number, toIndex: number) => {
       update((routes) => {
         const route = routes.find((r) => r.id === routeId);

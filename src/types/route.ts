@@ -8,12 +8,14 @@ export interface Stop {
   siteId: string;
   coord?: [number, number];
   productClasses?: number[];
+  stopAreaId?: string; // NEW: for disruption matching via Deviations API
 }
 
 export interface SegmentDirection {
   code: number;
   destination: string;
   stopPointId: string;
+  via?: string; // Optional intermediate stop for augmented direction labels
 }
 
 export interface Segment {

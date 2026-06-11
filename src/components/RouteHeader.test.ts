@@ -15,12 +15,12 @@ const fromWork: Route = {
 };
 
 describe('RouteHeader', () => {
-  it('shows active route label', () => {
+  it('shows active route name', () => {
     const { getByText } = render(RouteHeader, {
       props: { activeRouteId: 'r1', routes: [toWork, fromWork], onSwitch: vi.fn() }
     });
-    // Component uppercases direction labels via getLabel()
-    expect(getByText('TILL JOBBET')).toBeTruthy();
+    // Component shows route.name directly
+    expect(getByText('Till jobbet')).toBeTruthy();
   });
 
   it('shows inactive route and fires onSwitch on click', async () => {
@@ -28,8 +28,8 @@ describe('RouteHeader', () => {
     const { getByRole } = render(RouteHeader, {
       props: { activeRouteId: 'r1', routes: [toWork, fromWork], onSwitch }
     });
-    // Switch button renders as <span>HEM</span> + <svg chevron>, find by accessible name
-    const switchBtn = getByRole('button', { name: /hem/i });
+    // Switch button has accessible name "Nästa sida" (next page)
+    const switchBtn = getByRole('button', { name: /nästa sida/i });
     await fireEvent.click(switchBtn);
     expect(onSwitch).toHaveBeenCalledWith('r2');
   });

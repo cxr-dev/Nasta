@@ -2,6 +2,7 @@ import type { Departure, SiteSearchResult } from "../types/departure";
 import type { TransportType } from "../types/route";
 import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
+import { stopAreaStore } from "../stores/stopAreaStore";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
 const JOURNEY_PLANNER_URL = "https://journeyplanner.integration.sl.se/v2";
@@ -202,6 +203,15 @@ export async function getDepartures(
   const rawDeps = Array.isArray(data.departures) ? data.departures : [];
   const stopDeviations = Array.isArray(data.stop_deviations) ? data.stop_deviations : [];
   const validDeps = rawDeps.filter(isValidDeparture);
+
+  // Extract stop_area.id from departure responses and publish to stopAreaStore
+  // This enables disruption matching via Deviations API stop area lookup
+  for (const dep of rawDeps) {
+    if (dep?.stop_area?.id) {
+      stopAreaStore.setMapping(siteId, String(dep.stop_area.id));
+      break; // One mapping per siteId is sufficient
+    }
+  }
 
   const departures = validDeps.map((dep: any) => {
     const liveTime = dep.expected || dep.scheduled || "";

@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import type { Segment, TransportType } from "../types/route";
 import type { DeviationMessage, SegmentHealth } from "../types/deviation";
 import {
@@ -6,6 +6,7 @@ import {
   pickPreferredMessageText,
 } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
+import { stopAreaStore } from "./stopAreaStore";
 
 export type SeverityThreshold = "info" | "warning" | "critical";
 
@@ -45,9 +46,12 @@ function severityRank(severity: "info" | "warning" | "critical"): number {
 }
 
 function matchesSegment(segment: Segment, message: DeviationMessage): boolean {
+  // Primary: stopAreaId lookup from stopAreaStore (more reliable than siteId matching)
+  const stopAreaId = stopAreaStore.getStopAreaId(segment.fromStop.siteId);
   const stopAreaMatch = message.scope.stopAreas.some(
     (stop) =>
-      stop.id === segment.fromStop.siteId || stop.id === segment.toStop.siteId,
+      stop.id === (stopAreaId || segment.fromStop.siteId) ||
+      stop.id === segment.toStop.siteId,
   );
   const lineMatch = message.scope.lines.some(
     (line) =>

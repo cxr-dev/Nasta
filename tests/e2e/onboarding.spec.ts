@@ -22,9 +22,8 @@ async function openFirstRouteEditor(page: import("@playwright/test").Page) {
   await page
     .locator(".editor-overlay.open")
     .waitFor({ state: "visible", timeout: TEST_TIMEOUT });
-  await expect(page.locator(".search-container")).toBeVisible({
-    timeout: TEST_TIMEOUT,
-  });
+  // Wait for search container to appear (showSearch effect may need a tick)
+  await page.locator(".search-container").waitFor({ state: "visible", timeout: TEST_TIMEOUT });
 }
 
 test.describe("Onboarding hint", () => {
@@ -64,7 +63,7 @@ test.describe("Onboarding hint", () => {
       .toBe("true");
   });
 
-  test("segment search does not prompt for location until walking ETA is enabled", async ({
+  test("segment search does not show location prompt when walking ETA is disabled", async ({
     page,
   }) => {
     await initFreshState(page);
@@ -73,6 +72,7 @@ test.describe("Onboarding hint", () => {
     await page.waitForLoadState("domcontentloaded");
     await openFirstRouteEditor(page);
 
+    // Location prompt feature was removed - verify it doesn't appear
     await expect(page.locator(".location-prompt")).toHaveCount(0, {
       timeout: TEST_TIMEOUT,
     });

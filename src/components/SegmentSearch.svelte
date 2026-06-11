@@ -16,11 +16,16 @@ const SEARCH_DEBOUNCE_MS = 300;
 const MIN_LOAD_DELAY_MS = 80;
 const ALL_TRANSPORT_TYPES: TransportType[] = ['metro', 'train', 'bus', 'boat'];
 
+type TransportFilterOption = 'all' | TransportType;
+const TRANSPORT_FILTER_OPTIONS: TransportFilterOption[] = ['all', ...ALL_TRANSPORT_TYPES];
+
 let { 
   onSelect = (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => {}
 }: { 
   onSelect?: (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => void
 } = $props();
+
+let settings = $derived($settingsStore);
   
 interface StopInterface {
   id: string;
@@ -58,14 +63,27 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   let isLoadingLocation = $state(false);
   let recentStops = $state<SiteSearchResult[]>([]);
   let activeTransportTypes = $state<TransportType[]>([...ALL_TRANSPORT_TYPES]);
-  let settings = $derived($settingsStore);
 
   // Filtering logic: Enforcement at data level
   let filteredStations = $derived.by(() => {
+    const mode = settings.transportFilterMode ?? 'multi';
+    const activeType = settings.activeTransportType;
+    
+    if (mode === 'single' && activeType) {
+      // Single-select mode: only show stops that support the active transport type
+      return stations.filter(s => {
+        if (!s.productClasses || s.productClasses.length === 0) return true;
+        const types = mapProductClassesToTransportTypes(s.productClasses);
+        if (types.length === 0) return true;
+        return types.includes(activeType);
+      });
+    }
+    
+    // Multi-select mode (default): use activeTransportTypes array
     return stations.filter(s => {
-      if (!s.productClasses || s.productClasses.length === 0) return true; // Allow if unknown
+      if (!s.productClasses || s.productClasses.length === 0) return true;
       const types = mapProductClassesToTransportTypes(s.productClasses);
-      if (types.length === 0) return true; // Allow if product classes not mapped
+      if (types.length === 0) return true;
       return types.some(t => activeTransportTypes.includes(t));
     });
   });
@@ -86,17 +104,33 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   let selectedLineDepartures = $derived(allDepartures.filter(d => {
     const isLineMatch = selectedLine && d.line === selectedLine.line;
     if (!isLineMatch) return false;
+    
+    const mode = settings.transportFilterMode ?? 'multi';
+    const activeType = settings.activeTransportType;
+    
+    if (mode === 'single' && activeType) {
+      return d.transportType === activeType;
+    }
     return activeTransportTypes.includes(d.transportType);
   }));
 
   let uniqueLinesFiltered = $derived.by(() => {
+    const mode = settings.transportFilterMode ?? 'multi';
+    const activeType = settings.activeTransportType;
+    
     const seen = new Set<string>();
     const lines: Departure[] = [];
     for (const d of allDepartures) {
-      if (!seen.has(d.line) && activeTransportTypes.includes(d.transportType)) {
-        seen.add(d.line);
-        lines.push(d);
+      if (seen.has(d.line)) continue;
+      
+      if (mode === 'single' && activeType) {
+        if (d.transportType !== activeType) continue;
+      } else {
+        if (!activeTransportTypes.includes(d.transportType)) continue;
       }
+      
+      seen.add(d.line);
+      lines.push(d);
     }
     return lines;
   });
@@ -255,7 +289,13 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     selectedLine = null;
     departureError = null;
     step = 'search';
-    activeTransportTypes = [...ALL_TRANSPORT_TYPES];
+    const mode = settings.transportFilterMode ?? 'multi';
+    const activeType = settings.activeTransportType;
+    if (mode === 'single' && activeType) {
+      activeTransportTypes = [activeType];
+    } else {
+      activeTransportTypes = [...ALL_TRANSPORT_TYPES];
+    }
   }
   
   function goBack() {
@@ -400,21 +440,52 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         <div class="msg">{$t.noDepartures}</div>
       {:else if step === 'select'}
         <div class="transport-filter-row" data-testid="transport-filter-row">
-          {#each ALL_TRANSPORT_TYPES as type}
-            <button
-              class="transport-filter-btn"
-              class:active={activeTransportTypes.includes(type)}
-              onclick={() => toggleTransportType(type)}
-              aria-label={type}
-              aria-pressed={activeTransportTypes.includes(type)}
-              data-testid={`transport-filter-${type}`}
-            >
-              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
-                {@html transportIcons[type]}
-              </svg>
-              <span>{type}</span>
-            </button>
-          {/each}
+          {#if (settings.transportFilterMode ?? 'multi') === 'single'}
+            {#each TRANSPORT_FILTER_OPTIONS as type}
+              <button
+                class="transport-filter-btn"
+                class:active={type === 'all' ? !settings.activeTransportType : settings.activeTransportType === type}
+                onclick={() => {
+                  if (type === 'all') {
+                    settingsStore.setActiveTransportType(null);
+                    activeTransportTypes = [...ALL_TRANSPORT_TYPES];
+                  } else {
+                    const transportType = type as TransportType;
+                    settingsStore.setActiveTransportType(transportType);
+                    activeTransportTypes = [transportType];
+                  }
+                }}
+                aria-label={type === 'all' ? $t.allTransportTypes : type}
+                aria-pressed={type === 'all' ? !settings.activeTransportType : settings.activeTransportType === type}
+                data-testid={`transport-filter-${type}`}
+              >
+                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
+                  {#if type === 'all'}
+                    {@html transportIcons.bus}
+                  {:else}
+                    {@html transportIcons[type as TransportType]}
+                  {/if}
+                </svg>
+                <span>{type === 'all' ? $t.allTransportTypes : type}</span>
+              </button>
+            {/each}
+          {:else}
+            {#each ALL_TRANSPORT_TYPES as type}
+              <button
+                class="transport-filter-btn"
+                class:active={activeTransportTypes.includes(type)}
+                onclick={() => toggleTransportType(type)}
+                aria-label={type}
+                aria-pressed={activeTransportTypes.includes(type)}
+                data-testid={`transport-filter-${type}`}
+              >
+                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
+                  {@html transportIcons[type]}
+                </svg>
+                <span>{type}</span>
+              </button>
+            {/each}
+          {/if}
         </div>
         <div class="departures-list">
           {#each uniqueLinesFiltered as dep}

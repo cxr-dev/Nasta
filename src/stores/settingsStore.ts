@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import type { Settings } from '../services/storage';
+import type { TransportType } from '../types/route';
 import { loadSettings, saveSettings } from '../services/storage';
 
 function createSettingsStore() {
@@ -128,6 +129,20 @@ function createSettingsStore() {
     setEventsEnabled: (enabled: boolean) => {
       update(settings => {
         const updated = { ...settings, eventsEnabled: enabled };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setTransportFilterMode: (mode: 'multi' | 'single') => {
+      update(settings => {
+        const updated = { ...settings, transportFilterMode: mode };
+        saveSettings(updated);
+        return updated;
+      });
+    },
+    setActiveTransportType: (type: TransportType | null) => {
+      update(settings => {
+        const updated = { ...settings, activeTransportType: type };
         saveSettings(updated);
         return updated;
       });

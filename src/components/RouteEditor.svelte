@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Route, TransportType, Stop, SegmentDirection } from '../types/route';
   import { routeStore } from '../stores/routeStore';
+  import { pageStore } from '../stores/pageStore';
   import { settingsStore } from '../stores/settingsStore';
   import { THEMES } from '../themes';
   import { t } from '../stores/localeStore';
@@ -13,7 +14,6 @@
     isOpen,
     onClose,
     onSwitchRoute,
-    startWithSearch = false,
     onboardingHighlight = false
   }: {
     routes: Route[];
@@ -21,26 +21,35 @@
     isOpen: boolean;
     onClose: () => void;
     onSwitchRoute: (routeId: string) => void;
-    startWithSearch?: boolean;
     onboardingHighlight?: boolean;
   } = $props();
 
   let route = $derived(routes.find(r => r.id === activeRouteId));
-  let otherRoute = $derived(routes.find(r => r.id !== activeRouteId));
   let showSearch = $state(false);
+  let hasManuallyClosedSearch = $state(false);
+let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.length === 0));
   let hintDismissed = $state(false);
   let settings = $derived($settingsStore);
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
+  let showPageManager = $state(false);
+  let renameId = $state<string | null>(null);
+  let renameValue = $state('');
+
+  // Page management state
+  let pages = $state(routes);
+  let activePageId = $state(activeRouteId);
 
   $effect(() => {
-    if (startWithSearch) {
-      showSearch = true;
-    }
+    pages = routes;
+  });
+
+  $effect(() => {
+    activePageId = activeRouteId;
   });
 
   function getRouteLabel(r: Route): string {
-    return r.direction === 'toWork' ? $t.toWork : $t.home;
+    return r.name;
   }
 
   function isLightColor(hex: string): boolean {
@@ -62,6 +71,47 @@
     if (!route) return;
     routeStore.addSegment(route.id, { line, lineName, direction, fromStop, toStop, transportType });
     showSearch = false;
+    hasManuallyClosedSearch = true;
+  }
+
+  function handleCreatePage() {
+    const name = pageStore.getDefaultName();
+    const newId = pageStore.createPage(name);
+    pageStore.setActivePage(newId);
+    onSwitchRoute(newId);
+    showPageManager = true;
+  }
+
+  function handleDeletePage(id: string) {
+    if (pages.length <= 1) return;
+    pageStore.deletePage(id);
+    const remaining = pages.filter(p => p.id !== id);
+    if (remaining.length > 0) {
+      onSwitchRoute(remaining[0].id);
+    }
+  }
+
+  function handleRenamePage(id: string, name: string) {
+    if (!name.trim()) return;
+    routeStore.renameRoute(id, name.trim());
+    pageStore.renamePage(id, name.trim());
+    renameId = null;
+    renameValue = '';
+  }
+
+  function handleReorderPage(fromIndex: number, toIndex: number) {
+    routeStore.reorderRoutes(fromIndex, toIndex);
+    pageStore.reorderPages(fromIndex, toIndex);
+  }
+
+  function startRename(id: string, currentName: string) {
+    renameId = id;
+    renameValue = currentName;
+  }
+
+  function handlePageSwitch(id: string) {
+    pageStore.setActivePage(id);
+    onSwitchRoute(id);
   }
 
 </script>
@@ -77,10 +127,109 @@
       <span class="sheet-title">
         {$t.editingRoute}: {route ? getRouteLabel(route) : ''}
       </span>
+      {#if pages.length > 0}
+        <button
+          class="page-manager-toggle"
+          onclick={() => showPageManager = !showPageManager}
+          aria-label={$t.settings}
+        >
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
+            <path d="M5 10a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+          </svg>
+        </button>
+      {/if}
     </div>
 
+    {#if showPageManager}
+      <div class="page-manager">
+        <h3 class="page-manager-title">{$t.pages ?? 'Pages'}</h3>
+        <div class="page-list">
+          {#each pages as page, index}
+            <div class="page-item" class:active={page.id === activePageId}>
+              <button
+                class="page-select-btn"
+                onclick={() => handlePageSwitch(page.id)}
+                aria-current={page.id === activePageId ? 'page' : undefined}
+              >
+                <span class="page-index">{index + 1}</span>
+                {#if renameId === page.id}
+                  <input
+                    type="text"
+                    class="page-rename-input"
+                    bind:value={renameValue}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleRenamePage(page.id, renameValue);
+                      }
+                      if (e.key === 'Escape') {
+                        renameId = null;
+                      }
+                    }}
+                    onblur={() => handleRenamePage(page.id, renameValue)}
+                    autofocus
+                  />
+                {:else}
+                  <span class="page-name">{page.name}</span>
+                {/if}
+              </button>
+              <div class="page-actions">
+                <button
+                  class="page-action-btn"
+                  onclick={() => startRename(page.id, page.name)}
+                  aria-label={$t.settings}
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                    <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61z"/>
+                  </svg>
+                </button>
+                {#if pages.length > 1}
+                  <button
+                    class="page-action-btn danger"
+                    onclick={() => handleDeletePage(page.id)}
+                    aria-label={$t.remove}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                      <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4"/>
+                    </svg>
+                  </button>
+                {/if}
+                {#if index > 0}
+                  <button
+                    class="page-action-btn"
+                    onclick={() => handleReorderPage(index, index - 1)}
+                    aria-label={$t.settings}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                      <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
+                    </svg>
+                  </button>
+                {/if}
+                {#if index < pages.length - 1}
+                  <button
+                    class="page-action-btn"
+                    onclick={() => handleReorderPage(index, index + 1)}
+                    aria-label={$t.settings}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" transform="rotate(180)">
+                      <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
+                    </svg>
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+        <button class="add-page-btn" onclick={handleCreatePage}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+            <path d="M8 2v12M2 8h12"/>
+          </svg>
+          {$t.add}
+        </button>
+      </div>
+    {/if}
+
     {#if route}
-      {#if showSearch}
+      {#if showSearch || autoSearch}
         <div class="search-container">
           {#if onboardingHighlight && !hintDismissed}
             <div class="onboarding-hint" role="tooltip" aria-live="polite">
@@ -90,28 +239,18 @@
             </div>
           {/if}
           <SegmentSearch onSelect={addSegment} />
-          <button class="cancel-search-btn" onclick={() => showSearch = false}>
+          <button class="cancel-search-btn" onclick={() => { showSearch = false; hasManuallyClosedSearch = true; }}>
             {$t.cancel}
           </button>
         </div>
       {:else}
         <div class="segment-area">
           <SegmentList route={route} />
-          <button class="add-btn" class:onboarding-highlight={onboardingHighlight} onclick={() => showSearch = true}>
+          <button class="add-btn" class:onboarding-highlight={onboardingHighlight && (!route || route.segments.length === 0)} onclick={() => showSearch = true}>
             {$t.addSegment}
           </button>
         </div>
       {/if}
-    {/if}
-
-    {#if otherRoute}
-      <button class="switch-route-btn" onclick={() => onSwitchRoute(otherRoute!.id)}>
-        {$t.switchTo}: {getRouteLabel(otherRoute)}
-      </button>
-    {:else if route}
-      <div class="return-trip-note" role="note">
-        {$t.returnTripNote}
-      </div>
     {/if}
 
     <div class="settings-section">
@@ -258,7 +397,6 @@
             {@const isActiveA = activeTheme === palette.id && activeVariant === 'A'}
             {@const isActiveB = activeTheme === palette.id && activeVariant === 'B'}
             <div class="palette-card">
-              <!-- Left half = variant A -->
               <button
                 class="palette-half"
                 class:active={isActiveA}
@@ -273,7 +411,6 @@
                   <span class="ph-check" style="color:{isLightColor(palette.colorA) ? '#000' : '#fff'}">✓</span>
                 {/if}
               </button>
-              <!-- Right half = variant B -->
               <button
                 class="palette-half"
                 class:active={isActiveB}
@@ -356,6 +493,25 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
+  flex: 1;
+}
+
+.page-manager-toggle {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--accent-subtle);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.page-manager-toggle:hover {
+  background: var(--border);
 }
 
 .segment-area {
@@ -410,21 +566,149 @@
   background: var(--border);
 }
 
-.switch-route-btn {
-  margin: 0 16px 16px;
-  padding: 11px;
-  border: 1.5px solid var(--border-subtle);
-  border-radius: 12px;
+/* Page Manager */
+.page-manager {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.page-manager-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.page-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: border-color 150ms;
+}
+
+.page-item.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.page-select-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  color: var(--text);
+  min-width: 0;
+}
+
+.page-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.page-item.active .page-index {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.page-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-rename-input {
+  flex: 1;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  min-width: 0;
+}
+
+.page-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.page-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms, background 150ms;
+}
+
+.page-action-btn:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.page-action-btn.danger:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.add-page-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1.5px dashed var(--border-subtle);
+  border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: border-color 150ms, color 150ms;
 }
 
-.switch-route-btn:hover {
+.add-page-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -565,7 +849,6 @@
   background: var(--accent-subtle);
 }
 
-/* Single card = two clickable halves side by side */
 .palette-card {
   display: flex;
   border-radius: 12px;
@@ -596,7 +879,6 @@
   filter: brightness(0.9);
 }
 
-/* Inset glow ring when selected */
 .palette-half.active {
   box-shadow: inset 0 0 0 3px rgba(255,255,255,0.55), inset 0 0 0 5px rgba(0,0,0,0.15);
 }

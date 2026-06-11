@@ -69,7 +69,7 @@ test.describe("Nästa App", () => {
     const routeHeader = page.locator("h1.route-name");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
     await expect(routeHeader).toBeVisible();
-    await expect(routeHeader).toContainText(/TO WORK|HOME/i);
+    await expect(routeHeader).toContainText(/Arbete/i);
   });
 
   test("should toggle edit mode", async ({ page }) => {

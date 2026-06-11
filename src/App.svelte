@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
+  import { pageStore, activePage, activePageId, pages } from './stores/pageStore';
   import { departureStore } from './stores/departureStore';
   import { deviationStore } from './stores/deviationStore';
   import { settingsStore } from './stores/settingsStore';
@@ -44,10 +45,9 @@
   }
 
   const hasSeenOnboarding = safeLocalStorageGet('nasta_onboarding_seen');
-  let showOnboardingHint = $state(!hasSeenOnboarding);
-  let siteLookupError = $state<string | null>(null);
-  let startFirstRouteSearch = $state(false);
-  let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
+let showOnboardingHint = $state(!hasSeenOnboarding);
+   let siteLookupError = $state<string | null>(null);
+   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
   let scrollContainer = $state<HTMLElement | null>(null);
@@ -74,8 +74,8 @@
     safeLocalStorageSet('nasta_onboarding_seen', 'true');
   }
 
-  let route = $derived($selectedRoute);
-  let routes = $derived($routeStore ?? []);
+  let route = $derived($activePage);
+  let routes = $derived($pages);
   let hasNoRoutes = $derived(!routes || routes.length === 0);
   let settings = $derived($settingsStore);
   let departures = $state<Map<string, Departure[]>>(new Map());
@@ -198,9 +198,9 @@
     locale.set(resolveLocale($settingsStore.language ?? 'auto'));
   });
 
-  // Watch for route changes and load departures
+  // Watch for page changes and load departures
   $effect(() => {
-    const currentRoute = $selectedRoute;
+    const currentRoute = $activePage;
     if (!currentRoute) return;
     
     // Only generate new request ID if route ACTUALLY changed
@@ -209,32 +209,33 @@
       previousRouteId = currentRoute.id;
       const newRequestId = `route-${currentRoute.id}-${Date.now()}`;
       currentRequestId = newRequestId;
-      if (import.meta.env.DEV) console.log(`[App] Route switched to ${currentRoute.id}, requestId: ${newRequestId}`);
+      if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentRoute.id}, requestId: ${newRequestId}`);
     }
     
     void startDeparturesForRoute(currentRoute.segments, currentRoute.direction, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
-    if (route && route.segments.length > 0) {
+    const currentRoute = $activePage;
+    if (currentRoute && currentRoute.segments.length > 0) {
       // Only create new request ID if route changed, otherwise reuse existing
-      if (route.id !== previousRouteId) {
-        previousRouteId = route.id;
-        const newRequestId = `route-${route.id}-manual-${Date.now()}`;
+      if (currentRoute.id !== previousRouteId) {
+        previousRouteId = currentRoute.id;
+        const newRequestId = `route-${currentRoute.id}-manual-${Date.now()}`;
         currentRequestId = newRequestId;
       }
       
-      await startDeparturesForRoute(route.segments, route.direction, clearFirst, currentRequestId);
+      await startDeparturesForRoute(currentRoute.segments, currentRoute.direction, clearFirst, currentRequestId);
     } else {
-      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${route?.id} (direction: ${route?.direction})`);
+      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentRoute?.id} (direction: ${currentRoute?.direction})`);
     }
   }
 
   function handleRouteSwitch(routeId: string) {
-    const currentRoute = $selectedRoute;
+    const currentRoute = $activePage;
     if (!currentRoute) return;
-    if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} (${currentRoute.direction}) -> ${routeId}`);
-    selectedRouteId.set(routeId);
+    if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} -> ${routeId}`);
+    pageStore.setActivePage(routeId);
   }
 
   function openSegmentPanels(segment: Segment) {
@@ -255,25 +256,21 @@
     };
   }
 
-  function toggleEdit() {
-    if (hasNoRoutes) {
-      const toWorkId = routeStore.addRoute("Arbete", "toWork");
-      routeStore.addRoute("Arbete", "fromWork");
-      selectedRouteId.set(toWorkId);
-      editing = true;
-      startFirstRouteSearch = true;
-      return;
-    }
-
-    editing = !editing;
-    if (editing) {
-      departureStore.stopAutoRefresh();
-      deviationStore.stopAutoRefresh();
-    } else {
-      loadDepartures();
-      startFirstRouteSearch = false;
-    }
+function toggleEdit() {
+  if (hasNoRoutes) {
+    const newPageId = pageStore.createPage("My Departures");
+    pageStore.setActivePage(newPageId);
+    editing = true;
+    return;
   }
+  editing = !editing;
+  if (editing) {
+    departureStore.stopAutoRefresh();
+    deviationStore.stopAutoRefresh();
+  } else {
+    loadDepartures();
+  }
+}
 
   function handleTouchStart(e: TouchEvent) {
     if (editing) return;
@@ -318,9 +315,9 @@
     if (Math.abs(dy) > Math.abs(dx)) return;
     if (Math.abs(dx) < 48) return;
 
-    const allRoutes = $routeStore ?? [];
+    const allRoutes = $pages;
     if (allRoutes.length < 2) return;
-    const currentIdx = allRoutes.findIndex(r => r.id === $selectedRouteId);
+    const currentIdx = allRoutes.findIndex(r => r.id === $activePageId);
     if (dx < 0 && currentIdx < allRoutes.length - 1) {
       handleRouteSwitch(allRoutes[currentIdx + 1].id);
     } else if (dx > 0 && currentIdx > 0) {
@@ -332,10 +329,11 @@
   }
 
   async function triggerManualRefresh() {
-    if (!route?.segments || isRefreshing) return;
+    const currentRoute = $activePage;
+    if (!currentRoute?.segments || isRefreshing) return;
     isRefreshing = true;
     try {
-      const inputs = await resolveMissingSiteIds(buildDepartureInputs(route.segments));
+      const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentRoute.segments));
       const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
       if (siteIds.length === 0) return;
       await departureStore.refresh(
@@ -343,9 +341,9 @@
         stopNames,
         segmentMetaBySiteId,
         true,
-        route.direction
+        currentRoute.direction
       );
-      await refreshDisruptions(route.segments, { force: true });
+      await refreshDisruptions(currentRoute.segments, { force: true });
       lastRefreshTime = Date.now();
     } catch (error) {
       if (import.meta.env.DEV) console.error('[App] manual refresh failed', error);
@@ -358,12 +356,10 @@
     timeOfDay.start();
     routeStore.initialize();
     initializeCacheLifecycle();
-    const initialRoutes = $routeStore ?? [];
+    // pageStore.syncFromRoutes() is called automatically on creation
 
     showOnboardingHint = !hasSeenOnboarding;
-    if (initialRoutes.length > 0 && !$selectedRouteId) {
-      selectedRouteId.set(initialRoutes[0].id);
-    }
+    // pageStore handles active page initialization
     loadDepartures();
 
     const unsub = departureStore.subscribe(data => { departures = data; });
@@ -380,12 +376,13 @@
     }, 1000);
 
     const onVisibility = () => {
-      if (!document.hidden && route?.segments) {
+      const currentRoute = $activePage;
+      if (!document.hidden && currentRoute?.segments) {
         const timeSinceLastRefresh = Date.now() - lastRefreshTime;
         if (timeSinceLastRefresh > 10000) {
           void (async () => {
             try {
-              const inputs = await resolveMissingSiteIds(buildDepartureInputs(route.segments));
+              const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentRoute.segments));
               const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
               if (siteIds.length === 0) return;
               await departureStore.refresh(
@@ -393,7 +390,7 @@
                 stopNames,
                 segmentMetaBySiteId,
                 false,
-                route.direction
+                currentRoute.direction
               );
               lastRefreshTime = Date.now();
             } catch (error) {
@@ -430,7 +427,7 @@
   >
     {#if !hasNoRoutes}
       <RouteHeader
-        activeRouteId={$selectedRouteId ?? ''}
+        activeRouteId={$activePageId ?? ''}
         {routes}
         onSwitch={handleRouteSwitch}
       />
@@ -546,12 +543,11 @@
     {#if !hasNoRoutes && route}
       <RouteEditor
         {routes}
-        activeRouteId={$selectedRouteId ?? ''}
+        activeRouteId={$activePageId ?? ''}
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchRoute={handleRouteSwitch}
-        startWithSearch={startFirstRouteSearch}
-        onboardingHighlight={startFirstRouteSearch && !hasSeenOnboarding}
+        onboardingHighlight={!hasSeenOnboarding}
       />
     {/if}
 
@@ -667,7 +663,8 @@
     position: relative;
     max-width: 480px;
     margin: 0 auto;
-    min-height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     touch-action: pan-x pan-y; /* allow scroll + swipe; JS handles PTR */
@@ -720,16 +717,20 @@
     100% { transform: rotate(360deg); }
   }
 
-  .scroll-container {
+.scroll-container {
     flex: 1;
-    overflow-y: scroll;
+    min-height: 0;
+    overflow-y: auto;
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 4px 20px calc(env(safe-area-inset-bottom) + 140px);
+    padding: 4px 20px calc(90px + env(safe-area-inset-bottom));
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
 
-    /* Fix Chrome 125+ double scrollbar bug */
-    scrollbar-gutter: stable;
+  .scroll-container::-webkit-scrollbar {
+    display: none;
   }
 
   .feature-backdrop {

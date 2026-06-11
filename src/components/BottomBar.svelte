@@ -12,7 +12,7 @@
   } = $props();
 </script>
 
-<div class="bottom-bar">
+<div class="floating-action-bar" role="toolbar" aria-label={$t.settings}>
   <button
     class="action-btn"
     class:is-editing={editing}
@@ -36,19 +36,21 @@
 </div>
 
 <style>
-  .bottom-bar {
-    position: fixed;
+  .floating-action-bar {
+    position: sticky;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(100%, 480px);
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-    background: var(--bg);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
     z-index: 200;
+    pointer-events: none;
   }
 
   .action-btn {
@@ -57,8 +59,8 @@
     width: min(100%, 320px);
     padding: 14px 20px;
     background: var(--accent-subtle);
-    border: 1px solid transparent;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
     font-size: 14px;
     font-weight: 600;
     color: var(--accent);
@@ -70,6 +72,10 @@
     gap: 8px;
     transition: all 150ms ease;
     -webkit-tap-highlight-color: transparent;
+    pointer-events: auto;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
   }
 
   .action-btn svg {

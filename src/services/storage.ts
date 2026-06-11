@@ -18,6 +18,8 @@ export interface Settings {
   disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
   disruptionLanguage: 'sv' | 'en' | 'auto';
   enabledTransportTypes: TransportType[];
+  transportFilterMode: 'multi' | 'single';
+  activeTransportType: TransportType | null;
   locationServicesEnabled: boolean;
   walkingEtaEnabled: boolean;
   afterworkVenuesEnabled: boolean;
@@ -38,6 +40,8 @@ const defaultSettings: Settings = {
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
   enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+  transportFilterMode: 'multi',
+  activeTransportType: null,
   locationServicesEnabled: false,
   walkingEtaEnabled: false,
   afterworkVenuesEnabled: false,

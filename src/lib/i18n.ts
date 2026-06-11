@@ -223,6 +223,16 @@ const sv = {
   // Transit labels
   lineLabel: "Linje {line}",
 
+  // Page navigation
+  pages: "Sidor",
+  previousPage: "Föregående sida",
+  nextPage: "Nästa sida",
+  swipeHint: "← svep för att byta sida →",
+
+  // Transport filter
+  allTransportTypes: "Alla",
+  via: "via",
+
   // Quirky moment
   showCelebration: "Visa firande",
 };
@@ -434,6 +444,16 @@ const en: typeof sv = {
   disruptionGeneral: "Disruption",
 
   lineLabel: "Line {line}",
+
+  // Page navigation
+  pages: "Pages",
+  previousPage: "Previous page",
+  nextPage: "Next page",
+  swipeHint: "← swipe to switch page →",
+
+  // Transport filter
+  allTransportTypes: "All",
+  via: "via",
 
   showCelebration: "Show celebration",
 };

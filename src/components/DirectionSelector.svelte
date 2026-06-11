@@ -17,6 +17,8 @@
     for (const dep of departures) {
       if (!seen.has(dep.direction_code)) {
         seen.add(dep.direction_code);
+        // TODO: When SL API provides intermediate stops in direction object,
+        // format as "Destination (via Intermediate)" for augmented labels
         unique.push({
           code: dep.direction_code,
           destination: dep.destination,
@@ -28,18 +30,19 @@
     return unique.sort((a, b) => a.code - b.code);
   });
 
-  let selectedCode = $state<number | null>(null);
+ let selectedCode = $state<number | string | null>(null);
 
-  function handleConfirm() {
-    if (selectedCode === null) return;
-    const dir = directions.find(d => d.code === selectedCode);
-    if (dir) {
-      onSelect(dir);
-    }
+function handleConfirm() {
+  if (selectedCode === null) return;
+  const code = Number(selectedCode);
+  const dir = directions.find(d => d.code === code);
+  if (dir) {
+    onSelect(dir);
   }
+}
 </script>
 
-<div class="direction-selector" role="radiogroup" aria-label={$t.selectDirection}>
+  <div class="direction-selector" role="radiogroup" aria-label={$t.selectDirection}>
   <div class="options">
     {#each directions as dir}
       <label class="direction-option" class:selected={selectedCode === dir.code}>
@@ -51,7 +54,12 @@
           class="sr-only"
         />
         <div class="radio-circle"></div>
-        <span class="destination">{dir.destination}</span>
+        <span class="destination">
+          {dir.destination}
+          {#if dir.via}
+            <span class="via-label"> ({$t.via} {dir.via})</span>
+          {/if}
+        </span>
       </label>
     {/each}
   </div>
