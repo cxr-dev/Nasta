@@ -1,7 +1,9 @@
 <script lang="ts">
-  import type { Stop, TransportType, SegmentDirection } from "../types/route";
-  import { routeStore } from "../stores/routeStore";
-  import { t } from "../stores/localeStore";
+  import type { Stop, TransportType, SegmentDirection } from "../types/page";
+  import { addPage, addSegment } from "../stores/pageStore.svelte";
+  import { getT } from "../stores/localeStore.svelte";
+
+  let t = $derived(getT());
   import SegmentSearch from "./SegmentSearch.svelte";
 
   let { onComplete }: { onComplete: () => void } = $props();
@@ -38,8 +40,8 @@
   function completeSetup() {
     if (!selectedSegment) return;
 
-    const firstRouteId = routeStore.addRoute("Arbete");
-    routeStore.addSegment(firstRouteId, {
+    const firstRouteId = addPage("Arbete");
+    addSegment(firstRouteId, {
       ...selectedSegment,
       travelTimeMinutes: 0,
       transferBufferMinutes: 0,
@@ -52,12 +54,12 @@
 <div class="onboarding">
   <div class="sheet">
     {#if step === 0}
-      <h1>{$t.setupStopTitle}</h1>
-      <p class="sub">{$t.setupStopDesc}</p>
+      <h1>{t.setupStopTitle}</h1>
+      <p class="sub">{t.setupStopDesc}</p>
       <SegmentSearch onSelect={handleSelect} />
     {:else}
-      <h1>{$t.setupReviewTitle}</h1>
-      <p class="sub">{$t.setupReviewDesc}</p>
+      <h1>{t.setupReviewTitle}</h1>
+      <p class="sub">{t.setupReviewDesc}</p>
       {#if selectedSegment}
         <div class="summary">
           <div>{selectedSegment.fromStop.name}</div>
@@ -67,7 +69,7 @@
       {/if}
       <div class="stack">
         <button class="primary" onclick={completeSetup}>
-          {$t.createFirstRoute}
+          {t.createFirstPage}
         </button>
       </div>
     {/if}

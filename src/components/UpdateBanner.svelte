@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '../stores/localeStore';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
 
   let isVisible = $state(false);
   let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined = $state();
@@ -33,11 +35,11 @@
 {#if isVisible}
   <div class="update-banner">
     <div class="banner-content">
-      <p class="banner-text">{$t.updateAvailable}</p>
+      <p class="banner-text">{t.updateAvailable}</p>
       <button class="reload-btn" onclick={handleReload}>
-        {$t.reload}
+        {t.reload}
       </button>
-      <button class="dismiss-btn" onclick={handleDismiss} aria-label={$t.dismissHint}>
+      <button class="dismiss-btn" onclick={handleDismiss} aria-label={t.dismissHint}>
         ✕
       </button>
     </div>

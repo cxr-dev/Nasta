@@ -9,6 +9,7 @@ export type EventItem = {
   lon?: number;
 };
 
+import { distanceMeters } from "./geo";
 import { persistentCache } from "./persistentCache";
 
 const VISIT_STOCKHOLM_EVENTS_URL =
@@ -26,20 +27,6 @@ function roundCoordinate(value: number, resolution = 0.006) {
 
 function cacheKey(lat: number, lon: number, radius: number) {
   return `${roundCoordinate(lat)}-${roundCoordinate(lon)}-${radius}`;
-}
-
-function toDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return 6371 * c;
 }
 
 function normalizeText(value: any) {
@@ -148,7 +135,7 @@ export async function fetchNearbyEvents(
           .filter((event) => event.lat !== undefined && event.lon !== undefined)
           .filter(
             (event) =>
-              toDistanceKm(lat, lon, event.lat!, event.lon!) <= radius / 1000,
+              distanceMeters(lat, lon, event.lat!, event.lon!) <= radius,
           )
           .sort((a, b) => {
             if (!a.startTime || !b.startTime) return 0;

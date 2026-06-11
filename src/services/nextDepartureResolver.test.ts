@@ -30,7 +30,7 @@ describe("NextDepartureResolver", () => {
 
     expect(result.source).toBe("realtime");
     expect(result.departure?.line).toBe("76");
-    expect(getDepartures).toHaveBeenCalledWith("9001", 120);
+    expect(getDepartures).toHaveBeenCalledWith("9001", 120, undefined);
     expect(searchTrips).not.toHaveBeenCalled();
   });
 
@@ -53,7 +53,7 @@ describe("NextDepartureResolver", () => {
     expect(result.source).toBe("planned");
     expect(result.departure?.line).toBe("76");
     expect(result.departure?.predicted).toBe(true);
-    expect(searchTrips).toHaveBeenCalledWith("9001", "9002");
+    expect(searchTrips).toHaveBeenCalledWith("9001", "9002", undefined, undefined);
   });
 
   it("returns source 'none' if both sources are empty (today and tomorrow)", async ({

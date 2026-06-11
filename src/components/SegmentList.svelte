@@ -1,22 +1,24 @@
 <script lang="ts">
-  import type { Route, Segment, TransportType } from '../types/route';
-  import { routeStore } from '../stores/routeStore';
+  import type { Page, Segment, TransportType } from '../types/page';
+  import { removeSegment as storeRemoveSegment, updateSegmentTransferBuffer, reorderSegments } from '../stores/pageStore.svelte';
   import { transportIcons } from '../icons/transport';
-  import { t } from '../stores/localeStore';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
   
-  let { route }: { route: Route } = $props();
+  let { page }: { page: Page } = $props();
   
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
   
   function removeSegment(segmentId: string) {
-    routeStore.removeSegment(route.id, segmentId);
+    storeRemoveSegment(page.id, segmentId);
   }
 
   function updateTransferBuffer(segmentId: string, value: string) {
     const parsed = Number.parseInt(value, 10);
     const nextValue = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    routeStore.updateSegmentTransferBuffer(route.id, segmentId, nextValue);
+    updateSegmentTransferBuffer(page.id, segmentId, nextValue);
   }
   
   function handleDragStart(e: DragEvent, index: number) {
@@ -34,7 +36,7 @@
   function handleDrop(e: DragEvent, toIndex: number) {
     e.preventDefault();
     if (draggingIndex !== null && draggingIndex !== toIndex) {
-      routeStore.reorderSegments(route.id, draggingIndex, toIndex);
+      reorderSegments(page.id, draggingIndex, toIndex);
     }
     draggingIndex = null;
     dragOverIndex = null;
@@ -67,7 +69,7 @@
   
   function handleTouchEnd() {
     if (draggingIndex !== null && dragOverIndex !== null && draggingIndex !== dragOverIndex) {
-      routeStore.reorderSegments(route.id, draggingIndex, dragOverIndex);
+      reorderSegments(page.id, draggingIndex, dragOverIndex);
     }
     draggingIndex = null;
     dragOverIndex = null;
@@ -100,10 +102,10 @@
 </script>
 
 <div class="segment-list">
-  {#if !route.segments || route.segments.length === 0}
-    <p class="empty">{$t.addSegmentHint}</p>
+  {#if !page.segments || page.segments.length === 0}
+    <p class="empty">{t.addSegmentHint}</p>
   {:else}
-    {#each route.segments as segment, index (segment.id)}
+    {#each page.segments as segment, index (segment.id)}
       <div 
         class="segment"
         class:dragging={draggingIndex === index}
@@ -136,9 +138,9 @@
             {segment.fromStop.name} → {segment.toStop.name}
           </div>
           <div class="segment-dir">{segment.direction?.destination}</div>
-          {#if index < route.segments.length - 1}
+          {#if index < page.segments.length - 1}
             <label class="buffer-row">
-              <span class="buffer-label">{$t.transferBuffer}</span>
+              <span class="buffer-label">{t.transferBuffer}</span>
               <div class="buffer-input-wrap">
                 <input
                   class="buffer-input"
@@ -147,9 +149,9 @@
                   max="60"
                   value={segment.transferBufferMinutes ?? 0}
                   oninput={(e) => updateTransferBuffer(segment.id, (e.currentTarget as HTMLInputElement).value)}
-                  aria-label={`${$t.transferBuffer}: ${segment.fromStop.name}`}
+                  aria-label={`${t.transferBuffer}: ${segment.fromStop.name}`}
                 />
-                <span class="buffer-unit">{$t.minutesShort}</span>
+                <span class="buffer-unit">{t.minutesShort}</span>
               </div>
             </label>
           {/if}
@@ -157,7 +159,7 @@
         <button 
           class="remove-btn" 
           onclick={() => removeSegment(segment.id)}
-          aria-label={$t.remove}
+          aria-label={t.remove}
         >
           ×
         </button>

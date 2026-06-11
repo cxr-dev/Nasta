@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { detectLocale } from '../lib/i18n';
-import { resolveLocale } from './localeStore';
+import { resolveLocale } from './localeStore.svelte';
 
 afterEach(() => {
   vi.unstubAllGlobals();

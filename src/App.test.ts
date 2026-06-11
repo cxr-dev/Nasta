@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 const REQUIRED_TOKENS = [
   '--bg', '--surface', '--border', '--border-subtle',
   '--text', '--text-secondary', '--text-muted', '--text-ghost',
-  '--brand-muted', '--route-work', '--route-home',
+  '--brand-muted', '--page-work', '--page-home',
   '--accent', '--danger'
 ];
 

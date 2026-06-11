@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Departure } from '../types/departure';
-  import type { SegmentDirection } from '../types/route';
-  import { t } from '../stores/localeStore';
+  import type { SegmentDirection } from '../types/page';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
 
   let { 
     departures, 
@@ -42,9 +44,9 @@ function handleConfirm() {
 }
 </script>
 
-  <div class="direction-selector" role="radiogroup" aria-label={$t.selectDirection}>
+  <div class="direction-selector" role="radiogroup" aria-label={t.selectDirection}>
   <div class="options">
-    {#each directions as dir}
+    {#each directions as dir (dir.code)}
       <label class="direction-option" class:selected={selectedCode === dir.code}>
         <input 
           type="radio" 
@@ -57,7 +59,7 @@ function handleConfirm() {
         <span class="destination">
           {dir.destination}
           {#if dir.via}
-            <span class="via-label"> ({$t.via} {dir.via})</span>
+            <span class="via-label"> ({t.via} {dir.via})</span>
           {/if}
         </span>
       </label>
@@ -69,7 +71,7 @@ function handleConfirm() {
     disabled={selectedCode === null}
     onclick={handleConfirm}
   >
-    {$t.confirm}
+    {t.confirm}
   </button>
 </div>
 

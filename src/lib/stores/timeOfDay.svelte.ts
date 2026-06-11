@@ -1,6 +1,3 @@
-import { writable, derived, get } from 'svelte/store';
-import { loadSettings } from '../../services/storage';
-
 export type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night';
 export type DayType = 'weekday' | 'friday' | 'weekend';
 export type WeatherCondition = 'clear' | 'cloudy' | 'rain' | 'snow' | 'unknown';
@@ -50,7 +47,6 @@ function getOnTimeStreak(): number {
     const stored = localStorage.getItem(STORAGE_KEY);
     const storedDate = localStorage.getItem(STORAGE_DATE_KEY);
     const today = new Date().toDateString();
-    
     if (storedDate !== today) {
       localStorage.setItem(STORAGE_DATE_KEY, today);
       return stored ? parseInt(stored, 10) : 0;
@@ -69,11 +65,9 @@ function incrementOnTimeStreak(): void {
   } catch {}
 }
 
-function createTimeOfDayStore() {
-  const settings = loadSettings();
+function createInitialState(): TimeOfDayState {
   const now = new Date();
-  
-  const initial: TimeOfDayState = {
+  return {
     hour: now.getHours(),
     minute: now.getMinutes(),
     dayOfWeek: now.getDay(),
@@ -87,63 +81,60 @@ function createTimeOfDayStore() {
     temperature: null,
     onTimeStreak: getOnTimeStreak()
   };
+}
 
-  const { subscribe, set, update } = writable<TimeOfDayState>(initial);
+let _state = $state<TimeOfDayState>(createInitialState());
+let _intervalId: ReturnType<typeof setInterval> | null = null;
 
-  let intervalId: ReturnType<typeof setInterval> | null = null;
+export function getTimeOfDay(): TimeOfDayState {
+  return _state;
+}
 
-  function updateState() {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-    const dayOfWeek = now.getDay();
-    const isFriday = dayOfWeek === 5;
-
-    set({
-      hour,
-      minute,
-      dayOfWeek,
-      period: getTimePeriod(hour),
-      dayType: getDayType(dayOfWeek, isFriday),
-      formattedTime: formatTime(hour, minute),
-      formattedDate: formatDate(dayOfWeek),
-      isFriday,
-      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-      weatherCondition: 'unknown',
-      temperature: null,
-      onTimeStreak: getOnTimeStreak()
-    });
-  }
-
-  function start() {
-    updateState();
-    intervalId = setInterval(updateState, 60000);
-  }
-
-  function stop() {
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  }
-
-  function updateWeather(condition: WeatherCondition, temp: number | null) {
-    update(state => ({ ...state, weatherCondition: condition, temperature: temp }));
-  }
-
-  return {
-    subscribe,
-    start,
-    stop,
-    updateWeather,
-    incrementStreak: incrementOnTimeStreak
+function updateState() {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const dayOfWeek = now.getDay();
+  const isFriday = dayOfWeek === 5;
+  _state = {
+    hour,
+    minute,
+    dayOfWeek,
+    period: getTimePeriod(hour),
+    dayType: getDayType(dayOfWeek, isFriday),
+    formattedTime: formatTime(hour, minute),
+    formattedDate: formatDate(dayOfWeek),
+    isFriday,
+    isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+    weatherCondition: _state.weatherCondition,
+    temperature: _state.temperature,
+    onTimeStreak: getOnTimeStreak()
   };
 }
 
-export const timeOfDay = createTimeOfDayStore();
+export function start() {
+  updateState();
+  _intervalId = setInterval(updateState, 60000);
+}
 
-export const quirkyMessage = derived(timeOfDay, ($time) => {
-  const { period, dayType, hour, isFriday, isWeekend } = $time;
+export function stop() {
+  if (_intervalId) {
+    clearInterval(_intervalId);
+    _intervalId = null;
+  }
+}
+
+export function updateWeather(condition: WeatherCondition, temp: number | null) {
+  _state = { ..._state, weatherCondition: condition, temperature: temp };
+}
+
+export function incrementStreak() {
+  incrementOnTimeStreak();
+  _state = { ..._state, onTimeStreak: getOnTimeStreak() };
+}
+
+function computeQuirkyMessage(state: TimeOfDayState): string {
+  const { period, dayType, hour, isFriday, isWeekend } = state;
 
   if (isWeekend) {
     const weekendMsgs = [
@@ -193,22 +184,34 @@ export const quirkyMessage = derived(timeOfDay, ($time) => {
   }
 
   return 'Nästa: snart! 🚇';
-});
+}
 
-export const weatherEmoji = derived(timeOfDay, ($time) => {
-  const hour = $time.hour;
-  const condition = $time.weatherCondition;
+function computeWeatherEmoji(state: TimeOfDayState): string {
+  const hour = state.hour;
+  const condition = state.weatherCondition;
 
   if (condition === 'rain') return '🌧️';
   if (condition === 'snow') return '❄️';
   if (condition === 'cloudy') return '☁️';
-  
+
   if (hour >= 6 && hour < 10) return '🌅';
   if (hour >= 10 && hour < 18) return '☀️';
   if (hour >= 18 && hour < 20) return '🌇';
   return '🌙';
-});
+}
 
-export const isSunlightMode = derived(timeOfDay, ($time) => {
-  return $time.period === 'morning' || $time.period === 'afternoon';
-});
+let _quirkyMessage = $derived(computeQuirkyMessage(_state));
+let _weatherEmoji = $derived(computeWeatherEmoji(_state));
+let _isSunlightMode = $derived(_state.period === 'morning' || _state.period === 'afternoon');
+
+export function getQuirkyMessage(): string {
+  return _quirkyMessage;
+}
+
+export function getWeatherEmoji(): string {
+  return _weatherEmoji;
+}
+
+export function getIsSunlightMode(): boolean {
+  return _isSunlightMode;
+}

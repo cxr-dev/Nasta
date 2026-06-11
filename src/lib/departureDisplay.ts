@@ -1,10 +1,9 @@
 import type { Departure } from "../types/departure";
-import { locale } from "../stores/localeStore";
-import { get } from "svelte/store";
+import { getLocale } from "../stores/localeStore.svelte";
 
 /** Get the locale-aware "now" text */
 function getNowText(): string {
-  const currentLocale = get(locale);
+  const currentLocale = getLocale();
   return currentLocale === "sv" ? "Nu" : "Now";
 }
 

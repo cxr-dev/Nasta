@@ -1,33 +1,35 @@
 <script lang="ts">
-  import type { Route } from '../types/route';
-  import { settingsStore } from '../stores/settingsStore';
-  import { t } from '../stores/localeStore';
+  import type { Page } from '../types/page';
+  import { getSettings } from '../stores/settingsStore.svelte';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
 
   let {
-    activeRouteId,
-    routes,
+    activePageId,
+    pages,
     onSwitch
   }: {
-    activeRouteId: string;
-    routes: Route[];
-    onSwitch: (routeId: string) => void;
+    activePageId: string;
+    pages: Page[];
+    onSwitch: (pageId: string) => void;
   } = $props();
 
-  let settings = $derived($settingsStore);
-  let activeRoute = $derived(routes.find(r => r.id === activeRouteId));
-  let currentIndex = $derived(routes.findIndex(r => r.id === activeRouteId));
+  let settings = $derived(getSettings());
+  let activePage = $derived(pages.find(p => p.id === activePageId));
+  let currentIndex = $derived(pages.findIndex(p => p.id === activePageId));
   let hasPrev = $derived(currentIndex > 0);
-  let hasNext = $derived(currentIndex < routes.length - 1);
-  let showSwipeHint = $derived(!settings.hasSwipedRoutes && routes.length >= 2);
+  let hasNext = $derived(currentIndex < pages.length - 1);
+  let showSwipeHint = $derived(!settings.hasSwipedRoutes && pages.length >= 2);
 
   function handlePrev() {
     if (!hasPrev) return;
-    onSwitch(routes[currentIndex - 1].id);
+    onSwitch(pages[currentIndex - 1].id);
   }
 
   function handleNext() {
     if (!hasNext) return;
-    onSwitch(routes[currentIndex + 1].id);
+    onSwitch(pages[currentIndex + 1].id);
   }
 
 </script>
@@ -35,7 +37,7 @@
 <header class="page-header">
   <div class="route-block">
     {#if hasPrev}
-      <button class="nav-arrow" onclick={handlePrev} aria-label={$t.previousPage}>
+      <button class="nav-arrow" onclick={handlePrev} aria-label={t.previousPage}>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M10 3l-5 5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -44,10 +46,10 @@
       <div class="nav-arrow-placeholder"></div>
     {/if}
 
-    <h1 class="route-name">{activeRoute?.name ?? ''}</h1>
+    <h1 class="page-name">{activePage?.name ?? ''}</h1>
 
     {#if hasNext}
-      <button class="nav-arrow" onclick={handleNext} aria-label={$t.nextPage}>
+      <button class="nav-arrow" onclick={handleNext} aria-label={t.nextPage}>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -59,7 +61,7 @@
 
   {#if showSwipeHint}
     <p class="swipe-hint">
-      {$t.swipeHint}
+      {t.swipeHint}
     </p>
   {/if}
 
@@ -74,7 +76,7 @@
     position: relative;
   }
 
-  .route-block {
+  .page-block {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
@@ -82,7 +84,7 @@
     padding-bottom: 18px;
   }
 
-  .route-name {
+  .page-name {
     font-family: 'Neue Machina', sans-serif;
     font-size: clamp(38px, 10vw, 52px);
     font-weight: 800;

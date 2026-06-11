@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/svelte";
 import BottomBar from "./BottomBar.svelte";
-import { locale } from "../stores/localeStore";
+import { getLocale, setLocale } from "../stores/localeStore.svelte";
 
-beforeEach(() => locale.set("sv"));
+beforeEach(() => setLocale("sv"));
 afterEach(cleanup);
 
 describe("BottomBar", () => {

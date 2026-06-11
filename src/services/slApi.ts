@@ -1,5 +1,5 @@
 import type { Departure, SiteSearchResult } from "../types/departure";
-import type { TransportType } from "../types/route";
+import type { TransportType } from "../types/page";
 import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 import { stopAreaStore } from "../stores/stopAreaStore";
@@ -191,10 +191,27 @@ export async function searchSites(
 export async function getDepartures(
   siteId: string,
   forecast = DEFAULT_FORECAST_MINUTES,
+  signal?: AbortSignal,
 ): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
-  const response = await fetch(
-    `${TRANSPORT_URL}/sites/${siteId}/departures?forecast=${forecast}`,
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${TRANSPORT_URL}/sites/${siteId}/departures?forecast=${forecast}`,
+      { signal: controller.signal },
+    );
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if ((e as Error).name === "AbortError") {
+      throw e;
+    }
+    throw e;
+  }
+  clearTimeout(timeoutId);
+
   if (!response.ok) throw new Error(`API error: ${response.status}`);
 
   const data = await response.json();
@@ -292,6 +309,7 @@ export async function searchTrips(
   originId: string,
   destId: string,
   time?: Date,
+  signal?: AbortSignal,
 ): Promise<Departure[]> {
   const dateStr = time ? toStockholmDateString(time.getTime()) : "";
   const timeStr = time
@@ -302,7 +320,22 @@ export async function searchTrips(
   if (dateStr) url += `&date=${dateStr}`;
   if (timeStr) url += `&time=${timeStr}`;
 
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: controller.signal });
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if ((e as Error).name === "AbortError") {
+      throw e;
+    }
+    throw e;
+  }
+  clearTimeout(timeoutId);
+
   if (!response.ok) throw new Error(`Trip API error: ${response.status}`);
 
   const data = await response.json();

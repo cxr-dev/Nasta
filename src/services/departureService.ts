@@ -8,17 +8,17 @@ export async function getDepartures(
   siteId: string, 
   line?: string, 
   direction_code?: number,
-  destId?: string
+  destId?: string,
+  signal?: AbortSignal,
 ): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
   if (isSjostadstrafikenStop(stopName)) {
     return { departures: getNextDepartures(stopName, 2), stopDeviations: [] };
   }
   
-  const { departures, stopDeviations } = await slGetDepartures(siteId);
+  const { departures, stopDeviations } = await slGetDepartures(siteId, undefined, signal);
 
-  // If no departures found and we have specific line info, try the resolver fallback
   if (departures.length === 0 && line && direction_code !== undefined) {
-    const resolved = await getNextDeparture(siteId, line, direction_code, destId);
+    const resolved = await getNextDeparture(siteId, line, direction_code, destId, signal);
     if (resolved.departure) {
       return { departures: [resolved.departure], stopDeviations };
     }

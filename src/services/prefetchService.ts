@@ -1,10 +1,12 @@
 import { fetchNearbyEvents } from "./eventService";
 import { fetchNearbyVenues } from "./venueService";
+import type { Segment } from "../types/page";
+import type { Settings } from "./storage";
 
 // Prefetch orchestration: iterate segments and fetch venues/events with controlled concurrency
 export async function prefetchSegments(
-  segments: any[],
-  settings: any,
+  segments: Segment[],
+  settings: Settings,
   opts?: { concurrency?: number },
 ) {
   const concurrency = opts?.concurrency ?? 1;

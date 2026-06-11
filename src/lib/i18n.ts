@@ -13,9 +13,9 @@ const sv = {
   saveAriaLabel: "Spara ändringar",
   settingsAriaLabel: "Öppna inställningar",
 
-  // RouteEditor
+  // PageEditor
   closeEditor: "Stäng redigering",
-  editingRoute: "Redigera",
+  editingPage: "Redigera",
   cancel: "Avbryt",
   addSegment: "+ Lägg till segment",
   switchTo: "Byt till",
@@ -104,9 +104,9 @@ const sv = {
   schedule: "Tidtabell",
 
   // App empty states
-  noRoutes: "Inga rutter ännu",
-  noRoutesDesc: "Skapa din första rutt för att se avgångar",
-  createRoute: "Skapa rutt",
+  noPages: "Inga rutter ännu",
+  noPagesDesc: "Skapa din första rutt för att se avgångar",
+  createPage: "Skapa rutt",
   noSegments: "Inga segment",
   noSegmentsDesc: "Lägg till avgångar för att komma igång",
   add: "Lägg till",
@@ -138,9 +138,9 @@ const sv = {
   onboardingWelcomeTitle: "Välkommen till Nästa",
   onboardingWelcomeSubtitle: "Din smarta resetusselskap i Stockholm",
   onboardingWelcomeDesc: "Få koll på nästa avgång – snabbt och enkelt.",
-  onboardingRoutesTitle: "Spara dina rutter",
-  onboardingRoutesSubtitle: "Skapa rutt till jobbet och hem",
-  onboardingRoutesDesc:
+  onboardingPagesTitle: "Spara dina rutter",
+  onboardingPagesSubtitle: "Skapa rutt till jobbet och hem",
+  onboardingPagesDesc:
     "Lägg till dina vanliga resor och få uppdateringar i realtid.",
   onboardingGlanceTitle: "Aldrig mer att vänta",
   onboardingGlanceSubtitle: "Ultra-glanceable design",
@@ -157,8 +157,8 @@ const sv = {
   setupStopDesc: "Välj hållplats och rätt avgång för rutten",
   setupReviewTitle: "Granska och spara",
   setupReviewDesc: "Skapa rutten och duplicera vid behov för retur",
-  duplicateReturnRoute: "Duplicera som returrutt",
-  createFirstRoute: "Skapa första rutt",
+  duplicateReturnPage: "Duplicera som returrutt",
+  createFirstPage: "Skapa första rutt",
   onboardingHint: "Lägg till segment i Inställningar.",
   onboardingHintNew: "NYTT",
   onboardingHintText: "Klicka här för att lägga till ditt första segment!",
@@ -246,7 +246,7 @@ const en: typeof sv = {
   settingsAriaLabel: "Open settings",
 
   closeEditor: "Close editor",
-  editingRoute: "Editing",
+  editingPage: "Editing",
   cancel: "Cancel",
   addSegment: "+ Add segment",
   switchTo: "Switch to",
@@ -332,9 +332,9 @@ const en: typeof sv = {
   select: "Select →",
   schedule: "Timetable",
 
-  noRoutes: "No routes yet",
-  noRoutesDesc: "Create your first route to see departures",
-  createRoute: "Create route",
+  noPages: "No routes yet",
+  noPagesDesc: "Create your first route to see departures",
+  createPage: "Create route",
   noSegments: "No segments",
   noSegmentsDesc: "Add departures to get started",
   add: "Add",
@@ -364,9 +364,9 @@ const en: typeof sv = {
   onboardingWelcomeSubtitle: "Your smart Stockholm commute companion",
   onboardingWelcomeDesc:
     "See your next departure at a glance, fast and simple.",
-  onboardingRoutesTitle: "Save your routes",
-  onboardingRoutesSubtitle: "Create one route to work and one home",
-  onboardingRoutesDesc: "Add your regular journeys and get real-time updates.",
+  onboardingPagesTitle: "Save your routes",
+  onboardingPagesSubtitle: "Create one route to work and one home",
+  onboardingPagesDesc: "Add your regular journeys and get real-time updates.",
   onboardingGlanceTitle: "No more waiting around",
   onboardingGlanceSubtitle: "Ultra-glanceable design",
   onboardingGlanceDesc:
@@ -383,8 +383,8 @@ const en: typeof sv = {
   setupReviewTitle: "Review and save",
   setupReviewDesc: "Create the route and optionally duplicate return",
   setupDirection: "Route direction",
-  duplicateReturnRoute: "Duplicate as return route",
-  createFirstRoute: "Create first route",
+  duplicateReturnPage: "Duplicate as return route",
+  createFirstPage: "Create first route",
   onboardingHint: "Add segments from Settings.",
   onboardingHintNew: "NEW",
   onboardingHintText: "Click here to add your first segment!",

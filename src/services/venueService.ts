@@ -16,6 +16,7 @@ export type Venue = {
   isSpecificCocktail?: boolean;
 };
 
+import { distanceMeters } from "./geo";
 import { persistentCache } from "./persistentCache";
 
 const venuesInflight = new Map<string, Promise<Venue[]>>();
@@ -48,26 +49,6 @@ function writeLocalOverpassCache(key: string, value: Venue[]): void {
   } catch {
     // ignore storage failures
   }
-}
-
-function haversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-) {
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const R = 6371000; // meters
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 }
 
 function roundCoordinate(value: number, resolution = 0.004) {
@@ -188,7 +169,7 @@ export async function fetchNearbyVenues(
                     : (v.price_level ?? v.priceLevel ?? 2);
                 const distance =
                   !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
-                    ? haversineDistance(lat, lon, vlatNum, vlonNum)
+                    ? distanceMeters(lat, lon, vlatNum, vlonNum)
                     : undefined;
 
                 results.push({
@@ -267,7 +248,7 @@ export async function fetchNearbyVenues(
                         : (v.price_level ?? v.priceLevel ?? 2);
                     const distance =
                       !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
-                        ? haversineDistance(lat, lon, vlatNum, vlonNum)
+                        ? distanceMeters(lat, lon, vlatNum, vlonNum)
                         : undefined;
 
                     results.push({
@@ -540,7 +521,7 @@ export async function fetchNearbyVenues(
             score -= 8;
           }
 
-          const distance = haversineDistance(
+          const distance = distanceMeters(
             lat,
             lon,
             Number(elLat),

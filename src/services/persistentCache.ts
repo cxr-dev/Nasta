@@ -32,7 +32,7 @@ async function withStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjec
 }
 
 export const persistentCache = {
-  async get(key: string): Promise<any | null> {
+  async get(key: string): Promise<unknown | null> {
     const db = await openDB();
     return new Promise((resolve) => {
       const tx = db.transaction('cache', 'readonly');
@@ -55,7 +55,7 @@ export const persistentCache = {
     });
   },
 
-  async set(key: string, value: any, ttlMs: number): Promise<void> {
+  async set(key: string, value: unknown, ttlMs: number): Promise<void> {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction('cache', 'readwrite');

@@ -1,4 +1,4 @@
-import type { Route, TransportType } from '../types/route';
+import type { Page, TransportType } from '../types/page';
 
 const ROUTES_KEY = 'nasta_routes';
 const SETTINGS_KEY = 'nasta_settings';
@@ -49,20 +49,19 @@ const defaultSettings: Settings = {
   eventsEnabled: false
 };
 
-export function loadRoutes(): Route[] {
+export function loadPages(): Page[] {
   try {
     const data = localStorage.getItem(ROUTES_KEY);
     if (!data) return [];
     
-    const routes: any[] = JSON.parse(data);
-    if (!Array.isArray(routes)) return [];
+    const pages: any[] = JSON.parse(data);
+    if (!Array.isArray(pages)) return [];
 
     let migrated = false;
-    const cleanRoutes = routes.map(route => {
-      if (!route || !Array.isArray(route.segments)) return route;
+    const cleanPages = pages.map(page => {
+      if (!page || !Array.isArray(page.segments)) return page;
       
-      const cleanSegments = route.segments.map((seg: any) => {
-        // If it's an old segment with directionText but no direction object
+      const cleanSegments = page.segments.map((seg: any) => {
         if (seg && seg.directionText && !seg.direction) {
           migrated = true;
           const { directionText, ...rest } = seg;
@@ -78,23 +77,23 @@ export function loadRoutes(): Route[] {
         return seg;
       });
       
-      return { ...route, segments: cleanSegments };
+      return { ...page, segments: cleanSegments };
     });
 
     if (migrated) {
-      console.log('[Storage] Migrated legacy route data to new format');
-      saveRoutes(cleanRoutes);
+      console.log('[Storage] Migrated legacy page data to new format');
+      savePages(cleanPages);
     }
     
-    return cleanRoutes;
+    return cleanPages;
   } catch (e) {
-    console.error('[Storage] Failed to load routes:', e);
+    console.error('[Storage] Failed to load pages:', e);
     return [];
   }
 }
 
-export function saveRoutes(routes: Route[]): void {
-  localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
+export function savePages(pages: Page[]): void {
+  localStorage.setItem(ROUTES_KEY, JSON.stringify(pages));
 }
 
 export function loadSettings(): Settings {

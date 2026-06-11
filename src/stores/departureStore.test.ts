@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { departureStore } from "./departureStore";
+import { departureStore } from "./departureStore.svelte";
 import { getCachedSchedule } from "../services/scheduleCache";
 import { getDepartures } from "../services/departureService";
 
@@ -30,7 +30,7 @@ describe("departureStore cache key wiring", () => {
       1,
       24,
     );
-    expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001", "14", 1, undefined);
+    expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001", "14", 1, undefined, undefined);
   });
 });
 
@@ -42,8 +42,8 @@ describe("departureStore - request identity and stale response filtering", () =>
   });
 
   it("tracks current request ID to filter stale responses", async () => {
-    const requestId1 = "route-home-123";
-    const requestId2 = "route-work-456";
+    const requestId1 = "page-home-123";
+    const requestId2 = "page-work-456";
 
     // Start first request
     await departureStore.refresh(
@@ -67,8 +67,8 @@ describe("departureStore - request identity and stale response filtering", () =>
   });
 
   it("ignores setDataForRequest calls from stale request IDs", async () => {
-    const requestId1 = "route-home-123";
-    const requestId2 = "route-work-456";
+    const requestId1 = "page-home-123";
+    const requestId2 = "page-work-456";
     const siteId = "1001";
 
     // If the store has setDataForRequest method, test it
@@ -124,8 +124,8 @@ describe("departureStore - request identity and stale response filtering", () =>
   });
 
   it("clears data atomically on route change when clearFirst=true", async () => {
-    const requestId1 = "route-home-123";
-    const requestId2 = "route-work-456";
+    const requestId1 = "page-home-123";
+    const requestId2 = "page-work-456";
 
     // Load home route
     await departureStore.refresh(

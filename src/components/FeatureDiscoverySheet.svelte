@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { t, locale } from '../stores/localeStore';
+  import { getT, getLocale } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
+  let locale = $derived(getLocale());
   import {
     formatEventDateTime,
     formatEventRelativeShort,
@@ -142,8 +145,8 @@
   const currency = (_value?: 1 | 2 | 3) => '';
 
   function computeVenueOpenState(venue: Venue) {
-    const strings = $t;
-    const currentLocale = $locale;
+    const strings = t;
+    const currentLocale = locale;
     if (!openingHoursParser || !venue.openingHours) {
       return {
         isOpenNow: true,
@@ -189,16 +192,16 @@
 
   function venueMetric(venue: Venue): string {
     if (venue.rawPrice !== undefined) return `${venue.rawPrice} kr`;
-    if (venue.priceLevel) return $t.priceLevel;
+    if (venue.priceLevel) return t.priceLevel;
     if (venue.distance !== undefined) return `${Math.round(venue.distance)} m`;
     return '';
   }
 
   function eventStats(event: EventItem): string {
     const timeText = event.startTime
-      ? formatEventDateTime(event.startTime, $locale, $t)
-      : $t.emDash;
-    const location = event.location || $t.defaultCity;
+      ? formatEventDateTime(event.startTime, locale, t)
+      : t.emDash;
+    const location = event.location || t.defaultCity;
     return `${timeText} · ${location}`;
   }
 
@@ -209,8 +212,8 @@
 
   let currentVenues = $derived(venuesByGroup[venueGroup] ?? []) as Venue[];
   $effect(() => {
-    $locale;
-    $t;
+    locale;
+    t;
     updateVenueOpenStates(currentVenues);
   });
   let filteredVenues = $derived(
@@ -225,8 +228,8 @@
   let items = $derived(activeMode === 'venues' ? filteredVenues : events);
   let count = $derived(items.length);
   let showTabs = $derived(availableModes.length > 1);
-  let title = $derived(activeMode === 'venues' ? $t.afterwork : $t.events);
-  let subtitle = $derived($t.browseNearby);
+  let title = $derived(activeMode === 'venues' ? t.afterwork : t.events);
+  let subtitle = $derived(t.browseNearby);
 </script>
 
 <div class="sheet-shell">
@@ -234,7 +237,7 @@
 
   <header class="sheet-header">
     <div class="header-copy">
-      <div class="eyebrow">{$t.nearbyVenues}</div>
+      <div class="eyebrow">{t.nearbyVenues}</div>
       <div class="title-row">
         <div class="count">{count}</div>
         <div class="copy">
@@ -244,13 +247,13 @@
       </div>
     </div>
 
-    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label={$t.closePanel}>
+    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label={t.closePanel}>
       ×
     </button>
   </header>
 
   {#if showTabs}
-    <div class="mode-switch" role="tablist" aria-label={$t.featureMode}>
+    <div class="mode-switch" role="tablist" aria-label={t.featureMode}>
       {#each availableModes as mode (mode)}
         <button
           type="button"
@@ -260,14 +263,14 @@
           aria-selected={activeMode === mode}
           onclick={() => (activeMode = mode)}
         >
-          {mode === 'venues' ? $t.afterwork : $t.events}
+          {mode === 'venues' ? t.afterwork : t.events}
         </button>
       {/each}
     </div>
   {/if}
 
   {#if activeMode === 'venues'}
-    <div class="venue-switch" role="tablist" aria-label={$t.venueFilter}>
+    <div class="venue-switch" role="tablist" aria-label={t.venueFilter}>
       <button
         type="button"
         class="venue-pill"
@@ -279,7 +282,7 @@
           <path d="M8 4h7a3 3 0 0 1 3 3v8a5 5 0 0 1-5 5H8a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
           <path d="M7 7h10M7 11h10M9 18v2M13 18v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span>{$t.beer}</span>
+        <span>{t.beer}</span>
       </button>
       <button
         type="button"
@@ -292,7 +295,7 @@
           <path d="M7 4h10l-1 6a4 4 0 0 1-3 3.3V18h3v2H8v-2h3v-4.7A4 4 0 0 1 8 10L7 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
           <path d="M11 4h2M12 6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span>{$t.wineCocktails}</span>
+        <span>{t.wineCocktails}</span>
       </button>
     </div>
   {/if}
@@ -300,7 +303,7 @@
   <section class="rail" aria-label={title}>
     {#if activeMode === 'venues' && currentVenueLoading && filteredVenues.length === 0}
       <div class="skeleton-list">
-        {#each Array(3) as _, i}
+        {#each Array(3) as _, i (i)}
           <div class="skeleton-card" style={`--index:${i}`}>
             <div class="card-top">
               <div class="skeleton-element skeleton-pill"></div>
@@ -315,7 +318,7 @@
       </div>
     {:else if activeMode === 'events' && eventLoading && events.length === 0}
       <div class="skeleton-list">
-        {#each Array(3) as _, i}
+        {#each Array(3) as _, i (i)}
           <div class="skeleton-card" style={`--index:${i}`}>
             <div class="card-top">
               <div class="skeleton-element skeleton-pill"></div>
@@ -329,26 +332,26 @@
         {/each}
       </div>
     {:else if items.length === 0}
-      <div class="empty-card">{activeMode === 'venues' ? $t.noVenuesFound : $t.noEventsFound}</div>
+      <div class="empty-card">{activeMode === 'venues' ? t.noVenuesFound : t.noEventsFound}</div>
     {:else if activeMode === 'venues'}
       {#each filteredVenues as venue, index (venue.id)}
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
-            <span class="pill">{venueGroup === 'beer' ? $t.beer : $t.wineCocktails}</span>
+            <span class="pill">{venueGroup === 'beer' ? t.beer : t.wineCocktails}</span>
             <span class="metric">{venueMetric(venue)}</span>
           </div>
           <h3>
             {venue.name}
             {#if venue.isSpecificWine}
-              <span class="venue-flag" aria-label={$t.wineLabel}>🍷</span>
+              <span class="venue-flag" aria-label={t.wineLabel}>🍷</span>
             {/if}
             {#if venue.isSpecificCocktail}
-              <span class="venue-flag" aria-label={$t.cocktailLabel}>🍸</span>
+              <span class="venue-flag" aria-label={t.cocktailLabel}>🍸</span>
             {/if}
           </h3>
           <div class="meta-row">
             {#if venue.hasOutdoorSeating}
-              <span class="badge outdoor">☀️ {$t.outdoorSeating}</span>
+              <span class="badge outdoor">☀️ {t.outdoorSeating}</span>
             {/if}
             {#if venueOpenState[venue.id]?.statusText}
               <span class={`status ${venueOpenState[venue.id]?.statusClass}`}>
@@ -364,7 +367,7 @@
               {@const venueLat = venue.lat}
               {@const venueLon = venue.lon}
               <button type="button" class="ghost-btn" onclick={() => openMapsAt(venueLat, venueLon, venue.name)}>
-                {$t.openInMaps}
+                {t.openInMaps}
               </button>
             {/if}
           </div>
@@ -374,8 +377,8 @@
       {#each events as event, index (event.id)}
         <article class="card" style={`--index:${index}`}>
           <div class="card-top">
-            <span class="pill">{$t.events}</span>
-            <span class="metric">{event.startTime ? formatEventRelativeShort(event.startTime, $locale, $t) : $t.emDash}</span>
+            <span class="pill">{t.events}</span>
+            <span class="metric">{event.startTime ? formatEventRelativeShort(event.startTime, locale, t) : t.emDash}</span>
           </div>
           <h3>{event.name}</h3>
           <p class="support">{eventStats(event)}</p>
@@ -385,7 +388,7 @@
           <div class="actions">
             {#if event.ticketUrl}
               <a class="ghost-btn" href={event.ticketUrl} target="_blank" rel="noopener noreferrer">
-                {$t.openTickets}
+                {t.openTickets}
               </a>
             {/if}
             {#if event.lat !== undefined && event.lon !== undefined}
@@ -396,7 +399,7 @@
                 class="ghost-btn"
                 onclick={() => openMapsAt(eventLat, eventLon, event.name)}
               >
-                {$t.openInMaps}
+                {t.openInMaps}
               </button>
             {/if}
           </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { loadRoutes, saveRoutes, loadSettings, saveSettings } from "./storage";
+import { loadPages, savePages, loadSettings, saveSettings } from "./storage";
 import type { Settings } from "./storage";
 
 describe("storage service", () => {
@@ -8,42 +8,42 @@ describe("storage service", () => {
     vi.clearAllMocks();
   });
 
-  describe("routes", () => {
-    it("returns empty array when no routes stored", () => {
-      expect(loadRoutes()).toEqual([]);
+  describe("pages", () => {
+    it("returns empty array when no pages stored", () => {
+      expect(loadPages()).toEqual([]);
     });
 
-    it("returns stored routes", () => {
-      const routes = [
+    it("returns stored pages", () => {
+      const pages = [
         {
           id: "1",
           name: "Arbete",
           segments: [],
         },
       ];
-      localStorage.setItem("nasta_routes", JSON.stringify(routes));
-      expect(loadRoutes()).toEqual(routes);
+      localStorage.setItem("nasta_routes", JSON.stringify(pages));
+      expect(loadPages()).toEqual(pages);
     });
 
     it("returns empty array on parse error", () => {
       localStorage.setItem("nasta_routes", "invalid json");
-      expect(loadRoutes()).toEqual([]);
+      expect(loadPages()).toEqual([]);
     });
 
-    it("saves routes to localStorage", () => {
-      const routes = [
+    it("saves pages to localStorage", () => {
+      const pages = [
         {
           id: "1",
           name: "Hem",
           segments: [],
         },
       ];
-      saveRoutes(routes);
-      expect(localStorage.getItem("nasta_routes")).toBe(JSON.stringify(routes));
+      savePages(pages);
+      expect(localStorage.getItem("nasta_routes")).toBe(JSON.stringify(pages));
     });
 
     it("migrates legacy routes with directionText to direction object", () => {
-      const legacyRoutes = [
+      const legacyPages = [
         {
           id: "1",
           name: "Arbete",
@@ -61,9 +61,9 @@ describe("storage service", () => {
         },
       ];
 
-      localStorage.setItem("nasta_routes", JSON.stringify(legacyRoutes));
+      localStorage.setItem("nasta_routes", JSON.stringify(legacyPages));
 
-      const loaded = loadRoutes();
+      const loaded = loadPages();
       expect(loaded[0].segments[0].direction).toEqual({
         code: 1,
         destination: "Norra Hammarbyhamnen",

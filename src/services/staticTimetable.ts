@@ -1,5 +1,5 @@
 import type { Departure } from '../types/departure';
-import type { TransportType } from '../types/route';
+import type { TransportType } from '../types/page';
 import { isExternalTimetableStop } from '../lib/sourceClassification';
 
 type StopKey = 'luma_brygga' | 'barnangen' | 'henriksdal';

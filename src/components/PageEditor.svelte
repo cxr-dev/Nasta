@@ -1,46 +1,45 @@
 <script lang="ts">
-  import type { Route, TransportType, Stop, SegmentDirection } from '../types/route';
-  import { routeStore } from '../stores/routeStore';
-  import { pageStore } from '../stores/pageStore';
-  import { settingsStore } from '../stores/settingsStore';
+  import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
+  import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
+  import { setActivePage, createPage, deletePage, getDefaultName } from '../stores/pageStore.svelte';
+  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setEventsEnabled, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import { THEMES } from '../themes';
-  import { t } from '../stores/localeStore';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
 
   let {
-    routes,
-    activeRouteId,
+    pages,
+    activePageId,
     isOpen,
     onClose,
-    onSwitchRoute,
+    onSwitchPage,
     onboardingHighlight = false
   }: {
-    routes: Route[];
-    activeRouteId: string;
+    pages: Page[];
+    activePageId: string;
     isOpen: boolean;
     onClose: () => void;
-    onSwitchRoute: (routeId: string) => void;
+    onSwitchPage: (pageId: string) => void;
     onboardingHighlight?: boolean;
   } = $props();
 
-  let route = $derived(routes.find(r => r.id === activeRouteId));
+  let page = $derived(pages.find(p => p.id === activePageId));
   let showSearch = $state(false);
   let hasManuallyClosedSearch = $state(false);
-let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.length === 0));
+let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
   let hintDismissed = $state(false);
-  let settings = $derived($settingsStore);
+  let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let showPageManager = $state(false);
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
 
-  let pages = $derived(routes);
-  let activePageId = $derived(activeRouteId);
-
-  function getRouteLabel(r: Route): string {
-    return r.name;
+  function getPageLabel(p: Page): string {
+    return p.name;
   }
 
   function isLightColor(hex: string): boolean {
@@ -59,38 +58,38 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
     line: string, lineName: string, direction: SegmentDirection,
     fromStop: Stop, toStop: Stop, transportType: TransportType
   ) {
-    if (!route) return;
-    routeStore.addSegment(route.id, { line, lineName, direction, fromStop, toStop, transportType });
+    if (!page) return;
+    storeAddSegment(page.id, { line, lineName, direction, fromStop, toStop, transportType });
     showSearch = false;
     hasManuallyClosedSearch = true;
   }
 
   function handleCreatePage() {
-    const name = pageStore.getDefaultName();
-    const newId = pageStore.createPage(name);
-    pageStore.setActivePage(newId);
-    onSwitchRoute(newId);
+    const name = getDefaultName();
+    const newId = createPage(name);
+    setActivePage(newId);
+    onSwitchPage(newId);
     showPageManager = true;
   }
 
   function handleDeletePage(id: string) {
     if (pages.length <= 1) return;
-    pageStore.deletePage(id);
+    deletePage(id);
     const remaining = pages.filter(p => p.id !== id);
     if (remaining.length > 0) {
-      onSwitchRoute(remaining[0].id);
+      onSwitchPage(remaining[0].id);
     }
   }
 
   function handleRenamePage(id: string, name: string) {
     if (!name.trim()) return;
-    routeStore.renameRoute(id, name.trim());
+    renamePage(id, name.trim());
     renameId = null;
     renameValue = '';
   }
 
   function handleReorderPage(fromIndex: number, toIndex: number) {
-    routeStore.reorderRoutes(fromIndex, toIndex);
+    reorderPages(fromIndex, toIndex);
   }
 
   function startRename(id: string, currentName: string) {
@@ -99,8 +98,8 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
   }
 
   function handlePageSwitch(id: string) {
-    pageStore.setActivePage(id);
-    onSwitchRoute(id);
+    setActivePage(id);
+    onSwitchPage(id);
   }
 
 </script>
@@ -108,19 +107,19 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 <div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen}>
   <div class="editor-sheet">
     <div class="sheet-header">
-      <button class="back-btn" onclick={onClose} aria-label={$t.closeEditor}>
+      <button class="back-btn" onclick={onClose} aria-label={t.closeEditor}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
         </svg>
       </button>
       <span class="sheet-title">
-        {$t.editingRoute}: {route ? getRouteLabel(route) : ''}
+        {t.editingPage}: {page ? getPageLabel(page) : ''}
       </span>
       {#if pages.length > 0}
         <button
           class="page-manager-toggle"
           onclick={() => showPageManager = !showPageManager}
-          aria-label={$t.settings}
+          aria-label={t.settings}
         >
           <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
             <path d="M5 10a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
@@ -131,7 +130,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 
     {#if showPageManager}
       <div class="page-manager">
-        <h3 class="page-manager-title">{$t.pages ?? 'Pages'}</h3>
+        <h3 class="page-manager-title">{t.pages ?? 'Pages'}</h3>
         <div class="page-list">
           {#each pages as page, index (page.id)}
             <div class="page-item" class:active={page.id === activePageId}>
@@ -165,7 +164,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                 <button
                   class="page-action-btn"
                   onclick={() => startRename(page.id, page.name)}
-                  aria-label={$t.settings}
+                  aria-label={t.settings}
                 >
                   <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                     <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61z"/>
@@ -175,7 +174,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                   <button
                     class="page-action-btn danger"
                     onclick={() => handleDeletePage(page.id)}
-                    aria-label={$t.remove}
+                    aria-label={t.remove}
                   >
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                       <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4"/>
@@ -186,7 +185,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                   <button
                     class="page-action-btn"
                     onclick={() => handleReorderPage(index, index - 1)}
-                    aria-label={$t.settings}
+                    aria-label={t.settings}
                   >
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                       <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
@@ -197,7 +196,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                   <button
                     class="page-action-btn"
                     onclick={() => handleReorderPage(index, index + 1)}
-                    aria-label={$t.settings}
+                    aria-label={t.settings}
                   >
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" transform="rotate(180)">
                       <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
@@ -212,49 +211,49 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
           <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
             <path d="M8 2v12M2 8h12"/>
           </svg>
-          {$t.add}
+          {t.add}
         </button>
       </div>
     {/if}
 
-    {#if route}
+    {#if page}
       {#if showSearch || autoSearch}
         <div class="search-container">
           {#if onboardingHighlight && !hintDismissed}
             <div class="onboarding-hint" role="tooltip" aria-live="polite">
-              <div class="hint-badge">{$t.onboardingHintNew}</div>
-              <span>{$t.onboardingHintText}</span>
-              <button onclick={dismissOnboardingHint} aria-label={$t.dismissHint}>×</button>
+              <div class="hint-badge">{t.onboardingHintNew}</div>
+              <span>{t.onboardingHintText}</span>
+              <button onclick={dismissOnboardingHint} aria-label={t.dismissHint}>×</button>
             </div>
           {/if}
           <SegmentSearch onSelect={addSegment} />
           <button class="cancel-search-btn" onclick={() => { showSearch = false; hasManuallyClosedSearch = true; }}>
-            {$t.cancel}
+            {t.cancel}
           </button>
         </div>
       {:else}
         <div class="segment-area">
-          <SegmentList route={route} />
-          <button class="add-btn" class:onboarding-highlight={onboardingHighlight && (!route || route.segments.length === 0)} onclick={() => showSearch = true}>
-            {$t.addSegment}
+          <SegmentList page={page} />
+          <button class="add-btn"             class:onboarding-highlight={onboardingHighlight && (!page || page.segments.length === 0)} onclick={() => showSearch = true}>
+            {t.addSegment}
           </button>
         </div>
       {/if}
     {/if}
 
     <div class="settings-section">
-      <h2 class="settings-title">{$t.settings}</h2>
+      <h2 class="settings-title">{t.settings}</h2>
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.disruptionAlerts}</span>
-          <span class="toggle-desc">{$t.disruptionAlertsDesc}</span>
+          <span class="toggle-name">{t.disruptionAlerts}</span>
+          <span class="toggle-desc">{t.disruptionAlertsDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.disruptionAlertsEnabled ?? true}
-          onclick={() => settingsStore.setDisruptionAlertsEnabled(!(settings.disruptionAlertsEnabled ?? true))}
-          aria-label={$t.disruptionAlerts}
+          onclick={() => setDisruptionAlertsEnabled(!(settings.disruptionAlertsEnabled ?? true))}
+          aria-label={t.disruptionAlerts}
           role="switch"
           aria-checked={settings.disruptionAlertsEnabled ?? true}
         >
@@ -265,33 +264,33 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
       {#if settings.disruptionAlertsEnabled ?? true}
         <div class="setting-block nested">
           <div class="toggle-label">
-            <span class="toggle-name">{$t.disruptionThreshold}</span>
-            <span class="toggle-desc">{$t.disruptionThresholdDesc}</span>
+            <span class="toggle-name">{t.disruptionThreshold}</span>
+            <span class="toggle-desc">{t.disruptionThresholdDesc}</span>
           </div>
-          <div class="segmented-control" role="group" aria-label={$t.disruptionThreshold}>
+          <div class="segmented-control" role="group" aria-label={t.disruptionThreshold}>
             <button
               class="segment-choice"
               class:active={activeDisruptionThreshold === 'info'}
-              onclick={() => settingsStore.setDisruptionSeverityThreshold('info')}
+              onclick={() => setDisruptionSeverityThreshold('info')}
               aria-pressed={activeDisruptionThreshold === 'info'}
             >
-              {$t.disruptionThresholdInfo}
+              {t.disruptionThresholdInfo}
             </button>
             <button
               class="segment-choice"
               class:active={activeDisruptionThreshold === 'warning'}
-              onclick={() => settingsStore.setDisruptionSeverityThreshold('warning')}
+              onclick={() => setDisruptionSeverityThreshold('warning')}
               aria-pressed={activeDisruptionThreshold === 'warning'}
             >
-              {$t.disruptionThresholdWarning}
+              {t.disruptionThresholdWarning}
             </button>
             <button
               class="segment-choice"
               class:active={activeDisruptionThreshold === 'critical'}
-              onclick={() => settingsStore.setDisruptionSeverityThreshold('critical')}
+              onclick={() => setDisruptionSeverityThreshold('critical')}
               aria-pressed={activeDisruptionThreshold === 'critical'}
             >
-              {$t.disruptionThresholdCritical}
+              {t.disruptionThresholdCritical}
             </button>
           </div>
         </div>
@@ -299,18 +298,18 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.walkingEta}</span>
-          <span class="toggle-desc">{$t.walkingEtaDesc}</span>
+          <span class="toggle-name">{t.walkingEta}</span>
+          <span class="toggle-desc">{t.walkingEtaDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.walkingEtaEnabled ?? false}
           onclick={() => {
             const next = !(settings.walkingEtaEnabled ?? false);
-            settingsStore.setWalkingEtaEnabled(next);
-            settingsStore.setLocationServicesEnabled(next);
+            setWalkingEtaEnabled(next);
+            setLocationServicesEnabled(next);
           }}
-          aria-label={$t.walkingEta}
+          aria-label={t.walkingEta}
           role="switch"
           aria-checked={settings.walkingEtaEnabled ?? false}
         >
@@ -320,14 +319,14 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.afterwork}</span>
-          <span class="toggle-desc">{$t.afterworkVenuesDesc}</span>
+          <span class="toggle-name">{t.afterwork}</span>
+          <span class="toggle-desc">{t.afterworkVenuesDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.afterworkVenuesEnabled ?? false}
-          onclick={() => settingsStore.setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
-          aria-label={$t.afterwork}
+          onclick={() => setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
+          aria-label={t.afterwork}
           role="switch"
           aria-checked={settings.afterworkVenuesEnabled ?? false}
         >
@@ -337,14 +336,14 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 
       <label class="toggle-row">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.events}</span>
-          <span class="toggle-desc">{$t.eventsDesc}</span>
+          <span class="toggle-name">{t.events}</span>
+          <span class="toggle-desc">{t.eventsDesc}</span>
         </div>
         <button
           class="toggle-btn"
           class:on={settings.eventsEnabled ?? false}
-          onclick={() => settingsStore.setEventsEnabled(!(settings.eventsEnabled ?? false))}
-          aria-label={$t.events}
+          onclick={() => setEventsEnabled(!(settings.eventsEnabled ?? false))}
+          aria-label={t.events}
           role="switch"
           aria-checked={settings.eventsEnabled ?? false}
         >
@@ -354,31 +353,31 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
 
       <div class="setting-block">
         <div class="toggle-label">
-          <span class="toggle-name">{$t.language} (App)</span>
+          <span class="toggle-name">{t.language} (App)</span>
           <span class="toggle-desc">App interface language.</span>
         </div>
-        <div class="segmented-control" role="group" aria-label={$t.language}>
+         <div class="segmented-control" role="group" aria-label={t.language}>
           <button
             class="segment-choice"
             class:active={activeLanguage === 'en'}
-            onclick={() => settingsStore.setLanguage('en')}
+            onclick={() => setLanguage('en')}
             aria-pressed={activeLanguage === 'en'}
           >
-            {$t.languageEnglish}
+            {t.languageEnglish}
           </button>
           <button
             class="segment-choice"
             class:active={activeLanguage === 'sv'}
-            onclick={() => settingsStore.setLanguage('sv')}
+            onclick={() => setLanguage('sv')}
             aria-pressed={activeLanguage === 'sv'}
           >
-            {$t.languageSwedish}
+            {t.languageSwedish}
           </button>
         </div>
       </div>
 
       <div class="theme-section">
-        <h3 class="theme-title">{$t.theme}</h3>
+        <h3 class="theme-title">{t.theme}</h3>
         <div class="theme-list">
           {#each THEMES as palette (palette.id)}
             {@const activeTheme = settings.theme ?? 'default'}
@@ -390,7 +389,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                 class="palette-half"
                 class:active={isActiveA}
                 style="background:{palette.colorA}"
-                onclick={() => settingsStore.setTheme(palette.id, 'A')}
+                onclick={() => setTheme(palette.id, 'A')}
                 aria-label={`${palette.name}, A`}
                 aria-pressed={isActiveA}
               >
@@ -404,7 +403,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                 class="palette-half"
                 class:active={isActiveB}
                 style="background:{palette.colorB}"
-                onclick={() => settingsStore.setTheme(palette.id, 'B')}
+                onclick={() => setTheme(palette.id, 'B')}
                 aria-label={`${palette.name}, B`}
                 aria-pressed={isActiveB}
               >

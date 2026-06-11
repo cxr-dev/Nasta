@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { get } from "svelte/store";
-import { deviationStore } from "./deviationStore";
+import { deviationStore } from "./deviationStore.svelte";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
 
 vi.mock("../services/slDeviations", () => ({

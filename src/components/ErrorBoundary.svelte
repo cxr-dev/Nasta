@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { t } from '../stores/localeStore';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
 
   let { children, fallbackMessage }: {
     children: Snippet;
@@ -27,10 +29,10 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
-      <h2>{$t.errorTitle}</h2>
-      <p>{fallbackMessage || $t.errorDefault}</p>
+      <h2>{t.errorTitle}</h2>
+      <p>{fallbackMessage || t.errorDefault}</p>
       <button onclick={reload}>
-        {$t.reloadApp}
+        {t.reloadApp}
       </button>
     </div>
   </div>

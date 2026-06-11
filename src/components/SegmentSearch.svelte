@@ -4,10 +4,12 @@
   import { getKnownRoutes } from '../services/timetableCache';
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
 import type { SiteSearchResult, Departure } from '../types/departure';
-import type { TransportType, Stop, SegmentDirection } from '../types/route';
+import type { TransportType, Stop, SegmentDirection } from '../types/page';
 import { transportIcons } from '../icons/transport';
-import { t } from '../stores/localeStore';
-import { settingsStore } from '../stores/settingsStore';
+import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
+import { getSettings, setActiveTransportType } from '../stores/settingsStore.svelte';
 import DirectionSelector from './DirectionSelector.svelte';
 import { onMount } from 'svelte';
 
@@ -25,7 +27,7 @@ let {
   onSelect?: (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => void
 } = $props();
 
-let settings = $derived($settingsStore);
+let settings = $derived(getSettings());
   
 interface StopInterface {
   id: string;
@@ -250,7 +252,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
       allDepartures = rawDeps;
     } catch (e) {
       if (import.meta.env.DEV) console.error('Failed to load departures:', e);
-      departureError = $t.failedToFetchDepartures;
+      departureError = t.failedToFetchDepartures;
       allDepartures = [];
     } finally {
       loadingDeps = false;
@@ -377,7 +379,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         type="text"
         bind:value={query}
         oninput={handleInput}
-        placeholder={$t.searchPlaceholder}
+        placeholder={t.searchPlaceholder}
         class="search-input"
         inputmode="search"
         enterkeyhint="search"
@@ -390,8 +392,8 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     {#if nearbyStops.length > 0}
       <div class="anchor-row">
         {#if nearbyStops.length > 0}
-          <div class="nearby-label">{$t.nearby}:</div>
-          {#each nearbyStops as stop}
+          <div class="nearby-label">{t.nearby}:</div>
+          {#each nearbyStops as stop (stop.siteId)}
              <button class="anchor-btn nearby-btn" onclick={() => selectStation(stop)}>
               {stop.name} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>
             </button>
@@ -401,10 +403,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     {/if}
     
     {#if loading}
-      <div class="msg">{$t.searching}</div>
+      <div class="msg">{t.searching}</div>
     {:else if filteredStations.length > 0}
       <div class="results">
-        {#each filteredStations as station}
+        {#each filteredStations as station (station.siteId)}
            <button class="item" onmousedown={() => selectStation(station)}>
             <div class="item-main">
               {#if station.note === 'Sjöstadstrafiken'}
@@ -423,39 +425,39 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         {/each}
       </div>
     {:else if query.length >= SEARCH_MIN_QUERY_LENGTH}
-      <div class="msg">{$t.noStops}</div>
+      <div class="msg">{t.noStops}</div>
     {/if}
   {:else}
     <div class="departures-view">
       <button class="back" onmousedown={goBack}>
-        {$t.back}
+        {t.back}
       </button>
       <h3>{selectedStation?.name}</h3>
       
       {#if loadingDeps}
-        <div class="msg">{$t.loadingDepartures}</div>
+        <div class="msg">{t.loadingDepartures}</div>
       {:else if departureError}
         <div class="error">{departureError}</div>
       {:else if allDepartures.length === 0}
-        <div class="msg">{$t.noDepartures}</div>
+        <div class="msg">{t.noDepartures}</div>
       {:else if step === 'select'}
         <div class="transport-filter-row" data-testid="transport-filter-row">
           {#if (settings.transportFilterMode ?? 'multi') === 'single'}
-            {#each TRANSPORT_FILTER_OPTIONS as type}
+            {#each TRANSPORT_FILTER_OPTIONS as type (type)}
               <button
                 class="transport-filter-btn"
                 class:active={type === 'all' ? !settings.activeTransportType : settings.activeTransportType === type}
                 onclick={() => {
                   if (type === 'all') {
-                    settingsStore.setActiveTransportType(null);
+                    setActiveTransportType(null);
                     activeTransportTypes = [...ALL_TRANSPORT_TYPES];
                   } else {
                     const transportType = type as TransportType;
-                    settingsStore.setActiveTransportType(transportType);
+                    setActiveTransportType(transportType);
                     activeTransportTypes = [transportType];
                   }
                 }}
-                aria-label={type === 'all' ? $t.allTransportTypes : type}
+                aria-label={type === 'all' ? t.allTransportTypes : type}
                 aria-pressed={type === 'all' ? !settings.activeTransportType : settings.activeTransportType === type}
                 data-testid={`transport-filter-${type}`}
               >
@@ -466,11 +468,11 @@ function getDistanceSortValue(station: SiteSearchResult): number {
                     {@html transportIcons[type as TransportType]}
                   {/if}
                 </svg>
-                <span>{type === 'all' ? $t.allTransportTypes : type}</span>
+                <span>{type === 'all' ? t.allTransportTypes : type}</span>
               </button>
             {/each}
           {:else}
-            {#each ALL_TRANSPORT_TYPES as type}
+            {#each ALL_TRANSPORT_TYPES as type (type)}
               <button
                 class="transport-filter-btn"
                 class:active={activeTransportTypes.includes(type)}
@@ -488,7 +490,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
           {/if}
         </div>
         <div class="departures-list">
-          {#each uniqueLinesFiltered as dep}
+          {#each uniqueLinesFiltered as dep (dep.line)}
             <button class="dep-item" onmousedown={() => handleLineSelect(dep)}>
               <div class="dep-transport">
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
@@ -497,10 +499,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
               </div>
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
-                <span class="dep-dest">{dep.lineName || $t.lineLabel.replace('{line}', dep.line)}</span>
+                <span class="dep-dest">{dep.lineName || t.lineLabel.replace('{line}', dep.line)}</span>
               </div>
               <div class="dep-select">
-                {$t.select}
+                {t.select}
               </div>
             </button>
           {/each}
@@ -514,7 +516,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
               </svg>
             </div>
             <span class="selected-line-number">{selectedLine?.line}</span>
-            <span class="selected-line-name">{selectedLine?.lineName || $t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
+            <span class="selected-line-name">{selectedLine?.lineName || t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
           </div>
           <DirectionSelector departures={selectedLineDepartures} onSelect={handleDirectionSelect} />
         </div>

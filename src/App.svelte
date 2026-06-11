@@ -1,25 +1,28 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { routeStore, selectedRouteId, selectedRoute } from './stores/routeStore';
-  import { pageStore, activePage, activePageId, pages } from './stores/pageStore';
-  import { departureStore } from './stores/departureStore';
-  import { deviationStore } from './stores/deviationStore';
-  import { settingsStore } from './stores/settingsStore';
-  import { timeOfDay } from './lib/stores/timeOfDay';
+  import { initialize } from './stores/pageStore.svelte';
+  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage } from './stores/pageStore.svelte';
+  import { departureStore } from './stores/departureStore.svelte';
+  import { deviationStore } from './stores/deviationStore.svelte';
+  import { getSettings, markSwiped } from './stores/settingsStore.svelte';
+  import { start as timeOfDayStart, stop as timeOfDayStop } from './lib/stores/timeOfDay.svelte';
   import { applyTheme } from './themes';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
-  import { locale, resolveLocale, t } from './stores/localeStore';
+  import { getT, getLocale, resolveLocale, setLocale } from './stores/localeStore.svelte';
+
+  let t = $derived(getT());
+  let locale = $derived(getLocale());
   import { searchSites } from './services/slApi';
-  import type { Segment } from './types/route';
+  import type { Segment } from './types/page';
   
-  import RouteHeader from './components/RouteHeader.svelte';
+  import PageHeader from './components/PageHeader.svelte';
   import BottomBar from './components/BottomBar.svelte';
-  import RouteEditor from './components/RouteEditor.svelte';
+  import PageEditor from './components/PageEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
-  import type { Departure } from './stores/departureStore';
+  import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth } from './types/deviation';
 
   let editing = $state(false);
@@ -35,14 +38,14 @@
   }
 
   const hasSeenOnboarding = safeLocalStorageGet('nasta_onboarding_seen');
-let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segments.length === 0));
+let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.segments.length === 0));
    let siteLookupError = $state<string | null>(null);
    let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
   let scrollContainer = $state<HTMLElement | null>(null);
   let currentRequestId = $state<string | null>(null);
-  let previousRouteId = $state<string | null>(null);
+  let previousPageId = $state<string | null>(null);
   let activeFeatureContext = $state<{
     lat: number;
     lon: number;
@@ -59,10 +62,11 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
   let isRefreshing = $state(false);
   let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
 
-  let route = $derived($activePage);
-  let routes = $derived($pages);
-  let hasNoRoutes = $derived(!routes || routes.length === 0);
-  let settings = $derived($settingsStore);
+  let page = $derived(getActivePage());
+  let pages = $derived(getPages());
+  let activePageId = $derived(getActivePageId());
+  let hasNoRoutes = $derived(!pages || pages.length === 0);
+  let settings = $derived(getSettings());
   let departures = $state<Map<string, Departure[]>>(new Map());
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationUsedCache = $state(false);
@@ -70,12 +74,12 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
   let freshnessText = $derived(
     lastRefreshTime
       ? dataOld
-        ? $t.dataMayBeStale
-        : $t.updatedMinutesAgo.replace(
+        ? t.dataMayBeStale
+        : t.updatedMinutesAgo.replace(
             '{minutes}',
             String(Math.max(0, Math.floor((Date.now() - lastRefreshTime) / 60000))),
           )
-      : $t.loading,
+      : t.loading,
   );
 
   type DepartureSegmentInput = {
@@ -130,11 +134,11 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
       }
     }
 
-    siteLookupError = hadError ? $t.someStopsNotFound : null;
+    siteLookupError = hadError ? t.someStopsNotFound : null;
     return resolved;
   }
 
-  async function startDisruptionsForRoute(segments: Segment[]) {
+  async function startDisruptionsForPage(segments: Segment[]) {
     if (!settings.disruptionAlertsEnabled) return;
     const preferredLanguage = resolveLocale(settings.language ?? 'auto');
     await deviationStore.startAutoRefresh(
@@ -150,7 +154,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
     await deviationStore.refresh(segments, preferredLanguage, settings.disruptionSeverityThreshold, opts);
   }
 
-  async function startDeparturesForRoute(
+  async function startDeparturesForPage(
     segments: Segment[],
     clearFirst = false,
     requestId: string | null = null,
@@ -169,56 +173,58 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
       clearFirst,
       requestId
     );
-    startDisruptionsForRoute(segments);
+    startDisruptionsForPage(segments);
     lastRefreshTime = Date.now();
   }
 
   $effect(() => {
-    applyTheme($settingsStore.theme ?? 'default', $settingsStore.themeVariant ?? 'A');
+    const s = getSettings();
+    applyTheme(s.theme ?? 'default', s.themeVariant ?? 'A');
   });
 
   $effect(() => {
-    locale.set(resolveLocale($settingsStore.language ?? 'auto'));
+    const s = getSettings();
+    setLocale(resolveLocale(s.language ?? 'auto'));
   });
 
   // Watch for page changes and load departures
   $effect(() => {
-    const currentRoute = $activePage;
-    if (!currentRoute) return;
+    const currentPage = getActivePage();
+    if (!currentPage) return;
     
-    // Only generate new request ID if route ACTUALLY changed
+    // Only generate new request ID if page ACTUALLY changed
     // This prevents rejecting in-flight responses from settings/other reactive updates
-    if (currentRoute.id !== previousRouteId) {
-      previousRouteId = currentRoute.id;
-      const newRequestId = `route-${currentRoute.id}-${Date.now()}`;
+    if (currentPage.id !== previousPageId) {
+      previousPageId = currentPage.id;
+      const newRequestId = `page-${currentPage.id}-${Date.now()}`;
       currentRequestId = newRequestId;
-      if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentRoute.id}, requestId: ${newRequestId}`);
+      if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentPage.id}, requestId: ${newRequestId}`);
     }
     
-    void startDeparturesForRoute(currentRoute.segments, true, currentRequestId);
+    void startDeparturesForPage(currentPage.segments, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
-    const currentRoute = $activePage;
-    if (currentRoute && currentRoute.segments.length > 0) {
+    const currentPage = getActivePage();
+    if (currentPage && currentPage.segments.length > 0) {
       // Only create new request ID if route changed, otherwise reuse existing
-      if (currentRoute.id !== previousRouteId) {
-        previousRouteId = currentRoute.id;
-        const newRequestId = `route-${currentRoute.id}-manual-${Date.now()}`;
+      if (currentPage.id !== previousPageId) {
+        previousPageId = currentPage.id;
+        const newRequestId = `page-${currentPage.id}-manual-${Date.now()}`;
         currentRequestId = newRequestId;
       }
       
-      await startDeparturesForRoute(currentRoute.segments, clearFirst, currentRequestId);
+      await startDeparturesForPage(currentPage.segments, clearFirst, currentRequestId);
     } else {
-      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentRoute?.id}`);
+      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentPage?.id}`);
     }
   }
 
-  function handleRouteSwitch(routeId: string) {
-    const currentRoute = $activePage;
-    if (!currentRoute) return;
-    if (import.meta.env.DEV) console.log(`[App] handleRouteSwitch: ${currentRoute.id} -> ${routeId}`);
-    pageStore.setActivePage(routeId);
+  function handlePageSwitch(pageId: string) {
+    const currentPage = getActivePage();
+    if (!currentPage) return;
+    if (import.meta.env.DEV) console.log(`[App] handlePageSwitch: ${currentPage.id} -> ${pageId}`);
+    pageSetActivePage(pageId);
   }
 
   function openSegmentPanels(segment: Segment) {
@@ -241,8 +247,8 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
 
 function toggleEdit() {
   if (hasNoRoutes) {
-    const newPageId = pageStore.createPage("My Departures");
-    pageStore.setActivePage(newPageId);
+    const newPageId = createPage("My Departures");
+    pageSetActivePage(newPageId);
     editing = true;
     return;
   }
@@ -298,25 +304,25 @@ function toggleEdit() {
     if (Math.abs(dy) > Math.abs(dx)) return;
     if (Math.abs(dx) < 48) return;
 
-    const allRoutes = $pages;
-    if (allRoutes.length < 2) return;
-    const currentIdx = allRoutes.findIndex(r => r.id === $activePageId);
-    if (dx < 0 && currentIdx < allRoutes.length - 1) {
-      handleRouteSwitch(allRoutes[currentIdx + 1].id);
+    const allPages = getPages();
+    if (allPages.length < 2) return;
+    const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
+    if (dx < 0 && currentIdx < allPages.length - 1) {
+      handlePageSwitch(allPages[currentIdx + 1].id);
     } else if (dx > 0 && currentIdx > 0) {
-      handleRouteSwitch(allRoutes[currentIdx - 1].id);
+      handlePageSwitch(allPages[currentIdx - 1].id);
     }
     if (!settings.hasSwipedRoutes) {
-      settingsStore.markSwiped();
+      markSwiped();
     }
   }
 
   async function triggerManualRefresh() {
-    const currentRoute = $activePage;
-    if (!currentRoute?.segments || isRefreshing) return;
+    const currentPage = getActivePage();
+    if (!currentPage?.segments || isRefreshing) return;
     isRefreshing = true;
     try {
-      const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentRoute.segments));
+      const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentPage.segments));
       const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
       if (siteIds.length === 0) return;
       await departureStore.refresh(
@@ -326,7 +332,7 @@ function toggleEdit() {
         true,
         null
       );
-      await refreshDisruptions(currentRoute.segments, { force: true });
+      await refreshDisruptions(currentPage.segments, { force: true });
       lastRefreshTime = Date.now();
     } catch (error) {
       if (import.meta.env.DEV) console.error('[App] manual refresh failed', error);
@@ -336,8 +342,8 @@ function toggleEdit() {
   }
 
   onMount(() => {
-    timeOfDay.start();
-    routeStore.initialize();
+    timeOfDayStart();
+    initialize();
     initializeCacheLifecycle();
     // pageStore.syncFromRoutes() is called automatically on creation
 
@@ -358,13 +364,13 @@ function toggleEdit() {
     }, 1000);
 
     const onVisibility = () => {
-      const currentRoute = $activePage;
-      if (!document.hidden && currentRoute?.segments) {
+      const currentPage = getActivePage();
+      if (!document.hidden && currentPage?.segments) {
         const timeSinceLastRefresh = Date.now() - lastRefreshTime;
         if (timeSinceLastRefresh > 10000) {
           void (async () => {
             try {
-              const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentRoute.segments));
+              const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentPage.segments));
               const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
               if (siteIds.length === 0) return;
               await departureStore.refresh(
@@ -392,7 +398,7 @@ function toggleEdit() {
   });
 
   onDestroy(() => {
-    timeOfDay.stop();
+    timeOfDayStop();
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
     stopCacheLifecycle();
@@ -408,10 +414,10 @@ function toggleEdit() {
     ontouchcancel={handleTouchCancel}
   >
     {#if !hasNoRoutes}
-      <RouteHeader
-        activeRouteId={$activePageId ?? ''}
-        {routes}
-        onSwitch={handleRouteSwitch}
+      <PageHeader
+        activePageId={activePageId ?? ''}
+        {pages}
+        onSwitch={handlePageSwitch}
       />
     {/if}
 
@@ -458,7 +464,7 @@ function toggleEdit() {
       <span>{freshnessText}</span>
       {#if dataOld}
         <span class="freshness-dot">•</span>
-        <span>{$t.autoRefresh}</span>
+        <span>{t.autoRefresh}</span>
       {/if}
     </div>
 
@@ -472,28 +478,28 @@ function toggleEdit() {
               <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
             </svg>
           </div>
-          <h2>{$t.noRoutes}</h2>
-          <p>{$t.noRoutesDesc}</p>
+          <h2>{t.noPages}</h2>
+          <p>{t.noPagesDesc}</p>
           <button 
             class="empty-cta" 
             class:onboarding-highlight={showOnboardingHint}
             onclick={toggleEdit}
           >
-            <span>{$t.addSegment}</span>
+            <span>{t.addSegment}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
             </svg>
           </button>
         </div>
-      {:else if route && route.segments.length > 0}
+      {:else if page && page.segments.length > 0}
         <SegmentDepartures
-          {route}
+          route={page}
           deviationHealthBySegment={deviationHealthBySegment}
           deviationUsedCache={deviationUsedCache}
           deviationLastUpdatedAt={deviationLastUpdatedAt}
           openFeatureSheet={openSegmentPanels}
         />
-      {:else if route}
+      {:else if page}
         <div class="empty-segments">
           <div class="empty-illustration small">
             <svg viewBox="0 0 80 80" fill="none">
@@ -501,14 +507,14 @@ function toggleEdit() {
               <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
-          <h2>{$t.noSegments}</h2>
-          <p>{$t.noSegmentsDesc}</p>
+          <h2>{t.noSegments}</h2>
+          <p>{t.noSegmentsDesc}</p>
           <button 
             class="empty-cta" 
             class:onboarding-highlight={showOnboardingHint}
             onclick={toggleEdit}
           >
-            <span>{$t.add}</span>
+            <span>{t.add}</span>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10 4v12M4 10h12"/>
             </svg>
@@ -522,13 +528,13 @@ function toggleEdit() {
       onclick={toggleEdit}
     />
 
-    {#if !hasNoRoutes && route}
-      <RouteEditor
-        {routes}
-        activeRouteId={$activePageId ?? ''}
+    {#if !hasNoRoutes && page}
+      <PageEditor
+        pages={pages}
+        activePageId={activePageId ?? ''}
         isOpen={editing}
         onClose={toggleEdit}
-        onSwitchRoute={handleRouteSwitch}
+        onSwitchPage={handlePageSwitch}
         onboardingHighlight={!hasSeenOnboarding}
       />
     {/if}
@@ -537,14 +543,14 @@ function toggleEdit() {
       <button
         type="button"
         class="feature-backdrop"
-        aria-label={$t.closePanel}
+        aria-label={t.closePanel}
         onclick={() => (activeFeatureContext = null)}
       ></button>
       <div
         class="feature-drawer"
         role="dialog"
         aria-modal="true"
-        aria-label={activeFeatureContext.availableModes.includes('venues') ? $t.afterwork : $t.events}
+        aria-label={activeFeatureContext.availableModes.includes('venues') ? t.afterwork : t.events}
         tabindex="0"
         onkeydown={(e) => {
           if (e.key === 'Escape') activeFeatureContext = null;
@@ -567,7 +573,7 @@ function toggleEdit() {
 
 
 <footer class="attribution">
-  {$t.attribution} <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
+  {t.attribution} <a href="https://trafiklab.se" target="_blank" rel="noopener">Trafiklab</a>
 </footer>
 
 <style>
@@ -637,8 +643,8 @@ function toggleEdit() {
     --text-ghost:      rgba(0,0,0,0.13);
     --accent:          #171717;
     --accent-subtle:   rgba(23,23,23,0.10);
-    --route-work:      #2563EB;
-    --route-home:      #059669;
+    --page-work:      #2563EB;
+    --page-home:      #059669;
   }
 
   main {

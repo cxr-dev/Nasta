@@ -16,12 +16,12 @@ export async function getNextDeparture(
   siteId: string,
   line: string,
   direction_code: number,
-  destId?: string
+  destId?: string,
+  signal?: AbortSignal,
 ): Promise<ResolverResult> {
   try {
-    // 1. Try real-time API first (forecast 120 min)
-    const { departures: realtimeDepartures } = await getDepartures(siteId, 120);
-    
+    const { departures: realtimeDepartures } = await getDepartures(siteId, 120, signal);
+
     const nextRealtime = realtimeDepartures
       .filter(d => d.line === line && d.direction_code === direction_code)
       .sort((a, b) => a.minutes - b.minutes)[0];
@@ -33,14 +33,13 @@ export async function getNextDeparture(
       };
     }
 
-    // 2. Fallback to Journey Planner (Planned Trips) if destId is available
     if (destId) {
       if (import.meta.env.DEV) {
         console.log(`[NextDepartureResolver] No real-time results for ${line} at ${siteId}, falling back to planned trips.`);
       }
-      
-      const plannedTrips = await searchTrips(siteId, destId);
-      
+
+      const plannedTrips = await searchTrips(siteId, destId, undefined, signal);
+
       const nextPlanned = plannedTrips
         .filter(d => d.line === line && d.direction_code === direction_code)
         .sort((a, b) => a.minutes - b.minutes)[0];
@@ -55,16 +54,15 @@ export async function getNextDeparture(
         };
       }
 
-      // 3. Last resort: Search for tomorrow's first departure (Night Gap)
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(4, 0, 0, 0); // Start searching from 04:00 tomorrow
+      tomorrow.setHours(4, 0, 0, 0);
 
       if (import.meta.env.DEV) {
         console.log(`[NextDepartureResolver] Night gap detected for ${line}, searching for tomorrow's start.`);
       }
 
-      const morningTrips = await searchTrips(siteId, destId, tomorrow);
+      const morningTrips = await searchTrips(siteId, destId, tomorrow, signal);
       const firstMorning = morningTrips
         .filter(d => d.line === line && d.direction_code === direction_code)
         .sort((a, b) => a.minutes - b.minutes)[0];
@@ -74,7 +72,7 @@ export async function getNextDeparture(
           departure: {
             ...firstMorning,
             predicted: true,
-            isFirstMorning: true // Flag for UI to show "Morgonens första"
+            isFirstMorning: true
           },
           source: "planned"
         };
@@ -83,6 +81,9 @@ export async function getNextDeparture(
 
     return { departure: null, source: "none" };
   } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      return { departure: null, source: "none" };
+    }
     if (import.meta.env.DEV) {
       console.error("[NextDepartureResolver] Error resolving next departure:", error);
     }

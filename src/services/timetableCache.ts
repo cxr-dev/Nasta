@@ -7,7 +7,7 @@
  * transitMinutes >= 1440 (e.g. 00:30 → 1470), so weekly patterns stay contiguous.
  */
 
-import type { TransportType } from "../types/route";
+import type { TransportType } from "../types/page";
 import { parseSlTimestamp } from "./slApi";
 
 const STORAGE_KEY = "sl_timetable_v1";

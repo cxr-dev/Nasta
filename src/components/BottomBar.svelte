@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { t } from '../stores/localeStore';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
 
   let {
     editing,
@@ -12,25 +14,25 @@
   } = $props();
 </script>
 
-<div class="floating-action-bar" role="toolbar" aria-label={$t.settings}>
+<div class="floating-action-bar" role="toolbar" aria-label={t.settings}>
   <button
     class="action-btn"
     class:is-editing={editing}
     class:onboarding-highlight={onboardingHighlight && !editing}
     {onclick}
-    aria-label={editing ? $t.saveAriaLabel : $t.settingsAriaLabel}
+    aria-label={editing ? t.saveAriaLabel : t.settingsAriaLabel}
   >
     {#if editing}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M16.707 3.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 11.586 14.293 5.293a1 1 0 011.414 0z"/>
         <path d="M4 16v2h12v-2"/>
       </svg>
-      <span>{$t.save}</span>
+      <span>{t.save}</span>
     {:else}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 3h5M12 8h5M12 13h5M7 3l-4 4M7 8l-4 4M7 13l-4 4"/>
       </svg>
-      <span>{$t.settings}</span>
+      <span>{t.settings}</span>
     {/if}
   </button>
 </div>

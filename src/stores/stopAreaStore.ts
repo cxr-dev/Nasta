@@ -80,8 +80,6 @@ function createStopAreaStore() {
     subscribe,
     setMapping,
     getStopAreaId,
-    persist,
-    hydrate,
     clear,
   };
 }

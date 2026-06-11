@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { timeOfDay, quirkyMessage, weatherEmoji, isSunlightMode, type WeatherCondition, type TimePeriod, type DayType } from '../lib/stores/timeOfDay';
-  import { settingsStore } from '../stores/settingsStore';
-  import { t } from '../stores/localeStore';
+  import { getTimeOfDay, getQuirkyMessage, getWeatherEmoji, getIsSunlightMode, type WeatherCondition, type TimePeriod, type DayType } from '../lib/stores/timeOfDay.svelte';
+  import { getSettings } from '../stores/settingsStore.svelte';
+  import { getT } from '../stores/localeStore.svelte';
+
+  let t = $derived(getT());
   import { fade, fly, scale } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -12,14 +14,17 @@
   let rareTrain = $state(false);
   
   let prefersReducedMotion = $state(false);
-  let funMode = $derived($settingsStore.funMode ?? true);
-  let notificationsEnabled = $derived($settingsStore.showNotifications ?? true);
+  let settings = $derived(getSettings());
+  let funMode = $derived(settings.funMode ?? true);
+  let notificationsEnabled = $derived(settings.showNotifications ?? true);
   
-  let weatherCondition = $derived($timeOfDay.weatherCondition);
-  let period = $derived($timeOfDay.period);
-  let dayType = $derived($timeOfDay.dayType);
-  let hour = $derived($timeOfDay.hour);
-  let onTimeStreak = $derived($timeOfDay.onTimeStreak);
+  let time = $derived(getTimeOfDay());
+  let weatherCondition = $derived(time.weatherCondition);
+  let period = $derived(time.period);
+  let dayType = $derived(time.dayType);
+  let hour = $derived(time.hour);
+  let onTimeStreak = $derived(time.onTimeStreak);
+  let quirkyMsg = $derived(getQuirkyMessage());
 
   const rareMessages = [
     'Typiskt SL! 🚂💨',
@@ -82,14 +87,15 @@
   onMount(() => {
     prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const unsub = timeOfDay.subscribe((state) => {
+    $effect(() => {
+      getTimeOfDay();
       const shouldShow = shouldShowQuirky();
       if (shouldShow) {
         showQuirky = true;
         if (quirkyTimeoutId) clearTimeout(quirkyTimeoutId);
         quirkyTimeoutId = setTimeout(() => {
           showQuirky = false;
-        }, notificationDuration($quirkyMessage));
+        }, notificationDuration(quirkyMsg));
       } else {
         showQuirky = false;
       }
@@ -102,7 +108,6 @@
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      unsub();
       clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (quirkyTimeoutId) clearTimeout(quirkyTimeoutId);
@@ -118,7 +123,7 @@
   }
 </script>
 
-<svelte:window on:change={(e) => {
+<svelte:window onchange={(e) => {
   const mql = e as unknown as MediaQueryListEvent;
   if (mql.media) prefersReducedMotion = mql.matches;
 }} />
@@ -142,7 +147,7 @@
       in:fly={{ y: -10, duration: prefersReducedMotion ? 0 : 400 }}
       out:fade={{ duration: prefersReducedMotion ? 0 : 300 }}
     >
-      <span class="quirky-text">{$quirkyMessage}</span>
+      <span class="quirky-text">{quirkyMsg}</span>
     </div>
   {/if}
 
@@ -153,7 +158,7 @@
         showConfetti = true;
         setTimeout(() => showConfetti = false, 3000);
       }}
-      aria-label={$t.showCelebration}
+      aria-label={t.showCelebration}
     >
       <span class="confetti-icon">🎊</span>
     </button>
@@ -172,7 +177,7 @@
 
 {#if getWeatherAnimation() === 'rain' && funMode}
   <div class="weather-effects rain" aria-hidden="true">
-    {#each Array(8) as _, i}
+    {#each Array(8) as _, i (i)}
       <div class="raindrop" style="--delay: {i * 0.15}s; --x: {Math.random() * 100}%"></div>
     {/each}
   </div>
@@ -180,7 +185,7 @@
 
 {#if getWeatherAnimation() === 'snow' && funMode}
   <div class="weather-effects snow" aria-hidden="true">
-    {#each Array(12) as _, i}
+    {#each Array(12) as _, i (i)}
       <div class="snowflake" style="--delay: {i * 0.2}s; --x: {Math.random() * 100}%; --size: {4 + Math.random() * 6}px"></div>
     {/each}
   </div>
