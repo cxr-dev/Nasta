@@ -14,7 +14,7 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 ## Features
 
 - **Real-time departures** — Auto-refreshing SL data every 30 seconds (configurable)
-- **Route management** — Multiple routes with drag-to-reorder segments and auto-save to LocalStorage
+- **Page management** — Multiple pages with drag-to-reorder segments and auto-save to LocalStorage
 - **Disruption alerts** — Real-time transit disruptions and alerts by severity (info/warning/critical)
 - **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
 - **PWA installable** — Works offline with cached data, no app store required
@@ -103,11 +103,10 @@ pnpm run check     # Run svelte-check
 
 ### Routes & Segments
 
-Routes are stored in LocalStorage under `nasta_routes`. Each route contains:
+Pages are stored in LocalStorage under `nasta_routes`. Each page contains:
 
 - `id` — unique identifier
 - `name` — display name (e.g., "Arbete")
-- `direction` — `"toWork"` or `"fromWork"`
 - `segments` — ordered array of travel segments
 
 Each segment defines:
@@ -191,7 +190,7 @@ User Action → Svelte Store → Service → API/Storage
 
 | Module                              | Responsibility                                                                      |
 | ----------------------------------- | ----------------------------------------------------------------------------------- |
-| `src/stores/routeStore.ts`          | Route & segment CRUD, reordering, shared to/from work coupling                      |
+| `src/stores/routeStore.ts`          | Page & segment CRUD, reordering, persistence |
 | `src/stores/departureStore.ts`      | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
 | `src/stores/deviationStore.ts`      | Disruption fetching, segment health tracking, severity thresholding                 |
 | `src/stores/localeStore.ts`         | Automatic locale detection, i18n translation store                                  |
@@ -306,10 +305,6 @@ To prevent race conditions when users rapidly switch routes:
 4. Responses from old requests are silently dropped
 
 This is critical because fetches can take several seconds; without routing, a fast route switcher would see departures from the wrong route overlay on the correct one.
-
-### Route Coupling
-
-When you delete a segment from "Till jobbet", the same-index segment is automatically removed from "Hem". This keeps round-trip routes symmetric. Implemented in `routeStore.ts:removeSegment()`.
 
 ### Ferry Detection
 

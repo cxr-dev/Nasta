@@ -36,17 +36,8 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
 
-  // Page management state
-  let pages = $state(routes);
-  let activePageId = $state(activeRouteId);
-
-  $effect(() => {
-    pages = routes;
-  });
-
-  $effect(() => {
-    activePageId = activeRouteId;
-  });
+  let pages = $derived(routes);
+  let activePageId = $derived(activeRouteId);
 
   function getRouteLabel(r: Route): string {
     return r.name;
@@ -142,7 +133,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
       <div class="page-manager">
         <h3 class="page-manager-title">{$t.pages ?? 'Pages'}</h3>
         <div class="page-list">
-          {#each pages as page, index}
+          {#each pages as page, index (page.id)}
             <div class="page-item" class:active={page.id === activePageId}>
               <button
                 class="page-select-btn"
@@ -164,7 +155,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
                       }
                     }}
                     onblur={() => handleRenamePage(page.id, renameValue)}
-                    autofocus
+                    
                   />
                 {:else}
                   <span class="page-name">{page.name}</span>

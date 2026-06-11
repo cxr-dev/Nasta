@@ -113,26 +113,15 @@
     gap: 8px;
   }
 
-  .primary,
-  .secondary,
-  .ghost {
+  .primary {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
     font-family: inherit;
     cursor: pointer;
-  }
-
-  .primary {
     background: var(--accent);
     color: var(--bg);
     border-color: var(--accent);
-  }
-
-  .secondary,
-  .ghost {
-    background: transparent;
-    color: var(--text);
   }
 
   .summary {

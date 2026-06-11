@@ -135,7 +135,7 @@ Response shape:
 
 | Key                       | Type        | Example                              |
 | ------------------------- | ----------- | ------------------------------------ |
-| `nasta_routes`            | JSON array  | `[{id, name, direction, segments}]`  |
+| `nasta_routes`            | JSON array  | `[{id, name, segments}]`  |
 | `nasta_settings`          | JSON object | `{theme, language, refreshInterval}` |
 | `nasta_onboarding_seen`  | String      | `"true"`                             |
 | `nasta_location_prompted`| String      | `"enabled"` or `"skipped"`           |
@@ -168,13 +168,12 @@ interface StopFinderResponse {
 }
 ```
 
-### Route Types
+### Route & Page Types
 
 ```typescript
-interface Route {
+interface Page {
   id: string;
   name: string;
-  direction: "toWork" | "fromWork";
   segments: Segment[];
 }
 
@@ -201,6 +200,9 @@ interface Stop {
 }
 
 type TransportType = "bus" | "train" | "metro" | "boat";
+
+// Backwards compatible alias
+type Route = Page;
 ```
 
 ### Departure Types

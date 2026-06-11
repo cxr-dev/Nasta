@@ -152,7 +152,6 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
 
   async function startDeparturesForRoute(
     segments: Segment[],
-    direction: string | null,
     clearFirst = false,
     requestId: string | null = null,
   ) {
@@ -168,7 +167,6 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
       segmentMetaBySiteId,
       settings.refreshInterval || 30000,
       clearFirst,
-      direction,
       requestId
     );
     startDisruptionsForRoute(segments);
@@ -197,7 +195,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
       if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentRoute.id}, requestId: ${newRequestId}`);
     }
     
-    void startDeparturesForRoute(currentRoute.segments, null, true, currentRequestId);
+    void startDeparturesForRoute(currentRoute.segments, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
@@ -210,7 +208,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segm
         currentRequestId = newRequestId;
       }
       
-      await startDeparturesForRoute(currentRoute.segments, null, clearFirst, currentRequestId);
+      await startDeparturesForRoute(currentRoute.segments, clearFirst, currentRequestId);
     } else {
       if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentRoute?.id}`);
     }

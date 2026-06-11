@@ -99,7 +99,7 @@ Static assets          → Cache First (hashed filenames)
 
 | Key                       | Content                    | TTL                         |
 | ------------------------- | -------------------------- | --------------------------- |
-| `nasta_routes`            | Serialized Route[]         | Permanent                   |
+| `nasta_routes`            | Serialized Page[]          | Permanent                   |
 | `nasta_settings`          | Serialized settings        | Permanent                   |
 | `nasta_onboarding_seen`   | Boolean flag               | Permanent                   |
 | `nasta_location_prompted` | `"enabled"` \| `"skipped"` | Permanent                   |
@@ -200,7 +200,7 @@ Enforced at the data layer to ensure unselected modes don't clutter the UI:
 
 ### Type Safety
 
-- `src/types/route.ts` — Route, Segment, Stop definitions
+- `src/types/route.ts` — Page, Segment, Stop definitions
 - `src/types/departure.ts` — Departure, transport type enums
 - `src/types/deviation.ts` — Disruption, severity, segment health types
 
