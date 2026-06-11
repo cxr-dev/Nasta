@@ -39,46 +39,30 @@ function createPageStore() {
   /** Create a new page with default direction */
   function createPage(name?: string): string {
     const pageName = name || getDefaultName();
-    const id = routeStore.addRoute(pageName, "toWork");
-    update((state) => {
-      const pages = [
-        ...state.pages,
-        { id, name: pageName, direction: "toWork" as Direction, segments: [] },
-      ];
-      return { ...state, pages };
-    });
-    return id;
+    return routeStore.addRoute(pageName, "toWork");
   }
 
   /** Rename a page */
   function renamePage(id: string, name: string): void {
-    update((state) => {
-      const pages = state.pages.map((p) => (p.id === id ? { ...p, name } : p));
-      return { ...state, pages };
-    });
+    routeStore.renameRoute(id, name);
   }
 
   /** Reorder pages */
   function reorderPages(fromIndex: number, toIndex: number): void {
-    update((state) => {
-      const pages = [...state.pages];
-      const [moved] = pages.splice(fromIndex, 1);
-      pages.splice(toIndex, 0, moved);
-      return { ...state, pages };
-    });
+    routeStore.reorderRoutes(fromIndex, toIndex);
   }
 
   /** Delete a page (minimum 1 guard) */
   function deletePage(id: string): void {
-    update((state) => {
-      if (state.pages.length <= 1) return state; // minimum 1 page guard
-      const pages = state.pages.filter((p) => p.id !== id);
-      let activePageId = state.activePageId;
-      if (activePageId === id) {
-        activePageId = pages.length > 0 ? pages[0].id : null;
+    const state = get({ subscribe });
+    if (state.pages.length <= 1) return;
+    routeStore.removeRoute(id);
+    if (state.activePageId === id) {
+      const nextId = state.pages.find(p => p.id !== id)?.id ?? null;
+      if (nextId) {
+        setActivePage(nextId);
       }
-      return { ...state, pages, activePageId };
-    });
+    }
   }
 
   /** Set active page */

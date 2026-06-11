@@ -34,18 +34,8 @@
     }
   }
 
-  function safeLocalStorageSet(key: string, value: string): void {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(key, value);
-      }
-    } catch {
-      // Ignore storage failures in privacy-restricted environments.
-    }
-  }
-
   const hasSeenOnboarding = safeLocalStorageGet('nasta_onboarding_seen');
-let showOnboardingHint = $state(!hasSeenOnboarding);
+let showOnboardingHint = $derived(!hasSeenOnboarding && $pages.every(p => p.segments.length === 0));
    let siteLookupError = $state<string | null>(null);
    let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
@@ -68,11 +58,6 @@ let showOnboardingHint = $state(!hasSeenOnboarding);
   let pullDistance = $state(0);
   let isRefreshing = $state(false);
   let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
-
-  function dismissOnboardingHint() {
-    showOnboardingHint = false;
-    safeLocalStorageSet('nasta_onboarding_seen', 'true');
-  }
 
   let route = $derived($activePage);
   let routes = $derived($pages);
@@ -358,7 +343,6 @@ function toggleEdit() {
     initializeCacheLifecycle();
     // pageStore.syncFromRoutes() is called automatically on creation
 
-    showOnboardingHint = !hasSeenOnboarding;
     // pageStore handles active page initialization
     loadDepartures();
 

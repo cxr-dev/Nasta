@@ -94,14 +94,12 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
   function handleRenamePage(id: string, name: string) {
     if (!name.trim()) return;
     routeStore.renameRoute(id, name.trim());
-    pageStore.renamePage(id, name.trim());
     renameId = null;
     renameValue = '';
   }
 
   function handleReorderPage(fromIndex: number, toIndex: number) {
     routeStore.reorderRoutes(fromIndex, toIndex);
-    pageStore.reorderPages(fromIndex, toIndex);
   }
 
   function startRename(id: string, currentName: string) {
