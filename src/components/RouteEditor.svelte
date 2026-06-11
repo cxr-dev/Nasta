@@ -446,7 +446,11 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!route || route.segments.
   flex-direction: column;
   overflow-y: auto;
   padding-bottom: env(safe-area-inset-bottom);
+  scrollbar-width: none; 
+  -ms-overflow-style: none;
 }
+
+.editor-sheet::-webkit-scrollbar { display: none; }
 
 .editor-overlay.open .editor-sheet {
   transform: translateY(0);
