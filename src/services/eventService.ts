@@ -171,6 +171,7 @@ export async function fetchNearbyEvents(
         );
       }
 
+      // Fallback: CORS proxy for GitHub Pages deployment where direct API calls may fail
       try {
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sourceUrl)}`;
         const controller = new AbortController();

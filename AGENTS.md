@@ -33,7 +33,8 @@ CI order: `check` → `test` → `build` → `verify:build` → `test:e2e`.
 - **No `<svelte:head>`** — all meta tags live in `index.html`.
 - **Dark mode default.** `defaultSettings.darkMode = true`.
 - **Env vars are all optional** (`VITE_*`). No `.env` file needed.
-- **`maplibre-gl`** is split into a manual chunk (`maplibre`).
+- **Line endings** are normalized via `.gitattributes` (`* text=auto`). LF in the repo, platform-native on checkout.
+- **`maplibre-gl`** is dynamically imported in `MapPreview.svelte` so it's code-split automatically.
 
 ## Testing
 

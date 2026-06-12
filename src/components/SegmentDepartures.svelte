@@ -11,7 +11,6 @@
   import DepartureRow from "./DepartureRow.svelte";
   import { prefetchSegments } from "../services/prefetchService";
   import { getSettings } from "../stores/settingsStore.svelte";
-  import type { Settings } from "../services/storage";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
 
@@ -168,9 +167,15 @@
   }
 
   $effect(() => {
+    if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
+      scheduleNearbyPrefetch();
+    }
+  });
+
+  $effect(() => {
     route.id;
     departureData;
-    loadSegmentDeps();
+    loadSegmentDeps().catch((e) => console.error('loadSegmentDeps failed', e));
   });
 
   function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
@@ -230,21 +235,6 @@
       const initial = (route.segments ?? []).slice(0, PREFETCH_SEGMENT_COUNT);
       for (const seg of initial) prefetchForSegment(seg);
     } catch (e) {}
-
-    if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
-      scheduleNearbyPrefetch();
-    }
-
-    let prevSettings: Settings | null = null;
-    $effect(() => {
-      const s = getSettings();
-      if (!prevSettings) { prevSettings = s; return; }
-      const becameEnabled = (s.afterworkVenuesEnabled && !prevSettings.afterworkVenuesEnabled) || (s.eventsEnabled && !prevSettings.eventsEnabled);
-      if (becameEnabled) {
-        scheduleNearbyPrefetch();
-      }
-      prevSettings = s;
-    });
   });
 
   onDestroy(() => {
