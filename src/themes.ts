@@ -74,6 +74,9 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
   root.style.setProperty('--border',         border);
   root.style.setProperty('--border-subtle',  borderSubtle);
 
+  const surfaceEmphasis = dark ? lightenHex(surface, 12) : 'rgba(0,0,0,0.03)';
+  root.style.setProperty('--surface-emphasis', surfaceEmphasis);
+
   const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (themeColorMeta) themeColorMeta.content = bg;
 }

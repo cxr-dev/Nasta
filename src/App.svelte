@@ -537,7 +537,7 @@ function toggleEdit() {
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchPage={handlePageSwitch}
-        onboardingHighlight={!hasSeenOnboarding}
+        onboardingHighlight={showOnboardingHint}
       />
     {/if}
 

@@ -7,7 +7,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     });
     // Disable CSS transitions
     await page.addStyleTag({
-      content: `*, *::before, *::after { transition: none !important; animation: animation: none !important; }`,
+      content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
   });
 

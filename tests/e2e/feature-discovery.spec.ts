@@ -196,6 +196,9 @@ test.describe("feature discovery sheet", () => {
     const segmentRow = page.getByTestId("segment-row").first();
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
 
+    // Wait for departure data to populate before clicking (ensures isExpandable is true)
+    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({ timeout: 15000 });
+
     await segmentRow.click({ force: true });
     await expect(segmentRow).toHaveAttribute("aria-expanded", "true", {
       timeout: 10000,
