@@ -6,36 +6,51 @@
   import gsap from 'gsap';
 
   let t = $derived(getT());
-  
+
   let { page }: { page: Page } = $props();
-  
+
+  let expandedId = $state<string | null>(null);
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
   let dragStartX = 0;
   let dragStartY = 0;
-  
+
+  const LINE_COLORS: Record<TransportType, string> = {
+    bus: '#2563EB',
+    metro: '#DC2626',
+    train: '#059669',
+    boat: '#0D9488',
+  };
+
+  function toggleExpand(id: string) {
+    expandedId = expandedId === id ? null : id;
+  }
+
   function removeSegment(segmentId: string) {
+    if (expandedId === segmentId) expandedId = null;
     storeRemoveSegment(page.id, segmentId);
   }
 
-  function updateTransferBuffer(segmentId: string, value: string) {
-    const parsed = Number.parseInt(value, 10);
-    const nextValue = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    updateSegmentTransferBuffer(page.id, segmentId, nextValue);
+  function handleStepper(segmentId: string, delta: number) {
+    const segment = page.segments.find(s => s.id === segmentId);
+    if (!segment) return;
+    const current = segment.transferBufferMinutes ?? 0;
+    const next = Math.max(0, Math.min(60, current + delta));
+    updateSegmentTransferBuffer(page.id, segmentId, next);
   }
-  
+
   function handleDragStart(e: DragEvent, index: number) {
     draggingIndex = index;
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
     }
   }
-  
+
   function handleDragOver(e: DragEvent, index: number) {
     e.preventDefault();
     dragOverIndex = index;
   }
-  
+
   function handleDrop(e: DragEvent, toIndex: number) {
     e.preventDefault();
     if (draggingIndex !== null && draggingIndex !== toIndex) {
@@ -44,21 +59,20 @@
     draggingIndex = null;
     dragOverIndex = null;
   }
-  
+
   function handleDragEnd() {
     draggingIndex = null;
     dragOverIndex = null;
   }
-  
+
   function handleTouchStart(e: TouchEvent, index: number) {
     draggingIndex = index;
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
   }
-  
+
   function handleTouchMove(e: TouchEvent) {
     if (draggingIndex === null) return;
-    
     const touch = e.touches[0];
     const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
     if (segment) {
@@ -70,7 +84,6 @@
         overwrite: 'auto',
       });
     }
-    
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     if (element) {
       const item = element.closest('[data-drag-index]');
@@ -82,7 +95,7 @@
       }
     }
   }
-  
+
   function handleTouchEnd() {
     if (draggingIndex !== null) {
       const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
@@ -96,7 +109,7 @@
     draggingIndex = null;
     dragOverIndex = null;
   }
-  
+
   function getIcon(type: string): string {
     return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
   }
@@ -120,7 +133,6 @@
     if (!badge) return false;
     return !primaryLineText(segment).includes(badge);
   }
-
 </script>
 
 <div class="segment-list">
@@ -128,8 +140,12 @@
     <p class="empty">{t.addSegmentHint}</p>
   {:else}
     {#each page.segments as segment, index (segment.id)}
-      <div 
+      {@const isExpanded = expandedId === segment.id}
+      {@const lineColor = LINE_COLORS[segment.transportType] ?? 'var(--accent)'}
+      {@const isLast = index === page.segments.length - 1}
+      <div
         class="segment"
+        class:expanded={isExpanded}
         class:dragging={draggingIndex === index}
         class:drag-over={dragOverIndex === index}
         data-drag-index={index}
@@ -143,48 +159,85 @@
         ontouchmove={handleTouchMove}
         ontouchend={handleTouchEnd}
       >
-        <div class="drag-handle">⋮⋮</div>
-        <div class="segment-icon" data-type={segment.transportType}>
-          <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
-            {@html getIcon(segment.transportType)}
-          </svg>
-        </div>
-        <div class="segment-info">
-          <div class="segment-line">
-            {primaryLineText(segment)}
-            {#if showLineBadge(segment)}
-              <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="segment-body"
+          onclick={() => toggleExpand(segment.id)}
+          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(segment.id); }}
+          role="button"
+          tabindex="0"
+          aria-expanded={isExpanded}
+          aria-label={`${primaryLineText(segment)} ${segment.fromStop.name} → ${segment.toStop.name}`}
+        >
+          <div class="segment-icon" style="--line-color: {lineColor}">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
+              {@html getIcon(segment.transportType)}
+            </svg>
+          </div>
+          <div class="segment-meta">
+            <div class="segment-line">
+              <span class="line-name">{primaryLineText(segment)}</span>
+              {#if showLineBadge(segment)}
+                <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
+              {/if}
+            </div>
+            {#if isExpanded}
+              <div class="segment-route">
+                {segment.fromStop.name} → {segment.toStop.name}
+              </div>
+              <div class="segment-dir">{segment.direction?.destination}</div>
+              {#if !isLast}
+                <div class="buffer-stepper">
+                  <span class="buffer-label">{t.transferBuffer}</span>
+                  <div class="stepper">
+                    <button
+                      type="button"
+                      class="step-btn"
+                      onclick={() => handleStepper(segment.id, -1)}
+                      aria-label={t.decrementBuffer}
+                      disabled={(segment.transferBufferMinutes ?? 0) <= 0}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                        <path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    </button>
+                    <span class="step-value">{segment.transferBufferMinutes ?? 0} {t.minutesShort}</span>
+                    <button
+                      type="button"
+                      class="step-btn"
+                      onclick={() => handleStepper(segment.id, 1)}
+                      aria-label={t.incrementBuffer}
+                      disabled={(segment.transferBufferMinutes ?? 0) >= 60}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                        <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              {/if}
+              <button
+                type="button"
+                class="remove-btn"
+                onclick={() => removeSegment(segment.id)}
+                aria-label={t.remove}
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                  <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                </svg>
+                {t.remove}
+              </button>
             {/if}
           </div>
-          <div class="segment-route">
-            {segment.fromStop.name} → {segment.toStop.name}
+          <div class="segment-right">
+            <span class="expand-chevron" class:open={isExpanded}>
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <div class="drag-handle" aria-hidden="true">⋮⋮</div>
           </div>
-          <div class="segment-dir">{segment.direction?.destination}</div>
-          {#if index < page.segments.length - 1}
-            <label class="buffer-row">
-              <span class="buffer-label">{t.transferBuffer}</span>
-              <div class="buffer-input-wrap">
-                <input
-                  class="buffer-input"
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={segment.transferBufferMinutes ?? 0}
-                  oninput={(e) => updateTransferBuffer(segment.id, (e.currentTarget as HTMLInputElement).value)}
-                  aria-label={`${t.transferBuffer}: ${segment.fromStop.name}`}
-                />
-                <span class="buffer-unit">{t.minutesShort}</span>
-              </div>
-            </label>
-          {/if}
         </div>
-        <button 
-          class="remove-btn" 
-          onclick={() => removeSegment(segment.id)}
-          aria-label={t.remove}
-        >
-          ×
-        </button>
       </div>
     {/each}
   {/if}
@@ -194,7 +247,7 @@
   .segment-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .empty {
@@ -205,21 +258,15 @@
   }
 
   .segment {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px;
-    background: var(--bg);
-    border-radius: 10px;
+    border-radius: 14px;
     border: 1px solid var(--border);
-    cursor: grab;
-    touch-action: none;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    background: var(--surface);
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
 
   .segment.dragging {
     opacity: 0.5;
-    transform: scale(0.98);
   }
 
   .segment.drag-over {
@@ -227,47 +274,94 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
-  .drag-handle {
-    color: var(--text-secondary);
-    font-size: 18px;
-    cursor: grab;
-    padding: 4px;
+  .segment-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 12px 14px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+    transition: background 0.15s;
+  }
+
+  .segment-body:hover {
+    background: var(--accent-subtle);
+  }
+
+  .segment.expanded .segment-body {
+    align-items: flex-start;
   }
 
   .segment-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: var(--accent-subtle);
-    transition: transform 0.2s ease;
+    background: color-mix(in srgb, var(--line-color) 14%, var(--surface));
+    position: relative;
   }
-  @media (hover: hover) { .segment:hover .segment-icon { transform: scale(1.08); } }
+
+  .segment-icon::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--line-color);
+  }
 
   .segment-icon .transport-icon {
     width: 18px;
     height: 18px;
-    color: var(--accent);
-    fill: var(--accent);
+    color: var(--line-color);
+    fill: var(--line-color);
   }
 
-  .segment-info {
+  .segment-meta {
     flex: 1;
     min-width: 0;
   }
 
   .segment-line {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 15px;
     color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .line-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .seg-badge {
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 2px 6px;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    flex-shrink: 0;
   }
 
   .segment-route {
     font-size: 13px;
     color: var(--text-secondary);
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -275,69 +369,131 @@
 
   .segment-dir {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
+    margin-top: 1px;
   }
 
-  .buffer-row {
+  .segment-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .expand-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+  }
+
+  .expand-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .drag-handle {
+    color: var(--text-muted);
+    font-size: 14px;
+    letter-spacing: -2px;
+    cursor: grab;
+    padding: 4px 2px;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .buffer-stepper {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-top: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
   }
 
   .buffer-label {
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--text-secondary);
   }
 
-  .buffer-input-wrap {
+  .stepper {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
   }
 
-  .buffer-input {
-    width: 56px;
-    padding: 6px 8px;
+  .step-btn {
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text);
-    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     font-family: inherit;
-    text-align: right;
   }
 
-  .buffer-unit {
-    font-size: 12px;
-    color: var(--text-secondary);
+  .step-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .step-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .step-value {
+    min-width: 48px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
   }
 
   .remove-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    background: var(--border);
-    color: var(--text);
-    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    flex-shrink: 0;
+    font-family: inherit;
   }
 
   .remove-btn:hover {
-    background: var(--danger);
+    color: #dc2626;
+    border-color: #dc2626;
+    background: #fef2f2;
   }
 
-  .seg-badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    border-radius: 5px;
-    padding: 2px 6px;
-    margin-left: 6px;
-    background: var(--accent-subtle);
-    color: var(--accent);
+  @media (prefers-reduced-motion: reduce) {
+    .expand-chevron {
+      transition: none;
+    }
+    .segment {
+      transition: none;
+    }
   }
 </style>

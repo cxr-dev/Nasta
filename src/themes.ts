@@ -3,9 +3,13 @@ export interface ThemePalette {
   name: string;
   colorA: string;
   colorB: string;
+  variants: {
+    A: { isLight: boolean; surface: string; accent: string };
+    B: { isLight: boolean; surface: string; accent: string };
+  };
 }
 
-export const THEMES: ThemePalette[] = [
+const _rawPalettes = [
   { id: 'default',        name: 'Default',       colorA: '#FAFAF9', colorB: '#171717' },
   { id: 'electric-pulse', name: 'Electric Pulse', colorA: '#635BFF', colorB: '#00E5E5' },
   { id: 'acid-forest',    name: 'Acid Forest',    colorA: '#DFFF00', colorB: '#1A4D2E' },
@@ -38,6 +42,20 @@ function lightenHex(hex: string, amount: number): string {
   const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + amount);
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
+
+function computeVariant(bg: string, accent: string) {
+  const isLight = !needsLightText(bg);
+  const surface = isLight ? '#FFFFFF' : lightenHex(bg, 18);
+  return { isLight, surface, accent };
+}
+
+export const THEMES: ThemePalette[] = _rawPalettes.map(t => ({
+  ...t,
+  variants: {
+    A: computeVariant(t.colorA, t.colorB),
+    B: computeVariant(t.colorB, t.colorA),
+  },
+}));
 
 export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];

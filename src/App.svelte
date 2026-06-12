@@ -53,8 +53,8 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     lon: number;
     label: string;
     destination: string;
-    availableModes: Array<'venues' | 'events'>;
-    defaultMode: 'venues' | 'events';
+    availableModes: Array<'beer' | 'wineCocktail' | 'events'>;
+    defaultMode: 'beer' | 'wineCocktail' | 'events';
   } | null>(null);
   let backdropEl = $state<HTMLButtonElement | undefined>();
   let drawerEl = $state<HTMLDivElement | undefined>();
@@ -308,8 +308,11 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   function openSegmentPanels(segment: Segment) {
     const coords = segment.fromStop.coord ?? segment.toStop.coord;
     if (!coords) return;
-    const availableModes: Array<'venues' | 'events'> = [];
-    if (settings.afterworkVenuesEnabled && hour >= settings.afterworkStartHour) availableModes.push('venues');
+    const availableModes: Array<'beer' | 'wineCocktail' | 'events'> = [];
+    if (settings.afterworkVenuesEnabled && hour >= settings.afterworkStartHour) {
+      availableModes.push('beer');
+      availableModes.push('wineCocktail');
+    }
     if (settings.eventsEnabled) availableModes.push('events');
     if (availableModes.length === 0) return;
     activeFeatureContext = {
@@ -318,7 +321,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
       label: segment.fromStop.name,
       destination: segment.direction?.destination ?? segment.toStop.name,
       availableModes,
-      defaultMode: availableModes.includes('venues') ? 'venues' : 'events'
+      defaultMode: availableModes.includes('beer') ? 'beer' : 'events'
     };
   }
 
@@ -710,7 +713,7 @@ function toggleEdit() {
         bind:this={drawerEl}
         role="dialog"
         aria-modal="true"
-        aria-label={activeFeatureContext.availableModes.includes('venues') ? t.afterwork : t.events}
+        aria-label={activeFeatureContext.availableModes.includes('beer') ? t.afterwork : t.events}
         tabindex="0"
         onkeydown={(e) => {
           if (e.key === 'Escape') closeFeatureSheet();
