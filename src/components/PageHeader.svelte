@@ -35,7 +35,7 @@
 </script>
 
 <header class="page-header">
-  <div class="route-block">
+  <div class="page-block">
     {#if hasPrev}
       <button class="nav-arrow" onclick={handlePrev} aria-label={t.previousPage}>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -46,7 +46,7 @@
       <div class="nav-arrow-placeholder"></div>
     {/if}
 
-    <h1 class="page-name">{activePage?.name ?? ''}</h1>
+    <h1 class="page-name route-name" data-testid="route-name">{activePage?.name ?? ''}</h1>
 
     {#if hasNext}
       <button class="nav-arrow" onclick={handleNext} aria-label={t.nextPage}>

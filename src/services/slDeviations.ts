@@ -155,10 +155,10 @@ export async function getDeviations(
           .map(parseMessage)
           .filter((msg): msg is DeviationMessage => msg !== null)
       : [];
-    saveDeviationCache(messages);
+    await saveDeviationCache(messages);
     return { messages, fromCache: false };
   } catch (error) {
-    const cached = loadDeviationCache();
+    const cached = await loadDeviationCache();
     if (cached) {
       return { messages: cached.messages, fromCache: true };
     }

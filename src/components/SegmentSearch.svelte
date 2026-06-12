@@ -64,7 +64,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   let userLocation = $state<[number, number] | null>(null);
   let isLoadingLocation = $state(false);
   let recentStops = $state<SiteSearchResult[]>([]);
-  let activeTransportTypes = $state<TransportType[]>([...ALL_TRANSPORT_TYPES]);
+  let activeTransportTypes = $state<TransportType[]>([]);
 
   // Filtering logic: Enforcement at data level
   let filteredStations = $derived.by(() => {
@@ -82,6 +82,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     }
     
     // Multi-select mode (default): use activeTransportTypes array
+    if (activeTransportTypes.length === 0) return stations;
     return stations.filter(s => {
       if (!s.productClasses || s.productClasses.length === 0) return true;
       const types = mapProductClassesToTransportTypes(s.productClasses);
@@ -113,6 +114,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     if (mode === 'single' && activeType) {
       return d.transportType === activeType;
     }
+    if (activeTransportTypes.length === 0) return true;
     return activeTransportTypes.includes(d.transportType);
   }));
 
@@ -127,7 +129,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
       
       if (mode === 'single' && activeType) {
         if (d.transportType !== activeType) continue;
-      } else {
+      } else if (activeTransportTypes.length > 0) {
         if (!activeTransportTypes.includes(d.transportType)) continue;
       }
       
@@ -241,7 +243,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
       }
 
       // Supplement with routes known from timetable cache (covers overnight / off-peak)
-      const cachedRoutes = getKnownRoutes(station.siteId);
+      const cachedRoutes = await getKnownRoutes(station.siteId);
       for (const route of cachedRoutes) {
         if (!rawDeps.some(d => d.line === route.line && d.direction_code === route.direction_code)) {
           rawDeps.push({
@@ -296,7 +298,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     if (mode === 'single' && activeType) {
       activeTransportTypes = [activeType];
     } else {
-      activeTransportTypes = [...ALL_TRANSPORT_TYPES];
+      activeTransportTypes = [];
     }
   }
   

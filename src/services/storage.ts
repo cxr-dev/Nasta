@@ -23,6 +23,7 @@ export interface Settings {
   locationServicesEnabled: boolean;
   walkingEtaEnabled: boolean;
   afterworkVenuesEnabled: boolean;
+  afterworkStartHour: number;
   afterworkTypes: Array<'beer' | 'wine' | 'cocktail'>;
   eventsEnabled: boolean;
 }
@@ -45,6 +46,7 @@ const defaultSettings: Settings = {
   locationServicesEnabled: false,
   walkingEtaEnabled: false,
   afterworkVenuesEnabled: false,
+  afterworkStartHour: 15,
   afterworkTypes: [],
   eventsEnabled: false
 };

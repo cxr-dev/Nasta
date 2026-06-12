@@ -4,7 +4,7 @@ import { getCachedSchedule } from "../services/scheduleCache";
 import { getDepartures } from "../services/departureService";
 
 vi.mock("../services/scheduleCache", () => ({
-  getCachedSchedule: vi.fn(() => null),
+  getCachedSchedule: vi.fn(() => Promise.resolve(null)),
 }));
 
 vi.mock("../services/departureService", () => ({
@@ -205,6 +205,10 @@ describe("departureStore - request identity and stale response filtering", () =>
       true,
       "route-b",
     );
+
+    // Wait for microtasks so getCachedSchedule resolves and getDepartures gets called
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(mockedGetDepartures).toHaveBeenCalledTimes(2);
 

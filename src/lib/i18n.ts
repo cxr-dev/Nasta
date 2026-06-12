@@ -185,7 +185,9 @@ const sv = {
   locationSkipBtn: "Kanske senare",
 
   // Settings extras
-  afterworkVenuesDesc: "Visa närliggande barer efter kl. 15:00.",
+  afterworkVenuesDesc: "Visa närliggande barer vid utvald tid.",
+  afterworkStartTime: "Afterwork-start",
+  afterworkStartTimeDesc: "Välj när på dagen afterwork visas.",
   eventsDesc: "Visa närliggande evenemang när du trycker på ett segment.",
   returnTripNote:
     "Lägg till returrutten manuellt genom att skapa en andra rutt.",
@@ -409,7 +411,9 @@ const en: typeof sv = {
   locationEnableBtn: "Enable location",
   locationSkipBtn: "Maybe later",
 
-  afterworkVenuesDesc: "Show nearby bars after 15:00.",
+  afterworkVenuesDesc: "Show nearby bars at selected time.",
+  afterworkStartTime: "Afterwork start",
+  afterworkStartTimeDesc: "Choose when during the day afterwork shows.",
   eventsDesc: "Show nearby events when you tap a segment.",
   returnTripNote: "Add the return route manually by creating a second route.",
 

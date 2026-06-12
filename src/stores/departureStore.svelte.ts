@@ -99,7 +99,7 @@ const fetchAllHybrid = async (
     const siteIdsNeedingApi: typeof segmentData = [];
 
     for (const seg of segmentData) {
-      const cached = getCachedSchedule(
+      const cached = await getCachedSchedule(
         seg.siteId,
         seg.line,
         seg.direction_code,

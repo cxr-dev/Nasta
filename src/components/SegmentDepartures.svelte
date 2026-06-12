@@ -134,33 +134,44 @@
     return cleaned || name;
   }
 
-  function getDeparturesForSegment(segment: Segment): Departure[] {
-    const predicted = getPredictedDepartures(
-      segment.fromStop.siteId,
-      segment.line,
-      segment.direction?.code ?? 0,
-      5,
-    );
+  let segmentDeps = $state<Departure[][]>([]);
+  
+  async function loadSegmentDeps() {
+    const segs = route.segments ?? [];
+    const deps: Departure[][] = [];
+    for (const seg of segs) {
+      const predicted = await getPredictedDepartures(
+        seg.fromStop.siteId,
+        seg.line,
+        seg.direction?.code ?? 0,
+        5,
+      );
 
-    const allDeps = departureData.get(segment.fromStop.siteId) ?? [];
-    const targetDest = stopLabel(segment.direction?.destination ?? segment.toStop.name).toLowerCase();
-    const live = allDeps.filter((dep) => {
-      if (dep.line !== segment.line) return false;
-      if ((dep.direction_code ?? -1) !== (segment.direction?.code ?? -1)) return false;
-      if (!dep.destination) return true;
-      const d = stopLabel(dep.destination).toLowerCase();
-      return d === targetDest || d.includes(targetDest) || targetDest.includes(d);
-    });
+      const allDeps = departureData.get(seg.fromStop.siteId) ?? [];
+      const targetDest = stopLabel(seg.direction?.destination ?? seg.toStop.name).toLowerCase();
+      const live = allDeps.filter((dep) => {
+        if (dep.line !== seg.line) return false;
+        if ((dep.direction_code ?? -1) !== (seg.direction?.code ?? -1)) return false;
+        if (!dep.destination) return true;
+        const d = stopLabel(dep.destination).toLowerCase();
+        return d === targetDest || d.includes(targetDest) || targetDest.includes(d);
+      });
 
-    if (live.length > 0) {
-      const merged = mergeDeparturesWithPredictions(live, predicted, 5);
-      return deduplicateDeparturesByKey(segment.fromStop.siteId, merged);
+      if (live.length > 0) {
+        const merged = mergeDeparturesWithPredictions(live, predicted, 5);
+        deps.push(deduplicateDeparturesByKey(seg.fromStop.siteId, merged));
+      } else {
+        deps.push(deduplicateDeparturesByKey(seg.fromStop.siteId, predicted));
+      }
     }
-
-    return deduplicateDeparturesByKey(segment.fromStop.siteId, predicted);
+    segmentDeps = deps;
   }
 
-  let segmentDeps = $derived((route.segments ?? []).map((seg) => getDeparturesForSegment(seg)));
+  $effect(() => {
+    route.id;
+    departureData;
+    loadSegmentDeps();
+  });
 
   function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
     const m = message.toLowerCase();

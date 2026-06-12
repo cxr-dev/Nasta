@@ -5,7 +5,7 @@
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
-  import { start as timeOfDayStart, stop as timeOfDayStop } from './lib/stores/timeOfDay.svelte';
+  import { start as timeOfDayStart, stop as timeOfDayStop, getTimeOfDay } from './lib/stores/timeOfDay.svelte';
   import { applyTheme } from './themes';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { getT, getLocale, resolveLocale, setLocale } from './stores/localeStore.svelte';
@@ -71,6 +71,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
+  let hour = $derived(getTimeOfDay().hour);
   let freshnessText = $derived(
     lastRefreshTime
       ? dataOld
@@ -230,9 +231,8 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   function openSegmentPanels(segment: Segment) {
     const coords = segment.fromStop.coord ?? segment.toStop.coord;
     if (!coords) return;
-    const hour = new Date().getHours();
     const availableModes: Array<'venues' | 'events'> = [];
-    if (settings.afterworkVenuesEnabled && hour >= 15 && hour <= 23) availableModes.push('venues');
+    if (settings.afterworkVenuesEnabled && hour >= settings.afterworkStartHour) availableModes.push('venues');
     if (settings.eventsEnabled) availableModes.push('events');
     if (availableModes.length === 0) return;
     activeFeatureContext = {
@@ -244,6 +244,8 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
       defaultMode: availableModes.includes('venues') ? 'venues' : 'events'
     };
   }
+
+  let hasFeatureModes = $derived(settings.afterworkVenuesEnabled || settings.eventsEnabled);
 
 function toggleEdit() {
   if (hasNoRoutes) {
@@ -497,7 +499,7 @@ function toggleEdit() {
           deviationHealthBySegment={deviationHealthBySegment}
           deviationUsedCache={deviationUsedCache}
           deviationLastUpdatedAt={deviationLastUpdatedAt}
-          openFeatureSheet={openSegmentPanels}
+          openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
         />
       {:else if page}
         <div class="empty-segments">

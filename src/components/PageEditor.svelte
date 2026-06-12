@@ -2,7 +2,7 @@
   import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
   import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage, getDefaultName } from '../stores/pageStore.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setEventsEnabled, setLanguage, setTheme } from '../stores/settingsStore.svelte';
+  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import { THEMES } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
 
@@ -333,6 +333,27 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
           <span class="toggle-knob"></span>
         </button>
       </label>
+
+      {#if settings.afterworkVenuesEnabled}
+        <div class="setting-block nested">
+          <div class="toggle-label">
+            <span class="toggle-name">{t.afterworkStartTime}</span>
+            <span class="toggle-desc">{t.afterworkStartTimeDesc}</span>
+          </div>
+          <div class="hour-selector" role="group" aria-label={t.afterworkStartTime}>
+            {#each [14, 15, 16, 17, 18, 19, 20, 21, 22, 23] as hour (hour)}
+              <button
+                class="hour-choice"
+                class:active={(settings.afterworkStartHour ?? 15) === hour}
+                onclick={() => setAfterworkStartHour(hour)}
+                aria-pressed={(settings.afterworkStartHour ?? 15) === hour}
+              >
+                {hour}:00
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <label class="toggle-row">
         <div class="toggle-label">
@@ -836,6 +857,31 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
 }
 
 .segment-choice.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.hour-selector {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.hour-choice {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  padding: 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.hour-choice.active {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-subtle);

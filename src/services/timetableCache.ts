@@ -9,8 +9,10 @@
 
 import type { TransportType } from "../types/page";
 import { parseSlTimestamp } from "./slApi";
+import { persistentCache } from "./persistentCache";
 
-const STORAGE_KEY = "sl_timetable_v1";
+const CACHE_KEY = "timetable:v1";
+const LOCAL_STORAGE_KEY = "sl_timetable_v1";
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export interface PredictedDeparture {
@@ -38,21 +40,19 @@ interface RouteSchedule {
 
 type TimetableStore = Record<string, RouteSchedule>; // key = "siteId|line|direction_code"
 
-function loadStore(): TimetableStore {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as TimetableStore) : {};
-  } catch {
-    return {};
-  }
+let storeLoaded = false;
+let inMemoryStore: TimetableStore = {};
+
+async function ensureStoreLoaded(): Promise<void> {
+  if (storeLoaded) return;
+  await persistentCache.migrateFromLocalStorage(LOCAL_STORAGE_KEY, CACHE_KEY, CACHE_TTL_MS);
+  const data = await persistentCache.get(CACHE_KEY);
+  inMemoryStore = (data as TimetableStore) || {};
+  storeLoaded = true;
 }
 
-function saveStore(store: TimetableStore): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // Storage quota — silently ignore
-  }
+async function saveStore(): Promise<void> {
+  await persistentCache.set(CACHE_KEY, inMemoryStore, CACHE_TTL_MS);
 }
 
 function getStockholmComponents(ts: number): {
@@ -86,7 +86,8 @@ function getStockholmComponents(ts: number): {
 }
 
 /** Convert an absolute timestamp to transit-day / transit-minutes.
- *  Transit day runs 04:00–27:59 Stockholm time (night service stays on the same transit day). */
+ *  Transit day runs 04:00–27:59 Stockholm time (night service stays on the same transit day).
+ */
 function toTransitTime(ts: number): {
   transitDay: number;
   transitMinutes: number;
@@ -107,7 +108,8 @@ function toTransitTime(ts: number): {
 /** Get the Unix timestamp for 00:00 Stockholm time on the calendar day containing ts.
  *  Stockholm is always UTC+1 or UTC+2 (whole-hour offsets), so minute/second/ms
  *  components are identical to UTC — we can safely subtract Stockholm time-of-day
- *  directly from the UTC millisecond timestamp to reach Stockholm midnight. */
+ *  directly from the UTC millisecond timestamp to reach Stockholm midnight.
+ */
 function getStockholmMidnightMs(ts: number): number {
   const { hour, minute } = getStockholmComponents(ts);
   const d = new Date(ts);
@@ -148,12 +150,12 @@ function inferTransportType(mode?: string): TransportType {
  * Feed raw SL API departure objects into the timetable cache.
  * Call this every time a departures fetch succeeds.
  */
-export function learnFromApiResponse(
+export async function learnFromApiResponse(
   siteId: string,
   rawDepartures: unknown[],
-): void {
+): Promise<void> {
   if (!rawDepartures.length) return;
-  const store = loadStore();
+  await ensureStoreLoaded();
   let dirty = false;
 
   for (const dep of rawDepartures as Record<string, any>[]) {
@@ -170,12 +172,12 @@ export function learnFromApiResponse(
     const { transitDay, transitMinutes } = toTransitTime(scheduledTs);
     const storeKey = `${siteId}|${line}|${direction_code}`;
 
-    const existing: RouteSchedule = store[storeKey] ?? {
+    const existing: RouteSchedule = inMemoryStore[storeKey] ?? {
       line,
       lineName: dep.line?.name || line,
       destination: dep.destination || "",
       direction_code,
-      transportType: inferTransportType(dep.line?.transportMode),
+      transportType: inferTransportType(dep.line?.transport_mode),
       days: {},
       updatedAt: 0,
     };
@@ -188,14 +190,15 @@ export function learnFromApiResponse(
       dirty = true;
     }
     existing.updatedAt = Date.now();
-    store[storeKey] = existing;
+    inMemoryStore[storeKey] = existing;
   }
 
-  if (dirty) saveStore(store);
+  if (dirty) await saveStore();
 }
 
 /** Maximum minutes ahead to show predicted departures.
- * Beyond this, it's likely stale timetable data, not real-time. */
+ * Beyond this, it's likely stale timetable data, not real-time.
+ */
 const MAX_PREDICTED_MINUTES = 6 * 60; // 6 hours
 
 /**
@@ -203,15 +206,15 @@ const MAX_PREDICTED_MINUTES = 6 * 60; // 6 hours
  * derived entirely from the cached timetable. Returns [] if no cache exists.
  * Predicted departures beyond MAX_PREDICTED_MINUTES are filtered out.
  */
-export function getPredictedDepartures(
+export async function getPredictedDepartures(
   siteId: string,
   line: string,
   direction_code: number,
   count: number,
-): PredictedDeparture[] {
-  const store = loadStore();
+): Promise<PredictedDeparture[]> {
+  await ensureStoreLoaded();
   const storeKey = `${siteId}|${line}|${direction_code}`;
-  const entry = store[storeKey];
+  const entry = inMemoryStore[storeKey];
 
   if (!entry || Date.now() - entry.updatedAt > CACHE_TTL_MS) return [];
 
@@ -273,17 +276,17 @@ export function getPredictedDepartures(
  * All unique routes ever seen at a stop (for SegmentSearch line discovery).
  * Returns routes whose cache entry is still within TTL.
  */
-export function getKnownRoutes(siteId: string): Array<{
+export async function getKnownRoutes(siteId: string): Promise<Array<{
   line: string;
   lineName: string;
   destination: string;
   direction_code: number;
   transportType: TransportType;
-}> {
-  const store = loadStore();
+}>> {
+  await ensureStoreLoaded();
   const prefix = `${siteId}|`;
   const now = Date.now();
-  return Object.entries(store)
+  return Object.entries(inMemoryStore)
     .filter(
       ([key, entry]) =>
         key.startsWith(prefix) && now - entry.updatedAt <= CACHE_TTL_MS,

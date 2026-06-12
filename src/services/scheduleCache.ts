@@ -7,15 +7,15 @@
  * - Serve as a fallback when API is slow/down
  * - Enable instant display on route switch
  *
- * Storage: localStorage key "nasta_schedule_cache_v1"
+ * Storage: IndexedDB key "schedule:v1"
  * Format: {siteId|line|directionText} → [iso-timestamps]
- * Compression: gzip if > 5MB (using minimal compression approach)
  */
 
 import type { Departure } from "../types/departure";
+import { persistentCache } from "./persistentCache";
 
-const CACHE_STORAGE_KEY = "nasta_schedule_cache_v1";
-const COMPRESSION_THRESHOLD_KB = 5000;
+const CACHE_KEY = "schedule:v1";
+const LOCAL_STORAGE_KEY = "nasta_schedule_cache_v1";
 const MAX_DEPARTURES = 5;
 const DUPLICATE_WINDOW_MS = 60_000;
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -33,6 +33,21 @@ interface CacheEntry {
 
 export type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionText"
 
+let cacheLoaded = false;
+let inMemoryCache: CacheStore = {};
+
+async function ensureCacheLoaded(): Promise<void> {
+  if (cacheLoaded) return;
+  await persistentCache.migrateFromLocalStorage(LOCAL_STORAGE_KEY, CACHE_KEY, CACHE_TTL_MS);
+  const data = await persistentCache.get(CACHE_KEY);
+  inMemoryCache = (data as CacheStore) || {};
+  cacheLoaded = true;
+}
+
+async function saveCache(): Promise<void> {
+  await persistentCache.set(CACHE_KEY, inMemoryCache, CACHE_TTL_MS);
+}
+
 /**
  * Generate cache key from route parameters
  */
@@ -45,59 +60,22 @@ function getCacheKey(
 }
 
 /**
- * Load cache from localStorage
- */
-function loadCache(): CacheStore {
-  try {
-    const raw = localStorage.getItem(CACHE_STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as CacheStore;
-  } catch (e) {
-    if (import.meta.env.DEV)
-      console.warn("[scheduleCache] Error loading cache:", e);
-    return {};
-  }
-}
-
-/**
- * Save cache to localStorage
- */
-function saveCache(cache: CacheStore): void {
-  try {
-    const json = JSON.stringify(cache);
-    const sizeKB = new Blob([json]).size / 1024;
-
-    if (sizeKB > COMPRESSION_THRESHOLD_KB) {
-      if (import.meta.env.DEV)
-        console.warn(
-          `[scheduleCache] Cache size ${sizeKB.toFixed(1)}KB exceeds threshold. Consider clearing old entries.`,
-        );
-    }
-
-    localStorage.setItem(CACHE_STORAGE_KEY, json);
-  } catch (e) {
-    if (import.meta.env.DEV)
-      console.error("[scheduleCache] Error saving cache:", e);
-  }
-}
-
-/**
  * Add a scheduled departure time to the cache
  * Called from slApi.ts after each API response
  */
-export function cacheScheduleTime(
+export async function cacheScheduleTime(
   siteId: string,
   line: string,
   direction_code: number,
   scheduledTime: Date,
-): void {
+): Promise<void> {
   if (!siteId || !line) return;
 
-  const cache = loadCache();
+  await ensureCacheLoaded();
   const key = getCacheKey(siteId, line, direction_code);
 
-  if (!cache[key]) {
-    cache[key] = {
+  if (!inMemoryCache[key]) {
+    inMemoryCache[key] = {
       line,
       direction_code,
       scheduledTimes: [],
@@ -107,7 +85,7 @@ export function cacheScheduleTime(
   }
 
   const isoTime = scheduledTime.toISOString();
-  const entry = cache[key];
+  const entry = inMemoryCache[key];
 
   // Avoid duplicates (within DUPLICATE_WINDOW_MS)
   const isDuplicate = entry.scheduledTimes.some((t) => {
@@ -122,28 +100,29 @@ export function cacheScheduleTime(
     entry.updatedAt = Date.now();
   }
 
-  saveCache(cache);
+  await saveCache();
 }
 
 /** Maximum minutes ahead to show cached schedule departures.
- * Beyond this, the data is likely stale timetable data. */
+ * Beyond this, the data is likely stale timetable data.
+ */
 const MAX_CACHED_MINUTES = 24 * 60; // 24 hours (handles overnight schedules)
 
 /**
  * Retrieve cached schedule for a route
  * Returns null if no cache or expired
  */
-export function getCachedSchedule(
+export async function getCachedSchedule(
   siteId: string,
   line: string,
   direction_code: number,
   maxAgeHours: number = 24,
-): Departure[] | null {
+): Promise<Departure[] | null> {
   if (!siteId || !line) return null;
 
-  const cache = loadCache();
+  await ensureCacheLoaded();
   const key = getCacheKey(siteId, line, direction_code);
-  const entry = cache[key];
+  const entry = inMemoryCache[key];
 
   if (!entry) return null;
 
@@ -201,23 +180,23 @@ export function getCachedSchedule(
  * Clear expired cache entries
  * Call periodically (e.g., daily at 3 AM) to free storage
  */
-export function clearExpiredCache(maxAgeHours: number = 48): void {
-  const cache = loadCache();
+export async function clearExpiredCache(maxAgeHours: number = 48): Promise<void> {
+  await ensureCacheLoaded();
   let clearedCount = 0;
 
-  for (const key in cache) {
-    const entry = cache[key];
+  for (const key in inMemoryCache) {
+    const entry = inMemoryCache[key];
     const ageMs = Date.now() - entry.updatedAt;
     const ageHours = ageMs / (1000 * 60 * 60);
 
     if (ageHours > maxAgeHours) {
-      delete cache[key];
+      delete inMemoryCache[key];
       clearedCount++;
     }
   }
 
   if (clearedCount > 0) {
-    saveCache(cache);
+    await saveCache();
     if (import.meta.env.DEV)
       console.log(`[scheduleCache] Cleared ${clearedCount} expired entries`);
   }
@@ -226,13 +205,13 @@ export function clearExpiredCache(maxAgeHours: number = 48): void {
 /**
  * Get cache statistics (for debugging)
  */
-export function getCacheStats(): {
+export async function getCacheStats(): Promise<{
   entries: number;
   routes: Array<{ key: string; ageHours: number; timeCount: number }>;
-} {
-  const cache = loadCache();
-  const entries = Object.keys(cache).length;
-  const routes = Object.entries(cache).map(([key, entry]) => ({
+}> {
+  await ensureCacheLoaded();
+  const entries = Object.keys(inMemoryCache).length;
+  const routes = Object.entries(inMemoryCache).map(([key, entry]) => ({
     key,
     ageHours: (Date.now() - entry.updatedAt) / (1000 * 60 * 60),
     timeCount: entry.scheduledTimes.length,
@@ -244,7 +223,9 @@ export function getCacheStats(): {
 /**
  * Clear all cache (for testing or user reset)
  */
-export function clearAllCache(): void {
-  localStorage.removeItem(CACHE_STORAGE_KEY);
+export async function clearAllCache(): Promise<void> {
+  await persistentCache.remove(CACHE_KEY);
+  inMemoryCache = {};
+  cacheLoaded = false;
   if (import.meta.env.DEV) console.log("[scheduleCache] All cache cleared");
 }

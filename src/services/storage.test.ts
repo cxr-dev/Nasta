@@ -100,6 +100,7 @@ describe("storage service", () => {
         locationServicesEnabled: false,
         walkingEtaEnabled: false,
         afterworkVenuesEnabled: false,
+        afterworkStartHour: 15,
         afterworkTypes: [],
         eventsEnabled: false,
       });
@@ -143,6 +144,7 @@ describe("storage service", () => {
         locationServicesEnabled: false,
         walkingEtaEnabled: false,
         afterworkVenuesEnabled: false,
+        afterworkStartHour: 15,
         afterworkTypes: [],
         eventsEnabled: false,
       };

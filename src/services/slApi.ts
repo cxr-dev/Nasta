@@ -215,7 +215,7 @@ export async function getDepartures(
   if (!response.ok) throw new Error(`API error: ${response.status}`);
 
   const data = await response.json();
-  learnFromApiResponse(siteId, data.departures || []);
+  learnFromApiResponse(siteId, data.departures || []).catch(() => {});
 
   const rawDeps = Array.isArray(data.departures) ? data.departures : [];
   const stopDeviations = Array.isArray(data.stop_deviations) ? data.stop_deviations : [];
@@ -277,7 +277,7 @@ export async function getDepartures(
       const scheduledDate = new Date(parseSlTimestamp(dep.scheduled));
       const line = dep.line?.designation || dep.line?.name || "";
       const direction_code = dep.direction_code ?? 0;
-      cacheScheduleTime(siteId, line, direction_code, scheduledDate);
+      cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(() => {});
     }
 
     return {

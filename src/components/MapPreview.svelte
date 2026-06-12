@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
-  import maplibregl from "maplibre-gl";
-  import "maplibre-gl/dist/maplibre-gl.css";
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
+
+  const maplibreLoad = import('maplibre-gl').then(m => m.default);
+  void import('maplibre-gl/dist/maplibre-gl.css');
 
   function stopLabel(name?: string): string {
     if (!name) return "";
@@ -30,73 +31,65 @@
 
   type MapApp = "default" | "google" | "apple" | "waze";
   const MAP_PREF_KEY = "nasta_map_app_preference";
-  const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+  const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
   let mapsSheetForIndex = $state<number | null>(null);
   let rememberMapChoice = $state(true);
+  let maplibregl: any = $state(null);
+  let mapDiv = $state<HTMLDivElement | undefined>(undefined);
+  let mapInstance: any = null;
+  let mapLoadError = $state(false);
+  let isFullscreen = $state(false);
+  let isClosing = $state(false);
 
-  type MapPreviewParams = {
-    center: [number, number];
-    userLocation: [number, number] | null;
-  };
+  $effect(() => {
+    maplibreLoad.then(m => {
+      maplibregl = m;
+    }).catch(() => {
+      mapLoadError = true;
+    });
+  });
 
-  function mapPreview(node: HTMLDivElement, params: MapPreviewParams) {
-    let currentMap: maplibregl.Map | null = null;
-    let stopMarker: maplibregl.Marker | null = null;
-    let userMarker: maplibregl.Marker | null = null;
+  $effect(() => {
+    const coord = segment.fromStop.coord;
+    const loc = userLocation;
+    const mgl = maplibregl;
+    const div = mapDiv;
+    if (!coord || !mgl || !div) return;
 
-    const render = (next: MapPreviewParams) => {
-      if (currentMap) {
-        currentMap.remove();
+    const center: [number, number] = [coord[1], coord[0]];
+
+    if (mapInstance) mapInstance.remove();
+
+    mapInstance = new mgl.Map({
+      container: div,
+      style: MAP_STYLE,
+      center,
+      zoom: 14.5,
+      attributionControl: false,
+      dragPan: true,
+      scrollZoom: true,
+      doubleClickZoom: false,
+      touchZoomRotate: true,
+      dragRotate: false,
+      keyboard: false,
+    });
+
+    mapInstance.addControl(new mgl.AttributionControl({ compact: true }), "bottom-right");
+    mapInstance.touchZoomRotate?.disableRotation();
+
+    mapInstance.on("load", () => {
+      new mgl.Marker({ color: "#FF4757" }).setLngLat(center).addTo(mapInstance);
+      if (loc) {
+        new mgl.Marker({ color: "#2f80ed" }).setLngLat(loc).addTo(mapInstance);
       }
+    });
 
-      currentMap = new maplibregl.Map({
-        container: node,
-        style: MAP_STYLE,
-        center: next.center,
-        zoom: 14.5,
-        attributionControl: false,
-        dragPan: false,
-        scrollZoom: false,
-        doubleClickZoom: false,
-        touchZoomRotate: false,
-        keyboard: false,
-      });
-
-      currentMap.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
-
-      currentMap.on("load", () => {
-        stopMarker = new maplibregl.Marker({ color: "#111111" })
-          .setLngLat(next.center)
-          .addTo(currentMap!);
-
-        if (next.userLocation) {
-          userMarker = new maplibregl.Marker({ color: "#2f80ed" })
-            .setLngLat(next.userLocation)
-            .addTo(currentMap!);
-        }
-      });
+    return () => {
+      mapInstance?.remove();
+      mapInstance = null;
     };
-
-    render(params);
-
-    return {
-      update(next: MapPreviewParams) {
-        const shouldRebuild =
-          next.center[0] !== params.center[0] ||
-          next.center[1] !== params.center[1] ||
-          next.userLocation?.[0] !== params.userLocation?.[0] ||
-          next.userLocation?.[1] !== params.userLocation?.[1];
-        params = next;
-        if (shouldRebuild) render(next);
-      },
-      destroy() {
-        stopMarker?.remove();
-        userMarker?.remove();
-        currentMap?.remove();
-      },
-    };
-  }
+  });
 
   function loadMapPreference(): MapApp {
     try {
@@ -143,6 +136,20 @@
     const isiOS = /iphone|ipad|ipod/.test(ua);
     return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
   }
+
+  function toggleFullscreen() {
+    if (isFullscreen) {
+      isClosing = true;
+      setTimeout(() => {
+        isFullscreen = false;
+        isClosing = false;
+        requestAnimationFrame(() => mapInstance?.resize());
+      }, 150);
+    } else {
+      isFullscreen = true;
+      requestAnimationFrame(() => mapInstance?.resize());
+    }
+  }
 </script>
 
 {#if segment.fromStop.coord}
@@ -161,22 +168,39 @@
     </div>
 
     <div class="journey-map-shell">
-      <div class="journey-map-label">
-        <span>{t.walkToStop}</span>
-        {#if dist !== null}
-          <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
-        {:else if walkingEtaEnabled && locationRequestInFlight}
-          <span class="hint">{t.waitingForLocation}</span>
-        {/if}
-      </div>
+      {#if walkingEtaEnabled}
+        <div class="journey-map-label">
+          <span>{t.walkToStop}</span>
+          {#if dist !== null}
+            <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
+          {:else if locationRequestInFlight}
+            <span class="hint">{t.waitingForLocation}</span>
+          {/if}
+        </div>
+      {/if}
 
-      <div
-        class="mini-map"
-        use:mapPreview={{
-          center: [stopLon, stopLat],
-          userLocation,
-        }}
-      ></div>
+      <div class="map-container" class:fullscreen={isFullscreen} class:closing={isClosing}>
+        <div
+          class="mini-map"
+          bind:this={mapDiv}
+        ></div>
+        <button
+          type="button"
+          class="map-expand-btn"
+          onclick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Minimize map' : 'Expand map fullscreen'}
+        >
+          {#if isFullscreen}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          {:else}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          {/if}
+        </button>
+      </div>
     </div>
 
     <div class="journey-actions">
@@ -318,5 +342,67 @@
     color: var(--text-secondary);
     background: transparent;
     flex: 0 0 auto;
+  }
+  .map-container {
+    position: relative;
+  }
+  .map-container.fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #000;
+    animation: fullscreen-in 200ms ease-out both;
+  }
+  .map-container.closing {
+    animation: fullscreen-out 150ms ease-in both;
+  }
+  .map-container.fullscreen .mini-map {
+    height: 100dvh;
+    width: 100%;
+    border-radius: 0;
+  }
+  .map-expand-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    transition: background 160ms ease, transform 160ms ease;
+  }
+  .map-expand-btn:active {
+    transform: scale(0.92);
+    background: rgba(0,0,0,0.7);
+  }
+  .map-expand-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  @keyframes fullscreen-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes fullscreen-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.96); }
+  }
+  :global(.maplibregl-ctrl-attrib-button) {
+    width: 20px !important;
+    height: 20px !important;
+    opacity: 0.45;
+  }
+  :global(.maplibregl-ctrl-attrib) {
+    font-size: 9px !important;
   }
 </style>

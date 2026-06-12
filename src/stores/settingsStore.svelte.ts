@@ -78,6 +78,11 @@ export function setAfterworkVenuesEnabled(enabled: boolean) {
   saveSettings(_settings);
 }
 
+export function setAfterworkStartHour(hour: number) {
+  _settings = { ..._settings, afterworkStartHour: Math.min(23, Math.max(0, hour)) };
+  saveSettings(_settings);
+}
+
 export function setEventsEnabled(enabled: boolean) {
   _settings = { ..._settings, eventsEnabled: enabled };
   saveSettings(_settings);
