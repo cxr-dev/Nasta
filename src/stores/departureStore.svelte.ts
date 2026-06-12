@@ -155,7 +155,6 @@ const fetchAllHybrid = async (
 
             results.set(seg.siteId, apiDepartures.departures);
 
-            _data.set(seg.siteId, apiDepartures.departures);
             _stopDeviations.set(seg.siteId, apiDepartures.stopDeviations);
 
             if (apiDepartures.departures.length > 0) {
@@ -182,6 +181,9 @@ const fetchAllHybrid = async (
           }
         }),
       );
+
+      _data = new Map(results);
+      notifyData();
     }
   } catch (error) {
     if (import.meta.env.DEV)
