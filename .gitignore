@@ -27,3 +27,8 @@ test-results/.last-run.json
 .pnpm-store/v11/index.db
 .pnpm-store/v11/.pnpm-needs-build-marker
 implementation_plan.md
+# Stale lockfile (use pnpm-lock.yaml instead)
+package-lock.json
+
+# Full pnpm store directory
+.pnpm-store
