@@ -733,6 +733,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     height: 16px;
     color: currentColor;
     fill: currentColor;
+    transition: transform 0.2s ease;
+  }
+  @media (hover: hover) {
+    .transport-filter-btn:hover .transport-icon { transform: scale(1.12); }
   }
 
   .transport-filter-btn.active {
@@ -762,6 +766,10 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     user-select: none;
     transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
     will-change: transform, border-color;
+  }
+  .dep-item .transport-icon { transition: transform 0.2s ease; }
+  @media (hover: hover) {
+    .dep-item:hover .transport-icon { transform: scale(1.08); }
   }
 
   @media (hover: hover) {

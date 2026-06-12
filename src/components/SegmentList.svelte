@@ -3,6 +3,7 @@
   import { removeSegment as storeRemoveSegment, updateSegmentTransferBuffer, reorderSegments } from '../stores/pageStore.svelte';
   import { transportIcons } from '../icons/transport';
   import { getT } from '../stores/localeStore.svelte';
+  import gsap from 'gsap';
 
   let t = $derived(getT());
   
@@ -10,6 +11,8 @@
   
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
+  let dragStartX = 0;
+  let dragStartY = 0;
   
   function removeSegment(segmentId: string) {
     storeRemoveSegment(page.id, segmentId);
@@ -49,12 +52,25 @@
   
   function handleTouchStart(e: TouchEvent, index: number) {
     draggingIndex = index;
+    dragStartX = e.touches[0].clientX;
+    dragStartY = e.touches[0].clientY;
   }
   
   function handleTouchMove(e: TouchEvent) {
     if (draggingIndex === null) return;
     
     const touch = e.touches[0];
+    const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
+    if (segment) {
+      gsap.to(segment, {
+        x: touch.clientX - dragStartX,
+        y: touch.clientY - dragStartY,
+        duration: 0.08,
+        ease: 'power2.out',
+        overwrite: 'auto',
+      });
+    }
+    
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     if (element) {
       const item = element.closest('[data-drag-index]');
@@ -68,8 +84,14 @@
   }
   
   function handleTouchEnd() {
-    if (draggingIndex !== null && dragOverIndex !== null && draggingIndex !== dragOverIndex) {
-      reorderSegments(page.id, draggingIndex, dragOverIndex);
+    if (draggingIndex !== null) {
+      const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
+      if (segment) {
+        gsap.to(segment, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+      }
+      if (dragOverIndex !== null && draggingIndex !== dragOverIndex) {
+        reorderSegments(page.id, draggingIndex, dragOverIndex);
+      }
     }
     draggingIndex = null;
     dragOverIndex = null;
@@ -220,11 +242,10 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-  }
-
-  .segment-icon {
     background: var(--accent-subtle);
+    transition: transform 0.2s ease;
   }
+  @media (hover: hover) { .segment:hover .segment-icon { transform: scale(1.08); } }
 
   .segment-icon .transport-icon {
     width: 18px;

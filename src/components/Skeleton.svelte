@@ -1,4 +1,6 @@
 <script lang="ts">
+  import gsap from 'gsap';
+
   let { 
     width = '100%', 
     height = '20px', 
@@ -8,11 +10,25 @@
     height?: string;
     borderRadius?: string;
   } = $props();
+
+  let el: HTMLDivElement | undefined = $state();
+
+  $effect(() => {
+    if (!el) return;
+    const tween = gsap.to(el, {
+      backgroundPosition: '-200% 0',
+      duration: 1.5,
+      ease: 'sine.inOut',
+      repeat: -1,
+    });
+    return () => tween.kill();
+  });
 </script>
 
 <div 
+  bind:this={el}
   class="skeleton" 
-  style="width: {width}; height: {height}; border-radius: {borderRadius};"
+  style="width: {width}; height: {height}; border-radius: {borderRadius}; background-position: 200% 0;"
 ></div>
 
 <style>
@@ -24,17 +40,10 @@
       var(--surface) 100%
     );
     background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .skeleton {
-      animation: none;
       opacity: 0.4;
     }
   }

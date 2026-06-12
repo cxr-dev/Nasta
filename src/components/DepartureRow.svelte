@@ -2,8 +2,8 @@
   import type { Segment } from "../types/page";
   import type { Departure } from "../stores/departureStore.svelte";
   import { transportIcons } from "../icons/transport";
-  import { slide } from "svelte/transition";
-  import { cubicOut } from "svelte/easing";
+  import { tick } from 'svelte';
+  import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
   import DisruptionList from "./DisruptionList.svelte";
   let {
@@ -80,22 +80,7 @@
     const attachAndScroll = () => {
       const panel = node.querySelector('.expanded-panel') as HTMLElement | null;
       if (!panel) return;
-
-      let handled = false;
-      const onEnd = () => {
-        if (handled) return;
-        handled = true;
-        panel.removeEventListener('introend', onEnd);
-        panel.removeEventListener('transitionend', onEnd);
-        panel.removeEventListener('animationend', onEnd);
-        scrollPanelAboveBottomBar(panel);
-      };
-
-      panel.addEventListener('introend', onEnd, { once: true });
-      panel.addEventListener('transitionend', onEnd, { once: true });
-      panel.addEventListener('animationend', onEnd, { once: true });
-
-      setTimeout(onEnd, 350);
+      setTimeout(() => scrollPanelAboveBottomBar(panel), 300);
     };
 
     if (isExpanded) {
@@ -129,6 +114,85 @@
   }
 
   import type { TransportType } from "../types/page";
+
+  function disruptionLabel(type: string): string {
+    if (type === 'general') return t.disruptionGeneral ?? type;
+    if (type === 'protest') return t.disruptionProtest ?? type;
+    if (type === 'technical') return t.disruptionTechnical ?? type;
+    if (type === 'weather') return t.disruptionWeather ?? type;
+    return type;
+  }
+
+  let badgeEl: HTMLDivElement | undefined = $state();
+  let prevDevsLength = 0;
+  let eventChipEl: HTMLDivElement | undefined = $state();
+  let panelEl: HTMLDivElement | undefined = $state();
+  let collapsing = $state(false);
+
+  function handleToggle() {
+    if (isExpanded) {
+      const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (rm) { ontoggle?.(index); return; }
+      collapsing = true;
+      tick().then(() => {
+        if (!panelEl) { collapsing = false; ontoggle?.(index); return; }
+        gsap.to(panelEl, {
+          height: 0, opacity: 0,
+          duration: 0.2, ease: 'power2.in',
+          onComplete: () => {
+            collapsing = false;
+            ontoggle?.(index);
+          },
+        });
+      });
+    } else {
+      ontoggle?.(index);
+    }
+  }
+
+  $effect(() => {
+    if (!isExpanded || !panelEl) return;
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+    gsap.fromTo(panelEl,
+      { height: 0, opacity: 0 },
+      { height: 'auto', opacity: 1, duration: 0.28, ease: 'power2.out', clearProps: 'height,opacity' },
+    );
+  });
+
+  $effect(() => {
+    const len = siteDevs.length;
+    if (len > 0 && len !== prevDevsLength && badgeEl) {
+      gsap.fromTo(badgeEl,
+        { scale: 1 },
+        { scale: 1.18, duration: 0.25, yoyo: true, repeat: 1, ease: 'power2.out', overwrite: 'auto' }
+      );
+    }
+    prevDevsLength = len;
+  });
+
+  $effect(() => {
+    if (siteDevs.length === 0 || !eventChipEl) return;
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+
+    const icon = eventChipEl.querySelector('.event-icon') as HTMLElement | null;
+    if (!icon) return;
+
+    gsap.killTweensOf(icon);
+
+    if (topDevType === 'protest') {
+      gsap.to(icon, { rotation: 2, y: -1, duration: 0.9, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' });
+    } else if (topDevType === 'technical') {
+      gsap.to(icon, { scale: 1.12, opacity: 1, duration: 1, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' });
+    } else if (topDevType === 'weather') {
+      gsap.to(icon, { y: -1, duration: 1.1, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' });
+    } else {
+      gsap.to(icon, { scale: 1.08, opacity: 0.8, duration: 1.5, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' });
+    }
+
+    return () => gsap.killTweensOf(icon);
+  });
 </script>
 
 <div class="departure-item" class:expanded={isExpanded} use:scrollExpandedIntoView={isExpanded}>
@@ -141,9 +205,8 @@
     type="button"
     aria-expanded={isExpanded}
     onclick={() => {
-      if (isExpandable) ontoggle?.(index);
+      if (isExpandable) handleToggle();
     }}
-    style="--delay: {Math.min(index, 3) * 40}ms"
   >
     <div class="row-left">
       <div class="transport-badge" data-type={segment.transportType}>
@@ -171,7 +234,7 @@
             <div class="secondary-time"><span class="more">{subsequent}</span></div>
           {/if}
             {#if siteDevs.length > 0}
-              <div class="event-chip event-{topDevType}">
+              <div bind:this={eventChipEl} class="event-chip event-{topDevType}">
                 {#if topDevType === "protest"}
                   <svg viewBox="0 0 24 24" class="event-icon protest-icon" aria-hidden="true">
                     <path d="M6 20v-5m0-6V4m0 5 8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -192,14 +255,14 @@
                     <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   </svg>
                 {/if}
-                <span>{topDevType === "general" ? t.disruptionGeneral : topDevType}</span>
+                <span>{disruptionLabel(topDevType)}</span>
               </div>
             {/if}
         </div>
         {/if}
       {:else}
         {#if siteDevs.length > 0}
-          <div class="site-deviation-badge" class:active={isExpanded}>
+          <div bind:this={badgeEl} class="site-deviation-badge" class:active={isExpanded}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/>
@@ -213,8 +276,8 @@
     </div>
   </button>
 
-  {#if isExpanded}
-    <div class="expanded-panel" transition:slide={{ duration: 280, easing: cubicOut }}>
+  {#if isExpanded || collapsing}
+    <div bind:this={panelEl} class="expanded-panel">
       <div class="expanded-actions">
         {#if hasDeparture}
           <MapPreview
@@ -248,8 +311,6 @@
     padding: 18px 16px;
     border-radius: 22px;
     border: 1px solid transparent;
-    animation: rowIn 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: var(--delay, 0ms);
     contain: layout style;
     width: 100%;
     background: var(--surface);
@@ -290,10 +351,11 @@
     border-color: var(--accent-subtle);
     box-shadow: 0 16px 50px rgba(0, 0, 0, 0.13);
   }
-  @keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
   .row-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding-right: 12px; }
   .row-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; text-align: right; min-width: fit-content; padding-left: 8px; }
-  .transport-badge { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; background: var(--accent-subtle); color: var(--accent); }
+  .transport-badge { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; background: var(--accent-subtle); color: var(--accent); transition: transform 0.2s ease; }
+  @media (hover: hover) { .departure-row.expandable:hover .transport-badge { transform: scale(1.08); } }
   .transport-badge svg { width: 20px; height: 20px; }
   .line-details { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .line-info { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -322,13 +384,5 @@
     opacity: 0.9;
   }
   .event-icon { width: 14px; height: 14px; }
-  .protest-icon { animation: bob 1.8s ease-in-out infinite; transform-origin: 6px 18px; }
-  .tech-icon { animation: spinSlow 2.6s linear infinite; transform-origin: 12px 12px; }
-  .weather-icon { animation: drift 2.2s ease-in-out infinite; }
-  @keyframes bob { 0%,100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-1px); } }
-  @keyframes spinSlow { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
-  @keyframes drift { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-1px);} }
-  @media (prefers-reduced-motion: reduce) {
-    .protest-icon, .tech-icon, .weather-icon { animation: none !important; }
-  }
+  .protest-icon { transform-origin: 6px 18px; }
 </style>

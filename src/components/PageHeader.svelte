@@ -2,6 +2,7 @@
   import type { Page } from '../types/page';
   import { getSettings } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
+  import gsap from 'gsap';
 
   let t = $derived(getT());
 
@@ -22,13 +23,37 @@
   let hasNext = $derived(currentIndex < pages.length - 1);
   let showSwipeHint = $derived(!settings.hasSwipedRoutes && pages.length >= 2);
 
+  let titleEl: HTMLHeadingElement | undefined = $state();
+  let prevBtnEl: HTMLButtonElement | undefined = $state();
+  let nextBtnEl: HTMLButtonElement | undefined = $state();
+
+  $effect(() => {
+    const name = activePage?.name;
+    if (!name || !titleEl) return;
+    gsap.fromTo(titleEl,
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out', overwrite: 'auto' },
+    );
+    return () => gsap.killTweensOf(titleEl!);
+  });
+
   function handlePrev() {
-    if (!hasPrev) return;
+    if (!hasPrev) {
+      if (prevBtnEl) {
+        gsap.fromTo(prevBtnEl, { x: 0 }, { x: -4, duration: 0.12, yoyo: true, repeat: 1, ease: 'power2.out', overwrite: 'auto' });
+      }
+      return;
+    }
     onSwitch(pages[currentIndex - 1].id);
   }
 
   function handleNext() {
-    if (!hasNext) return;
+    if (!hasNext) {
+      if (nextBtnEl) {
+        gsap.fromTo(nextBtnEl, { x: 0 }, { x: 4, duration: 0.12, yoyo: true, repeat: 1, ease: 'power2.out', overwrite: 'auto' });
+      }
+      return;
+    }
     onSwitch(pages[currentIndex + 1].id);
   }
 
@@ -36,27 +61,19 @@
 
 <header class="page-header">
   <div class="page-block">
-    {#if hasPrev}
-      <button class="nav-arrow" onclick={handlePrev} aria-label={t.previousPage}>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M10 3l-5 5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    {:else}
-      <div class="nav-arrow-placeholder"></div>
-    {/if}
+    <button bind:this={prevBtnEl} class="nav-arrow" class:inactive={!hasPrev} onclick={handlePrev} aria-label={t.previousPage} disabled={!hasPrev}>
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M10 3l-5 5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
 
-    <h1 class="page-name route-name" data-testid="route-name">{activePage?.name ?? ''}</h1>
+    <h1 bind:this={titleEl} class="page-name route-name" data-testid="route-name">{activePage?.name ?? ''}</h1>
 
-    {#if hasNext}
-      <button class="nav-arrow" onclick={handleNext} aria-label={t.nextPage}>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    {:else}
-      <div class="nav-arrow-placeholder"></div>
-    {/if}
+    <button bind:this={nextBtnEl} class="nav-arrow" class:inactive={!hasNext} onclick={handleNext} aria-label={t.nextPage} disabled={!hasNext}>
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
 
   {#if showSwipeHint}
@@ -125,10 +142,9 @@
     height: 14px;
   }
 
-  .nav-arrow-placeholder {
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
+  .nav-arrow:disabled {
+    opacity: 0.25;
+    cursor: default;
   }
 
   .swipe-hint {

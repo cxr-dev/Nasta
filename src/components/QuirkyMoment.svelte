@@ -264,6 +264,10 @@
     transform: scale(1.1);
   }
 
+  .confetti-trigger {
+    animation: gentleFloat 2s ease-in-out infinite;
+  }
+
   .confetti-burst {
     position: fixed;
     top: 40px;
@@ -351,6 +355,11 @@
     border-radius: 1px;
   }
 
+  @keyframes gentleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
   @keyframes rainFall {
     0% { transform: translateY(0); opacity: 0; }
     20% { opacity: 1; }
@@ -389,6 +398,7 @@
     .quirky-badge,
     .rare-event,
     .confetti-burst,
+    .confetti-trigger,
     .raindrop,
     .snowflake {
       animation: none;

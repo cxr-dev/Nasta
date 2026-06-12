@@ -8,6 +8,8 @@
   import { onMount, onDestroy } from "svelte";
   import { getQuickLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
+  import gsap from 'gsap';
+  import Skeleton from './Skeleton.svelte';
   import DepartureRow from "./DepartureRow.svelte";
   import { prefetchSegments } from "../services/prefetchService";
   import { getSettings } from "../stores/settingsStore.svelte";
@@ -43,6 +45,8 @@
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
+  let depListEl: HTMLDivElement | undefined = $state();
+  let hasAnimatedStagger = $state(false);
 
   $effect(() => {
     route.id;
@@ -173,6 +177,33 @@
   });
 
   $effect(() => {
+    const count = segmentDeps.reduce((a, b) => a + b.length, 0);
+    if (!depListEl || count === 0 || hasAnimatedStagger) return;
+    hasAnimatedStagger = true;
+    gsap.fromTo(
+      depListEl.querySelectorAll('.departure-item'),
+      { opacity: 0, y: 12 },
+      { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.04, clearProps: 'transform,opacity' },
+    );
+  });
+
+  let healthPulseInited = false;
+  $effect(() => {
+    if (!depListEl || healthPulseInited) return;
+    const dots = depListEl.querySelectorAll('.health-dot');
+    if (dots.length === 0) return;
+    healthPulseInited = true;
+    dots.forEach((dot) => {
+      const el = dot as HTMLElement;
+      if (el.classList.contains('critical')) {
+        gsap.to(el, { scale: 1.3, opacity: 0.7, duration: 0.8, yoyo: true, repeat: -1, ease: 'power1.inOut' });
+      } else if (el.classList.contains('affected')) {
+        gsap.to(el, { scale: 1.2, duration: 1.2, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+      }
+    });
+  });
+
+  $effect(() => {
     route.id;
     departureData;
     loadSegmentDeps().catch((e) => console.error('loadSegmentDeps failed', e));
@@ -243,7 +274,7 @@
   });
 </script>
 
-<div class="departures-list">
+<div class="departures-list" bind:this={depListEl}>
   {#if lastError}
     <div class="error-bar">
       <span>{lastError}</span>
@@ -255,9 +286,9 @@
     <div class="loading-skeleton">
       {#each Array(3) as _, i (i)}
         <div class="skeleton-row">
-          <div class="skeleton-badge"></div>
-          <div class="skeleton-line"></div>
-          <div class="skeleton-time"></div>
+          <Skeleton width="36px" height="36px" borderRadius="8px" />
+          <div class="skeleton-line-fill"><Skeleton width="100%" height="14px" borderRadius="4px" /></div>
+          <Skeleton width="80px" height="32px" borderRadius="4px" />
         </div>
       {/each}
     </div>
@@ -277,27 +308,37 @@
       {@const isExpandable = hasDeparture || siteDevs.length > 0}
       {@const topDevMessage = siteDevs[0]?.message ?? ""}
       {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
+      {@const health = deviationHealthBySegment.get(segment.id)}
 
-      <DepartureRow
-        {segment}
-        {departure}
-        {subsequent}
-        {hasDeparture}
-        {primaryDepartureText}
-        {siteDevs}
-        {isExpanded}
-        {isExpandable}
-        {topDevMessage}
-        {topDevType}
-        {index}
-        {userLocation}
-        locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
-        walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
-        {openFeatureSheet}
-        {t}
-        ontoggle={toggleExpanded}
-        onprefetch={() => prefetchForSegment(segment)}
-      />
+      <div
+        class="segment-wrapper"
+        class:affected={health?.state === 'affected'}
+        class:critical={health?.state === 'critical'}
+      >
+        {#if health && health.state !== 'ok'}
+          <div class="health-dot" class:affected={health.state === 'affected'} class:critical={health.state === 'critical'} aria-label={health.reason ?? ''}></div>
+        {/if}
+        <DepartureRow
+          {segment}
+          {departure}
+          {subsequent}
+          {hasDeparture}
+          {primaryDepartureText}
+          {siteDevs}
+          {isExpanded}
+          {isExpandable}
+          {topDevMessage}
+          {topDevType}
+          {index}
+          {userLocation}
+          locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
+          walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
+          {openFeatureSheet}
+          {t}
+          ontoggle={toggleExpanded}
+          onprefetch={() => prefetchForSegment(segment)}
+        />
+      </div>
     {/each}
 
     {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
@@ -316,12 +357,13 @@
   .error-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
   .error-bar button { background: none; border: none; color: #991b1b; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
   .loading-skeleton { padding: 12px 0; }
-  .skeleton-row { display: flex; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); }
-  .skeleton-badge { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(90deg, var(--accent-subtle) 0%, var(--border) 50%, var(--accent-subtle) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
-  .skeleton-line { flex: 1; height: 14px; margin: 0 12px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
-  .skeleton-time { width: 80px; height: 32px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 0%, var(--surface) 50%, var(--border) 100%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton-row { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .skeleton-line-fill { flex: 1; }
   .empty-state { text-align: center; padding: 48px 24px; }
   .empty-text { margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
   .no-departure { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }
+  .segment-wrapper { position: relative; margin: 8px 0; padding-left: 10px; }
+  .health-dot { position: absolute; left: 0; top: 24px; width: 5px; height: 5px; border-radius: 999px; }
+  .health-dot.affected { background: #f59e0b; }
+  .health-dot.critical { background: #ef4444; }
 </style>

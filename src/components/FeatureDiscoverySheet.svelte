@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import gsap from 'gsap';
   import { getT, getLocale } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
@@ -230,6 +231,35 @@
   let showTabs = $derived(availableModes.length > 1);
   let title = $derived(activeMode === 'venues' ? t.afterwork : t.events);
   let subtitle = $derived(t.browseNearby);
+
+  let railEl = $state<HTMLElement | undefined>();
+
+  $effect(() => {
+    const isLoading = currentVenueLoading || eventLoading;
+    if (!railEl || !isLoading) return;
+    const skels = railEl.querySelectorAll('.skeleton-element');
+    if (skels.length === 0) return;
+    const tweens = Array.from(skels).map((el) =>
+      gsap.to(el, {
+        backgroundPosition: '-200% 0',
+        duration: 1.5,
+        ease: 'sine.inOut',
+        repeat: -1,
+      }),
+    );
+    return () => tweens.forEach((t) => t.kill());
+  });
+
+  $effect(() => {
+    if (!railEl || items.length === 0) return;
+    const cards = railEl.querySelectorAll('.card');
+    if (cards.length === 0) return;
+    gsap.fromTo(
+      cards,
+      { opacity: 0, y: 12 },
+      { opacity: 1, y: 0, stagger: 0.07, duration: 0.36, ease: 'power2.out' },
+    );
+  });
 </script>
 
 <div class="sheet-shell">
@@ -300,7 +330,7 @@
     </div>
   {/if}
 
-  <section class="rail" aria-label={title}>
+  <section class="rail" bind:this={railEl} aria-label={title}>
     {#if activeMode === 'venues' && currentVenueLoading && filteredVenues.length === 0}
       <div class="skeleton-list">
         {#each Array(3) as _, i (i)}
@@ -585,8 +615,6 @@
     flex-direction: column;
     gap: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-    animation: card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--index) * 70ms);
   }
 
   .empty-card {
@@ -723,25 +751,8 @@
 
   .ghost-btn:first-child {
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     border-color: transparent;
-  }
-
-  @keyframes card-in {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .card {
-      animation: none;
-    }
   }
 
   /* Skeleton Loading Styles */
@@ -762,13 +773,10 @@
     gap: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
     min-height: 194px;
-    animation: card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--index) * 70ms);
   }
   .skeleton-element {
     background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 95%, #000 5%)) 50%, var(--border) 100%);
     background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
     border-radius: 4px;
   }
   .skeleton-pill {
@@ -801,8 +809,9 @@
     border-radius: 18px;
     margin-top: auto;
   }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-element {
+      opacity: 0.4;
+    }
   }
 </style>

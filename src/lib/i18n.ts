@@ -218,6 +218,9 @@ const sv = {
 
   // Disruption types
   disruptionGeneral: "Störning",
+  disruptionProtest: "Protest",
+  disruptionTechnical: "Tekniskt fel",
+  disruptionWeather: "Väder",
 
   // Transit labels
   lineLabel: "Linje {line}",
@@ -440,6 +443,9 @@ const en: typeof sv = {
   emDash: "—",
 
   disruptionGeneral: "Disruption",
+  disruptionProtest: "Protest",
+  disruptionTechnical: "Technical issue",
+  disruptionWeather: "Weather",
 
   lineLabel: "Line {line}",
 

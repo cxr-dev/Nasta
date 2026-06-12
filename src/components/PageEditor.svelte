@@ -4,6 +4,7 @@
   import { setActivePage, createPage, deletePage, getDefaultName } from '../stores/pageStore.svelte';
   import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import { THEMES } from '../themes';
+  import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
@@ -37,6 +38,39 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
   let showPageManager = $state(false);
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
+  let hintEl = $state<HTMLDivElement | undefined>();
+  let addBtnEl = $state<HTMLButtonElement | undefined>();
+  let dotEl = $state<HTMLSpanElement | undefined>();
+
+  $effect(() => {
+    if (!hintEl) return;
+    gsap.fromTo(hintEl, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' });
+  });
+
+  $effect(() => {
+    if (!addBtnEl) return;
+    const ring = gsap.to(addBtnEl, {
+      boxShadow: '0 0 0 12px rgba(23,23,23,0)',
+      duration: 1.3,
+      ease: 'power1.inOut',
+      repeat: -1,
+      yoyo: true,
+    });
+    return () => ring.kill();
+  });
+
+  $effect(() => {
+    if (!dotEl) return;
+    const dot = gsap.to(dotEl, {
+      scale: 1.15,
+      boxShadow: '0 0 0 10px rgba(23,23,23,0)',
+      duration: 0.8,
+      ease: 'power1.inOut',
+      repeat: -1,
+      yoyo: true,
+    });
+    return () => dot.kill();
+  });
 
   function getPageLabel(p: Page): string {
     return p.name;
@@ -220,7 +254,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
       {#if showSearch || autoSearch}
         <div class="search-container">
           {#if onboardingHighlight && !hintDismissed}
-            <div class="onboarding-hint" role="tooltip" aria-live="polite">
+            <div bind:this={hintEl} class="onboarding-hint" role="tooltip" aria-live="polite">
               <div class="hint-badge">{t.onboardingHintNew}</div>
               <span>{t.onboardingHintText}</span>
               <button onclick={dismissOnboardingHint} aria-label={t.dismissHint}>×</button>
@@ -234,8 +268,9 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
       {:else}
         <div class="segment-area">
           <SegmentList page={page} />
-          <button class="add-btn"             class:onboarding-highlight={onboardingHighlight && (!page || page.segments.length === 0)} onclick={() => showSearch = true}>
+          <button bind:this={addBtnEl} class="add-btn"             class:onboarding-highlight={onboardingHighlight && (!page || page.segments.length === 0)} onclick={() => showSearch = true}>
             {t.addSegment}
+            {#if onboardingHighlight && (!page || page.segments.length === 0)}<span bind:this={dotEl} class="pulse-dot-el"></span>{/if}
           </button>
         </div>
       {/if}
@@ -537,6 +572,7 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
 }
 
 .add-btn {
+  position: relative;
   width: 100%;
   padding: 12px;
   border: 1.5px dashed var(--border-subtle);
@@ -967,7 +1003,6 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
   justify-content: space-between;
   gap: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
-  animation: hint-slide-in 250ms ease-out;
 }
 
 .onboarding-hint span {
@@ -993,17 +1028,15 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
   font-weight: 800;
   letter-spacing: 0.08em;
   padding: 3px 7px;
-  color: #fff;
+  color: var(--text-on-accent);
   background: var(--accent);
 }
 
 .add-btn.onboarding-highlight {
   box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
-  animation: pulse-ring 1300ms ease-out infinite;
 }
 
-.add-btn.onboarding-highlight::after {
-  content: '';
+.pulse-dot-el {
   position: absolute;
   top: -8px;
   right: -8px;
@@ -1012,34 +1045,12 @@ let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.le
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
-  animation: pulse-dot 1300ms ease-out infinite;
 }
 
-@keyframes hint-slide-in {
-  0% {
-    transform: translateX(-50%) translateY(20px);
-    opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot-el {
+    display: none;
   }
-  60% {
-    transform: translateX(-50%) translateY(-2px);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.34); }
-  80% { box-shadow: 0 0 0 12px rgba(23, 23, 23, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
-}
-
-@keyframes pulse-dot {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35); }
-  75% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(23, 23, 23, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
 }
 
 </style>

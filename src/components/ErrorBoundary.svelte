@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { getT } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
@@ -20,7 +21,7 @@
 <svelte:window onerror={() => { hasError = true; }} />
 
 {#if hasError}
-  <div class="error-boundary">
+  <div class="error-boundary" transition:fade={{ duration: 300 }}>
     <div class="error-content">
       <div class="error-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -90,7 +91,7 @@
     justify-content: center;
     gap: 8px;
     background: var(--accent, #171717);
-    color: #fff;
+    color: var(--text-on-accent, #fff);
     border: none;
     padding: 14px 28px;
     border-radius: 8px;
@@ -108,5 +109,41 @@
 
   button:active {
     transform: translateY(0);
+  }
+
+  .error-content > * {
+    animation: contentEnter 0.4s ease-out both;
+  }
+
+  .error-content > :nth-child(1) { animation-delay: 0s; }
+  .error-content > :nth-child(2) { animation-delay: 0.1s; }
+  .error-content > :nth-child(3) { animation-delay: 0.2s; }
+  .error-content > :nth-child(4) { animation-delay: 0.3s; }
+
+  @keyframes contentEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .error-icon {
+    animation: iconPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes iconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .error-content > *,
+    .error-icon {
+      animation: none;
+    }
   }
 </style>

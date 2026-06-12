@@ -1,11 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
 
   let isVisible = $state(false);
   let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined = $state();
+  let bannerEl = $state<HTMLDivElement | undefined>();
+
+  $effect(() => {
+    if (isVisible && bannerEl) {
+      gsap.fromTo(bannerEl,
+        { y: '100%', opacity: 0 },
+        { y: '0%', opacity: 1, duration: 0.3, ease: 'back.out(1.4)' }
+      );
+    }
+  });
 
   onMount(() => {
     const handleUpdateAvailable = (event: CustomEvent) => {
@@ -28,12 +39,22 @@
   }
 
   function handleDismiss() {
-    isVisible = false;
+    if (bannerEl) {
+      gsap.to(bannerEl, {
+        y: '100%',
+        opacity: 0,
+        duration: 0.2,
+        ease: 'power2.in',
+        onComplete: () => { isVisible = false; }
+      });
+    } else {
+      isVisible = false;
+    }
   }
 </script>
 
 {#if isVisible}
-  <div class="update-banner">
+  <div class="update-banner" bind:this={bannerEl}>
     <div class="banner-content">
       <p class="banner-text">{t.updateAvailable}</p>
       <button class="reload-btn" onclick={handleReload}>
@@ -58,7 +79,6 @@
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.1);
     z-index: 9999;
-    animation: slideUp 300ms ease-out;
   }
 
   .banner-content {
@@ -118,17 +138,6 @@
 
   .dismiss-btn:hover {
     opacity: 0.8;
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
   }
 
   @media (max-width: 480px) {

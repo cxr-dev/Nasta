@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import gsap from 'gsap';
   import { initialize } from './stores/pageStore.svelte';
   import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage } from './stores/pageStore.svelte';
   import { departureStore } from './stores/departureStore.svelte';
@@ -28,6 +29,7 @@
   let editing = $state(false);
    let lastRefreshTime = $state(Date.now());
    let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let freshnessBarEl: HTMLDivElement | undefined = $state();
 
   function safeLocalStorageGet(key: string): string | null {
     try {
@@ -54,13 +56,24 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     availableModes: Array<'venues' | 'events'>;
     defaultMode: 'venues' | 'events';
   } | null>(null);
+  let backdropEl = $state<HTMLButtonElement | undefined>();
+  let drawerEl = $state<HTMLDivElement | undefined>();
+  let warningBannerEl = $state<HTMLDivElement | undefined>();
 
   // Pull-to-refresh state
   const PULL_THRESHOLD = 64;
   const PULL_MAX = 90;
   let pullDistance = $state(0);
   let isRefreshing = $state(false);
-  let pullTriggered = false; // prevents treating a PTR gesture as a horizontal swipe
+  let pullTriggered = false;
+  // PTR icon spring entrance
+  let ptrSpinnerEl = $state<HTMLDivElement | undefined>();
+  let ptrIconEl = $state<SVGSVGElement | undefined>();
+  // Page swipe transition
+  let isTransitioning = $state(false);
+  let transitionDirection: 'left' | 'right' = 'left';
+  let pageContentEl = $state<HTMLDivElement | undefined>();
+  let prevPageId: string | null = null;
 
   let page = $derived(getActivePage());
   let pages = $derived(getPages());
@@ -205,6 +218,16 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     void startDeparturesForPage(currentPage.segments, true, currentRequestId);
   });
 
+  // Freshness bar pulse on data refresh
+  $effect(() => {
+    const el = freshnessBarEl;
+    const ts = lastRefreshTime;
+    if (!el || ts === 0) return;
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+    gsap.fromTo(el, { opacity: 0.5 }, { opacity: 1, duration: 0.4, ease: 'power2.out' });
+  });
+
   async function loadDepartures(clearFirst = false) {
     const currentPage = getActivePage();
     if (currentPage && currentPage.segments.length > 0) {
@@ -221,11 +244,65 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     }
   }
 
-  function handlePageSwitch(pageId: string) {
+  async function handlePageSwitch(pageId: string) {
+    if (isTransitioning) return;
     const currentPage = getActivePage();
     if (!currentPage) return;
     if (import.meta.env.DEV) console.log(`[App] handlePageSwitch: ${currentPage.id} -> ${pageId}`);
-    pageSetActivePage(pageId);
+    const allPages = getPages();
+    const currentIdx = allPages.findIndex(p => p.id === currentPage.id);
+    const nextIdx = allPages.findIndex(p => p.id === pageId);
+    transitionDirection = nextIdx > currentIdx ? 'left' : 'right';
+    await performPageTransition(pageId);
+  }
+
+  async function performPageTransition(nextPageId: string) {
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!pageContentEl || rm) {
+      pageSetActivePage(nextPageId);
+      return;
+    }
+
+    isTransitioning = true;
+    const dir = transitionDirection === 'left' ? -1 : 1;
+    gsap.set(pageContentEl!, { willChange: 'transform, opacity' });
+
+    // Exit: slide out
+    await new Promise<void>(resolve => {
+      gsap.to(pageContentEl!, {
+        x: dir * 80,
+        opacity: 0,
+        duration: 0.2,
+        ease: 'power2.in',
+        overwrite: 'auto',
+        onComplete: resolve,
+      });
+    });
+
+    // Switch page data
+    prevPageId = getActivePage()?.id ?? null;
+    pageSetActivePage(nextPageId);
+    await tick();
+
+    // Enter: slide in from opposite side
+    if (pageContentEl) {
+      gsap.set(pageContentEl!, { x: dir * -60, opacity: 0 });
+      await new Promise<void>(resolve => {
+        gsap.to(pageContentEl!, {
+          x: 0,
+          opacity: 1,
+          duration: 0.3,
+          ease: 'power3.out',
+          overwrite: 'auto',
+          onComplete: () => {
+            gsap.set(pageContentEl!, { clearProps: 'transform,opacity,willChange' });
+            resolve();
+          },
+        });
+      });
+    }
+
+    isTransitioning = false;
   }
 
   function openSegmentPanels(segment: Segment) {
@@ -244,6 +321,54 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
       defaultMode: availableModes.includes('venues') ? 'venues' : 'events'
     };
   }
+
+  function closeFeatureSheet() {
+    if (backdropEl && drawerEl) {
+      const tl = gsap.timeline({
+        onComplete: () => { activeFeatureContext = null; }
+      });
+      tl.to(backdropEl, { opacity: 0, duration: 0.12 }, 0);
+      tl.to(drawerEl, { opacity: 0, y: 12, duration: 0.14, ease: 'power2.in' }, 0);
+    } else {
+      activeFeatureContext = null;
+    }
+  }
+
+  function dismissWarning() {
+    if (warningBannerEl) {
+      gsap.to(warningBannerEl, {
+        opacity: 0,
+        y: -8,
+        duration: 0.15,
+        ease: 'power2.in',
+        onComplete: () => { siteLookupError = null; }
+      });
+    } else {
+      siteLookupError = null;
+    }
+  }
+
+  $effect(() => {
+    if (activeFeatureContext && backdropEl && drawerEl) {
+      gsap.fromTo(backdropEl,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.2, ease: 'power2.out' }
+      );
+      gsap.fromTo(drawerEl,
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.28, ease: 'back.out(1.7)' }
+      );
+    }
+  });
+
+  $effect(() => {
+    if (siteLookupError && warningBannerEl) {
+      gsap.fromTo(warningBannerEl,
+        { opacity: 0, y: -10 },
+        { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' }
+      );
+    }
+  });
 
   let hasFeatureModes = $derived(settings.afterworkVenuesEnabled || settings.eventsEnabled);
 
@@ -301,8 +426,28 @@ function toggleEdit() {
       await triggerManualRefresh();
       return;
     }
+
+    if (pullDistance > 0) {
+      const indicator = document.querySelector('.pull-indicator') as HTMLElement | null;
+      if (indicator) {
+        gsap.to(indicator, {
+          height: 0,
+          duration: 0.35,
+          ease: 'back.out(2.5)',
+          overwrite: 'auto',
+          onComplete: () => {
+            pullDistance = 0;
+            gsap.set(indicator, { clearProps: 'height' });
+          },
+        });
+      } else {
+        pullDistance = 0;
+      }
+      return;
+    }
     pullDistance = 0;
 
+    if (isTransitioning) return;
     if (Math.abs(dy) > Math.abs(dx)) return;
     if (Math.abs(dx) < 48) return;
 
@@ -323,6 +468,13 @@ function toggleEdit() {
     const currentPage = getActivePage();
     if (!currentPage?.segments || isRefreshing) return;
     isRefreshing = true;
+    await tick();
+    if (ptrSpinnerEl) {
+      gsap.fromTo(ptrSpinnerEl,
+        { scale: 0.6, rotation: -90 },
+        { scale: 1, rotation: 0, duration: 0.5, ease: 'back.out(2.5)' },
+      );
+    }
     try {
       const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentPage.segments));
       const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
@@ -429,7 +581,7 @@ function toggleEdit() {
       style="--pull: {pullDistance}px; --progress: {Math.min(pullDistance / PULL_THRESHOLD, 1)}"
     >
       {#if isRefreshing}
-        <div class="ptr-spinner">
+        <div class="ptr-spinner" bind:this={ptrSpinnerEl}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <rect x="4" y="5" width="16" height="12" rx="2.5"/>
             <circle cx="8" cy="17.5" r="1.5"/>
@@ -437,7 +589,7 @@ function toggleEdit() {
           </svg>
         </div>
       {:else}
-        <svg class="ptr-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <svg class="ptr-icon" bind:this={ptrIconEl} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           {#if pullDistance < PULL_THRESHOLD * 0.25}
             <rect x="4" y="5" width="16" height="12" rx="2.5"/>
             <circle cx="8" cy="17.5" r="1.5"/>
@@ -456,13 +608,13 @@ function toggleEdit() {
     </div>
 
     {#if siteLookupError}
-      <div class="warning-banner">
+      <div class="warning-banner" bind:this={warningBannerEl}>
         <span>{siteLookupError}</span>
-        <button onclick={() => siteLookupError = null}>×</button>
+        <button onclick={dismissWarning}>×</button>
       </div>
     {/if}
 
-    <div class="freshness-bar" aria-live="polite">
+    <div class="freshness-bar" bind:this={freshnessBarEl} aria-live="polite">
       <span>{freshnessText}</span>
       {#if dataOld}
         <span class="freshness-dot">•</span>
@@ -471,58 +623,62 @@ function toggleEdit() {
     </div>
 
     <div class="scroll-container" bind:this={scrollContainer}>
-      {#if hasNoRoutes}
-        <div class="empty-state">
-          <div class="empty-illustration">
-            <svg viewBox="0 0 120 120" fill="none">
-              <circle cx="60" cy="60" r="50" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-              <path d="M40 60h40M60 40v40" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
-            </svg>
-          </div>
-          <h2>{t.noPages}</h2>
-          <p>{t.noPagesDesc}</p>
-          <button 
-            class="empty-cta" 
-            class:onboarding-highlight={showOnboardingHint}
-            onclick={toggleEdit}
-          >
-            <span>{t.addSegment}</span>
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10 4v12M4 10h12"/>
-            </svg>
-          </button>
+      {#key activePageId}
+        <div bind:this={pageContentEl} class="page-transition-inner">
+          {#if hasNoRoutes}
+            <div class="empty-state">
+              <div class="empty-illustration">
+                <svg viewBox="0 0 120 120" fill="none">
+                  <circle cx="60" cy="60" r="50" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+                  <path d="M40 60h40M60 40v40" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
+                </svg>
+              </div>
+              <h2>{t.noPages}</h2>
+              <p>{t.noPagesDesc}</p>
+              <button 
+                class="empty-cta" 
+                class:onboarding-highlight={showOnboardingHint}
+                onclick={toggleEdit}
+              >
+                <span>{t.addSegment}</span>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 4v12M4 10h12"/>
+                </svg>
+              </button>
+            </div>
+          {:else if page && page.segments.length > 0}
+            <SegmentDepartures
+              route={page}
+              deviationHealthBySegment={deviationHealthBySegment}
+              deviationUsedCache={deviationUsedCache}
+              deviationLastUpdatedAt={deviationLastUpdatedAt}
+              openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
+            />
+          {:else if page}
+            <div class="empty-segments">
+              <div class="empty-illustration small">
+                <svg viewBox="0 0 80 80" fill="none">
+                  <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+                  <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <h2>{t.noSegments}</h2>
+              <p>{t.noSegmentsDesc}</p>
+              <button 
+                class="empty-cta" 
+                class:onboarding-highlight={showOnboardingHint}
+                onclick={toggleEdit}
+              >
+                <span>{t.add}</span>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 4v12M4 10h12"/>
+                </svg>
+              </button>
+            </div>
+          {/if}
         </div>
-      {:else if page && page.segments.length > 0}
-        <SegmentDepartures
-          route={page}
-          deviationHealthBySegment={deviationHealthBySegment}
-          deviationUsedCache={deviationUsedCache}
-          deviationLastUpdatedAt={deviationLastUpdatedAt}
-          openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
-        />
-      {:else if page}
-        <div class="empty-segments">
-          <div class="empty-illustration small">
-            <svg viewBox="0 0 80 80" fill="none">
-              <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
-              <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </div>
-          <h2>{t.noSegments}</h2>
-          <p>{t.noSegmentsDesc}</p>
-          <button 
-            class="empty-cta" 
-            class:onboarding-highlight={showOnboardingHint}
-            onclick={toggleEdit}
-          >
-            <span>{t.add}</span>
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10 4v12M4 10h12"/>
-            </svg>
-          </button>
-        </div>
-      {/if}
+      {/key}
     </div>
 
     <BottomBar
@@ -546,16 +702,18 @@ function toggleEdit() {
         type="button"
         class="feature-backdrop"
         aria-label={t.closePanel}
-        onclick={() => (activeFeatureContext = null)}
+        onclick={closeFeatureSheet}
+        bind:this={backdropEl}
       ></button>
       <div
         class="feature-drawer"
+        bind:this={drawerEl}
         role="dialog"
         aria-modal="true"
         aria-label={activeFeatureContext.availableModes.includes('venues') ? t.afterwork : t.events}
         tabindex="0"
         onkeydown={(e) => {
-          if (e.key === 'Escape') activeFeatureContext = null;
+          if (e.key === 'Escape') closeFeatureSheet();
         }}
       >
         <FeatureDiscoverySheet
@@ -565,7 +723,7 @@ function toggleEdit() {
           destination={activeFeatureContext.destination}
           availableModes={activeFeatureContext.availableModes}
           defaultMode={activeFeatureContext.defaultMode}
-          onClose={() => (activeFeatureContext = null)}
+          onClose={closeFeatureSheet}
         />
       </div>
     {/if}
@@ -711,6 +869,7 @@ function toggleEdit() {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -721,6 +880,10 @@ function toggleEdit() {
 
   .scroll-container::-webkit-scrollbar {
     display: none;
+  }
+
+  .page-transition-inner {
+    width: 100%;
   }
 
   .feature-backdrop {
@@ -736,7 +899,6 @@ function toggleEdit() {
     background: rgba(0, 0, 0, 0.38);
     backdrop-filter: blur(2px);
     cursor: pointer;
-    animation: fade-in 200ms ease-out;
   }
 
   .feature-drawer {
@@ -753,23 +915,6 @@ function toggleEdit() {
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
     padding: 14px 16px 16px;
     bottom: calc(76px + env(safe-area-inset-bottom));
-    animation: sheet-rise 280ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes sheet-rise {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(16px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
   }
 
   /* Normalize scrollbars across browsers and prevent double scrollbars */
@@ -839,7 +984,7 @@ function toggleEdit() {
     align-items: center;
     gap: 8px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     border: none;
     padding: 14px 24px;
     border-radius: 8px;

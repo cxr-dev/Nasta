@@ -1,4 +1,6 @@
 <script lang="ts">
+  import gsap from 'gsap';
+
   let {
     siteDevs,
     t,
@@ -6,10 +8,32 @@
     siteDevs: { message: string }[];
     t: Record<string, string>;
   } = $props();
+
+  let stripEl: HTMLDivElement | undefined = $state();
+
+  $effect(() => {
+    if (!stripEl || siteDevs.length === 0) return;
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+
+    const msgEls = stripEl.querySelectorAll('.disruption-content p');
+    if (msgEls.length === 0) return;
+
+    gsap.fromTo(
+      stripEl,
+      { opacity: 0, y: -8 },
+      { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' },
+    );
+    gsap.fromTo(
+      msgEls,
+      { opacity: 0, y: 6 },
+      { opacity: 1, y: 0, duration: 0.2, stagger: 0.06, ease: 'power2.out' },
+    );
+  });
 </script>
 
 {#if siteDevs.length > 0}
-  <div class="disruption-strip">
+  <div bind:this={stripEl} class="disruption-strip">
     <div class="disruption-header">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"/>

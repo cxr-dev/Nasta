@@ -46,8 +46,8 @@ function handleConfirm() {
 
   <div class="direction-selector" role="radiogroup" aria-label={t.selectDirection}>
   <div class="options">
-    {#each directions as dir (dir.code)}
-      <label class="direction-option" class:selected={selectedCode === dir.code}>
+    {#each directions as dir, i (dir.code)}
+      <label class="direction-option" class:selected={selectedCode === dir.code} style="--i: {i}">
         <input 
           type="radio" 
           name="direction" 
@@ -101,6 +101,8 @@ function handleConfirm() {
     transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    animation: optionEnter 0.3s ease-out both;
+    animation-delay: calc(var(--i) * 0.05s);
   }
 
   .direction-option:hover {
@@ -150,6 +152,12 @@ function handleConfirm() {
     height: 10px;
     border-radius: 50%;
     background: var(--accent);
+    transform: scale(1);
+  }
+
+  .radio-circle::after {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: scale(0);
   }
 
   .destination {
@@ -162,7 +170,7 @@ function handleConfirm() {
     padding: 14px;
     border-radius: 12px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     font-weight: 600;
     font-size: 16px;
     border: none;
@@ -178,5 +186,25 @@ function handleConfirm() {
 
   .confirm-btn:not(:disabled):active {
     transform: scale(0.98);
+  }
+
+  @keyframes optionEnter {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .direction-option {
+      animation: none;
+    }
+    .radio-circle::after {
+      transition: none;
+    }
   }
 </style>
