@@ -18,7 +18,6 @@
     siteDevs,
     isExpanded,
     isExpandable,
-    isSleeping = false,
     topDevMessage,
     topDevType,
     userLocation,
@@ -38,7 +37,6 @@
     siteDevs: { message: string }[];
     isExpanded: boolean;
     isExpandable: boolean;
-    isSleeping?: boolean;
     topDevMessage: string;
     topDevType: string;
     userLocation: [number, number] | null;
@@ -78,9 +76,6 @@
 
   let panelEl: HTMLDivElement | undefined = $state();
   let collapsing = $state(false);
-  let wasSleeping = $state(false);
-  let sleepIconEl = $state<HTMLElement>();
-  let wakeBadgeEl = $state<HTMLElement>();
 
   let isImminent = $derived(primaryDepartureText === 'Nu' || primaryDepartureText === 'Now');
   let isSoon = $derived(primaryDepartureText === '1 min');
@@ -134,45 +129,7 @@
     );
   });
 
-  $effect(() => {
-    if (wasSleeping && !isSleeping && sleepIconEl && wakeBadgeEl) {
-      const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (rm) { wasSleeping = isSleeping; return; }
 
-      const row = sleepIconEl.closest('.departure-card') as HTMLElement | null;
-      if (!row) { wasSleeping = isSleeping; return; }
-
-      const sb = sleepIconEl!;
-      const wb = wakeBadgeEl!;
-      const tl = gsap.timeline({
-        onComplete: () => {
-          gsap.set(wb, { clearProps: 'all' });
-          gsap.set(sb, { clearProps: 'all' });
-        }
-      });
-      tl.to(row, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0);
-      tl.to(sb, { opacity: 0, scale: 0.3, duration: 0.25, ease: 'power2.in' }, 0);
-      tl.fromTo(wb,
-        { opacity: 0, y: 10, scale: 0.8 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: 'back.out(1.7)' },
-        0.2
-      );
-      tl.to(wb, { opacity: 0, y: -8, duration: 0.4, ease: 'power2.in' }, 2.8);
-    }
-    wasSleeping = isSleeping;
-  });
-
-  $effect(() => {
-    if (!isSleeping || !sleepIconEl) return;
-    gsap.to(sleepIconEl, {
-      y: -2,
-      duration: 2.5,
-      ease: 'sine.inOut',
-      yoyo: true,
-      repeat: -1,
-    });
-    return () => { if (sleepIconEl) gsap.killTweensOf(sleepIconEl); };
-  });
 
   function prefetch(node: HTMLElement) {
     const observer = new IntersectionObserver((entries) => {
@@ -195,7 +152,6 @@
 <div
   class="departure-card"
   class:expanded={isExpanded}
-  class:sleeping={isSleeping}
   class:has-disruption={siteDevs.length > 0}
   style="background: {cardBg}"
   data-testid="segment-row"
@@ -229,16 +185,7 @@
           <span class="clock-times">{subsequent}</span>
         {/if}
       {:else}
-        {#if isSleeping}
-          <span bind:this={sleepIconEl} class="sleep-icon-wrap">
-            <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 1 0 10 10 8 8 0 0 1-10-10z"/>
-            </svg>
-          </span>
-        {:else}
-          <span class="em-dash">—</span>
-        {/if}
-        <span bind:this={wakeBadgeEl} class="wake-badge">Good morning! ☀️</span>
+        <span class="em-dash">—</span>
       {/if}
     </div>
   </button>
@@ -282,9 +229,6 @@
     overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
-  }
-  .departure-card.sleeping {
-    opacity: 0.5;
   }
   .departure-card.has-disruption {
     border-color: transparent;
@@ -395,18 +339,6 @@
     white-space: nowrap;
     line-height: 1;
   }
-  .sleep-icon-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-  }
-  .moon-icon {
-    width: 18px;
-    height: 18px;
-    color: var(--text-ghost);
-  }
   .em-dash {
     font-family: 'Neue Machina', sans-serif;
     font-size: 28px;
@@ -415,22 +347,6 @@
     letter-spacing: 0;
     line-height: 1;
   }
-  .wake-badge {
-    position: absolute;
-    top: -30px;
-    right: 0;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--accent);
-    background: var(--accent-subtle);
-    padding: 3px 10px;
-    border-radius: 20px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    line-height: 1.3;
-  }
-
   .disrupt-strip {
     display: flex;
     align-items: center;

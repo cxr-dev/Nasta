@@ -391,7 +391,6 @@
         {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
         {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
         {@const hasDisruption = displayDevs.length > 0}
-        {@const isSleeping = !hasDeparture && !hasDisruption}
         {@const isExpanded = expandedSegmentId === item.segment.id}
         {@const isExpandable = hasDeparture || hasDisruption}
         {@const topDevMessage = displayDevs[0]?.message ?? ""}
@@ -406,7 +405,6 @@
           siteDevs={displayDevs}
           {isExpanded}
           {isExpandable}
-          {isSleeping}
           {topDevMessage}
           {topDevType}
           {userLocation}
@@ -433,9 +431,8 @@
           {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
           {@const healthDevs = health?.reason ? [{ message: health.reason }] : []}
           {@const displayDevs = rawSiteDevs.length > 0 ? rawSiteDevs : healthDevs}
-          {@const hasDisruption = displayDevs.length > 0}
-          {@const isSleeping = !hasDeparture && !hasDisruption}
-          {@const isExpanded = expandedSegmentId === item.segment.id}
+        {@const hasDisruption = displayDevs.length > 0}
+        {@const isExpanded = expandedSegmentId === item.segment.id}
           {@const isExpandable = hasDeparture || hasDisruption}
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
@@ -449,7 +446,6 @@
             siteDevs={displayDevs}
             {isExpanded}
             {isExpandable}
-            {isSleeping}
             {topDevMessage}
             {topDevType}
             {userLocation}

@@ -6,11 +6,7 @@ const SETTINGS_KEY = 'nasta_settings';
 export interface Settings {
   darkMode: boolean;
   refreshInterval: number;
-  /** @deprecated kept for backwards compatibility */
-  funMode: boolean;
   hasSwipedRoutes: boolean;
-  /** @deprecated kept for backwards compatibility */
-  showNotifications: boolean;
   theme: string;
   themeVariant: 'A' | 'B';
   language: 'auto' | 'sv' | 'en';
@@ -31,9 +27,7 @@ export interface Settings {
 const defaultSettings: Settings = {
   darkMode: true,
   refreshInterval: 30000,
-  funMode: false,
   hasSwipedRoutes: false,
-  showNotifications: false,
   theme: 'default',
   themeVariant: 'A',
   language: 'auto',

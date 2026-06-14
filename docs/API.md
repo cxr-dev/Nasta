@@ -289,9 +289,7 @@ User Route Change → App.svelte
 interface Settings {
   darkMode: boolean;
   refreshInterval: number;
-  funMode: boolean;
   hasSwipedRoutes: boolean;
-  showNotifications: boolean;
   theme: string;
   themeVariant: "A" | "B";
   language: "auto" | "sv" | "en";

@@ -85,9 +85,7 @@ describe("storage service", () => {
       expect(loadSettings()).toEqual({
         darkMode: true,
         refreshInterval: 30000,
-        funMode: false,
         hasSwipedRoutes: false,
-        showNotifications: false,
         theme: "default",
         themeVariant: "A",
         language: "auto",
@@ -129,9 +127,7 @@ describe("storage service", () => {
       const settings: Settings = {
         darkMode: false,
         refreshInterval: 60000,
-        funMode: false,
         hasSwipedRoutes: true,
-        showNotifications: false,
         theme: "electric-pulse",
         themeVariant: "B" as const,
         language: "en" as const,

@@ -23,18 +23,8 @@ export function setRefreshInterval(interval: number) {
   saveSettings(_settings);
 }
 
-export function toggleFunMode() {
-  _settings = { ..._settings, funMode: !_settings.funMode };
-  saveSettings(_settings);
-}
-
 export function markSwiped() {
   _settings = { ..._settings, hasSwipedRoutes: true };
-  saveSettings(_settings);
-}
-
-export function toggleNotifications() {
-  _settings = { ..._settings, showNotifications: !_settings.showNotifications };
   saveSettings(_settings);
 }
 

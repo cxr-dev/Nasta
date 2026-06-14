@@ -82,7 +82,6 @@ Svelte 5 Runes ($state, $derived, $effect)
 - `DepartureStrip.svelte` — Individual departure summary and route context
 - `RouteEditor.svelte` — Route/segment CRUD, stop search, travel time inputs
 - `Onboarding.svelte` — First-run experience for new users
-- `QuirkyMoment.svelte` — Random Easter egg messages
 
 ## Caching & Offline
 
