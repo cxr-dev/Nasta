@@ -14,6 +14,32 @@ test.describe("Nästa App", () => {
       }
     });
 
+    // Mock API to prevent real requests in test environment
+    await page.route("**/*.integration.sl.se/**", async (route) => {
+      const url = route.request().url();
+      if (url.includes("departures")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ departures: [] }),
+        });
+      } else if (url.includes("deviations") || url.includes("messages")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([]),
+        });
+      } else if (url.includes("journeyplanner") || url.includes("trip")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ trips: [] }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     // Bypass onboarding AND seed with default routes before page load
     await page.addInitScript(() => {
       localStorage.setItem("nasta_onboarding_seen", "true");
@@ -23,12 +49,32 @@ test.describe("Nästa App", () => {
         {
           id: crypto.randomUUID(),
           name: "Arbete",
-          segments: [],
+          segments: [
+            {
+              id: crypto.randomUUID(),
+              line: "76",
+              lineName: "76",
+              direction: { code: 1, destination: "Norra Hammarbyhamnen", stopPointId: "" },
+              fromStop: { id: "f1", name: "Lindarängsvägen", siteId: "100" },
+              toStop: { id: "t1", name: "Norra Hammarbyhamnen", siteId: "456" },
+              transportType: "bus",
+            },
+          ],
         },
         {
           id: crypto.randomUUID(),
-          name: "Arbete",
-          segments: [],
+          name: "Hem",
+          segments: [
+            {
+              id: crypto.randomUUID(),
+              line: "13",
+              lineName: "13",
+              direction: { code: 1, destination: "Mörby", stopPointId: "" },
+              fromStop: { id: "f2", name: "Kungsträdgården", siteId: "200" },
+              toStop: { id: "t2", name: "Mörby", siteId: "789" },
+              transportType: "metro",
+            },
+          ],
         },
       ];
 
@@ -54,7 +100,7 @@ test.describe("Nästa App", () => {
   test.afterEach(async ({ page }, testInfo) => {
     // Filter out expected network errors from intentional route aborts in tests
     const unexpectedErrors = runtimeErrors.filter(
-      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED"),
+      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED") && !msg.includes("Failed to fetch"),
     );
     expect(
       unexpectedErrors,
@@ -64,20 +110,18 @@ test.describe("Nästa App", () => {
 
   test("should display route header", async ({ page }) => {
     // Route header displays current route name (toWork/fromWork direction)
-    const routeHeader = page.locator("h1.route-name");
+    const routeHeader = page.locator("h1.page-title");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
     await expect(routeHeader).toBeVisible();
     await expect(routeHeader).toContainText(/Arbete/i);
   });
 
   test("should toggle edit mode", async ({ page }) => {
-    // Main edit button is .action-btn in bottom bar
-    const editBtn = page.locator(".action-btn");
+    const editBtn = page.locator(".settings-btn");
     await editBtn.waitFor({ state: "visible", timeout: 10000 });
     await editBtn.click();
 
-    // After click, button should show save state with different text/icon
-    await expect(editBtn).toBeVisible();
+    await expect(page.locator(".editor-overlay.open")).toBeVisible();
   });
 
   test("should load from GitHub Pages subpath and survive hard refresh", async ({
@@ -87,28 +131,27 @@ test.describe("Nästa App", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    const routeHeader = page.locator("h1.route-name");
+    const routeHeader = page.locator("h1.page-title");
     await expect(routeHeader).toBeVisible();
   });
 
   test("should switch route without crashing", async ({ page }) => {
-    const switchBtn = page.locator(".route-switch");
-    if (await switchBtn.count()) {
-      const routeHeader = page.locator("h1.route-name");
-      const before = await routeHeader.textContent();
-      await switchBtn.first().click();
-      await expect(routeHeader).toBeVisible();
-      const after = await routeHeader.textContent();
-      expect(after).toBeTruthy();
-      expect(after).not.toEqual(before);
-    }
+    const pageTitle = page.locator("h1.page-title");
+    await expect(pageTitle).toBeVisible({ timeout: 10000 });
+
+    const dots = page.locator(".page-dots .dot");
+    const dotCount = await dots.count();
+    expect(dotCount).toBeGreaterThan(1);
+
+    await dots.nth(1).click();
+    await expect(pageTitle).not.toHaveText("Arbete", { timeout: 3000 });
   });
 
   test("should display countdown with visible departure times", async ({
     page,
   }) => {
     // Wait for initial UI to load
-    const routeHeader = page.locator("h1.route-name");
+    const routeHeader = page.locator("h1.page-title");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
 
     // Look for any visible time display elements

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { Page, Segment, TransportType } from "../types/page";
+  import type { Page, Segment } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore.svelte";
+  import { getPages, getActivePageId } from "../stores/pageStore.svelte";
   import { getPredictedDepartures } from "../services/timetableCache";
   import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
   import { deduplicateDeparturesByKey } from "../lib/departureDeduplication";
@@ -16,6 +17,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
+  import { chevronLeft, chevronRight, adjustmentsHorizontal } from "../icons/departureIcons";
 
   let {
     route,
@@ -23,13 +25,25 @@
     deviationUsedCache = false,
     deviationLastUpdatedAt = 0,
     openFeatureSheet = null,
+    onSwitchPage,
+    onEditToggle,
+    lastRefreshTime,
   }: {
     route: Page;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationUsedCache?: boolean;
     deviationLastUpdatedAt?: number;
     openFeatureSheet?: ((segment: Segment) => void) | null;
+    onSwitchPage?: (pageId: string) => void;
+    onEditToggle?: () => void;
+    lastRefreshTime?: number;
   } = $props();
+
+  let pages = $derived(getPages());
+  let activePageId = $derived(getActivePageId());
+  let currentPageIndex = $derived(pages.findIndex(p => p.id === activePageId));
+  let hasPrev = $derived(currentPageIndex > 0);
+  let hasNext = $derived(currentPageIndex < pages.length - 1);
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
@@ -48,6 +62,24 @@
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   let depListEl: HTMLDivElement | undefined = $state();
   let hasAnimatedStagger = $state(false);
+
+  let dataAge = $derived(lastRefreshTime ? Date.now() - lastRefreshTime : Infinity);
+  let isStale = $derived(lastRefreshTime !== undefined && dataAge > 120000);
+  let isFresh = $derived(lastRefreshTime !== undefined && !isStale);
+
+  function freshnessDotColor(): string {
+    if (lastRefreshTime === undefined) return 'var(--text-ghost)';
+    if (isStale) return '#e8950a';
+    return 'var(--color-accent, #27ae60)';
+  }
+
+  function freshnessLabel(): string {
+    if (lastRefreshTime === undefined) return t.loading;
+    if (isStale) return t.dataMayBeStale;
+    const mins = Math.max(0, Math.floor(dataAge / 60000));
+    if (mins === 0) return 'Uppdaterad nyss';
+    return t.updatedMinutesAgo.replace('{minutes}', String(mins));
+  }
 
   $effect(() => {
     route.id;
@@ -133,7 +165,7 @@
   }
 
   let segmentDeps = $state<Departure[][]>([]);
-  
+
   async function loadSegmentDeps() {
     const segs = route.segments ?? [];
     const deps: Departure[][] = [];
@@ -177,26 +209,10 @@
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
     hasAnimatedStagger = true;
     gsap.fromTo(
-      depListEl.querySelectorAll('.departure-item'),
+      depListEl.querySelectorAll('.departure-card'),
       { opacity: 0, y: 12 },
       { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.04, clearProps: 'transform,opacity' },
     );
-  });
-
-  let healthPulseInited = false;
-  $effect(() => {
-    if (!depListEl || healthPulseInited) return;
-    const dots = depListEl.querySelectorAll('.health-dot');
-    if (dots.length === 0) return;
-    healthPulseInited = true;
-    dots.forEach((dot) => {
-      const el = dot as HTMLElement;
-      if (el.classList.contains('critical')) {
-        gsap.to(el, { scale: 1.3, opacity: 0.7, duration: 0.8, yoyo: true, repeat: -1, ease: 'power1.inOut' });
-      } else if (el.classList.contains('affected')) {
-        gsap.to(el, { scale: 1.2, duration: 1.2, yoyo: true, repeat: -1, ease: 'sine.inOut' });
-      }
-    });
   });
 
   $effect(() => {
@@ -270,51 +286,99 @@
   });
 </script>
 
-<div class="departures-list" bind:this={depListEl}>
-  {#if lastError}
-    <div class="error-bar">
-      <span>{lastError}</span>
-      <button onclick={() => (lastError = null)}>×</button>
-    </div>
-  {/if}
+<div class="departures-view">
+  <!-- Page nav header -->
+  <header class="page-chrome">
+    <h1 class="page-title">{route.name}</h1>
+    <div class="nav-group">
+      {#if pages.length > 1}
+        <button
+          class="nav-btn"
+          class:inactive={!hasPrev}
+          onclick={() => hasPrev && onSwitchPage?.(pages[currentPageIndex - 1].id)}
+          aria-label={t.previousPage}
+          disabled={!hasPrev}
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            {@html chevronLeft}
+          </svg>
+        </button>
 
-  {#if isLoading}
-    <div class="loading-skeleton">
-      {#each Array(3) as _, i (i)}
-        <div class="skeleton-row">
-          <Skeleton width="36px" height="36px" borderRadius="8px" />
-          <div class="skeleton-line-fill"><Skeleton width="100%" height="14px" borderRadius="4px" /></div>
-          <Skeleton width="80px" height="32px" borderRadius="4px" />
+        <div class="page-dots">
+          {#each pages as page, i (page.id)}
+            <button
+              type="button"
+              class="dot"
+              class:active={page.id === activePageId}
+              onclick={() => page.id !== activePageId && onSwitchPage?.(page.id)}
+              aria-label={page.id === activePageId ? page.name : `${t.switchTo} ${page.name}`}
+            ></button>
+          {/each}
         </div>
-      {/each}
-    </div>
-  {:else}
-    <div class="departures-header">
-      <h3 class="departures-title">{t.departures}</h3>
-    </div>
 
-    {#each route.segments ?? [] as segment, index (segment.id)}
-      {@const deps = segmentDeps[index] ?? []}
-      {@const departure = deps[0]}
-      {@const subsequent = formatSubsequent(deps)}
-      {@const hasDeparture = deps.length > 0 && !!departure}
-      {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
-      {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
-      {@const isSleeping = !hasDeparture && siteDevs.length === 0}
-      {@const isExpanded = expandedIndex === index}
-      {@const isExpandable = hasDeparture || siteDevs.length > 0}
-      {@const topDevMessage = siteDevs[0]?.message ?? ""}
-      {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
-      {@const health = deviationHealthBySegment.get(segment.id)}
+        <button
+          class="nav-btn"
+          class:inactive={!hasNext}
+          onclick={() => hasNext && onSwitchPage?.(pages[currentPageIndex + 1].id)}
+          aria-label={t.nextPage}
+          disabled={!hasNext}
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            {@html chevronRight}
+          </svg>
+        </button>
+      {/if}
+    </div>
+  </header>
 
-      <div
-        class="segment-wrapper"
-        class:affected={health?.state === 'affected'}
-        class:critical={health?.state === 'critical'}
-      >
-        {#if health && health.state !== 'ok'}
-          <div class="health-dot" class:affected={health.state === 'affected'} class:critical={health.state === 'critical'} aria-label={health.reason ?? ''}></div>
-        {/if}
+  <!-- Freshness indicator -->
+  <div class="freshness-row">
+    <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
+    <span class="fresh-label">{freshnessLabel()}</span>
+  </div>
+
+  <!-- Departure list -->
+  <div class="card-list" bind:this={depListEl}>
+    {#if lastError}
+      <div class="error-bar">
+        <span>{lastError}</span>
+        <button onclick={() => (lastError = null)}>×</button>
+      </div>
+    {/if}
+
+    {#if isLoading}
+      <div class="loading-skeleton">
+        {#each Array(3) as _, i (i)}
+          <div class="skeleton-card">
+            <div class="skeleton-accent"></div>
+            <div class="skeleton-body">
+              <Skeleton width="32px" height="32px" borderRadius="8px" />
+              <div class="skeleton-meta">
+                <Skeleton width="80px" height="16px" borderRadius="4px" />
+                <Skeleton width="120px" height="10px" borderRadius="3px" />
+                <Skeleton width="90px" height="10px" borderRadius="3px" />
+              </div>
+              <Skeleton width="60px" height="28px" borderRadius="4px" />
+            </div>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      {#each route.segments ?? [] as segment, index (segment.id)}
+        {@const deps = segmentDeps[index] ?? []}
+        {@const departure = deps[0]}
+        {@const subsequent = formatSubsequent(deps)}
+        {@const hasDeparture = deps.length > 0 && !!departure}
+        {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
+        {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
+        {@const isSleeping = !hasDeparture && siteDevs.length === 0}
+        {@const isExpanded = expandedIndex === index}
+        {@const isExpandable = hasDeparture || siteDevs.length > 0}
+        {@const topDevMessage = siteDevs[0]?.message ?? ""}
+        {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
+        {@const health = deviationHealthBySegment.get(segment.id)}
+        {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
+
         <DepartureRow
           {segment}
           {departure}
@@ -333,35 +397,237 @@
           walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
           {openFeatureSheet}
           {t}
+          {severity}
           ontoggle={toggleExpanded}
           onprefetch={() => prefetchForSegment(segment)}
         />
-      </div>
-    {/each}
+      {/each}
 
-    {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
-      <div class="empty-state">
-        <div class="no-departure">—</div>
-        <p class="empty-text">{t.noDeparturesAvailable}</p>
-      </div>
+      {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
+        <div class="empty-state">
+          <div class="no-departure">—</div>
+          <p class="empty-text">{t.noDeparturesAvailable}</p>
+        </div>
+      {/if}
     {/if}
+  </div>
+
+  <!-- Settings bar -->
+  {#if onEditToggle}
+    <div class="settings-bar">
+      <button class="settings-btn" onclick={onEditToggle}>
+        <svg viewBox="0 0 24 24" fill="none">
+          {@html adjustmentsHorizontal}
+        </svg>
+        <span>{t.settings}</span>
+      </button>
+    </div>
   {/if}
 </div>
 
 <style>
-  .departures-list { display: flex; flex-direction: column; padding: 12px 0; }
-  .departures-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 8px; border-bottom: 1px solid var(--border); gap: 8px; }
-  .departures-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; }
-  .error-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
-  .error-bar button { background: none; border: none; color: #991b1b; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
-  .loading-skeleton { padding: 12px 0; }
-  .skeleton-row { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--border); }
-  .skeleton-line-fill { flex: 1; }
-  .empty-state { text-align: center; padding: 48px 24px; }
-  .empty-text { margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
-  .no-departure { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }
-  .segment-wrapper { position: relative; margin: 8px 0; padding-left: 10px; }
-  .health-dot { position: absolute; left: 0; top: 24px; width: 5px; height: 5px; border-radius: 999px; }
-  .health-dot.affected { background: #f59e0b; }
-  .health-dot.critical { background: #ef4444; }
+  .departures-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .page-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 6px;
+  }
+  .nav-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .nav-btn:hover {
+    background: var(--accent-subtle);
+  }
+  .nav-btn.inactive {
+    opacity: 0.2;
+    cursor: default;
+  }
+  .nav-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+  .page-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--text-ghost);
+    cursor: pointer;
+    border: 0;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .dot.active {
+    background: var(--text);
+    transform: scale(1.3);
+  }
+  .page-title {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 30px;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: -1px;
+    margin: 0;
+    line-height: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .freshness-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px 10px;
+  }
+  .fresh-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .fresh-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 14px 24px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .error-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #991b1b;
+    font-size: 13px;
+  }
+  .error-bar button {
+    background: none;
+    border: none;
+    color: #991b1b;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .loading-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .skeleton-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .skeleton-accent {
+    width: 100%;
+    height: 4px;
+    background: var(--accent-subtle);
+  }
+  .skeleton-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    min-height: 58px;
+  }
+  .skeleton-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+  }
+  .empty-text {
+    margin: 16px 0 0;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+  .no-departure {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 48px;
+    font-weight: 300;
+    color: var(--text-ghost);
+    letter-spacing: 0;
+    line-height: 1;
+  }
+
+  .settings-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    z-index: 5;
+    margin: 0 14px 18px;
+  }
+  .settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 16px;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-on-accent);
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-btn:hover {
+    opacity: 0.9;
+  }
+  .settings-btn svg {
+    width: 18px;
+    height: 18px;
+  }
 </style>

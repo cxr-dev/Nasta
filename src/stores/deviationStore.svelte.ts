@@ -76,25 +76,32 @@ function severityRank(severity: "info" | "warning" | "critical"): number {
   return 1;
 }
 
-function matchesSegment(segment: Segment, message: DeviationMessage): boolean {
-  const stopAreaId = stopAreaStore.getStopAreaId(segment.fromStop.siteId);
-  const stopAreaMatch = message.scope.stopAreas.some(
-    (stop) =>
-      stop.id === (stopAreaId || segment.fromStop.siteId) ||
-      stop.id === segment.toStop.siteId,
+function wordMatch(name: string, target: string): boolean {
+  const n = name.toLowerCase();
+  const t = target.toLowerCase();
+  return (
+    n === t ||
+    n.startsWith(t + ' ') ||
+    n.endsWith(' ' + t) ||
+    n.includes(' ' + t + ' ') ||
+    n.includes(' ' + t + '-') ||
+    n.includes('-' + t + ' ') ||
+    n.includes('-' + t + '-')
   );
+}
+
+function matchesSegment(segment: Segment, message: DeviationMessage): boolean {
   const lineMatch = message.scope.lines.some(
     (line) =>
       line.designation === segment.line ||
       line.id === segment.line ||
-      (line.name &&
-        line.name.toLowerCase().includes(segment.line.toLowerCase())),
+      (line.name != null && wordMatch(line.name, segment.line)),
   );
   const mode = transportModeForSegment(segment.transportType);
   const modeMatch = message.scope.lines.some(
     (line) => !line.transportMode || line.transportMode === mode,
   );
-  return (stopAreaMatch || lineMatch) && modeMatch;
+  return lineMatch && modeMatch;
 }
 
 function buildSegmentHealth(

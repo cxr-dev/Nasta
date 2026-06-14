@@ -16,8 +16,7 @@
   import { searchSites } from './services/slApi';
   import type { Segment } from './types/page';
   
-  import PageHeader from './components/PageHeader.svelte';
-  import BottomBar from './components/BottomBar.svelte';
+
   import PageEditor from './components/PageEditor.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
@@ -29,7 +28,7 @@
   let editing = $state(false);
    let lastRefreshTime = $state(Date.now());
    let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
-  let freshnessBarEl: HTMLDivElement | undefined = $state();
+
 
   function safeLocalStorageGet(key: string): string | null {
     try {
@@ -216,16 +215,6 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     }
     
     void startDeparturesForPage(currentPage.segments, true, currentRequestId);
-  });
-
-  // Freshness bar pulse on data refresh
-  $effect(() => {
-    const el = freshnessBarEl;
-    const ts = lastRefreshTime;
-    if (!el || ts === 0) return;
-    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (rm) return;
-    gsap.fromTo(el, { opacity: 0.5 }, { opacity: 1, duration: 0.4, ease: 'power2.out' });
   });
 
   async function loadDepartures(clearFirst = false) {
@@ -563,14 +552,6 @@ function toggleEdit() {
     ontouchend={handleTouchEnd}
     ontouchcancel={handleTouchCancel}
   >
-    {#if !hasNoRoutes}
-      <PageHeader
-        activePageId={activePageId ?? ''}
-        {pages}
-        onSwitch={handlePageSwitch}
-      />
-    {/if}
-
     <div
       class="pull-indicator"
       class:refreshing={isRefreshing}
@@ -610,14 +591,6 @@ function toggleEdit() {
       </div>
     {/if}
 
-    <div class="freshness-bar" bind:this={freshnessBarEl} aria-live="polite">
-      <span>{freshnessText}</span>
-      {#if dataOld}
-        <span class="freshness-dot">•</span>
-        <span>{t.autoRefresh}</span>
-      {/if}
-    </div>
-
     <div class="scroll-container" bind:this={scrollContainer}>
       {#key activePageId}
         <div bind:this={pageContentEl} class="page-transition-inner">
@@ -650,6 +623,9 @@ function toggleEdit() {
               deviationUsedCache={deviationUsedCache}
               deviationLastUpdatedAt={deviationLastUpdatedAt}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
+              onSwitchPage={handlePageSwitch}
+              onEditToggle={toggleEdit}
+              {lastRefreshTime}
             />
           {:else if page}
             <div class="empty-segments">
@@ -676,11 +652,6 @@ function toggleEdit() {
         </div>
       {/key}
     </div>
-
-    <BottomBar
-      {editing}
-      onclick={toggleEdit}
-    />
 
     {#if !hasNoRoutes && page}
       <PageEditor
@@ -801,6 +772,7 @@ function toggleEdit() {
     --accent-subtle:   rgba(23,23,23,0.10);
     --page-work:      #2563EB;
     --page-home:      #059669;
+    --color-accent:   #27ae60;
   }
 
   main {
@@ -869,7 +841,7 @@ function toggleEdit() {
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 4px 20px calc(90px + env(safe-area-inset-bottom));
+    padding: 0 20px 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -1076,16 +1048,6 @@ function toggleEdit() {
     color: #92400E;
     font-size: 13px;
   }
-
-  .freshness-bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px 0;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-  .freshness-dot { opacity: 0.6; }
 
   .warning-banner button {
     background: none;
