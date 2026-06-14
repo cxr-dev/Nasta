@@ -13,6 +13,7 @@
   import DepartureRow from "./DepartureRow.svelte";
   import { prefetchSegments } from "../services/prefetchService";
   import { getSettings } from "../stores/settingsStore.svelte";
+  import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
 
@@ -129,12 +130,6 @@
     void import('../services/prefetchService')
       .then((m) => m.prefetchSegments(route.segments ?? [], settings, { concurrency: 4 }))
       .catch(() => {});
-  }
-
-  function stopLabel(name?: string): string {
-    if (!name) return "";
-    const cleaned = name.replace(/^[^,]+,\s*/u, "").trim();
-    return cleaned || name;
   }
 
   let segmentDeps = $state<Departure[][]>([]);

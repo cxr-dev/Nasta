@@ -169,6 +169,7 @@
           aria-expanded={isExpanded}
           aria-label={`${primaryLineText(segment)} ${segment.fromStop.name} → ${segment.toStop.name}`}
         >
+          <div class="drag-handle" aria-hidden="true">⋮⋮</div>
           <div class="segment-icon" style="--line-color: {lineColor}">
             <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
               {@html getIcon(segment.transportType)}
@@ -177,7 +178,11 @@
           <div class="segment-meta">
             <div class="segment-line">
               <span class="line-name">{primaryLineText(segment)}</span>
-              {#if showLineBadge(segment)}
+              {#if !isExpanded}
+                <span class="seg-dest">
+                  {segment.fromStop.name} → {segment.direction?.destination ?? segment.toStop.name}
+                </span>
+              {:else if showLineBadge(segment)}
                 <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
               {/if}
             </div>
@@ -235,7 +240,6 @@
                 <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
               </svg>
             </span>
-            <div class="drag-handle" aria-hidden="true">⋮⋮</div>
           </div>
         </div>
       </div>
@@ -375,9 +379,7 @@
 
   .segment-right {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
     flex-shrink: 0;
   }
 
@@ -393,20 +395,6 @@
 
   .expand-chevron.open {
     transform: rotate(180deg);
-  }
-
-  .drag-handle {
-    color: var(--text-muted);
-    font-size: 14px;
-    letter-spacing: -2px;
-    cursor: grab;
-    padding: 4px 2px;
-    line-height: 1;
-    user-select: none;
-  }
-
-  .drag-handle:active {
-    cursor: grabbing;
   }
 
   .buffer-stepper {
@@ -464,6 +452,31 @@
     font-weight: 700;
     color: var(--text);
     font-variant-numeric: tabular-nums;
+  }
+
+  .seg-dest {
+    font-size: 13px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .drag-handle {
+    color: var(--text-muted);
+    font-size: 14px;
+    letter-spacing: -2px;
+    cursor: grab;
+    padding: 4px 2px;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
   }
 
   .remove-btn {

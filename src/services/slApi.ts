@@ -1,4 +1,5 @@
 import type { Departure, SiteSearchResult } from "../types/departure";
+import { cleanStopName } from "../lib/stopName";
 import type { TransportType } from "../types/page";
 import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
@@ -177,7 +178,7 @@ export async function searchSites(
     )
     .map((loc) => ({
       siteId: globalIdToSiteId(loc.id),
-      name: loc.name,
+      name: cleanStopName(loc.name),
       note: undefined,
       type: "stop" as const,
       lat: loc.coord?.[0],

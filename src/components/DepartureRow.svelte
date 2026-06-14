@@ -6,6 +6,7 @@
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
   import DisruptionList from "./DisruptionList.svelte";
+  import { cleanStopName as stopLabel } from "../lib/stopName";
   let {
     segment,
     departure,
@@ -50,12 +51,6 @@
 
   function getTransportIcon(type: TransportType): string {
     return transportIcons[type] ?? transportIcons.bus;
-  }
-
-  function stopLabel(name?: string): string {
-    if (!name) return "";
-    const cleaned = name.replace(/^[^,]+,\s*/u, "").trim();
-    return cleaned || name;
   }
 
   function scrollExpandedIntoView(node: HTMLElement, isExpanded: boolean) {

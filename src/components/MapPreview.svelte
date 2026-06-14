@@ -1,15 +1,10 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
+  import { cleanStopName as stopLabel } from "../lib/stopName";
 
   const maplibreLoad = import('maplibre-gl').then(m => m.default);
   void import('maplibre-gl/dist/maplibre-gl.css');
-
-  function stopLabel(name?: string): string {
-    if (!name) return "";
-    const cleaned = name.replace(/^[^,]+,\s*/u, "").trim();
-    return cleaned || name;
-  }
 
   let {
     segment,
