@@ -33,7 +33,9 @@
   let showSearch = $state(false);
   let hasManuallyClosedSearch = $state(false);
   let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
+  import { infoCircle } from '../icons/departureIcons';
   let hintDismissed = $state(false);
+  let infoOpen = $state(false);
   let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
@@ -311,13 +313,23 @@
           </label>
           {#if settings.disruptionAlertsEnabled ?? true}
             <div class="nested-control">
-              <span class="nested-name">{t.disruptionThreshold}</span>
+              <div class="nested-header">
+                <span class="nested-name">{t.disruptionThreshold}</span>
+                <button
+                  class="info-btn"
+                  onclick={() => (infoOpen = !infoOpen)}
+                  aria-label={t.disruptionThresholdInfoAria}
+                >
+                  <svg viewBox="0 0 24 24" fill="none">{@html infoCircle}</svg>
+                </button>
+              </div>
               <div class="segmented-control" role="group" aria-label={t.disruptionThreshold}>
                 <button
                   class="segment-choice"
                   class:active={activeDisruptionThreshold === 'info'}
                   onclick={() => setDisruptionSeverityThreshold('info')}
                   aria-pressed={activeDisruptionThreshold === 'info'}
+                  data-level="info"
                 >
                   {t.disruptionThresholdInfo}
                 </button>
@@ -326,6 +338,7 @@
                   class:active={activeDisruptionThreshold === 'warning'}
                   onclick={() => setDisruptionSeverityThreshold('warning')}
                   aria-pressed={activeDisruptionThreshold === 'warning'}
+                  data-level="warning"
                 >
                   {t.disruptionThresholdWarning}
                 </button>
@@ -334,9 +347,59 @@
                   class:active={activeDisruptionThreshold === 'critical'}
                   onclick={() => setDisruptionSeverityThreshold('critical')}
                   aria-pressed={activeDisruptionThreshold === 'critical'}
+                  data-level="critical"
                 >
                   {t.disruptionThresholdCritical}
                 </button>
+              </div>
+            </div>
+          {/if}
+
+          {#if infoOpen}
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div class="info-overlay" onclick={() => (infoOpen = false)} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="dialog" aria-label={t.disruptionThresholdInfoTitle} tabindex="-1">
+              <div class="info-card" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="document" tabindex="-1">
+                <button class="info-card-close" onclick={() => (infoOpen = false)} aria-label={t.closeEditor}>×</button>
+                <h4 class="info-card-title">{t.disruptionThresholdInfoTitle}</h4>
+
+                <div class="info-level">
+                  <span class="info-dot info-dot--info"></span>
+                  <div class="info-level-content">
+                    <strong>{t.disruptionThresholdInfo}</strong>
+                    <p>{t.disruptionThresholdInfoDesc}</p>
+                    <ul>
+                      <li>{t.disruptionThresholdInfoExample1}</li>
+                      <li>{t.disruptionThresholdInfoExample2}</li>
+                      <li>{t.disruptionThresholdInfoExample3}</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="info-level">
+                  <span class="info-dot info-dot--warning"></span>
+                  <div class="info-level-content">
+                    <strong>{t.disruptionThresholdWarning}</strong>
+                    <p>{t.disruptionThresholdWarningDesc}</p>
+                    <ul>
+                      <li>{t.disruptionThresholdWarningExample1}</li>
+                      <li>{t.disruptionThresholdWarningExample2}</li>
+                      <li>{t.disruptionThresholdWarningExample3}</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="info-level">
+                  <span class="info-dot info-dot--critical"></span>
+                  <div class="info-level-content">
+                    <strong>{t.disruptionThresholdCritical}</strong>
+                    <p>{t.disruptionThresholdCriticalDesc}</p>
+                    <ul>
+                      <li>{t.disruptionThresholdCriticalExample1}</li>
+                      <li>{t.disruptionThresholdCriticalExample2}</li>
+                      <li>{t.disruptionThresholdCriticalExample3}</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           {/if}
@@ -894,6 +957,7 @@
   }
 
   .nested-control {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -901,6 +965,34 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--surface);
+  }
+
+  .nested-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .info-btn {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 150ms ease, background 150ms ease;
+  }
+
+  .info-btn:hover {
+    color: var(--accent);
+    background: var(--accent-subtle);
   }
 
   .nested-name {
@@ -927,10 +1019,22 @@
     font-family: inherit;
   }
 
-  .segment-choice.active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-subtle);
+  .segment-choice.active[data-level="info"] {
+    border-color: #3B82F6;
+    color: #3B82F6;
+    background: rgba(59, 130, 246, 0.10);
+  }
+
+  .segment-choice.active[data-level="warning"] {
+    border-color: #E67E22;
+    color: #E67E22;
+    background: rgba(230, 126, 34, 0.10);
+  }
+
+  .segment-choice.active[data-level="critical"] {
+    border-color: #E74C3C;
+    color: #E74C3C;
+    background: rgba(231, 76, 60, 0.10);
   }
 
   .hour-selector {
@@ -1094,6 +1198,129 @@
     border-radius: 999px;
     background: var(--accent);
     box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
+  }
+
+  .info-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+  }
+
+  .info-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 360px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+  }
+
+  .info-card-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: color 150ms ease, background 150ms ease;
+  }
+
+  .info-card-close:hover {
+    color: var(--text);
+    background: var(--accent-subtle);
+  }
+
+  .info-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 16px 0;
+    padding-right: 24px;
+  }
+
+  .info-level {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .info-level:last-child {
+    margin-bottom: 0;
+  }
+
+  .info-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  .info-dot--info {
+    background: #3B82F6;
+  }
+
+  .info-dot--warning {
+    background: #E67E22;
+  }
+
+  .info-dot--critical {
+    background: #E74C3C;
+  }
+
+  .info-level-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .info-level-content strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .info-level-content p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 0 4px 0;
+    line-height: 1.4;
+  }
+
+  .info-level-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .info-level-content li {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    padding-left: 12px;
+    position: relative;
+  }
+
+  .info-level-content li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: var(--text-ghost);
   }
 
   @media (prefers-reduced-motion: reduce) {
