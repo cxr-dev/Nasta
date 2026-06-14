@@ -53,7 +53,7 @@
   });
   let openingHoursParser: any = null;
   let venueOpenState = $state<Record<string, { isOpenNow: boolean; statusText: string; statusClass: string }>>({});
-  let tabLoadCtrl = $state<AbortController | null>(null);
+  let tabLoadCtrl: AbortController | null = null;
 
   $effect(() => {
     if (!availableModes.includes(activeTab)) {
@@ -212,10 +212,6 @@
 
   function closeAndAbort() {
     tabLoadCtrl?.abort();
-    venuesByTab = {
-      beer: { ...venuesByTab.beer, token: venuesByTab.beer.token + 1 },
-      wineCocktail: { ...venuesByTab.wineCocktail, token: venuesByTab.wineCocktail.token + 1 },
-    };
     onClose();
   }
 
@@ -241,7 +237,7 @@
         <p>{t.browseNearby}</p>
       </div>
     </div>
-    <button class="close-btn" type="button" onclick={() => closeAndAbort()} aria-label={t.closePanel}>
+    <button class="close-btn" type="button" onclick={closeAndAbort} aria-label={t.closePanel}>
       ×
     </button>
   </header>

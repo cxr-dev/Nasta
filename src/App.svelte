@@ -327,15 +327,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   }
 
   function closeFeatureSheet() {
-    if (backdropEl && drawerEl) {
-      const tl = gsap.timeline({
-        onComplete: () => { activeFeatureContext = null; }
-      });
-      tl.to(backdropEl, { opacity: 0, duration: 0.12 }, 0);
-      tl.to(drawerEl, { opacity: 0, y: 12, duration: 0.14, ease: 'power2.in' }, 0);
-    } else {
-      activeFeatureContext = null;
-    }
+    activeFeatureContext = null;
   }
 
   function dismissWarning() {

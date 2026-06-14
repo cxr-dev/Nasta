@@ -226,7 +226,7 @@ test.describe("feature discovery sheet", () => {
       }),
     ).toBeVisible({ timeout: 10000 });
 
-    await page.locator(".close-btn").click();
+    await sheet.locator('.close-btn').click();
     await expect(sheet).toBeHidden({ timeout: 10000 });
   });
 });
