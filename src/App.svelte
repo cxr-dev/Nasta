@@ -306,6 +306,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   }
 
   function openSegmentPanels(segment: Segment) {
+    if (activeFeatureContext) return;
     const coords = segment.fromStop.coord ?? segment.toStop.coord;
     if (!coords) return;
     const availableModes: Array<'beer' | 'wineCocktail' | 'events'> = [];

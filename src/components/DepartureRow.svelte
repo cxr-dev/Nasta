@@ -15,6 +15,7 @@
     siteDevs,
     isExpanded,
     isExpandable,
+    isSleeping = false,
     topDevMessage,
     topDevType,
     index,
@@ -34,6 +35,7 @@
     siteDevs: { message: string }[];
     isExpanded: boolean;
     isExpandable: boolean;
+    isSleeping?: boolean;
     topDevMessage: string;
     topDevType: string;
     index: number;
@@ -128,6 +130,9 @@
   let eventChipEl: HTMLDivElement | undefined = $state();
   let panelEl: HTMLDivElement | undefined = $state();
   let collapsing = $state(false);
+  let wasSleeping = $state(false);
+  let sleepIconEl = $state<HTMLElement>();
+  let wakeBadgeEl = $state<HTMLElement>();
 
   function handleToggle() {
     if (isExpanded) {
@@ -193,9 +198,49 @@
 
     return () => gsap.killTweensOf(icon);
   });
+
+  $effect(() => {
+    if (wasSleeping && !isSleeping && sleepIconEl && wakeBadgeEl) {
+      const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (rm) { wasSleeping = isSleeping; return; }
+
+      const row = sleepIconEl.closest('.departure-row') as HTMLElement | null;
+      if (!row) { wasSleeping = isSleeping; return; }
+
+      const sb = sleepIconEl!;
+      const wb = wakeBadgeEl!;
+      const tl = gsap.timeline({
+        onComplete: () => {
+          gsap.set(wb, { clearProps: 'all' });
+          gsap.set(sb, { clearProps: 'all' });
+        }
+      });
+      tl.to(row, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0);
+      tl.to(sb, { opacity: 0, scale: 0.3, duration: 0.25, ease: 'power2.in' }, 0);
+      tl.fromTo(wb,
+        { opacity: 0, y: 10, scale: 0.8 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: 'back.out(1.7)' },
+        0.2
+      );
+      tl.to(wakeBadgeEl, { opacity: 0, y: -8, duration: 0.4, ease: 'power2.in' }, 2.8);
+    }
+    wasSleeping = isSleeping;
+  });
+
+  $effect(() => {
+    if (!isSleeping || !sleepIconEl) return;
+    gsap.to(sleepIconEl, {
+      y: -2,
+      duration: 2.5,
+      ease: 'sine.inOut',
+      yoyo: true,
+      repeat: -1,
+    });
+    return () => { if (sleepIconEl) gsap.killTweensOf(sleepIconEl); };
+  });
 </script>
 
-<div class="departure-item" class:expanded={isExpanded} use:scrollExpandedIntoView={isExpanded}>
+<div class="departure-item" class:expanded={isExpanded} class:sleeping={isSleeping} use:scrollExpandedIntoView={isExpanded}>
   <button
     class="departure-row"
     use:prefetch
@@ -270,7 +315,18 @@
             </svg>
           </div>
         {:else}
-          <div class="no-departure">—</div>
+          <div class="no-departure" class:sleeping={isSleeping}>
+            {#if isSleeping}
+              <span bind:this={sleepIconEl} class="sleep-icon-wrap">
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a10 10 0 1 0 10 10 8 8 0 0 1-10-10z"/>
+                </svg>
+              </span>
+            {:else}
+              <span class="em-dash">—</span>
+            {/if}
+            <span bind:this={wakeBadgeEl} class="wake-badge">Good morning! ☀️</span>
+          </div>
         {/if}
       {/if}
     </div>
@@ -304,6 +360,7 @@
     gap: 0;
     margin: 8px 0;
   }
+  .departure-item.sleeping { opacity: 0.5; }
   .departure-row {
     display: flex;
     align-items: center;
@@ -315,7 +372,7 @@
     width: 100%;
     background: var(--surface);
     text-align: left;
-    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 120ms ease, opacity 180ms ease;
   }
   .departure-item.expanded .departure-row {
     border-bottom-left-radius: 0;
@@ -368,7 +425,17 @@
   .minutes { font-family: "Neue Machina", sans-serif; font-size: clamp(56px, 14vw, 68px); font-weight: 800; letter-spacing: -2.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .secondary-time { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .more { color: var(--text-muted); font-size: 12px; }
-  .no-departure { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }
+  .no-departure { position: relative; display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  .sleep-icon-wrap { display: flex; align-items: center; justify-content: center; }
+  .moon-icon { width: 24px; height: 24px; color: var(--text-ghost); display: block; }
+  .em-dash { font-family: "Neue Machina", sans-serif; font-size: 48px; font-weight: 300; color: var(--text-ghost); letter-spacing: 0; line-height: 1; }
+  .wake-badge {
+    position: absolute; top: -30px; right: 0;
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    background: var(--accent-subtle); padding: 3px 10px;
+    border-radius: 20px; white-space: nowrap; opacity: 0;
+    pointer-events: none; line-height: 1.3;
+  }
   .site-deviation-badge { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); border-radius: 12px; transition: transform 0.2s ease; }
   .site-deviation-badge.active { transform: scale(1.1) rotate(5deg); background: #f59e0b; color: #fff; }
   .site-deviation-badge svg { width: 22px; height: 22px; }

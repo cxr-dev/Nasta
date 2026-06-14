@@ -338,6 +338,10 @@
     color: var(--text-on-accent, #fff);
     flex: 1 1 auto;
   }
+  .map-link-primary:active {
+    transform: scale(0.96);
+    background: color-mix(in srgb, var(--accent) 85%, #000);
+  }
   .map-link-secondary {
     color: var(--text-secondary);
     background: transparent;

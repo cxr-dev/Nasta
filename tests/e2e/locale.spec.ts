@@ -22,6 +22,7 @@ test.describe("locale switching", () => {
     await expect(actionBtn).toContainText("Settings", { timeout: 10000 });
 
     await actionBtn.click();
+    await page.getByRole("tab", { name: /features|funktioner/i }).click();
 
     await expect(langGroup(page).getByRole("button").nth(0)).toContainText("English");
     await expect(langGroup(page).getByRole("button").nth(1)).toContainText("Swedish");
@@ -35,6 +36,7 @@ test.describe("locale switching", () => {
 
   test("should persist language preference after reload", async ({ page }) => {
     await page.locator(".action-btn").click();
+    await page.getByRole("tab", { name: /features|funktioner/i }).click();
     await langGroup(page).getByRole("button").nth(1).click();
     await page.locator(".action-btn").click();
 
@@ -51,6 +53,7 @@ test.describe("locale switching", () => {
     });
 
     await page.locator(".action-btn").click();
+    await page.getByRole("tab", { name: /features|funktioner/i }).click();
 
     await langGroup(page).getByRole("button").nth(1).click();
     await page.waitForTimeout(50);

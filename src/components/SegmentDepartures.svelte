@@ -171,6 +171,7 @@
   }
 
   $effect(() => {
+    route.segments;
     if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
       scheduleNearbyPrefetch();
     }
@@ -304,6 +305,7 @@
       {@const hasDeparture = deps.length > 0 && !!departure}
       {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
       {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
+      {@const isSleeping = !hasDeparture && siteDevs.length === 0}
       {@const isExpanded = expandedIndex === index}
       {@const isExpandable = hasDeparture || siteDevs.length > 0}
       {@const topDevMessage = siteDevs[0]?.message ?? ""}
@@ -327,6 +329,7 @@
           {siteDevs}
           {isExpanded}
           {isExpandable}
+          {isSleeping}
           {topDevMessage}
           {topDevType}
           {index}

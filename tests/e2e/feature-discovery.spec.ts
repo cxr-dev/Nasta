@@ -213,11 +213,11 @@ test.describe("feature discovery sheet", () => {
 
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("button", { name: /Beer|Öl/ })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Beer|Öl/ })).toBeVisible();
     await expect(page.getByText("Tap Room")).toBeVisible({ timeout: 10000 });
 
     await page
-      .getByRole("button", { name: /Wine \+ cocktails|Vin \+ cocktails/ })
+      .getByRole("tab", { name: /Wine \+ cocktails|Vin \+ cocktails/ })
       .click();
     // Target the heading specifically to avoid matching multiple elements (pill / button)
     await expect(
