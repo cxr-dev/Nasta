@@ -89,6 +89,10 @@
     severity === 'critical' ? '#e74c3c' : severity === 'affected' ? '#e8950a' : 'var(--accent)'
   );
 
+  let pillTextColor = $derived(
+    severity === 'critical' ? '#fff' : severity === 'affected' ? '#292929' : 'var(--text-on-accent)'
+  );
+
   let badgeBgIntensity = $derived(
     severity === 'critical' ? 'rgba(231, 76, 60, 0.18)' : severity === 'affected' ? 'rgba(232, 149, 10, 0.18)' : 'var(--accent-subtle)'
   );
@@ -240,7 +244,7 @@
   </button>
 
   {#if siteDevs.length > 0}
-    <div class="disrupt-strip" style="--strip-color: {accentColor}">
+    <div class="disrupt-strip" style="--strip-color: {accentColor}; --pill-text-color: {pillTextColor}">
       <svg viewBox="0 0 24 24" fill="none" class="disrupt-icon">
         <g>{@html disruptionIcon(topDevType)}</g>
       </svg>
@@ -456,7 +460,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #fff;
+    color: var(--pill-text-color);
     padding: 2px 7px;
     border-radius: 10px;
     flex-shrink: 0;
