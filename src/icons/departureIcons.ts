@@ -2,7 +2,7 @@ export const chevronLeft = `<path d="M15 18l-6-6 6-6" stroke="currentColor" stro
 
 export const chevronRight = `<path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-export const adjustmentsHorizontal = `<path d="M3 6h18M6 3v6M8 14h13M8 14v6M3 14h3M18 4v4M21 18H8M21 18v6M3 18h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`;
+export const adjustmentsHorizontal = `<path d="M4 6h16M4 12h12M4 18h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="6" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="11" cy="12" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="18" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/>`;
 
 export const alertTriangle = `<path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
