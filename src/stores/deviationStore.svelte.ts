@@ -57,6 +57,8 @@ function transportModeForSegment(type: TransportType): string {
       return "metro";
     case "train":
       return "train";
+    case "tram":
+      return "tram";
     case "boat":
       return "ferry";
     default:

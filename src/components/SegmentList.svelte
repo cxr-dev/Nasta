@@ -20,6 +20,7 @@
     metro: '#DC2626',
     train: '#059669',
     boat: '#0D9488',
+    tram: '#7C3AED',
   };
 
   function toggleExpand(id: string) {

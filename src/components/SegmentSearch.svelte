@@ -16,7 +16,7 @@ import { onMount } from 'svelte';
 const SEARCH_MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 300;
 const MIN_LOAD_DELAY_MS = 80;
-const ALL_TRANSPORT_TYPES: TransportType[] = ['metro', 'train', 'bus', 'boat'];
+const ALL_TRANSPORT_TYPES: TransportType[] = ['metro', 'train', 'bus', 'boat', 'tram'];
 
 type TransportFilterOption = 'all' | TransportType;
 const TRANSPORT_FILTER_OPTIONS: TransportFilterOption[] = ['all', ...ALL_TRANSPORT_TYPES];

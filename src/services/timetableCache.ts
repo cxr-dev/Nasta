@@ -138,6 +138,9 @@ function inferTransportType(mode?: string): TransportType {
       return "train";
     case "metro":
       return "metro";
+    case "tram":
+    case "lightrail":
+      return "tram";
     case "boat":
     case "ferry":
       return "boat";

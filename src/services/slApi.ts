@@ -85,6 +85,9 @@ function getTransportType(mode?: string): TransportType {
       return "train";
     case "metro":
       return "metro";
+    case "tram":
+    case "lightrail":
+      return "tram";
     case "boat":
     case "ferry":
       return "boat";
@@ -403,7 +406,8 @@ function formatTime(date: Date): string {
 export function mapProductClassesToTransportTypes(classes: number[]): TransportType[] {
   const types = new Set<TransportType>();
   for (const c of classes) {
-    if (c === 1 || c === 2 || c === 4) types.add("metro");
+    if (c === 1 || c === 2) types.add("metro");
+    else if (c === 4) types.add("tram");
     else if (c === 8 || c === 16 || c === 32 || c === 64) types.add("train");
     else if (c === 128) types.add("bus");
     else if (c === 256) types.add("boat");

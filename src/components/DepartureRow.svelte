@@ -82,6 +82,9 @@
   let sleepIconEl = $state<HTMLElement>();
   let wakeBadgeEl = $state<HTMLElement>();
 
+  let isImminent = $derived(primaryDepartureText === 'Nu' || primaryDepartureText === 'Now');
+  let isSoon = $derived(primaryDepartureText === '1 min');
+
   let accentColor = $derived(
     severity === 'critical' ? '#e74c3c' : severity === 'affected' ? '#e8950a' : 'var(--accent)'
   );
@@ -201,7 +204,7 @@
     aria-expanded={isExpanded}
     onclick={() => { if (isExpandable) handleToggle(); }}
   >
-    <div class="accent-bar" style="background: {accentColor}"></div>
+    <div class="accent-bar" class:imminent={isImminent} class:soon={isSoon} style="background: {accentColor}"></div>
 
     <div class="icon-badge" style="background: {badgeBgIntensity}">
       <svg viewBox="0 0 24 24" fill="currentColor">
@@ -381,8 +384,9 @@
     line-height: 1;
   }
   .clock-times {
-    font-size: 10px;
-    color: var(--text-ghost);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     line-height: 1;
@@ -458,6 +462,18 @@
     flex-shrink: 0;
     line-height: 1.2;
     background: var(--strip-color);
+  }
+
+  .accent-bar.imminent {
+    animation: pulse-glow 1.2s ease-in-out infinite;
+  }
+  .accent-bar.soon {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; filter: brightness(1.3); }
   }
 
   .expanded-panel {
