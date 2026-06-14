@@ -18,6 +18,7 @@
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
   import { chevronLeft, chevronRight, adjustmentsHorizontal } from "../icons/departureIcons";
+  import { computeDisplayDevs, isSegmentDisrupted } from "./segmentUtils";
 
   let {
     route,
@@ -48,7 +49,7 @@
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
   let now = $state(Date.now());
-  let expandedIndex = $state<number | null>(null);
+  let expandedSegmentId = $state<string | null>(null);
   let isLoading = $state(false);
   let lastError = $state<string | null>(null);
   let lastSuccessfulFetch = $state(0);
@@ -83,7 +84,7 @@
 
   $effect(() => {
     route.id;
-    expandedIndex = null;
+    expandedSegmentId = null;
   });
 
   $effect(() => {
@@ -112,8 +113,8 @@
     return () => controller.abort();
   });
 
-  function toggleExpanded(index: number) {
-    expandedIndex = expandedIndex === index ? null : index;
+  function toggleExpanded(segmentId: string) {
+    expandedSegmentId = expandedSegmentId === segmentId ? null : segmentId;
   }
 
   const PREFETCH_SEGMENT_COUNT = 2;
@@ -165,6 +166,21 @@
   }
 
   let segmentDeps = $state<Departure[][]>([]);
+
+  let segmentGroups = $derived.by(() => {
+    const segs = route.segments ?? [];
+    const normal: Array<{ segment: Segment; originalIndex: number }> = [];
+    const disrupted: Array<{ segment: Segment; originalIndex: number }> = [];
+
+    segs.forEach((seg, i) => {
+      const health = deviationHealthBySegment.get(seg.id);
+      const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
+      const isDisrupted = isSegmentDisrupted(siteDevsList.length, health?.state);
+      (isDisrupted ? disrupted : normal).push({ segment: seg, originalIndex: i });
+    });
+
+    return { normal, disrupted, hasDisrupted: disrupted.length > 0 };
+  });
 
   async function loadSegmentDeps() {
     const segs = route.segments ?? [];
@@ -364,44 +380,89 @@
         {/each}
       </div>
     {:else}
-      {#each route.segments ?? [] as segment, index (segment.id)}
-        {@const deps = segmentDeps[index] ?? []}
+      {#each segmentGroups.normal as item, index (item.segment.id)}
+        {@const deps = segmentDeps[item.originalIndex] ?? []}
         {@const departure = deps[0]}
         {@const subsequent = formatSubsequent(deps)}
         {@const hasDeparture = deps.length > 0 && !!departure}
         {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
-        {@const siteDevs = stopDeviationsMap.get(segment.fromStop.siteId) || []}
-        {@const isSleeping = !hasDeparture && siteDevs.length === 0}
-        {@const isExpanded = expandedIndex === index}
-        {@const isExpandable = hasDeparture || siteDevs.length > 0}
-        {@const topDevMessage = siteDevs[0]?.message ?? ""}
-        {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
-        {@const health = deviationHealthBySegment.get(segment.id)}
+        {@const health = deviationHealthBySegment.get(item.segment.id)}
         {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
+        {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
+        {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
+        {@const hasDisruption = displayDevs.length > 0}
+        {@const isSleeping = !hasDeparture && !hasDisruption}
+        {@const isExpanded = expandedSegmentId === item.segment.id}
+        {@const isExpandable = hasDeparture || hasDisruption}
+        {@const topDevMessage = displayDevs[0]?.message ?? ""}
+        {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
         <DepartureRow
-          {segment}
+          segment={item.segment}
           {departure}
           {subsequent}
           {hasDeparture}
           {primaryDepartureText}
-          {siteDevs}
+          siteDevs={displayDevs}
           {isExpanded}
           {isExpandable}
           {isSleeping}
           {topDevMessage}
           {topDevType}
-          {index}
           {userLocation}
           locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
           walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
           {openFeatureSheet}
           {t}
           {severity}
-          ontoggle={toggleExpanded}
-          onprefetch={() => prefetchForSegment(segment)}
+          ontoggle={() => toggleExpanded(item.segment.id)}
+          onprefetch={() => prefetchForSegment(item.segment)}
         />
       {/each}
+
+      {#if segmentGroups.hasDisrupted}
+        <div class="section-label">{t.sectionDisrupted}</div>
+        {#each segmentGroups.disrupted as item, index (item.segment.id)}
+          {@const deps = segmentDeps[item.originalIndex] ?? []}
+          {@const departure = deps[0]}
+          {@const subsequent = formatSubsequent(deps)}
+          {@const hasDeparture = deps.length > 0 && !!departure}
+          {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
+          {@const health = deviationHealthBySegment.get(item.segment.id)}
+          {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
+          {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
+          {@const healthDevs = health?.reason ? [{ message: health.reason }] : []}
+          {@const displayDevs = rawSiteDevs.length > 0 ? rawSiteDevs : healthDevs}
+          {@const hasDisruption = displayDevs.length > 0}
+          {@const isSleeping = !hasDeparture && !hasDisruption}
+          {@const isExpanded = expandedSegmentId === item.segment.id}
+          {@const isExpandable = hasDeparture || hasDisruption}
+          {@const topDevMessage = displayDevs[0]?.message ?? ""}
+          {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
+
+          <DepartureRow
+            segment={item.segment}
+            {departure}
+            {subsequent}
+            {hasDeparture}
+            {primaryDepartureText}
+            siteDevs={displayDevs}
+            {isExpanded}
+            {isExpandable}
+            {isSleeping}
+            {topDevMessage}
+            {topDevType}
+            {userLocation}
+            locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
+            walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
+            {openFeatureSheet}
+            {t}
+            {severity}
+            ontoggle={() => toggleExpanded(item.segment.id)}
+            onprefetch={() => prefetchForSegment(item.segment)}
+          />
+        {/each}
+      {/if}
 
       {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
         <div class="empty-state">
@@ -629,5 +690,13 @@
   .settings-btn svg {
     width: 18px;
     height: 18px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    padding: 12px 14px 6px;
   }
 </style>

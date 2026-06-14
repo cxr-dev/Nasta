@@ -21,7 +21,6 @@
     isSleeping = false,
     topDevMessage,
     topDevType,
-    index,
     userLocation,
     locationRequestInFlight,
     walkingEtaEnabled,
@@ -42,14 +41,13 @@
     isSleeping?: boolean;
     topDevMessage: string;
     topDevType: string;
-    index: number;
     userLocation: [number, number] | null;
     locationRequestInFlight: boolean;
     walkingEtaEnabled: boolean;
     openFeatureSheet?: ((segment: Segment) => void) | null;
     t: Record<string, string>;
     severity?: 'normal' | 'affected' | 'critical';
-    ontoggle?: (index: number) => void;
+    ontoggle?: () => void;
     onprefetch?: () => void;
   } = $props();
 
@@ -59,7 +57,10 @@
 
   import type { TransportType } from "../types/page";
 
-  function disruptionLabel(type: string): string {
+  function pillLabel(type: string, severity: string): string {
+    if (severity === 'critical') {
+      return t.disruptionCriticalShort ?? 'Kritisk';
+    }
     if (type === 'general') return t.disruptionGeneral ?? type;
     if (type === 'protest') return t.disruptionProtest ?? type;
     if (type === 'technical') return t.disruptionTechnical ?? type;
@@ -98,21 +99,21 @@
   function handleToggle() {
     if (isExpanded) {
       const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (rm) { ontoggle?.(index); return; }
+      if (rm) { ontoggle?.(); return; }
       collapsing = true;
       tick().then(() => {
-        if (!panelEl) { collapsing = false; ontoggle?.(index); return; }
+        if (!panelEl) { collapsing = false; ontoggle?.(); return; }
         gsap.to(panelEl, {
           height: 0, opacity: 0,
           duration: 0.2, ease: 'power2.in',
           onComplete: () => {
             collapsing = false;
-            ontoggle?.(index);
+            ontoggle?.();
           },
         });
       });
     } else {
-      ontoggle?.(index);
+      ontoggle?.();
     }
   }
 
@@ -241,7 +242,7 @@
         <g>{@html disruptionIcon(topDevType)}</g>
       </svg>
       <span class="disrupt-msg">{topDevMessage}</span>
-      <span class="disrupt-pill" style="background: {accentColor}">{disruptionLabel(topDevType)}</span>
+      <span class="disrupt-pill">{pillLabel(topDevType, severity)}</span>
     </div>
   {/if}
 
@@ -427,9 +428,10 @@
     align-items: center;
     gap: 6px;
     padding: 8px 14px 10px 18px;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid color-mix(in srgb, var(--strip-color) 20%, var(--border));
     font-size: 12px;
     line-height: 1.3;
+    background: color-mix(in srgb, var(--strip-color) 8%, var(--surface));
   }
   .disrupt-icon {
     width: 14px;
@@ -440,7 +442,7 @@
   .disrupt-msg {
     flex: 1;
     min-width: 0;
-    color: var(--text-secondary);
+    color: var(--strip-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -455,6 +457,7 @@
     border-radius: 10px;
     flex-shrink: 0;
     line-height: 1.2;
+    background: var(--strip-color);
   }
 
   .expanded-panel {

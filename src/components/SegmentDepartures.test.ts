@@ -5,6 +5,10 @@ import {
   formatDepartureTime,
   mergeDeparturesWithPredictions,
 } from "../lib/departureDisplay";
+import {
+  computeDisplayDevs,
+  isSegmentDisrupted,
+} from "./segmentUtils";
 
 describe("getLiveMinutes", () => {
   const baseDep: Departure = {
@@ -103,6 +107,77 @@ describe("mergeDeparturesWithPredictions", () => {
     expect(result[0].expectedAt).toBeDefined();
     expect(result[1].time).toBe("16:40");
     expect(result[1].predicted).toBe(true);
+  });
+});
+
+describe("computeDisplayDevs", () => {
+  it("returns site devs when available, ignoring health reason", () => {
+    const siteDevs = [{ message: "Signalproblem" }];
+    const result = computeDisplayDevs(siteDevs, "Some health reason");
+    expect(result).toEqual([{ message: "Signalproblem" }]);
+  });
+
+  it("returns health reason as a display dev when site devs are empty", () => {
+    const result = computeDisplayDevs([], "Försenad på grund av väder");
+    expect(result).toEqual([{ message: "Försenad på grund av väder" }]);
+  });
+
+  it("returns empty array when both sources are empty", () => {
+    const result = computeDisplayDevs([], null);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when both sources are missing", () => {
+    const result = computeDisplayDevs([], undefined);
+    expect(result).toEqual([]);
+  });
+
+  it("prefers site devs over health reason when both exist", () => {
+    const siteDevs = [
+      { message: "Stopp i tunnelbanan", severity: "critical" },
+    ];
+    const result = computeDisplayDevs(siteDevs, "Some fallback reason");
+    expect(result).toEqual([
+      { message: "Stopp i tunnelbanan", severity: "critical" },
+    ]);
+  });
+
+  it("returns multiple site devs as-is", () => {
+    const siteDevs = [
+      { message: "Dev 1" },
+      { message: "Dev 2" },
+      { message: "Dev 3" },
+    ];
+    const result = computeDisplayDevs(siteDevs, null);
+    expect(result).toHaveLength(3);
+    expect(result).toEqual(siteDevs);
+  });
+});
+
+describe("isSegmentDisrupted", () => {
+  it("returns true when site devs exist", () => {
+    expect(isSegmentDisrupted(2, "ok")).toBe(true);
+  });
+
+  it("returns true when health state is affected", () => {
+    expect(isSegmentDisrupted(0, "affected")).toBe(true);
+  });
+
+  it("returns true when health state is critical", () => {
+    expect(isSegmentDisrupted(0, "critical")).toBe(true);
+  });
+
+  it("returns false when no site devs and health state is ok", () => {
+    expect(isSegmentDisrupted(0, "ok")).toBe(false);
+  });
+
+  it("returns false when no site devs and no health state", () => {
+    expect(isSegmentDisrupted(0, null)).toBe(false);
+    expect(isSegmentDisrupted(0, undefined)).toBe(false);
+  });
+
+  it("returns true when both sources indicate disruption", () => {
+    expect(isSegmentDisrupted(3, "critical")).toBe(true);
   });
 });
 
