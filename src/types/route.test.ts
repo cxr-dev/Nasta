@@ -23,6 +23,19 @@ describe('Page type', () => {
     expect(page.segments).toHaveLength(1);
   });
 
+  it('should accept tram transport type', () => {
+    const segment: Segment = {
+      id: 's1',
+      line: '30',
+      lineName: 'Tvärbanan',
+      direction: { code: 1, destination: 'Solna station', stopPointId: '123' },
+      fromStop: { id: '1', name: 'Luma', siteId: '9001' },
+      toStop: { id: '2', name: 'Solna station', siteId: '9002' },
+      transportType: 'tram'
+    };
+    expect(segment.transportType).toBe('tram');
+  });
+
   it('should allow empty segments', () => {
     const page: Page = {
       id: '1',

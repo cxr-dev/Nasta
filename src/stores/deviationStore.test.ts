@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { get } from "svelte/store";
 import { deviationStore } from "./deviationStore.svelte";
+import { getDeviations } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
 
 vi.mock("../services/slDeviations", () => ({
@@ -32,6 +33,63 @@ vi.mock("../services/slDeviations", () => ({
 describe("deviationStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("does not match tram segment against bus-scoped deviation", async () => {
+    await deviationStore.refresh([
+      {
+        id: "seg-tram-bus-dev",
+        line: "76",
+        lineName: "76",
+        direction: { code: 1, destination: "Odenplan", stopPointId: "123" },
+        fromStop: { id: "s1", name: "Lindarängsvägen", siteId: "1001" },
+        toStop: { id: "s2", name: "Odenplan", siteId: "1002" },
+        transportType: "tram",
+      },
+    ]);
+
+    const state = get(deviationStore);
+    const health = state.bySegmentId.get("seg-tram-bus-dev");
+    expect(health?.state).toBe("ok");
+  });
+
+  it("maps matching tram segment to affected health state", async () => {
+    vi.mocked(getDeviations).mockResolvedValueOnce({
+      fromCache: false,
+      messages: [
+        {
+          id: "dev-tram",
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+          severity: "warning",
+          importanceLevel: 3,
+          influenceLevel: 2,
+          urgencyLevel: 2,
+          messageVariants: [{ language: "sv", header: "Spårvagnsfel" }],
+          scope: {
+            stopAreas: [{ id: "3001" }],
+            lines: [{ id: "7", designation: "7", transportMode: "tram" }],
+          },
+        },
+      ],
+    });
+
+    await deviationStore.refresh([
+      {
+        id: "seg-tram-match",
+        line: "7",
+        lineName: "7",
+        direction: { code: 1, destination: "T-Centralen", stopPointId: "123" },
+        fromStop: { id: "s3", name: "Spårvagnshållplats", siteId: "3001" },
+        toStop: { id: "s4", name: "T-Centralen", siteId: "3002" },
+        transportType: "tram",
+      },
+    ]);
+
+    const state = get(deviationStore);
+    const health = state.bySegmentId.get("seg-tram-match");
+    expect(health?.state).toBe("affected");
+    expect(health?.reason).toBe("Spårvagnsfel");
   });
 
   it("maps matching segment to critical health state", async () => {

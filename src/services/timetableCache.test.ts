@@ -162,6 +162,38 @@ describe("getPredictedDepartures", () => {
     expect(predicted[0].transportType).toBe("bus");
   });
 
+  it("infers tram transport type from transport_mode", async () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T10:00:00+01:00") });
+    await learnFromApiResponse("1001", [
+      {
+        scheduled: "2026-01-05T10:30:00+01:00",
+        line: { designation: "30", name: "30", transport_mode: "tram" },
+        direction_code: 1,
+        destination: "Solna station",
+      },
+    ]);
+
+    const predicted = await getPredictedDepartures("1001", "30", 1, 5);
+    expect(predicted).toHaveLength(1);
+    expect(predicted[0].transportType).toBe("tram");
+  });
+
+  it("infers tram from lightrail transport_mode", async () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T10:00:00+01:00") });
+    await learnFromApiResponse("1001", [
+      {
+        scheduled: "2026-01-05T10:30:00+01:00",
+        line: { designation: "30", name: "30", transport_mode: "lightrail" },
+        direction_code: 1,
+        destination: "Solna station",
+      },
+    ]);
+
+    const predicted = await getPredictedDepartures("1001", "30", 1, 5);
+    expect(predicted).toHaveLength(1);
+    expect(predicted[0].transportType).toBe("tram");
+  });
+
   it("filters by direction_code", async () => {
     vi.useFakeTimers({ now: new Date("2026-01-05T10:00:00+01:00") });
     await learnFromApiResponse("1001", [

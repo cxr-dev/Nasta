@@ -199,7 +199,7 @@ interface Stop {
   siteId: string;
 }
 
-type TransportType = "bus" | "train" | "metro" | "boat";
+type TransportType = "bus" | "train" | "metro" | "tram" | "boat";
 
 // Backwards compatible alias
 type Route = Page;

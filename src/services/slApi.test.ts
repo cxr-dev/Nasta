@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { searchSites, getDepartures, parseSlTimestamp } from "./slApi";
+import { searchSites, getDepartures, parseSlTimestamp, mapProductClassesToTransportTypes } from "./slApi";
 
 (globalThis as any).fetch = vi.fn();
 
@@ -245,6 +245,67 @@ describe("slApi service", () => {
       expect(result.departures).toHaveLength(2);
       expect(result.departures[0].line).toBe("76");
       expect(result.departures[1].line).toBe("2");
+    });
+
+    it("maps transport_mode tram to transportType tram", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "30", name: "30", transport_mode: "tram" },
+            destination: "Solna station",
+            direction_code: 1,
+            expected: "2024-01-01T10:00:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].transportType).toBe("tram");
+    });
+
+    it("maps transport_mode lightrail to transportType tram", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "30", name: "30", transport_mode: "lightrail" },
+            destination: "Solna station",
+            direction_code: 1,
+            expected: "2024-01-01T10:00:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].transportType).toBe("tram");
+    });
+  });
+
+  describe("mapProductClassesToTransportTypes", () => {
+    it("maps class 4 (light rail) to tram", () => {
+      expect(mapProductClassesToTransportTypes([4])).toEqual(["tram"]);
+    });
+
+    it("maps classes 1 and 2 to metro, class 4 to tram", () => {
+      const types = mapProductClassesToTransportTypes([1, 2, 4]);
+      expect(types).toContain("metro");
+      expect(types).toContain("tram");
+    });
+
+    it("returns empty array for empty input", () => {
+      expect(mapProductClassesToTransportTypes([])).toEqual([]);
+    });
+
+    it("handles mixed classes with tram", () => {
+      const types = mapProductClassesToTransportTypes([4, 128]);
+      expect(types).toEqual(["tram", "bus"]);
     });
   });
 });

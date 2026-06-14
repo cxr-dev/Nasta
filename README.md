@@ -114,7 +114,7 @@ Each segment defines:
 - `fromStop` / `toStop` — with `id`, `name`, `siteId` (SL stop ID)
 - `line` — transit line number (e.g., `"76"`)
 - `direction` — object: `{ code, destination, stopPointId }`
-- `transportType` — `"bus"`, `"train"`, `"metro"`, or `"boat"`
+- `transportType` — `"bus"`, `"train"`, `"metro"`, `"tram"`, or `"boat"`
 - `travelTimeMinutes` — estimated travel duration
 - `transferBufferMinutes` — optional transfer wait time between segments
 

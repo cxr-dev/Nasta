@@ -40,7 +40,7 @@ const defaultSettings: Settings = {
   disruptionAlertsEnabled: true,
   disruptionSeverityThreshold: 'warning',
   disruptionLanguage: 'auto',
-  enabledTransportTypes: ['bus', 'train', 'metro', 'boat'],
+  enabledTransportTypes: ['bus', 'train', 'metro', 'boat', 'tram'],
   transportFilterMode: 'multi',
   activeTransportType: null,
   locationServicesEnabled: false,
