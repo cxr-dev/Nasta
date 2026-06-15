@@ -23,7 +23,7 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
   import type { Departure } from './stores/departureStore.svelte';
-  import type { SegmentHealth } from './types/deviation';
+  import type { SegmentHealth, StationAlert } from './types/deviation';
 
   let editing = $state(false);
    let lastRefreshTime = $state(Date.now());
@@ -81,6 +81,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   let settings = $derived(getSettings());
   let departures = $state<Map<string, Departure[]>>(new Map());
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
+  let deviationStationAlerts = $state<StationAlert[]>([]);
   let deviationUsedCache = $state(false);
   let deviationLastUpdatedAt = $state(0);
   let hour = $derived(getTimeOfDay().hour);
@@ -492,6 +493,7 @@ function toggleEdit() {
     const unsub = departureStore.subscribe(data => { departures = data; });
     const unsubDeviations = deviationStore.subscribe(state => {
       deviationHealthBySegment = state.bySegmentId;
+      deviationStationAlerts = state.stationAlerts;
       deviationUsedCache = state.usedCache;
       deviationLastUpdatedAt = state.lastUpdatedAt;
     });
@@ -638,6 +640,7 @@ function toggleEdit() {
             <SegmentDepartures
               route={page}
               deviationHealthBySegment={deviationHealthBySegment}
+              deviationStationAlerts={deviationStationAlerts}
               deviationUsedCache={deviationUsedCache}
               deviationLastUpdatedAt={deviationLastUpdatedAt}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}

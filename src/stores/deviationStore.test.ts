@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import { deviationStore } from "./deviationStore.svelte";
 import { getDeviations } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
+import { stopAreaStore } from "./stopAreaStore";
 
 vi.mock("../services/slDeviations", () => ({
   getDeviations: vi.fn(async () => ({
@@ -183,6 +184,179 @@ describe("deviationStore", () => {
       expect(nonExternalSegments.length).toBe(2);
       expect(nonExternalSegments[0].id).toBe("seg-1");
       expect(nonExternalSegments[1].id).toBe("seg-3");
+    });
+  });
+
+  describe("Station facility alerts", () => {
+    beforeEach(() => {
+      stopAreaStore.clear();
+    });
+
+    it("separates escalator work at a pass-through stop from segment health", async () => {
+      stopAreaStore.setMapping("9001", "sa-bredang");
+      stopAreaStore.setMapping("9002", "sa-ropsten");
+      stopAreaStore.setMapping("9003", "sa-mariatorget");
+      stopAreaStore.setMapping("9004", "sa-morby");
+      stopAreaStore.setMapping("9191", "sa-tcentralen");
+
+      vi.mocked(getDeviations).mockResolvedValueOnce({
+        fromCache: false,
+        messages: [
+          {
+            id: "dev-escalator",
+            createdAt: Date.now(),
+            modifiedAt: Date.now(),
+            severity: "critical",
+            importanceLevel: 4,
+            influenceLevel: 2,
+            urgencyLevel: 2,
+            messageVariants: [
+              {
+                language: "sv",
+                header: "T-Centralen: Utbyte av rulltrappor begränsar framkomligheten",
+              },
+            ],
+            scope: {
+              stopAreas: [{ id: "sa-tcentralen", name: "T-Centralen" }],
+              lines: [
+                { id: "13", designation: "13", transportMode: "metro" },
+                { id: "14", designation: "14", transportMode: "metro" },
+              ],
+            },
+          },
+        ],
+      });
+
+      await deviationStore.refresh([
+        {
+          id: "seg-13-bredang-ropsten",
+          line: "13",
+          lineName: "13",
+          direction: { code: 1, destination: "Ropsten", stopPointId: "" },
+          fromStop: { id: "s1", name: "Bredäng", siteId: "9001" },
+          toStop: { id: "s2", name: "Ropsten", siteId: "9002" },
+          transportType: "metro",
+        },
+        {
+          id: "seg-14-mariatorget-morby",
+          line: "14",
+          lineName: "14",
+          direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+          fromStop: { id: "s3", name: "Mariatorget", siteId: "9003" },
+          toStop: { id: "s4", name: "Mörby centrum", siteId: "9004" },
+          transportType: "metro",
+        },
+      ]);
+
+      const state = get(deviationStore);
+      const health1 = state.bySegmentId.get("seg-13-bredang-ropsten");
+      const health2 = state.bySegmentId.get("seg-14-mariatorget-morby");
+      expect(health1?.state).toBe("ok");
+      expect(health2?.state).toBe("ok");
+      expect(state.stationAlerts).toHaveLength(1);
+      expect(state.stationAlerts[0].id).toBe("dev-escalator");
+      expect(state.stationAlerts[0].stations).toEqual(["T-Centralen"]);
+      expect(state.stationAlerts[0].segmentIds).toEqual([
+        "seg-13-bredang-ropsten",
+        "seg-14-mariatorget-morby",
+      ]);
+    });
+
+    it("keeps escalator work as direct disruption when segment endpoint matches", async () => {
+      stopAreaStore.setMapping("9191", "sa-tcentralen");
+      stopAreaStore.setMapping("9192", "sa-odenplan");
+
+      vi.mocked(getDeviations).mockResolvedValueOnce({
+        fromCache: false,
+        messages: [
+          {
+            id: "dev-escalator-direct",
+            createdAt: Date.now(),
+            modifiedAt: Date.now(),
+            severity: "warning",
+            importanceLevel: 3,
+            influenceLevel: 2,
+            urgencyLevel: 1,
+            messageVariants: [
+              {
+                language: "sv",
+                header: "T-Centralen: Hiss ur funktion",
+              },
+            ],
+            scope: {
+              stopAreas: [{ id: "sa-tcentralen", name: "T-Centralen" }],
+              lines: [{ id: "19", designation: "19", transportMode: "metro" }],
+            },
+          },
+        ],
+      });
+
+      await deviationStore.refresh([
+        {
+          id: "seg-19-tcentralen-odenplan",
+          line: "19",
+          lineName: "19",
+          direction: { code: 1, destination: "Odenplan", stopPointId: "" },
+          fromStop: { id: "s1", name: "T-Centralen", siteId: "9191" },
+          toStop: { id: "s2", name: "Odenplan", siteId: "9192" },
+          transportType: "metro",
+        },
+      ]);
+
+      const state = get(deviationStore);
+      const health = state.bySegmentId.get("seg-19-tcentralen-odenplan");
+      expect(health?.state).toBe("affected");
+      expect(health?.reason).toBe("T-Centralen: Hiss ur funktion");
+      expect(state.stationAlerts).toHaveLength(0);
+    });
+
+    it("keeps signal failure as line disruption even at a stop the segment doesn't pass through", async () => {
+      stopAreaStore.setMapping("9001", "sa-bredang");
+      stopAreaStore.setMapping("9002", "sa-ropsten");
+      stopAreaStore.setMapping("9003", "sa-slussen");
+
+      vi.mocked(getDeviations).mockResolvedValueOnce({
+        fromCache: false,
+        messages: [
+          {
+            id: "dev-signal",
+            createdAt: Date.now(),
+            modifiedAt: Date.now(),
+            severity: "critical",
+            importanceLevel: 4,
+            influenceLevel: 3,
+            urgencyLevel: 2,
+            messageVariants: [
+              {
+                language: "sv",
+                header: "Slussen: Signalfel på linje 13",
+              },
+            ],
+            scope: {
+              stopAreas: [{ id: "sa-slussen", name: "Slussen" }],
+              lines: [{ id: "13", designation: "13", transportMode: "metro" }],
+            },
+          },
+        ],
+      });
+
+      await deviationStore.refresh([
+        {
+          id: "seg-13-bredang-ropsten",
+          line: "13",
+          lineName: "13",
+          direction: { code: 1, destination: "Ropsten", stopPointId: "" },
+          fromStop: { id: "s1", name: "Bredäng", siteId: "9001" },
+          toStop: { id: "s2", name: "Ropsten", siteId: "9002" },
+          transportType: "metro",
+        },
+      ]);
+
+      const state = get(deviationStore);
+      const health = state.bySegmentId.get("seg-13-bredang-ropsten");
+      expect(health?.state).toBe("critical");
+      expect(health?.reason).toBe("Slussen: Signalfel på linje 13");
+      expect(state.stationAlerts).toHaveLength(0);
     });
   });
 });

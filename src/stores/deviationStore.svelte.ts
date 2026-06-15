@@ -1,5 +1,5 @@
 import type { Segment, TransportType } from "../types/page";
-import type { DeviationMessage, SegmentHealth } from "../types/deviation";
+import type { DeviationMessage, SegmentHealth, StationAlert } from "../types/deviation";
 import {
   getDeviations,
   pickPreferredMessageText,
@@ -11,6 +11,7 @@ export type SeverityThreshold = "info" | "warning" | "critical";
 
 interface DeviationStoreState {
   bySegmentId: Map<string, SegmentHealth>;
+  stationAlerts: StationAlert[];
   lastUpdatedAt: number;
   isLoading: boolean;
   usedCache: boolean;
@@ -21,6 +22,7 @@ type RefreshOptions = { force?: boolean };
 
 let _state = $state<DeviationStoreState>({
   bySegmentId: new Map(),
+  stationAlerts: [],
   lastUpdatedAt: 0,
   isLoading: false,
   usedCache: false,
@@ -106,35 +108,68 @@ function matchesSegment(segment: Segment, message: DeviationMessage): boolean {
   return lineMatch && modeMatch;
 }
 
+function isStationFacilityAlert(message: DeviationMessage): boolean {
+  const texts = message.messageVariants
+    .map(v => `${v.header} ${v.details || ''}`)
+    .join(' ')
+    .toLowerCase();
+  return /(rulltrapp|hiss|entré|perrong|biljet|spärr|framkomlighet|tillgänglig|utbyte|ombyggnation|renovering)/i.test(texts);
+}
+
+function isPassThroughStop(segment: Segment, message: DeviationMessage): boolean {
+  if (!message.scope.stopAreas.length) return false;
+  const segStopIds = [
+    stopAreaStore.getStopAreaId(segment.fromStop.siteId),
+    stopAreaStore.getStopAreaId(segment.toStop.siteId),
+  ].filter(Boolean);
+  if (!segStopIds.length) return false;
+  return !message.scope.stopAreas.some(area => segStopIds.includes(area.id));
+}
+
 function buildSegmentHealth(
   segment: Segment,
   messages: DeviationMessage[],
   preferredLanguage: "sv" | "en",
   threshold: SeverityThreshold,
-): SegmentHealth {
-  const relevant = messages
+): { health: SegmentHealth; stationAlerts: DeviationMessage[] } {
+  const allMatched = messages
     .filter((msg) => matchesSegment(segment, msg))
     .filter((msg) => severityRank(msg.severity) >= thresholdRank(threshold))
     .sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
 
-  if (!relevant.length) {
+  const stationAlerts: DeviationMessage[] = [];
+  const direct = allMatched.filter((msg) => {
+    if (isStationFacilityAlert(msg) && isPassThroughStop(segment, msg)) {
+      stationAlerts.push(msg);
+      return false;
+    }
+    return true;
+  });
+
+  if (!direct.length) {
     return {
-      state: "ok",
-      severity: null,
-      reason: null,
-      messages: [],
-      updatedAt: Date.now(),
+      health: {
+        state: "ok",
+        severity: null,
+        reason: null,
+        messages: [],
+        updatedAt: Date.now(),
+      },
+      stationAlerts,
     };
   }
 
-  const top = relevant[0];
+  const top = direct[0];
   const topMessage = pickPreferredMessageText(top, preferredLanguage);
   return {
-    state: top.severity === "critical" ? "critical" : "affected",
-    severity: top.severity,
-    reason: topMessage.header || topMessage.details || null,
-    messages: relevant,
-    updatedAt: Date.now(),
+    health: {
+      state: top.severity === "critical" ? "critical" : "affected",
+      severity: top.severity,
+      reason: topMessage.header || topMessage.details || null,
+      messages: direct,
+      updatedAt: Date.now(),
+    },
+    stationAlerts,
   };
 }
 
@@ -167,6 +202,7 @@ export async function refresh(
   if (!segments.length) {
     _state = {
       bySegmentId: new Map(),
+      stationAlerts: [],
       lastUpdatedAt: Date.now(),
       isLoading: false,
       usedCache: false,
@@ -216,6 +252,7 @@ export async function refresh(
     }
 
     const bySegmentId = new Map<string, SegmentHealth>();
+    const allStationAlerts = new Map<string, StationAlert>();
     segments.forEach((segment) => {
       if (
         isExternalTimetableSource({
@@ -231,15 +268,27 @@ export async function refresh(
           updatedAt: Date.now(),
         });
       } else {
-        bySegmentId.set(
-          segment.id,
-          buildSegmentHealth(segment, messages, preferredLanguage, threshold),
-        );
+        const { health, stationAlerts: segAlerts } = buildSegmentHealth(segment, messages, preferredLanguage, threshold);
+        bySegmentId.set(segment.id, health);
+        for (const msg of segAlerts) {
+          if (!allStationAlerts.has(msg.id)) {
+            const text = pickPreferredMessageText(msg, preferredLanguage);
+            allStationAlerts.set(msg.id, {
+              id: msg.id,
+              stations: msg.scope.stopAreas.map(a => a.name).filter((n): n is string => n != null),
+              message: text.header || text.details || '',
+              severity: msg.severity,
+              segmentIds: [],
+            });
+          }
+          allStationAlerts.get(msg.id)!.segmentIds.push(segment.id);
+        }
       }
     });
 
     _state = {
       bySegmentId,
+      stationAlerts: [...allStationAlerts.values()],
       lastUpdatedAt: Date.now(),
       isLoading: false,
       usedCache: fromCache,

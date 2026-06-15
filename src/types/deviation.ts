@@ -47,3 +47,11 @@ export interface SegmentHealth {
   updatedAt: number;
 }
 
+export interface StationAlert {
+  id: string;
+  stations: string[];
+  message: string;
+  severity: DeviationSeverity;
+  segmentIds: string[];
+}
+

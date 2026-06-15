@@ -17,13 +17,15 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, infoCircle } from "../icons/departureIcons";
   import { computeDisplayDevs, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
+  import type { StationAlert } from "../types/deviation";
 
   let {
     route,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
+    deviationStationAlerts = [] as StationAlert[],
     deviationUsedCache = false,
     deviationLastUpdatedAt = 0,
     openFeatureSheet = null,
@@ -33,6 +35,7 @@
   }: {
     route: Page;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
+    deviationStationAlerts?: StationAlert[];
     deviationUsedCache?: boolean;
     deviationLastUpdatedAt?: number;
     openFeatureSheet?: ((segment: Segment) => void) | null;
@@ -330,6 +333,21 @@
       <span class="fresh-label">{freshnessLabel()}</span>
     </div>
 
+    {#if deviationStationAlerts.length > 0}
+      <div class="section-label">{t.sectionStationAlerts}</div>
+      <div class="station-alerts">
+        {#each deviationStationAlerts as alert (alert.id)}
+          <div class="station-alert-item">
+            <svg viewBox="0 0 24 24" fill="none" class="alert-icon">
+              <g>{@html infoCircle}</g>
+            </svg>
+            <span class="station-name">{alert.stations.join(", ")}</span>
+            <span class="station-msg">{alert.message}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
     <!-- Departure list -->
     <div class="card-list" bind:this={depListEl}>
     {#if lastError}
@@ -609,6 +627,44 @@
     text-transform: uppercase;
     letter-spacing: 0.09em;
     padding: 12px 14px 6px;
+  }
+
+  .station-alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0 14px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .station-alert-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .station-alert-item + .station-alert-item {
+    border-top: 1px solid var(--border);
+  }
+  .alert-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: var(--accent);
+  }
+  .station-name {
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .station-msg {
+    color: var(--text-muted);
   }
 
   .empty-segments {
