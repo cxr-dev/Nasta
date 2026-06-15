@@ -17,7 +17,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, adjustmentsHorizontal } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear } from "../icons/departureIcons";
   import { computeDisplayDevs, isSegmentDisrupted } from "./segmentUtils";
 
   let {
@@ -313,8 +313,8 @@
     <h1 class="page-title">{route.name}</h1>
     {#if onEditToggle}
       <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.settings}>
-        <svg viewBox="0 0 24 24" fill="none">
-          {@html adjustmentsHorizontal}
+        <svg viewBox="0 0 512 512" fill="currentColor">
+          {@html settingsGear}
         </svg>
       </button>
     {/if}
