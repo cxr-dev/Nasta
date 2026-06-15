@@ -19,7 +19,7 @@ const sv = {
   tabPages: "Sidor",
   tabSegments: "Segment",
   tabFeatures: "Funktioner",
-  tabTheme: "Tema",
+  tabTheme: "Teman",
   cancel: "Avbryt",
   addSegment: "+ Lägg till segment",
   switchTo: "Byt till",
@@ -33,21 +33,24 @@ const sv = {
   disruptionThresholdCritical: "Endast kritiska",
   disruptionThresholdInfoTitle: "Störningsnivåer — Förklaring",
   disruptionThresholdInfoAria: "Förklaring av störningsnivåer",
-  disruptionThresholdInfoDesc: "Visar alla störningsmeddelanden oavsett allvarlighetsgrad.",
+  disruptionThresholdInfoDesc:
+    "Visar alla störningsmeddelanden oavsett allvarlighetsgrad.",
   disruptionThresholdInfoExample1: "Banarbete Slussen–Gamla stan",
   disruptionThresholdInfoExample2: "Planerat underhåll tunnelbana",
   disruptionThresholdInfoExample3: "Hiss ur drift T-Centralen",
-  disruptionThresholdWarningDesc: "Visar måttliga till allvarliga störningar som påverkar trafiken.",
+  disruptionThresholdWarningDesc:
+    "Visar måttliga till allvarliga störningar som påverkar trafiken.",
   disruptionThresholdWarningExample1: "Signalfel – 10–20 min försening",
   disruptionThresholdWarningExample2: "Fordonsbrist – inställda avgångar",
   disruptionThresholdWarningExample3: "Väderrelaterade förseningar",
-  disruptionThresholdCriticalDesc: "Visar endast allvarliga störningar med stor påverkan.",
+  disruptionThresholdCriticalDesc:
+    "Visar endast allvarliga störningar med stor påverkan.",
   disruptionThresholdCriticalExample1: "Strömavbrott – hela linjen stängd",
   disruptionThresholdCriticalExample2: "Allvarlig olycka – trafik inställd",
   disruptionThresholdCriticalExample3: "Spårfel – omfattande förseningar",
   disruptionLanguage: "Störningsspråk",
   disruptionLanguageAuto: "Automatiskt",
-  theme: "Tema",
+  theme: "Teman",
   language: "Språk",
   languageAuto: "Automatiskt",
   languageSwedish: "Svenska",
@@ -67,7 +70,8 @@ const sv = {
   locationServices: "Platsjänster",
   locationServicesDesc: "Aktivera plats i webbläsaren för gång-ETA.",
   walkingEta: "Gång-ETA",
-  walkingEtaDesc: "Visa gångavstånd och ETA till hållplatsen. Frågar om plats när du aktiverar.",
+  walkingEtaDesc:
+    "Visa gångavstånd och ETA till hållplatsen. Frågar om plats när du aktiverar.",
   walkingEtaLockedDesc: "Aktivera för att använda gång-ETA.",
   enableLocationForWalkEta: "Aktivera plats för gång-ETA.",
   enableLocationForWalkEtaBrowser:
@@ -244,7 +248,8 @@ const sv = {
   sectionStationNotices: "Stationsinfo",
   stationNoticesToggle: "Stationsinfo",
   groupDisruptedSegments: "Gruppera störda segment",
-  groupDisruptedSegmentsDesc: "Visa segment med störningar separat, nedanför övriga avgångar.",
+  groupDisruptedSegmentsDesc:
+    "Visa segment med störningar separat, nedanför övriga avgångar.",
   disruptionCriticalShort: "Kritisk",
 
   // Transit labels
@@ -295,7 +300,7 @@ const en: typeof sv = {
   tabPages: "Pages",
   tabSegments: "Segments",
   tabFeatures: "Features",
-  tabTheme: "Theme",
+  tabTheme: "Themes",
   cancel: "Cancel",
   addSegment: "+ Add segment",
   switchTo: "Switch to",
@@ -309,15 +314,18 @@ const en: typeof sv = {
   disruptionThresholdCritical: "Critical only",
   disruptionThresholdInfoTitle: "Disruption levels — Explanation",
   disruptionThresholdInfoAria: "Explanation of disruption levels",
-  disruptionThresholdInfoDesc: "Shows all disruption messages regardless of severity.",
+  disruptionThresholdInfoDesc:
+    "Shows all disruption messages regardless of severity.",
   disruptionThresholdInfoExample1: "Track work Slussen–Gamla stan",
   disruptionThresholdInfoExample2: "Planned maintenance on the metro",
   disruptionThresholdInfoExample3: "Elevator out of service at T-Centralen",
-  disruptionThresholdWarningDesc: "Shows moderate to severe disruptions affecting traffic.",
+  disruptionThresholdWarningDesc:
+    "Shows moderate to severe disruptions affecting traffic.",
   disruptionThresholdWarningExample1: "Signal fault – 10–20 min delays",
   disruptionThresholdWarningExample2: "Vehicle shortage – cancelled departures",
   disruptionThresholdWarningExample3: "Weather-related delays",
-  disruptionThresholdCriticalDesc: "Shows only severe disruptions with major impact.",
+  disruptionThresholdCriticalDesc:
+    "Shows only severe disruptions with major impact.",
   disruptionThresholdCriticalExample1: "Power outage – entire line closed",
   disruptionThresholdCriticalExample2: "Serious accident – traffic suspended",
   disruptionThresholdCriticalExample3: "Track damage – extensive delays",
@@ -343,7 +351,8 @@ const en: typeof sv = {
   locationServices: "Location services",
   locationServicesDesc: "Enable browser location for walking ETA.",
   walkingEta: "Walking ETA",
-  walkingEtaDesc: "Show walking distance and ETA to your stop. Asks for location when you turn this on.",
+  walkingEtaDesc:
+    "Show walking distance and ETA to your stop. Asks for location when you turn this on.",
   walkingEtaLockedDesc: "Enable to use walking ETA.",
   enableLocationForWalkEta: "Enable location for live walk ETA.",
   enableLocationForWalkEtaBrowser:
@@ -509,7 +518,8 @@ const en: typeof sv = {
   sectionStationNotices: "Station info",
   stationNoticesToggle: "Station info",
   groupDisruptedSegments: "Group disrupted segments",
-  groupDisruptedSegmentsDesc: "Show disrupted segments separately, below your other departures.",
+  groupDisruptedSegmentsDesc:
+    "Show disrupted segments separately, below your other departures.",
   disruptionCriticalShort: "Critical",
 
   lineLabel: "Line {line}",
@@ -562,7 +572,8 @@ function getStockholmDateParts(date: Date) {
     hourCycle: "h23",
   });
   const parts = formatter.formatToParts(date);
-  const getPart = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
+  const getPart = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "0";
   return {
     year: parseInt(getPart("year"), 10),
     month: parseInt(getPart("month"), 10) - 1,
