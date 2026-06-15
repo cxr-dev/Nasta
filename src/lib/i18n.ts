@@ -255,6 +255,11 @@ const sv = {
   allTransportTypes: "Alla",
   via: "via",
 
+  // Step progress
+  stepStop: "Hållplats",
+  stepLine: "Linje",
+  stepDirection: "Riktning",
+
   // Quirky moment
   showCelebration: "Visa firande",
 };
@@ -498,6 +503,10 @@ const en: typeof sv = {
   // Transport filter
   allTransportTypes: "All",
   via: "via",
+
+  stepStop: "Stop",
+  stepLine: "Line",
+  stepDirection: "Direction",
 
   showCelebration: "Show celebration",
 };
