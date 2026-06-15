@@ -64,11 +64,16 @@ function cacheKey(
   return `${roundCoordinate(lat)}-${roundCoordinate(lon)}-${radius}-${types.slice().sort().join(",")}`;
 }
 
+function stripSupabaseOrphans(venues: Venue[]): Venue[] {
+  return venues.filter((v) => v.source !== "supabase" && v.source !== "supabase-proxy");
+}
+
 export async function fetchNearbyVenues(
   lat: number,
   lon: number,
   radius = 2000,
   types: Array<"beer" | "wine" | "cocktail"> = ["beer", "wine", "cocktail"],
+  signal?: AbortSignal,
 ): Promise<Venue[]> {
   const key = cacheKey(lat, lon, radius, types);
   const now = Date.now();
@@ -81,7 +86,7 @@ export async function fetchNearbyVenues(
   const TTL = 30 * 60 * 1000;
 
   const cached = cache.get(key);
-  if (cached && cached.expiry > now) return cached.data;
+  if (cached && cached.expiry > now) return stripSupabaseOrphans(cached.data);
 
   const inflight = venuesInflight.get(key);
   if (inflight) return inflight;
@@ -91,11 +96,11 @@ export async function fetchNearbyVenues(
     try {
       const localCacheKey = `nasta_overpass:${key}`;
       const localCache = readLocalOverpassCache(localCacheKey);
-      if (localCache) return localCache;
+      if (localCache) return stripSupabaseOrphans(localCache);
 
       try {
         const p = await persistentCache.get(`venues:${key}`);
-        if (p) return p as Venue[];
+        if (p) return stripSupabaseOrphans(p as Venue[]);
       } catch (e) {}
 
       const results: Venue[] = [];
@@ -118,11 +123,12 @@ export async function fetchNearbyVenues(
           const body = JSON.stringify({ city_id: fallbackCityId, mode: "seo" });
           const controller = new AbortController();
           const id = setTimeout(() => controller.abort(), 8000);
+          const combinedSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
           const res = await fetch(url, {
             method: "POST",
             headers,
             body,
-            signal: controller.signal,
+            signal: combinedSignal,
           }).catch(() => null as any);
           clearTimeout(id);
 
@@ -204,11 +210,12 @@ export async function fetchNearbyVenues(
               const proxyUrl = `${proxyBase}${encodeURIComponent(url)}`;
               const controller2 = new AbortController();
               const id2 = setTimeout(() => controller2.abort(), 8000);
+              const combinedSignal2 = signal ? AbortSignal.any([controller2.signal, signal]) : controller2.signal;
               const res2 = await fetch(proxyUrl, {
                 method: "POST",
                 headers,
                 body,
-                signal: controller2.signal,
+                signal: combinedSignal2,
               }).catch(() => null as any);
               clearTimeout(id2);
               if (res2 && res2.ok) {
@@ -360,13 +367,14 @@ export async function fetchNearbyVenues(
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 8000);
+        const combinedSignal3 = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
         let res = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
           },
           body: `data=${encodeURIComponent(q)}`,
-          signal: controller.signal,
+          signal: combinedSignal3,
         }).catch(() => null as any);
 
         if ((!res || !res.ok) && useProxy) {
@@ -379,7 +387,7 @@ export async function fetchNearbyVenues(
                   "application/x-www-form-urlencoded;charset=UTF-8",
               },
               body: `data=${encodeURIComponent(q)}`,
-              signal: controller.signal,
+              signal: combinedSignal3,
             }).catch(() => null as any);
           } catch {
             res = null as any;
@@ -599,13 +607,28 @@ export async function fetchNearbyVenues(
             Math.abs((u.distance ?? 0) - (v.distance ?? 0)) < 50,
         );
         if (dup) {
-          if (v.source === "supabase") Object.assign(dup, v);
+          if (v.source === "supabase") {
+            // Overpass entry is authoritative — just overlay pricing
+            dup.rawPrice = v.rawPrice;
+            dup.drinkName = v.drinkName;
+            dup.happyHourPrice = v.happyHourPrice;
+          } else if (dup.source === "supabase" || dup.source === "supabase-proxy") {
+            // v is Overpass, dup is Supabase — replace metadata, keep pricing
+            const price = dup.rawPrice;
+            const drink = dup.drinkName;
+            const happy = dup.happyHourPrice;
+            Object.assign(dup, v);
+            dup.rawPrice = price;
+            dup.drinkName = drink;
+            dup.happyHourPrice = happy;
+          }
         } else {
           uniq.push(v);
         }
       }
 
       const out = uniq
+        .filter((v) => v.source !== "supabase" && v.source !== "supabase-proxy")
         .filter((v) => {
           const cls = (v as any)._classified as
             | ("beer" | "wine" | "cocktail")

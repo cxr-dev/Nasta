@@ -35,7 +35,6 @@
   } = $props();
 
   let activeTab = $state<TabKey>('beer');
-  let expandedCardId = $state<string | null>(null);
 
   type TabData<T> = {
     items: T[];
@@ -65,19 +64,24 @@
     tabLoadCtrl?.abort();
     const ctrl = new AbortController();
     tabLoadCtrl = ctrl;
-    if (activeTab !== 'events') loadVenues(activeTab);
+    for (const t of ['beer', 'wineCocktail'] as const) {
+      if (t !== activeTab && venuesByTab[t].loading && !venuesByTab[t].loaded) {
+        venuesByTab = { ...venuesByTab, [t]: { ...venuesByTab[t], loading: false, token: venuesByTab[t].token + 1 } };
+      }
+    }
+    if (activeTab !== 'events') loadVenues(activeTab, ctrl.signal);
     if (activeTab === 'events') loadEvents(ctrl.signal);
     return () => ctrl.abort();
   });
 
-  async function loadVenues(tab: 'beer' | 'wineCocktail') {
+  async function loadVenues(tab: 'beer' | 'wineCocktail', signal?: AbortSignal) {
     const state = venuesByTab[tab];
     if (state.loading || state.loaded) return;
     const token = ++state.token;
     venuesByTab = { ...venuesByTab, [tab]: { ...state, loading: true } };
     try {
       const types: Array<'beer' | 'wine' | 'cocktail'> = tab === 'beer' ? ['beer'] : ['wine', 'cocktail'];
-      const loaded = await fetchNearbyVenues(lat, lon, 1200, types);
+      const loaded = await fetchNearbyVenues(lat, lon, 1200, types, signal);
       if (token !== venuesByTab[tab].token) return;
       venuesByTab = { ...venuesByTab, [tab]: { items: loaded, loading: false, loaded: true, token } };
     } catch {
@@ -161,10 +165,13 @@
     activeTab !== 'events' ? filteredVenues : (currentItems as TabData<EventItem>).items
   );
 
+  let prevVenueKey = $state('');
   $effect(() => {
     locale;
-    t;
     const items = activeTab !== 'events' ? (currentItems as TabData<Venue>).items : [];
+    const key = items.map(v => v.id + '|' + (v as Venue).openingHours).join(',');
+    if (key === prevVenueKey) return;
+    prevVenueKey = key;
     updateVenueOpenStates(items as Venue[]);
   });
 
@@ -213,10 +220,6 @@
   function closeAndAbort() {
     tabLoadCtrl?.abort();
     onClose();
-  }
-
-  function toggleCard(id: string) {
-    expandedCardId = expandedCardId === id ? null : id;
   }
 
   let tabLabel = $derived<Record<TabKey, string>>({
@@ -275,106 +278,77 @@
       <div class="empty-card">{activeTab === 'events' ? t.noEventsFound : t.noVenuesFound}</div>
     {:else}
       {#each displayItems as item, index (item.id)}
-        {@const isExpanded = expandedCardId === item.id}
         {#if activeTab !== 'events'}
           {@const venue = item as Venue}
-          <article
-            class="card"
-            class:expanded={isExpanded}
-            style={`--index:${index}`}
-          >
-            <button class="card-header" onclick={() => toggleCard(venue.id)} aria-expanded={isExpanded}>
-              <div class="card-header-left">
-                <span class="card-type-pill">
-                  {activeTab === 'beer' ? t.beer : t.wineCocktails}
+          {@const openState = venueOpenState[venue.id]}
+          <article class="card" style={`--index:${index}`}>
+            <div class="card-top">
+              <span class="card-tag">
+                {activeTab === 'beer' ? t.beer : t.wineCocktails}
+              </span>
+              <span class="card-meta">
+                {venue.distance !== undefined ? (venue.distance < 1000 ? `${Math.round(venue.distance)} m` : `${(venue.distance / 1000).toFixed(1)} km`) : ''}
+                {venue.rawPrice !== undefined ? ` · ${venue.rawPrice} kr` : ''}
+              </span>
+            </div>
+            <div class="card-name-row">
+              <h3 class="card-name">{venue.name}</h3>
+              {#if venue.isSpecificWine}
+                <span class="card-flag" aria-label={t.wineLabel}>🍷</span>
+              {/if}
+              {#if venue.isSpecificCocktail}
+                <span class="card-flag" aria-label={t.cocktailLabel}>🍸</span>
+              {/if}
+            </div>
+            <div class="card-details">
+              {#if openState?.statusText}
+                <span class="card-badge open-status {openState.statusClass}">
+                  {openState.statusText}
                 </span>
-                <span class="card-title">{venue.name}</span>
-                {#if venue.isSpecificWine}
-                  <span class="flag" aria-label={t.wineLabel}>🍷</span>
-                {/if}
-                {#if venue.isSpecificCocktail}
-                  <span class="flag" aria-label={t.cocktailLabel}>🍸</span>
-                {/if}
-              </div>
-              <div class="card-header-right">
-                <span class="card-metric">{venueMetric(venue)}</span>
-                <span class="chevron" class:open={isExpanded}>
-                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                    <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              </div>
-            </button>
-            {#if isExpanded}
-              <div class="card-body">
-                <div class="card-details">
-                  {#if venueOpenState[venue.id]?.statusText}
-                    <span class={`open-status ${venueOpenState[venue.id]?.statusClass}`}>
-                      {venueOpenState[venue.id]?.statusText}
-                    </span>
-                  {/if}
-                  {#if venue.hasOutdoorSeating}
-                    <span class="badge outdoor">☀️ {t.outdoorSeating}</span>
-                  {/if}
-                  {#if venue.address}
-                    <p class="card-address">{venue.address}</p>
-                  {/if}
-                </div>
-                <div class="card-actions">
-                  {#if venue.lat !== undefined && venue.lon !== undefined}
-                    {@const vLat = venue.lat}{@const vLon = venue.lon}
-                    <button type="button" class="action-btn primary" onclick={() => openMapsAt(vLat, vLon, venue.name)}>
-                      {t.openInMaps}
-                    </button>
-                  {/if}
-                </div>
-              </div>
-            {/if}
+              {/if}
+              {#if venue.hasOutdoorSeating}
+                <span class="card-badge outdoor">☀️ {t.outdoorSeating}</span>
+              {/if}
+              {#if venue.address}
+                <span class="card-address">{venue.address}</span>
+              {/if}
+            </div>
+            <div class="card-actions">
+              {#if venue.lat !== undefined && venue.lon !== undefined}
+                {@const vLat = venue.lat}{@const vLon = venue.lon}
+                <button type="button" class="action-btn primary" onclick={() => openMapsAt(vLat, vLon, venue.name)}>
+                  {t.openInMaps}
+                </button>
+              {/if}
+            </div>
           </article>
         {:else}
           {@const event = item as EventItem}
-          <article
-            class="card"
-            class:expanded={isExpanded}
-            style={`--index:${index}`}
-          >
-            <button class="card-header" onclick={() => toggleCard(event.id)} aria-expanded={isExpanded}>
-              <div class="card-header-left">
-                <span class="card-type-pill">{t.events}</span>
-                <span class="card-title">{event.name}</span>
-              </div>
-              <div class="card-header-right">
-                <span class="card-metric date">{event.startTime ? formatEventRelativeShort(event.startTime, locale, t) : t.emDash}</span>
-                <span class="chevron" class:open={isExpanded}>
-                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                    <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              </div>
-            </button>
-            {#if isExpanded}
-              <div class="card-body">
-                <div class="card-details">
-                  <p class="card-event-meta">{eventStats(event)}</p>
-                  {#if event.description}
-                    <p class="card-description">{event.description}</p>
-                  {/if}
-                </div>
-                <div class="card-actions">
-                  {#if event.ticketUrl}
-                    <a class="action-btn primary" href={event.ticketUrl} target="_blank" rel="noopener noreferrer">
-                      {t.openTickets}
-                    </a>
-                  {/if}
-                  {#if event.lat !== undefined && event.lon !== undefined}
-                    {@const eLat = event.lat}{@const eLon = event.lon}
-                    <button type="button" class="action-btn" onclick={() => openMapsAt(eLat, eLon, event.name)}>
-                      {t.openInMaps}
-                    </button>
-                  {/if}
-                </div>
-              </div>
-            {/if}
+          <article class="card" style={`--index:${index}`}>
+            <div class="card-top">
+              <span class="card-tag">{t.events}</span>
+              <span class="card-meta">{event.startTime ? formatEventRelativeShort(event.startTime, locale, t) : t.emDash}</span>
+            </div>
+            <h3 class="card-name">{event.name}</h3>
+            <div class="card-details">
+              <span class="card-event-meta">{eventStats(event)}</span>
+              {#if event.description}
+                <p class="card-description">{event.description}</p>
+              {/if}
+            </div>
+            <div class="card-actions">
+              {#if event.ticketUrl}
+                <a class="action-btn primary" href={event.ticketUrl} target="_blank" rel="noopener noreferrer">
+                  {t.openTickets}
+                </a>
+              {/if}
+              {#if event.lat !== undefined && event.lon !== undefined}
+                {@const eLat = event.lat}{@const eLon = event.lon}
+                <button type="button" class="action-btn" onclick={() => openMapsAt(eLat, eLon, event.name)}>
+                  {t.openInMaps}
+                </button>
+              {/if}
+            </div>
           </article>
         {/if}
       {/each}
@@ -483,55 +457,27 @@
   .list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
-    max-height: 360px;
-    overscroll-behavior: contain;
+    gap: 12px;
   }
 
   .card {
-    border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--surface);
-    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .card-header {
+  .card-top {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 14px;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    font-family: inherit;
-    color: inherit;
-    transition: background 0.12s;
-  }
-
-  .card-header:hover {
-    background: var(--accent-subtle);
-  }
-
-  .card-header-left {
-    display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 0;
-    flex: 1;
   }
 
-  .card-header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .card-type-pill {
+  .card-tag {
     flex-shrink: 0;
     padding: 4px 8px;
     border-radius: 999px;
@@ -543,70 +489,48 @@
     text-transform: uppercase;
   }
 
-  .card-title {
-    font-size: 15px;
+  .card-meta {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 14px;
     font-weight: 700;
-    color: var(--text);
+    color: var(--text-secondary);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .flag {
+  .card-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-name {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .card-flag {
     font-size: 14px;
     flex-shrink: 0;
   }
 
-  .card-metric {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    color: var(--text);
-    white-space: nowrap;
-  }
-
-  .card-metric.date {
-    font-size: 12px;
-    font-family: inherit;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .chevron {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    color: var(--text-muted);
-    transition: transform 0.2s ease;
-  }
-
-  .chevron.open {
-    transform: rotate(180deg);
-  }
-
-  .card-body {
-    padding: 0 14px 14px;
-    border-top: 1px solid var(--border);
-  }
-
   .card-details {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
 
-  .open-status {
+  .card-badge {
     display: inline-flex;
     align-items: center;
-    padding: 5px 8px;
+    padding: 4px 8px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
-    align-self: flex-start;
   }
 
   .open-status.open {
@@ -624,28 +548,19 @@
     color: var(--text-secondary);
   }
 
-  .badge.outdoor {
-    display: inline-flex;
-    align-items: center;
+  .card-badge.outdoor {
     gap: 4px;
-    padding: 5px 8px;
-    border-radius: 999px;
     background: rgba(255, 190, 61, 0.14);
     color: #b26a00;
-    font-size: 12px;
-    font-weight: 700;
-    align-self: flex-start;
   }
 
   .card-address {
-    margin: 0;
     font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.4;
   }
 
   .card-event-meta {
-    margin: 0;
     font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.4;
@@ -666,8 +581,8 @@
   .card-actions {
     display: flex;
     gap: 8px;
-    padding-top: 10px;
     flex-wrap: wrap;
+    padding-top: 4px;
   }
 
   .action-btn {
@@ -704,9 +619,9 @@
     align-items: center;
     justify-content: center;
     padding: 40px 20px;
-    border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--surface);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     color: var(--text-secondary);
     font-size: 14px;
     min-height: 120px;
@@ -715,14 +630,14 @@
   .skeleton-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
 
   .skeleton-card {
-    border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--surface);
-    padding: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -765,9 +680,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .chevron {
-      transition: none;
-    }
     .skeleton-element {
       opacity: 0.4;
     }
