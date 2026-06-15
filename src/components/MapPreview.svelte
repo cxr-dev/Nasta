@@ -8,7 +8,6 @@
 
   let {
     segment,
-    primaryDepartureText,
     userLocation,
     locationRequestInFlight,
     walkingEtaEnabled,
@@ -16,7 +15,6 @@
     t,
   }: {
     segment: Segment;
-    primaryDepartureText: string;
     userLocation: [number, number] | null;
     locationRequestInFlight: boolean;
     walkingEtaEnabled: boolean;
@@ -152,16 +150,6 @@
   {@const stopLat = segment.fromStop.coord[0]}
   {@const stopLon = segment.fromStop.coord[1]}
   <section class="journey-card">
-    <div class="journey-head">
-      <div class="journey-copy">
-        <span class="journey-route">{stopLabel(segment.fromStop.name)} → {stopLabel(segment.direction?.destination)}</span>
-      </div>
-      <div class="journey-badge" aria-label={primaryDepartureText}>
-        <span class="journey-minutes">{primaryDepartureText}</span>
-        <span class="journey-label">{t.departing}</span>
-      </div>
-    </div>
-
     <div class="journey-map-shell">
       {#if walkingEtaEnabled}
         <div class="journey-map-label">
@@ -234,45 +222,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 16px 0 6px;
-  }
-  .journey-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .journey-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-  .journey-route {
-    font-size: 18px;
-    line-height: 1.1;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .journey-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-  .journey-minutes {
-    font-family: "Neue Machina", sans-serif;
-    font-size: clamp(34px, 10vw, 54px);
-    line-height: 0.9;
-    font-weight: 800;
-    letter-spacing: -0.05em;
-    color: var(--accent);
-  }
-  .journey-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.10em;
-    color: var(--text-muted);
   }
   .journey-map-shell {
     display: flex;

@@ -211,7 +211,6 @@
         {#if hasDeparture}
           <MapPreview
             {segment}
-            {primaryDepartureText}
             {userLocation}
             {locationRequestInFlight}
             {walkingEtaEnabled}
