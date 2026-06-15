@@ -536,6 +536,32 @@ function toggleEdit() {
     };
   });
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (editing) return;
+
+    // Ignore if typing in an input, textarea, or contenteditable
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
+      return;
+    }
+
+    if (isTransitioning) return;
+    const allPages = getPages();
+    if (allPages.length < 2) return;
+
+    const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
+
+    if (e.key === 'ArrowRight') {
+      if (currentIdx < allPages.length - 1) {
+        handlePageSwitch(allPages[currentIdx + 1].id);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (currentIdx > 0) {
+        handlePageSwitch(allPages[currentIdx - 1].id);
+      }
+    }
+  }
+
   onDestroy(() => {
     timeOfDayStop();
     departureStore.stopAutoRefresh();
@@ -545,8 +571,10 @@ function toggleEdit() {
   });
 </script>
 
+<svelte:window onkeydown={handleKeyDown} />
+
 <ErrorBoundary>
-    <main
+  <main
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -630,6 +658,19 @@ function toggleEdit() {
           {/if}
         </div>
       {/key}
+
+      {#if pages.length > 1 && !editing && !hasNoRoutes}
+        <nav class="bottom-nav">
+          <div class="page-dots">
+            {#each pages as p, i (p.id)}
+              <div
+                class="dot"
+                class:active={p.id === activePageId}
+              ></div>
+            {/each}
+          </div>
+        </nav>
+      {/if}
     </div>
 
     {#if !hasNoRoutes && page}
@@ -813,6 +854,7 @@ function toggleEdit() {
   }
 
 .scroll-container {
+    position: relative;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -831,6 +873,43 @@ function toggleEdit() {
 
   .page-transition-inner {
     width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bottom-nav {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+    z-index: 10;
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    margin: 0 -20px;
+    padding-top: 16px;
+  }
+
+  .page-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: auto;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--text-ghost);
+    flex-shrink: 0;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+
+  .dot.active {
+    background: var(--text);
+    transform: scale(1.3);
   }
 
   .feature-backdrop {

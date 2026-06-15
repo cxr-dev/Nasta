@@ -138,10 +138,63 @@
     setActivePage(id);
     onSwitchPage(id);
   }
+
+  const TABS = ['pages', 'segment', 'features', 'theme'] as const;
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+
+  function handleTouchStart(e: TouchEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('input') ||
+      target.closest('.drag-handle') ||
+      target.closest('.hour-selector') ||
+      target.closest('.info-overlay') ||
+      target.closest('.segmented-control')
+    ) {
+      return;
+    }
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: TouchEvent) {
+    if (swipeStartX === 0 && swipeStartY === 0) return;
+
+    const dx = e.changedTouches[0].clientX - swipeStartX;
+    const dy = e.changedTouches[0].clientY - swipeStartY;
+
+    // Reset coordinates
+    swipeStartX = 0;
+    swipeStartY = 0;
+
+    // Must be horizontal gesture
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) < 50) return;
+
+    const currentIdx = TABS.indexOf(activeEditorTab);
+
+    if (dx < 0) {
+      // Swipe left -> next tab
+      if (currentIdx < TABS.length - 1) {
+        activeEditorTab = TABS[currentIdx + 1];
+      }
+    } else {
+      // Swipe right -> previous tab
+      if (currentIdx > 0) {
+        activeEditorTab = TABS[currentIdx - 1];
+      }
+    }
+  }
 </script>
 
 <div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen}>
-  <div class="editor-sheet">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div 
+    class="editor-sheet"
+    ontouchstart={handleTouchStart}
+    ontouchend={handleTouchEnd}
+  >
     <div class="sheet-header">
       <button class="back-btn" onclick={onClose} aria-label={t.closeEditor}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">

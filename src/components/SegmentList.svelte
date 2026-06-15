@@ -59,6 +59,8 @@
   }
 
   function handleTouchStart(e: TouchEvent, index: number) {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.drag-handle')) return; // Ignore touch start if not on drag handle
     draggingIndex = index;
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;

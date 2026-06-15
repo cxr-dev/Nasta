@@ -311,45 +311,13 @@
   <!-- Page nav header -->
   <header class="page-chrome">
     <h1 class="page-title">{route.name}</h1>
-    <div class="nav-group">
-      {#if pages.length > 1}
-        <button
-          class="nav-btn"
-          class:inactive={!hasPrev}
-          onclick={() => hasPrev && onSwitchPage?.(pages[currentPageIndex - 1].id)}
-          aria-label={t.previousPage}
-          disabled={!hasPrev}
-        >
-          <svg viewBox="0 0 24 24" fill="none">
-            {@html chevronLeft}
-          </svg>
-        </button>
-
-        <div class="page-dots">
-          {#each pages as page, i (page.id)}
-            <button
-              type="button"
-              class="dot"
-              class:active={page.id === activePageId}
-              onclick={() => page.id !== activePageId && onSwitchPage?.(page.id)}
-              aria-label={page.id === activePageId ? page.name : `${t.switchTo} ${page.name}`}
-            ></button>
-          {/each}
-        </div>
-
-        <button
-          class="nav-btn"
-          class:inactive={!hasNext}
-          onclick={() => hasNext && onSwitchPage?.(pages[currentPageIndex + 1].id)}
-          aria-label={t.nextPage}
-          disabled={!hasNext}
-        >
-          <svg viewBox="0 0 24 24" fill="none">
-            {@html chevronRight}
-          </svg>
-        </button>
-      {/if}
-    </div>
+    {#if onEditToggle}
+      <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.settings}>
+        <svg viewBox="0 0 24 24" fill="none">
+          {@html adjustmentsHorizontal}
+        </svg>
+      </button>
+    {/if}
   </header>
 
   {#if (route.segments ?? []).length === 0}
@@ -491,17 +459,7 @@
   </div>
   {/if}
 
-  <!-- Settings bar -->
-  {#if onEditToggle}
-    <div class="settings-bar">
-      <button class="settings-btn" onclick={onEditToggle}>
-        <svg viewBox="0 0 24 24" fill="none">
-          {@html adjustmentsHorizontal}
-        </svg>
-        <span>{t.settings}</span>
-      </button>
-    </div>
-  {/if}
+
 </div>
 
 <style>
@@ -515,56 +473,33 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 16px 6px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 6px;
   }
-  .nav-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .nav-btn {
+  .header-icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     border: none;
     background: transparent;
     color: var(--text);
     cursor: pointer;
-    border-radius: 6px;
-    flex-shrink: 0;
+    border-radius: 50%;
+    margin-right: -8px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, transform 0.12s ease;
   }
-  .nav-btn:hover {
+  .header-icon-btn:hover {
     background: var(--accent-subtle);
   }
-  .nav-btn.inactive {
-    opacity: 0.2;
-    cursor: default;
+  .header-icon-btn:active {
+    transform: scale(0.965);
+    opacity: 0.9;
   }
-  .nav-btn svg {
-    width: 20px;
-    height: 20px;
-  }
-  .page-dots {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--text-ghost);
-    cursor: pointer;
-    border: 0;
-    padding: 0;
-    flex-shrink: 0;
-    transition: background 0.15s ease, transform 0.15s ease;
-  }
-  .dot.active {
-    background: var(--text);
-    transform: scale(1.3);
+  .header-icon-btn svg {
+    width: 24px;
+    height: 24px;
   }
   .page-title {
     font-family: 'Neue Machina', sans-serif;
@@ -602,7 +537,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 0 14px 24px;
+    padding: 0 14px calc(72px + env(safe-area-inset-bottom, 0px));
     flex: 1;
     overflow-y: auto;
   }
@@ -678,37 +613,7 @@
     line-height: 1;
   }
 
-  .settings-bar {
-    position: sticky;
-    bottom: 0;
-    margin-top: auto;
-    z-index: 5;
-    margin: 0 14px 18px;
-  }
-  .settings-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 11px 16px;
-    background: var(--accent);
-    border: none;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-on-accent);
-    cursor: pointer;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .settings-btn:hover {
-    opacity: 0.9;
-  }
-  .settings-btn svg {
-    width: 18px;
-    height: 18px;
-  }
+
 
   .section-label {
     font-size: 10px;
