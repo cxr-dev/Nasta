@@ -18,7 +18,7 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Disruption alerts** — Real-time transit disruptions and alerts by severity (info/warning/critical)
 - **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
 - **PWA installable** — Works offline with cached data, no app store required
-- **Arrival calculation** — Sums travel times plus transfer buffers to show expected arrival time
+- **Arrival calculation** — Sums segment travel times to show expected arrival time
 - **Pull-to-refresh** — Manual refresh on mobile with freshness indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
 - **Guided first run** — In-app hint points users to Settings for adding segments
@@ -116,7 +116,6 @@ Each segment defines:
 - `direction` — object: `{ code, destination, stopPointId }`
 - `transportType` — `"bus"`, `"train"`, `"metro"`, `"tram"`, or `"boat"`
 - `travelTimeMinutes` — estimated travel duration
-- `transferBufferMinutes` — optional transfer wait time between segments
 
 **To edit routes:**
 
@@ -137,7 +136,6 @@ Available in the Settings panel (tap **"Inställningar"**):
 | **Refresh interval**    | 10-60 seconds                                        | 30 seconds | How often to fetch departures               |
 | **Disruption alerts**   | On/Off                                               | On         | Show transit disruptions and alerts         |
 | **Disruption level**    | All disruptions, Important + critical, Critical only | "warning"  | Filter disruptions by severity              |
-| **Transfer buffer**     | Minutes                                              | 2-5        | Time allowed for transfers between segments |
 
 ---
 

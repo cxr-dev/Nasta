@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Page, Segment, TransportType } from '../types/page';
-  import { removeSegment as storeRemoveSegment, updateSegmentTransferBuffer, reorderSegments } from '../stores/pageStore.svelte';
+  import { removeSegment as storeRemoveSegment, reorderSegments } from '../stores/pageStore.svelte';
   import { transportIcons } from '../icons/transport';
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
@@ -22,14 +22,6 @@
   function removeSegment(segmentId: string) {
     if (expandedId === segmentId) expandedId = null;
     storeRemoveSegment(page.id, segmentId);
-  }
-
-  function handleStepper(segmentId: string, delta: number) {
-    const segment = page.segments.find(s => s.id === segmentId);
-    if (!segment) return;
-    const current = segment.transferBufferMinutes ?? 0;
-    const next = Math.max(0, Math.min(60, current + delta));
-    updateSegmentTransferBuffer(page.id, segmentId, next);
   }
 
   function handleDragStart(e: DragEvent, index: number) {
@@ -136,7 +128,6 @@
   {:else}
     {#each page.segments as segment, index (segment.id)}
       {@const isExpanded = expandedId === segment.id}
-      {@const isLast = index === page.segments.length - 1}
       <div
         class="segment"
         class:expanded={isExpanded}
@@ -185,36 +176,6 @@
                 {segment.fromStop.name} → {segment.toStop.name}
               </div>
               <div class="segment-dir">{segment.direction?.destination}</div>
-              {#if !isLast}
-                <div class="buffer-stepper">
-                  <span class="buffer-label">{t.transferBuffer}</span>
-                  <div class="stepper">
-                    <button
-                      type="button"
-                      class="step-btn"
-                      onclick={() => handleStepper(segment.id, -1)}
-                      aria-label={t.decrementBuffer}
-                      disabled={(segment.transferBufferMinutes ?? 0) <= 0}
-                    >
-                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                        <path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                      </svg>
-                    </button>
-                    <span class="step-value">{segment.transferBufferMinutes ?? 0} {t.minutesShort}</span>
-                    <button
-                      type="button"
-                      class="step-btn"
-                      onclick={() => handleStepper(segment.id, 1)}
-                      aria-label={t.incrementBuffer}
-                      disabled={(segment.transferBufferMinutes ?? 0) >= 60}
-                    >
-                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                        <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              {/if}
               <button
                 type="button"
                 class="remove-btn"
@@ -376,63 +337,6 @@
 
   .expand-chevron.open {
     transform: rotate(180deg);
-  }
-
-  .buffer-stepper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-  }
-
-  .buffer-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .stepper {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .step-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    font-family: inherit;
-  }
-
-  .step-btn:hover:not(:disabled) {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  .step-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .step-value {
-    min-width: 48px;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
   }
 
   .seg-dest {

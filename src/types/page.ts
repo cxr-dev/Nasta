@@ -25,7 +25,6 @@ export interface Segment {
   toStop: Stop;
   transportType: TransportType;
   travelTimeMinutes?: number;
-  transferBufferMinutes?: number;
 }
 
 export interface Page {

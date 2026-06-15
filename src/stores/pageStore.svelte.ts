@@ -59,26 +59,6 @@ export function removeSegment(pageId: string, segmentId: string): void {
   notify();
 }
 
-export function updateSegmentTransferBuffer(
-  pageId: string,
-  segmentId: string,
-  transferBufferMinutes: number,
-): void {
-  _pages = _pages.map(page =>
-    page.id !== pageId
-      ? page
-      : {
-          ...page,
-          segments: page.segments.map(segment =>
-            segment.id === segmentId
-              ? { ...segment, transferBufferMinutes }
-              : segment,
-          ),
-        },
-  );
-  savePages(_pages);
-  notify();
-}
 
 export function renamePage(id: string, name: string): void {
   _pages = _pages.map(p => (p.id === id ? { ...p, name } : p));

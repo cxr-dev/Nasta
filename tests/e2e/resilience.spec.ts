@@ -92,7 +92,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             toStop: { id: "t1", name: "Transfer", siteId: "200" },
             transportType: "bus",
             travelTimeMinutes: 10,
-            transferBufferMinutes: 5,
           },
           {
             id: "s2",
@@ -103,7 +102,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
             toStop: { id: "t2", name: "Work", siteId: "300" },
             transportType: "metro",
             travelTimeMinutes: 15,
-            transferBufferMinutes: 0,
           },
         ],
       },

@@ -44,7 +44,6 @@
     addSegment(firstRouteId, {
       ...selectedSegment,
       travelTimeMinutes: 0,
-      transferBufferMinutes: 0,
     });
 
     onComplete();
