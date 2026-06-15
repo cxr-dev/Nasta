@@ -347,14 +347,30 @@
     </div>
   </header>
 
-  <!-- Freshness indicator -->
-  <div class="freshness-row">
-    <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
-    <span class="fresh-label">{freshnessLabel()}</span>
-  </div>
+  {#if (route.segments ?? []).length === 0}
+    <div class="empty-segments">
+      <svg class="empty-illustration" viewBox="0 0 80 80" fill="none">
+        <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+        <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <h2>{t.noSegments}</h2>
+      <p>{t.noSegmentsDesc}</p>
+      <button class="empty-cta" onclick={onEditToggle}>
+        <span>{t.add}</span>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 4v12M4 10h12"/>
+        </svg>
+      </button>
+    </div>
+  {:else}
+    <!-- Freshness indicator -->
+    <div class="freshness-row">
+      <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
+      <span class="fresh-label">{freshnessLabel()}</span>
+    </div>
 
-  <!-- Departure list -->
-  <div class="card-list" bind:this={depListEl}>
+    <!-- Departure list -->
+    <div class="card-list" bind:this={depListEl}>
     {#if lastError}
       <div class="error-bar">
         <span>{lastError}</span>
@@ -468,6 +484,7 @@
       {/if}
     {/if}
   </div>
+  {/if}
 
   <!-- Settings bar -->
   {#if onEditToggle}
@@ -694,5 +711,57 @@
     text-transform: uppercase;
     letter-spacing: 0.09em;
     padding: 12px 14px 6px;
+  }
+
+  .empty-segments {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    gap: 16px;
+  }
+
+  .empty-illustration {
+    width: 64px;
+    height: 64px;
+    color: var(--text-ghost);
+  }
+
+  .empty-segments h2 {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .empty-segments p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 240px;
+  }
+
+  .empty-cta {
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    padding: 14px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .empty-cta svg {
+    width: 18px;
+    height: 18px;
   }
 </style>

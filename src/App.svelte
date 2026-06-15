@@ -616,7 +616,7 @@ function toggleEdit() {
                 </svg>
               </button>
             </div>
-          {:else if page && page.segments.length > 0}
+          {:else if page}
             <SegmentDepartures
               route={page}
               deviationHealthBySegment={deviationHealthBySegment}
@@ -627,27 +627,6 @@ function toggleEdit() {
               onEditToggle={toggleEdit}
               {lastRefreshTime}
             />
-          {:else if page}
-            <div class="empty-segments">
-              <div class="empty-illustration small">
-                <svg viewBox="0 0 80 80" fill="none">
-                  <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
-                  <path d="M25 35h20M25 45h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-              </div>
-              <h2>{t.noSegments}</h2>
-              <p>{t.noSegmentsDesc}</p>
-              <button 
-                class="empty-cta" 
-                class:onboarding-highlight={showOnboardingHint}
-                onclick={toggleEdit}
-              >
-                <span>{t.add}</span>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10 4v12M4 10h12"/>
-                </svg>
-              </button>
-            </div>
           {/if}
         </div>
       {/key}
@@ -908,8 +887,7 @@ function toggleEdit() {
     }
   }
 
-  .empty-state,
-  .empty-segments {
+  .empty-state {
     text-align: center;
     padding: 80px 20px 40px;
     display: flex;
@@ -925,13 +903,7 @@ function toggleEdit() {
     margin-bottom: 8px;
   }
 
-  .empty-illustration.small {
-    width: 64px;
-    height: 64px;
-  }
-
-  .empty-state h2,
-  .empty-segments h2 {
+  .empty-state h2 {
     font-family: 'Neue Machina', sans-serif;
     font-size: 22px;
     font-weight: 700;
@@ -939,8 +911,7 @@ function toggleEdit() {
     letter-spacing: -0.02em;
   }
 
-  .empty-state p,
-  .empty-segments p {
+  .empty-state p {
     font-size: 15px;
     color: var(--text-secondary);
     max-width: 240px;
