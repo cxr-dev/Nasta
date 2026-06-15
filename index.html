@@ -47,7 +47,7 @@
     </noscript>
 
     <!-- corsproxy.io is a dev-mode CORS proxy fallback for the Visit Stockholm events API (src/services/eventService.ts); production uses events-data.json build-time static file -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' api.sl.se api.trafiklab.se transport.integration.sl.se deviations.integration.sl.se journeyplanner.integration.sl.se basemaps.cartocdn.com *.basemaps.cartocdn.com izrgqxgsuhogrukisfrd.supabase.co overpass-api.de api.visitstockholm.com corsproxy.io; font-src 'self' api.fontshare.com cdn.fontshare.com; img-src 'self' data: basemaps.cartocdn.com *.basemaps.cartocdn.com; script-src 'self' 'unsafe-inline'; worker-src blob:; style-src 'self' 'unsafe-inline' https://api.fontshare.com; frame-src 'none'; object-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' api.sl.se api.trafiklab.se transport.integration.sl.se deviations.integration.sl.se journeyplanner.integration.sl.se basemaps.cartocdn.com *.basemaps.cartocdn.com izrgqxgsuhogrukisfrd.supabase.co overpass-api.de api.visitstockholm.com *.visitstockholm.com corsproxy.io; font-src 'self' api.fontshare.com cdn.fontshare.com; img-src 'self' data: basemaps.cartocdn.com *.basemaps.cartocdn.com; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://api.fontshare.com; frame-src 'none'; object-src 'none'">
     <title>Nästa</title>
     <style>
       /* Prevent pull-to-refresh and overscroll */

@@ -52,12 +52,14 @@ export async function fetchNearbyEvents(
   const cached = eventsCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
 
+  // If the caller's signal is already aborted, return inflight or cached-stale rather than failing
+  // immediately before we even reach the persistent cache or static file.
   const inflight = eventInflight.get(key);
   if (inflight) return inflight;
 
   const request = (async () => {
     try {
-      // check persistent cache (longer TTL)
+      // check persistent cache (longer TTL) — not signal-gated, always worth checking
       try {
         const p = await persistentCache.get(`events:${key}`);
         if (p) {
@@ -69,6 +71,10 @@ export async function fetchNearbyEvents(
           return persisted;
         }
       } catch (e) {}
+
+      // If signal is already aborted at this point there is no cache to serve —
+      // bail early so we don't waste a network slot.
+      if (signal?.aborted) return [];
 
       const sourceUrl = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({
         size: String(MAX_EVENT_PAGE_SIZE),
@@ -142,10 +148,20 @@ export async function fetchNearbyEvents(
             return a.startTime.localeCompare(b.startTime);
           });
 
-      // Static file: built at deploy time by prebuild script — primary source for production
+      // Static file: built at deploy time by prebuild script — primary source for production.
+      // Use an internal AbortController with a generous timeout so that a caller aborting the
+      // tab-switch signal doesn't kill the fetch — the data is local/precached so it's fast.
       try {
         const staticUrl = `${import.meta.env.BASE_URL}events-data.json`;
-        const staticRes = await fetch(staticUrl, { signal });
+        const staticCtrl = new AbortController();
+        const staticTimeout = setTimeout(() => staticCtrl.abort(), 5000);
+        // Combine with caller signal only when it exists and is not yet aborted
+        const staticSignal =
+          signal && !signal.aborted
+            ? AbortSignal.any([staticCtrl.signal, signal])
+            : staticCtrl.signal;
+        const staticRes = await fetch(staticUrl, { signal: staticSignal });
+        clearTimeout(staticTimeout);
         if (!staticRes.ok) throw new Error(`events-data.json returned ${staticRes.status}`);
         const payload = await staticRes.json();
         const filtered = filterEvents(parseResponse(payload));
@@ -162,21 +178,28 @@ export async function fetchNearbyEvents(
         } catch (e) {}
         return filtered;
       } catch (staticError) {
-        console.debug(
-          "fetchNearbyEvents: static events-data.json not available (expected in dev)",
-          staticError,
-        );
+        if ((staticError as any)?.name === "AbortError") {
+          // Only log when it's a genuine timeout, not a tab-switch abort
+          console.debug("fetchNearbyEvents: static events-data.json timed out or aborted");
+        } else {
+          console.debug(
+            "fetchNearbyEvents: static events-data.json not available (expected in dev)",
+            staticError,
+          );
+        }
       }
 
-      // Dev fallback: CORS proxy for local development where static file doesn't exist
+      // Dev fallback: CORS proxy for local development where static file doesn't exist.
+      // Uses AbortSignal.any so both the 8s internal timeout AND the caller signal can cancel it.
       try {
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(sourceUrl)}`;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 8000);
-        const payload = await fetchEvents(
-          proxyUrl,
-          signal ?? controller.signal,
-        );
+        const combinedSignal =
+          signal && !signal.aborted
+            ? AbortSignal.any([controller.signal, signal])
+            : controller.signal;
+        const payload = await fetchEvents(proxyUrl, combinedSignal);
         clearTimeout(id);
 
         const filtered = filterEvents(parseResponse(payload));

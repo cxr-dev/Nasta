@@ -45,7 +45,10 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,json}"],
+          // Exclude events-data.json from precache — it's served via runtimeCaching below
+          // with NetworkFirst so the SW always picks up fresh data from the daily rebuild
+          // without waiting for a SW update cycle.
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff}"],
           maximumFileSizeToCacheInBytes: 3000000,
           skipWaiting: true,
           clientsClaim: true,
@@ -73,6 +76,21 @@ export default defineConfig(({ mode }) => {
                   maxAgeSeconds: 60,
                 },
                 networkTimeoutSeconds: 5,
+              },
+            },
+
+            // events-data.json: NetworkFirst with a short timeout so the app always gets
+            // today's events from the rebuilt static file, falling back to cache when offline.
+            {
+              urlPattern: /events-data\.json$/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "events-data-cache",
+                expiration: {
+                  maxEntries: 5,
+                  maxAgeSeconds: 43200, // 12 hours
+                },
+                networkTimeoutSeconds: 4,
               },
             },
           ],

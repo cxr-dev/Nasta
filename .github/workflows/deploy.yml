@@ -5,7 +5,10 @@ on:
     branches:
       - main
   schedule:
+    # Full rebuild + deploy at 06:00 UTC (08:00 Stockholm) — catches morning commuters
     - cron: '0 6 * * *'
+    # Full rebuild + deploy at 10:00 UTC (12:00 Stockholm) — events ready before afterwork
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
 permissions:

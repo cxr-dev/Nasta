@@ -61,17 +61,35 @@
   });
 
   $effect(() => {
+    // Cancel any in-progress tab load when switching tabs, but only abort if the
+    // previous tab's data hasn't been loaded yet — loaded tabs keep their data.
     tabLoadCtrl?.abort();
     const ctrl = new AbortController();
     tabLoadCtrl = ctrl;
-    for (const t of ['beer', 'wineCocktail'] as const) {
-      if (t !== activeTab && venuesByTab[t].loading && !venuesByTab[t].loaded) {
-        venuesByTab = { ...venuesByTab, [t]: { ...venuesByTab[t], loading: false, token: venuesByTab[t].token + 1 } };
-      }
-    }
+
     if (activeTab !== 'events') loadVenues(activeTab, ctrl.signal);
     if (activeTab === 'events') loadEvents(ctrl.signal);
+
     return () => ctrl.abort();
+  });
+
+  // Kick off background prefetch for all available tabs immediately on mount so
+  // switching tabs feels instant. These run without a signal — they use the service's
+  // own internal caches and timeouts. The $effect above handles the reactive UI state.
+  $effect(() => {
+    const modes = availableModes;
+    // Use a microtask so this doesn't block the initial render
+    Promise.resolve().then(() => {
+      if (modes.includes('beer') && !venuesByTab.beer.loaded) {
+        void fetchNearbyVenues(lat, lon, 1200, ['beer']).catch(() => {});
+      }
+      if (modes.includes('wineCocktail') && !venuesByTab.wineCocktail.loaded) {
+        void fetchNearbyVenues(lat, lon, 1200, ['wine', 'cocktail']).catch(() => {});
+      }
+      if (modes.includes('events') && !eventsTab.loaded) {
+        void fetchNearbyEvents(lat, lon, 5000).catch(() => {});
+      }
+    });
   });
 
   async function loadVenues(tab: 'beer' | 'wineCocktail', signal?: AbortSignal) {
@@ -82,9 +100,12 @@
     try {
       const types: Array<'beer' | 'wine' | 'cocktail'> = tab === 'beer' ? ['beer'] : ['wine', 'cocktail'];
       const loaded = await fetchNearbyVenues(lat, lon, 1200, types, signal);
+      // Stale check: abort or tab switch happened — don't clobber newer state
+      if (signal?.aborted && token !== venuesByTab[tab].token) return;
       if (token !== venuesByTab[tab].token) return;
       venuesByTab = { ...venuesByTab, [tab]: { items: loaded, loading: false, loaded: true, token } };
-    } catch {
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') return;
       if (token !== venuesByTab[tab].token) return;
       venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: true, token } };
     }
@@ -96,6 +117,7 @@
     eventsTab = { ...eventsTab, loading: true };
     try {
       const loaded = await fetchNearbyEvents(lat, lon, 5000, signal);
+      if (signal?.aborted && token !== eventsTab.token) return;
       if (token !== eventsTab.token) return;
       eventsTab = { items: loaded, loading: false, loaded: true, token };
     } catch (e) {
