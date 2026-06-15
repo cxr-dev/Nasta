@@ -659,18 +659,20 @@ function toggleEdit() {
         </div>
       {/key}
 
-      {#if pages.length > 1 && !editing && !hasNoRoutes}
-        <nav class="bottom-nav">
-          <div class="page-dots">
-            {#each pages as p, i (p.id)}
-              <div
-                class="dot"
-                class:active={p.id === activePageId}
-              ></div>
-            {/each}
-          </div>
-        </nav>
-      {/if}
+          {#if pages.length > 1 && !editing && !hasNoRoutes}
+            <nav class="bottom-nav" aria-label={t.pageNavigation}>
+              <div class="page-dots">
+                {#each pages as p, i (p.id)}
+                  <button
+                    class="dot"
+                    class:active={p.id === activePageId}
+                    onclick={() => handlePageSwitch(p.id)}
+                    aria-label={p.name}
+                  ></button>
+                {/each}
+              </div>
+            </nav>
+          {/if}
     </div>
 
     {#if !hasNoRoutes && page}
@@ -902,9 +904,13 @@ function toggleEdit() {
     width: 6px;
     height: 6px;
     border-radius: 999px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
     background: var(--text-ghost);
     flex-shrink: 0;
     transition: background 0.15s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .dot.active {

@@ -247,6 +247,7 @@ const sv = {
 
   // Page navigation
   pages: "Sidor",
+  pageNavigation: "Sidnavigering",
   previousPage: "Föregående sida",
   nextPage: "Nästa sida",
   swipeHint: "← svep för att byta sida →",
@@ -505,6 +506,7 @@ const en: typeof sv = {
 
   // Page navigation
   pages: "Pages",
+  pageNavigation: "Page navigation",
   previousPage: "Previous page",
   nextPage: "Next page",
   swipeHint: "← swipe to switch page →",
