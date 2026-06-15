@@ -2,7 +2,7 @@
   import type { Segment } from "../types/page";
   import type { Departure } from "../stores/departureStore.svelte";
   import { transportIcons } from "../icons/transport";
-  import { alertTriangle, handStop, tool, cloudRain, infoCircle } from "../icons/departureIcons";
+  import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
@@ -62,13 +62,18 @@
     if (type === 'general') return t.disruptionGeneral ?? type;
     if (type === 'protest') return t.disruptionProtest ?? type;
     if (type === 'technical') return t.disruptionTechnical ?? type;
-    if (type === 'weather') return t.disruptionWeather ?? type;
+    if (type === 'snow' || type === 'rain' || type === 'storm' || type === 'wind' || type === 'ice' || type === 'weather') return t.disruptionWeather ?? type;
     return type;
   }
 
   function disruptionIcon(type: string): string {
     if (type === 'protest') return handStop;
     if (type === 'technical') return tool;
+    if (type === 'snow') return cloudSnow;
+    if (type === 'rain') return cloudRain;
+    if (type === 'storm') return cloudLightning;
+    if (type === 'wind') return windIcon;
+    if (type === 'ice') return snowflake;
     if (type === 'weather') return cloudRain;
     if (type === 'general') return alertTriangle;
     return infoCircle;

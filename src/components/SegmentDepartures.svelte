@@ -237,11 +237,16 @@
     loadSegmentDeps().catch((e) => console.error('loadSegmentDeps failed', e));
   });
 
-  function disruptionType(message: string): "protest" | "technical" | "weather" | "general" {
+  function disruptionType(message: string): "protest" | "technical" | "snow" | "rain" | "storm" | "wind" | "ice" | "weather" | "general" {
     const m = message.toLowerCase();
     if (/(protest|demonstration|strejk|march|blockad)/i.test(m)) return "protest";
     if (/(signal|switch|technical|fault|fel|teknisk|power|el|track|spår)/i.test(m)) return "technical";
-    if (/(snow|rain|storm|wind|väder|snö|regn|\bis\b|storm)/i.test(m)) return "weather";
+    if (/(snow|snö)/i.test(m)) return "snow";
+    if (/(rain|regn)/i.test(m)) return "rain";
+    if (/storm/i.test(m)) return "storm";
+    if (/wind/i.test(m)) return "wind";
+    if (/\bis\b/i.test(m)) return "ice";
+    if (/väder/i.test(m)) return "weather";
     return "general";
   }
 
