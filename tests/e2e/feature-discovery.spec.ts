@@ -154,6 +154,15 @@ test.describe("feature discovery sheet", () => {
                 opening_hours: "17:00-00:00",
               },
             },
+            {
+              id: 9002,
+              lat: 59.3294,
+              lon: 18.069,
+              tags: {
+                name: "Tap Room",
+                opening_hours: "16:00-01:00",
+              },
+            },
           ],
         }),
       });
@@ -222,7 +231,7 @@ test.describe("feature discovery sheet", () => {
     // Target the heading specifically to avoid matching multiple elements (pill / button)
     await expect(
       page.getByRole("heading", {
-        name: /Wine\s*(&|and|\+)\s*Dine|Wine\s*(&|and|\+)\s*cocktails|Vin \+ cocktails/,
+        name: /Wine\s*(&|and|\+)\s*Dine/,
       }),
     ).toBeVisible({ timeout: 10000 });
 
