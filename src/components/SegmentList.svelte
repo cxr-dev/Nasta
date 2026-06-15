@@ -15,14 +15,6 @@
   let dragStartX = 0;
   let dragStartY = 0;
 
-  const LINE_COLORS: Record<TransportType, string> = {
-    bus: '#2563EB',
-    metro: '#DC2626',
-    train: '#059669',
-    boat: '#0D9488',
-    tram: '#7C3AED',
-  };
-
   function toggleExpand(id: string) {
     expandedId = expandedId === id ? null : id;
   }
@@ -142,7 +134,6 @@
   {:else}
     {#each page.segments as segment, index (segment.id)}
       {@const isExpanded = expandedId === segment.id}
-      {@const lineColor = LINE_COLORS[segment.transportType] ?? 'var(--accent)'}
       {@const isLast = index === page.segments.length - 1}
       <div
         class="segment"
@@ -171,7 +162,7 @@
           aria-label={`${primaryLineText(segment)} ${segment.fromStop.name} → ${segment.toStop.name}`}
         >
           <div class="drag-handle" aria-hidden="true">⋮⋮</div>
-          <div class="segment-icon" style="--line-color: {lineColor}">
+          <div class="segment-icon">
             <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
               {@html getIcon(segment.transportType)}
             </svg>
@@ -310,27 +301,14 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: color-mix(in srgb, var(--line-color) 14%, var(--surface));
-    position: relative;
-  }
-
-  .segment-icon::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 16px;
-    border-radius: 2px;
-    background: var(--line-color);
+    background: var(--accent-subtle);
   }
 
   .segment-icon .transport-icon {
     width: 18px;
     height: 18px;
-    color: var(--line-color);
-    fill: var(--line-color);
+    color: var(--accent);
+    fill: var(--accent);
   }
 
   .segment-meta {
