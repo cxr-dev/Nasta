@@ -241,7 +241,7 @@
     const m = message.toLowerCase();
     if (/(protest|demonstration|strejk|march|blockad)/i.test(m)) return "protest";
     if (/(signal|switch|technical|fault|fel|teknisk|power|el|track|spår)/i.test(m)) return "technical";
-    if (/(snow|rain|storm|wind|väder|snö|regn|is|storm)/i.test(m)) return "weather";
+    if (/(snow|rain|storm|wind|väder|snö|regn|\bis\b|storm)/i.test(m)) return "weather";
     return "general";
   }
 
