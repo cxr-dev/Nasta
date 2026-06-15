@@ -262,6 +262,15 @@ const sv = {
 
   // Quirky moment
   showCelebration: "Visa firande",
+
+  // PageEditor UX
+  segmentsCount: "{n} segment",
+  segmentsCountZero: "Inga segment",
+  addSegmentsCta: "Lägg till avgång",
+  pageNoun: "Sida",
+  selectAPage: "Välj en sida",
+  appSettings: "App-inställningar",
+  pageIndicator: "Sida: {name}",
 };
 
 const en: typeof sv = {
@@ -509,6 +518,15 @@ const en: typeof sv = {
   stepDirection: "Direction",
 
   showCelebration: "Show celebration",
+
+  // PageEditor UX
+  segmentsCount: "{n} segments",
+  segmentsCountZero: "No segments",
+  addSegmentsCta: "Add departure",
+  pageNoun: "Page",
+  selectAPage: "Select a page",
+  appSettings: "App settings",
+  pageIndicator: "Page: {name}",
 };
 
 export const translations = { sv, en };

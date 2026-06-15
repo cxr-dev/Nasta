@@ -36,6 +36,7 @@
   import { infoCircle } from '../icons/departureIcons';
   let hintDismissed = $state(false);
   let infoOpen = $state(false);
+  let showPagePicker = $state(false);
   let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
@@ -139,6 +140,11 @@
     onSwitchPage(id);
   }
 
+  function handlePickerSelect(id: string) {
+    handlePageSwitch(id);
+    showPagePicker = false;
+  }
+
   const TABS = ['pages', 'segment', 'features', 'theme'] as const;
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -207,23 +213,47 @@
     </div>
 
     <div class="tab-bar" role="tablist" aria-label={t.settings}>
-      {#each (['pages', 'segment', 'features', 'theme'] as const) as tab (tab)}
-        {@const label =
-          tab === 'pages' ? t.tabPages :
-          tab === 'segment' ? t.tabSegments :
-          tab === 'features' ? t.tabFeatures :
-          t.tabTheme}
-        <button
-          type="button"
-          role="tab"
-          class="tab"
-          class:active={activeEditorTab === tab}
-          aria-selected={activeEditorTab === tab}
-          onclick={() => activeEditorTab = tab}
-        >
-          {label}
-        </button>
-      {/each}
+      <button
+        type="button"
+        role="tab"
+        class="tab"
+        class:active={activeEditorTab === 'pages'}
+        aria-selected={activeEditorTab === 'pages'}
+        onclick={() => activeEditorTab = 'pages'}
+      >
+        {t.tabPages}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="tab"
+        class:active={activeEditorTab === 'segment'}
+        aria-selected={activeEditorTab === 'segment'}
+        onclick={() => activeEditorTab = 'segment'}
+      >
+        {t.tabSegments}
+      </button>
+      <div class="tab-separator" aria-hidden="true">·</div>
+      <button
+        type="button"
+        role="tab"
+        class="tab right-group"
+        class:active={activeEditorTab === 'features'}
+        aria-selected={activeEditorTab === 'features'}
+        onclick={() => activeEditorTab = 'features'}
+      >
+        {t.tabFeatures}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="tab right-group"
+        class:active={activeEditorTab === 'theme'}
+        aria-selected={activeEditorTab === 'theme'}
+        onclick={() => activeEditorTab = 'theme'}
+      >
+        {t.tabTheme}
+      </button>
     </div>
 
     {#if activeEditorTab === 'pages'}
@@ -245,13 +275,25 @@
                   onblur={() => handleRenamePage(page.id, renameValue)}
                 />
               {:else}
-                <button
-                  class="page-name-btn"
-                  onclick={() => handlePageSwitch(page.id)}
-                  aria-current={page.id === activePageId ? 'page' : undefined}
-                >
-                  {page.name}
-                </button>
+                <div class="page-info-wrap">
+                  <button
+                    class="page-name-btn"
+                    onclick={() => handlePageSwitch(page.id)}
+                    aria-current={page.id === activePageId ? 'page' : undefined}
+                  >
+                    {page.name}
+                  </button>
+                  <div class="page-seg-count">
+                    {#if page.segments.length === 0}
+                      <span class="seg-count-zero">{t.segmentsCountZero}</span>
+                      <button class="add-seg-cta" onclick={() => { activeEditorTab = 'segment'; handlePageSwitch(page.id); }}>
+                        {t.addSegmentsCta} →
+                      </button>
+                    {:else}
+                      <span class="seg-count">{t.segmentsCount.replace('{n}', String(page.segments.length))}</span>
+                    {/if}
+                  </div>
+                </div>
               {/if}
               <div class="page-actions">
                 <button
@@ -309,8 +351,17 @@
       </div>
 
     {:else if activeEditorTab === 'segment'}
-      <div class="tab-content">
+      <div class="tab-content segment-tab">
         {#if page}
+          <div class="segment-page-indicator">
+            <span class="spi-label">{t.pageNoun}:</span>
+            <button class="spi-pill" onclick={() => showPagePicker = true}>
+              {page.name}
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" class="spi-chevron">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
           {#if showSearch || autoSearch}
             <div class="search-container">
               {#if onboardingHighlight && !hintDismissed}
@@ -342,10 +393,41 @@
             </div>
           {/if}
         {/if}
+
+          {#if showPagePicker}
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div class="page-picker-overlay" onclick={() => showPagePicker = false} onkeydown={(e) => e.key === 'Escape' && (showPagePicker = false)} role="dialog" aria-label={t.selectAPage} tabindex="-1">
+              <div class="page-picker-sheet" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (showPagePicker = false)} role="document" tabindex="-1">
+                <h4 class="page-picker-title">{t.selectAPage}</h4>
+                <div class="page-picker-list">
+                  {#each pages as p (p.id)}
+                    <button
+                      class="page-picker-item"
+                      class:active={p.id === activePageId}
+                      onclick={() => handlePickerSelect(p.id)}
+                    >
+                      <span class="ppi-name">{p.name}</span>
+                      <span class="ppi-count">
+                        {#if p.segments.length === 0}
+                          {t.segmentsCountZero}
+                        {:else}
+                          {t.segmentsCount.replace('{n}', String(p.segments.length))}
+                        {/if}
+                      </span>
+                    </button>
+                  {/each}
+                </div>
+                <button class="page-picker-cancel" onclick={() => showPagePicker = false}>
+                  {t.cancel}
+                </button>
+              </div>
+            </div>
+          {/if}
       </div>
 
     {:else if activeEditorTab === 'features'}
       <div class="tab-content features-tab">
+        <h3 class="section-title">{t.appSettings}</h3>
         <div class="feature-group">
           <h3 class="group-title">{t.disruptionAlerts}</h3>
           <label class="toggle-row">
@@ -564,6 +646,7 @@
 
     {:else if activeEditorTab === 'theme'}
       <div class="tab-content theme-tab">
+        <h3 class="section-title">{t.appSettings}</h3>
         <h3 class="section-title">{t.theme}</h3>
         <div class="theme-list">
           {#each THEMES as palette (palette.id)}
@@ -722,6 +805,19 @@
     transform: scaleX(1);
   }
 
+  .tab-separator {
+    display: flex;
+    align-items: center;
+    color: var(--border);
+    font-size: 14px;
+    user-select: none;
+    padding: 0 2px;
+  }
+
+  .tab.right-group:not(.active) {
+    color: var(--text-ghost);
+  }
+
   /* Tab content */
   .tab-content {
     flex: 1;
@@ -792,8 +888,15 @@
     color: var(--bg);
   }
 
-  .page-name-btn {
+  .page-info-wrap {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .page-name-btn {
     border: none;
     background: none;
     cursor: pointer;
@@ -807,6 +910,43 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .page-seg-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .page-item.active .page-seg-count {
+    color: var(--accent);
+  }
+
+  .add-seg-cta {
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: opacity 150ms;
+  }
+
+  .add-seg-cta:hover {
+    opacity: 0.7;
+  }
+
+  .seg-count,
+  .seg-count-zero {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
   }
 
   .page-rename-input {
@@ -924,6 +1064,161 @@
   }
 
   .cancel-search-btn:hover {
+    background: var(--border);
+  }
+
+  .segment-tab {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .segment-page-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px 4px;
+  }
+
+  .spi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .spi-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 4px 10px;
+    transition: border-color 150ms, background 150ms;
+  }
+
+  .spi-pill:hover {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .spi-chevron {
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+  }
+
+  .page-picker-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .page-picker-sheet {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+    max-width: 480px;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+    animation: picker-slide-up 0.25s ease-out;
+  }
+
+  @keyframes picker-slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .page-picker-sheet {
+      animation: none;
+    }
+  }
+
+  .page-picker-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+
+  .page-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .page-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: border-color 150ms, background 150ms;
+    width: 100%;
+  }
+
+  .page-picker-item:hover {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .page-picker-item.active {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .ppi-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .ppi-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .page-picker-item.active .ppi-name {
+    color: var(--accent);
+  }
+
+  .page-picker-cancel {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms;
+  }
+
+  .page-picker-cancel:hover {
     background: var(--border);
   }
 
