@@ -22,6 +22,7 @@
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
+  import { getNextScheduledDeparture } from "../services/timetableCache";
 
   let {
     route,
@@ -171,6 +172,7 @@
   }
 
   let segmentDeps = $state<Departure[][]>([]);
+  let segmentSleeping = $state<Array<{ isSleeping: boolean; nextTime: string | null }>>([]);
 
   let segmentGroups = $derived.by(() => {
     const segs = route.segments ?? [];
@@ -199,6 +201,8 @@
   async function loadSegmentDeps() {
     const segs = route.segments ?? [];
     const deps: Departure[][] = [];
+    const sleeping: Array<{ isSleeping: boolean; nextTime: string | null }> = [];
+
     for (const seg of segs) {
       const predicted = await getPredictedDepartures(
         seg.fromStop.siteId,
@@ -217,14 +221,38 @@
         return d === targetDest || d.includes(targetDest) || targetDest.includes(d);
       });
 
+      let merged: Departure[];
       if (live.length > 0) {
-        const merged = mergeDeparturesWithPredictions(live, predicted, 5);
-        deps.push(deduplicateDeparturesByKey(seg.fromStop.siteId, merged));
+        merged = deduplicateDeparturesByKey(seg.fromStop.siteId, mergeDeparturesWithPredictions(live, predicted, 5));
       } else {
-        deps.push(deduplicateDeparturesByKey(seg.fromStop.siteId, predicted));
+        merged = deduplicateDeparturesByKey(seg.fromStop.siteId, predicted);
+      }
+
+      if (merged.length > 0) {
+        deps.push(merged);
+        sleeping.push({ isSleeping: false, nextTime: null });
+      } else {
+        // No departures in the live/predicted window — look up next scheduled
+        // departure from the timetable cache (no time-horizon cap).
+        deps.push([]);
+        try {
+          const next = await getNextScheduledDeparture(
+            seg.fromStop.siteId,
+            seg.line,
+            seg.direction?.code ?? 0,
+          );
+          if (next) {
+            sleeping.push({ isSleeping: true, nextTime: next.time });
+          } else {
+            sleeping.push({ isSleeping: false, nextTime: null });
+          }
+        } catch {
+          sleeping.push({ isSleeping: false, nextTime: null });
+        }
       }
     }
     segmentDeps = deps;
+    segmentSleeping = sleeping;
   }
 
   $effect(() => {
@@ -375,6 +403,7 @@
     {:else}
       {#each segmentGroups.all as item (item.segment.id)}
         {@const deps = segmentDeps[item.originalIndex] ?? []}
+        {@const sleepInfo = segmentSleeping[item.originalIndex] ?? { isSleeping: false, nextTime: null }}
         {@const departure = deps[0]}
         {@const subsequent = formatSubsequent(deps)}
         {@const hasDeparture = deps.length > 0 && !!departure}
@@ -385,7 +414,7 @@
         {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
         {@const hasDisruption = displayDevs.length > 0}
         {@const isExpanded = expandedSegmentId === item.segment.id}
-        {@const isExpandable = hasDeparture || hasDisruption}
+        {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
         {@const topDevMessage = displayDevs[0]?.message ?? ""}
         {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
@@ -406,6 +435,8 @@
           {openFeatureSheet}
           {t}
           {severity}
+          isSleeping={sleepInfo.isSleeping}
+          nextDepartureTime={sleepInfo.nextTime}
           ontoggle={() => toggleExpanded(item.segment.id)}
           onprefetch={() => prefetchForSegment(item.segment)}
         />
@@ -415,6 +446,7 @@
         <div class="section-label">{t.sectionDisrupted}</div>
         {#each segmentGroups.disrupted as item (item.segment.id)}
           {@const deps = segmentDeps[item.originalIndex] ?? []}
+          {@const sleepInfo = segmentSleeping[item.originalIndex] ?? { isSleeping: false, nextTime: null }}
           {@const departure = deps[0]}
           {@const subsequent = formatSubsequent(deps)}
           {@const hasDeparture = deps.length > 0 && !!departure}
@@ -425,7 +457,7 @@
           {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
           {@const hasDisruption = displayDevs.length > 0}
           {@const isExpanded = expandedSegmentId === item.segment.id}
-          {@const isExpandable = hasDeparture || hasDisruption}
+          {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
@@ -446,13 +478,15 @@
             {openFeatureSheet}
             {t}
             {severity}
+            isSleeping={sleepInfo.isSleeping}
+            nextDepartureTime={sleepInfo.nextTime}
             ontoggle={() => toggleExpanded(item.segment.id)}
             onprefetch={() => prefetchForSegment(item.segment)}
           />
         {/each}
       {/if}
 
-      {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
+      {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0) && segmentSleeping.every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
           <p class="empty-text">{t.noDeparturesAvailable}</p>

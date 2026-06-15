@@ -3,6 +3,7 @@
   import { removeSegment as storeRemoveSegment, reorderSegments } from '../stores/pageStore.svelte';
   import { transportIcons } from '../icons/transport';
   import { getT } from '../stores/localeStore.svelte';
+  import { gripVertical } from '../icons/departureIcons';
   import gsap from 'gsap';
 
   let t = $derived(getT());
@@ -12,8 +13,8 @@
   let expandedId = $state<string | null>(null);
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
-  let dragStartX = 0;
   let dragStartY = 0;
+  let dragStartX = 0;
 
   function toggleExpand(id: string) {
     expandedId = expandedId === id ? null : id;
@@ -24,6 +25,7 @@
     storeRemoveSegment(page.id, segmentId);
   }
 
+  // ── HTML5 Drag (desktop) ──────────────────────────────────────────────────
   function handleDragStart(e: DragEvent, index: number) {
     draggingIndex = index;
     if (e.dataTransfer) {
@@ -50,9 +52,9 @@
     dragOverIndex = null;
   }
 
-  function handleTouchStart(e: TouchEvent, index: number) {
-    const target = e.target as HTMLElement;
-    if (!target.closest('.drag-handle')) return; // Ignore touch start if not on drag handle
+  // ── Touch Drag (mobile) — attached to the handle element ─────────────────
+  function handleHandleTouchStart(e: TouchEvent, index: number) {
+    e.stopPropagation(); // prevent the card's expand click from firing
     draggingIndex = index;
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
@@ -60,10 +62,11 @@
 
   function handleTouchMove(e: TouchEvent) {
     if (draggingIndex === null) return;
+    e.preventDefault(); // prevent scroll while dragging
     const touch = e.touches[0];
-    const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
-    if (segment) {
-      gsap.to(segment, {
+    const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.to(el, {
         x: touch.clientX - dragStartX,
         y: touch.clientY - dragStartY,
         duration: 0.08,
@@ -73,9 +76,9 @@
     }
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     if (element) {
-      const item = element.closest('[data-drag-index]');
+      const item = element.closest('[data-drag-index]') as HTMLElement | null;
       if (item) {
-        const newIndex = parseInt(item.getAttribute('data-drag-index') || '0', 10);
+        const newIndex = parseInt(item.getAttribute('data-drag-index') ?? '0', 10);
         if (!isNaN(newIndex) && newIndex !== dragOverIndex) {
           dragOverIndex = newIndex;
         }
@@ -84,14 +87,13 @@
   }
 
   function handleTouchEnd() {
-    if (draggingIndex !== null) {
-      const segment = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
-      if (segment) {
-        gsap.to(segment, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
-      }
-      if (dragOverIndex !== null && draggingIndex !== dragOverIndex) {
-        reorderSegments(page.id, draggingIndex, dragOverIndex);
-      }
+    if (draggingIndex === null) return;
+    const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+    }
+    if (dragOverIndex !== null && draggingIndex !== dragOverIndex) {
+      reorderSegments(page.id, draggingIndex, dragOverIndex);
     }
     draggingIndex = null;
     dragOverIndex = null;
@@ -122,7 +124,13 @@
   }
 </script>
 
-<div class="segment-list">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="segment-list"
+  role="list"
+  ontouchmove={handleTouchMove}
+  ontouchend={handleTouchEnd}
+>
   {#if !page.segments || page.segments.length === 0}
     <p class="empty">{t.addSegmentHint}</p>
   {:else}
@@ -132,7 +140,7 @@
         class="segment"
         class:expanded={isExpanded}
         class:dragging={draggingIndex === index}
-        class:drag-over={dragOverIndex === index}
+        class:drag-over={dragOverIndex === index && draggingIndex !== index}
         data-drag-index={index}
         draggable="true"
         role="listitem"
@@ -140,21 +148,27 @@
         ondragover={(e) => handleDragOver(e, index)}
         ondrop={(e) => handleDrop(e, index)}
         ondragend={handleDragEnd}
-        ontouchstart={(e) => handleTouchStart(e, index)}
-        ontouchmove={handleTouchMove}
-        ontouchend={handleTouchEnd}
       >
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="segment-body"
-          onclick={() => toggleExpand(segment.id)}
+          onclick={() => { if (draggingIndex === null) toggleExpand(segment.id); }}
           onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(segment.id); }}
           role="button"
           tabindex="0"
           aria-expanded={isExpanded}
           aria-label={`${primaryLineText(segment)} ${segment.fromStop.name} → ${segment.toStop.name}`}
         >
-          <div class="drag-handle" aria-hidden="true">⋮⋮</div>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="drag-handle"
+            aria-hidden="true"
+            ontouchstart={(e) => handleHandleTouchStart(e, index)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              {@html gripVertical}
+            </svg>
+          </div>
           <div class="segment-icon">
             <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
               {@html getIcon(segment.transportType)}
@@ -351,13 +365,15 @@
 
   .drag-handle {
     color: var(--text-muted);
-    font-size: 14px;
-    letter-spacing: -2px;
     cursor: grab;
     padding: 4px 2px;
     line-height: 1;
     user-select: none;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
   }
 
   .drag-handle:active {

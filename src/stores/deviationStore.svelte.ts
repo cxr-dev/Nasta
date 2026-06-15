@@ -122,7 +122,10 @@ function isPassThroughStop(segment: Segment, message: DeviationMessage): boolean
     stopAreaStore.getStopAreaId(segment.fromStop.siteId),
     stopAreaStore.getStopAreaId(segment.toStop.siteId),
   ].filter(Boolean);
-  if (!segStopIds.length) return false;
+  // If we have no stop-area mapping (e.g. fresh install on mobile), treat all
+  // facility alerts as station notices rather than direct disruptions — safer
+  // default that avoids polluting the disruption strip with elevator/escalator info.
+  if (!segStopIds.length) return true;
   return !message.scope.stopAreas.some(area => segStopIds.includes(area.id));
 }
 

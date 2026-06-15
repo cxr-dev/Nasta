@@ -2,7 +2,7 @@
   import type { Segment } from "../types/page";
   import type { Departure } from "../stores/departureStore.svelte";
   import { transportIcons } from "../icons/transport";
-  import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle } from "../icons/departureIcons";
+  import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
@@ -26,6 +26,8 @@
     openFeatureSheet,
     t,
     severity = 'normal',
+    isSleeping = false,
+    nextDepartureTime = null,
     ontoggle,
     onprefetch,
   }: {
@@ -45,6 +47,8 @@
     openFeatureSheet?: ((segment: Segment) => void) | null;
     t: Record<string, string>;
     severity?: 'normal' | 'affected' | 'critical';
+    isSleeping?: boolean;
+    nextDepartureTime?: string | null;
     ontoggle?: () => void;
     onprefetch?: () => void;
   } = $props();
@@ -184,7 +188,14 @@
     </div>
 
     <div class="time-col">
-      {#if hasDeparture}
+      {#if isSleeping}
+        <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
+          <g>{@html moonIcon}</g>
+        </svg>
+        {#if nextDepartureTime}
+          <span class="sleep-next">{nextDepartureTime}</span>
+        {/if}
+      {:else if hasDeparture}
         <span class="countdown" style="color: {accentColor}" data-testid="countdown-minutes">{primaryDepartureText}</span>
         {#if subsequent}
           <span class="clock-times">{subsequent}</span>
@@ -350,6 +361,21 @@
     color: var(--text-ghost);
     letter-spacing: 0;
     line-height: 1;
+  }
+  .moon-icon {
+    width: 26px;
+    height: 26px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .sleep-next {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1;
+    text-align: right;
   }
   .disrupt-strip {
     display: flex;

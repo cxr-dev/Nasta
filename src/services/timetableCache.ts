@@ -276,6 +276,61 @@ export async function getPredictedDepartures(
 }
 
 /**
+ * Returns the single next scheduled departure for a route from the cached timetable,
+ * with NO time-horizon cap. Used for the "sleeping" state when no live/predicted
+ * departures exist — finds tomorrow's (or later) first departure.
+ * Returns null if no cache entry exists for this route.
+ */
+export async function getNextScheduledDeparture(
+  siteId: string,
+  line: string,
+  direction_code: number,
+): Promise<PredictedDeparture | null> {
+  await ensureStoreLoaded();
+  const storeKey = `${siteId}|${line}|${direction_code}`;
+  const entry = inMemoryStore[storeKey];
+
+  if (!entry || Date.now() - entry.updatedAt > CACHE_TTL_MS) return null;
+
+  const now = Date.now();
+  const { transitDay: todayTransitDay, transitMinutes: nowTransitMinutes } =
+    toTransitTime(now);
+  const todayCalendarMidnight = getStockholmMidnightMs(now);
+
+  // Scan up to 14 days forward — no minutes-ahead cap, just find the next slot
+  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    const transitDay = (todayTransitDay + dayOffset) % 7;
+    const times = entry.days[transitDay];
+    if (!times?.length) continue;
+
+    for (const transitMinutes of times) {
+      if (dayOffset === 0 && transitMinutes <= nowTransitMinutes) continue;
+
+      const calendarDayOffset = transitMinutes >= 24 * 60 ? dayOffset + 1 : dayOffset;
+      const calendarMidnight = todayCalendarMidnight + calendarDayOffset * 86_400_000;
+      const departureTs = calendarMidnight + (transitMinutes % (24 * 60)) * 60_000;
+
+      if (departureTs <= now) continue;
+
+      const minutesAhead = Math.floor((departureTs - now) / 60_000);
+      return {
+        line: entry.line,
+        lineName: entry.lineName,
+        destination: entry.destination,
+        direction_code: entry.direction_code,
+        transportType: entry.transportType,
+        minutes: minutesAhead,
+        time: formatTransitMinutes(transitMinutes),
+        expectedAt: departureTs,
+        predicted: true,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * All unique routes ever seen at a stop (for SegmentSearch line discovery).
  * Returns routes whose cache entry is still within TTL.
  */

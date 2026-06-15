@@ -191,6 +191,8 @@ const sv = {
 
   // No departures
   noDeparturesAvailable: "Inga avgångar hittades",
+  sleeping: "Sover",
+  nextDeparture: "Nästa avgång",
 
   // Attribution
   attribution: "Trafikdata via",
@@ -462,6 +464,8 @@ const en: typeof sv = {
 
   // No departures
   noDeparturesAvailable: "No departures found",
+  sleeping: "Sleeping",
+  nextDeparture: "Next departure",
 
   // Attribution
   attribution: "Transit data via",

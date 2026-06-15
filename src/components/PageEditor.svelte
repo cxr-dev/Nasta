@@ -10,6 +10,83 @@
   let t = $derived(getT());
   import SegmentSearch from './SegmentSearch.svelte';
   import SegmentList from './SegmentList.svelte';
+  import { gripVertical } from '../icons/departureIcons';
+
+  // Page drag-and-drop state
+  let pageDraggingIndex = $state<number | null>(null);
+  let pageDragOverIndex = $state<number | null>(null);
+  let pageDragStartY = 0;
+  let pageDragStartX = 0;
+
+  function handlePageDragStart(e: DragEvent, index: number) {
+    pageDraggingIndex = index;
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handlePageDragOver(e: DragEvent, index: number) {
+    e.preventDefault();
+    pageDragOverIndex = index;
+  }
+
+  function handlePageDrop(e: DragEvent, toIndex: number) {
+    e.preventDefault();
+    if (pageDraggingIndex !== null && pageDraggingIndex !== toIndex) {
+      handleReorderPage(pageDraggingIndex, toIndex);
+    }
+    pageDraggingIndex = null;
+    pageDragOverIndex = null;
+  }
+
+  function handlePageDragEnd() {
+    pageDraggingIndex = null;
+    pageDragOverIndex = null;
+  }
+
+  function handlePageHandleTouchStart(e: TouchEvent, index: number) {
+    e.stopPropagation();
+    pageDraggingIndex = index;
+    pageDragStartX = e.touches[0].clientX;
+    pageDragStartY = e.touches[0].clientY;
+  }
+
+  function handlePageTouchMove(e: TouchEvent) {
+    if (pageDraggingIndex === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.to(el, {
+        x: touch.clientX - pageDragStartX,
+        y: touch.clientY - pageDragStartY,
+        duration: 0.08,
+        ease: 'power2.out',
+        overwrite: 'auto',
+      });
+    }
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (element) {
+      const item = element.closest('[data-page-drag-index]') as HTMLElement | null;
+      if (item) {
+        const newIndex = parseInt(item.getAttribute('data-page-drag-index') ?? '0', 10);
+        if (!isNaN(newIndex) && newIndex !== pageDragOverIndex) {
+          pageDragOverIndex = newIndex;
+        }
+      }
+    }
+  }
+
+  function handlePageTouchEnd() {
+    if (pageDraggingIndex === null) return;
+    const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+    }
+    if (pageDragOverIndex !== null && pageDraggingIndex !== pageDragOverIndex) {
+      handleReorderPage(pageDraggingIndex, pageDragOverIndex);
+    }
+    pageDraggingIndex = null;
+    pageDragOverIndex = null;
+  }
 
   let {
     pages,
@@ -257,11 +334,32 @@
     </div>
 
     {#if activeEditorTab === 'pages'}
-      <div class="tab-content pages-tab">
+      <div class="tab-content pages-tab" ontouchmove={handlePageTouchMove} ontouchend={handlePageTouchEnd}>
         <h3 class="section-title">{t.pages}</h3>
         <div class="page-list">
           {#each pages as page, index (page.id)}
-            <div class="page-item" class:active={page.id === activePageId}>
+            <div
+              class="page-item"
+              class:active={page.id === activePageId}
+              class:page-dragging={pageDraggingIndex === index}
+              class:page-drag-over={pageDragOverIndex === index && pageDraggingIndex !== index}
+              data-page-drag-index={index}
+              draggable="true"
+              ondragstart={(e) => handlePageDragStart(e, index)}
+              ondragover={(e) => handlePageDragOver(e, index)}
+              ondrop={(e) => handlePageDrop(e, index)}
+              ondragend={handlePageDragEnd}
+            >
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="page-drag-handle"
+                aria-hidden="true"
+                ontouchstart={(e) => handlePageHandleTouchStart(e, index)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                  {@html gripVertical}
+                </svg>
+              </div>
               <div class="page-index">{index + 1}</div>
               {#if renameId === page.id}
                 <input
@@ -313,28 +411,6 @@
                   >
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                       <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    </svg>
-                  </button>
-                {/if}
-                {#if index > 0}
-                  <button
-                    class="page-action-btn"
-                    onclick={() => handleReorderPage(index, index - 1)}
-                    aria-label={t.settings}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                      <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
-                    </svg>
-                  </button>
-                {/if}
-                {#if index < pages.length - 1}
-                  <button
-                    class="page-action-btn"
-                    onclick={() => handleReorderPage(index, index + 1)}
-                    aria-label={t.settings}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" transform="rotate(180)">
-                      <path d="M8 2l-5 5h10L8 2zM8 14l5-5H3l5 5z"/>
                     </svg>
                   </button>
                 {/if}
@@ -887,6 +963,31 @@
   .page-item.active {
     border-color: var(--accent);
     background: var(--accent-subtle);
+  }
+
+  .page-item.page-dragging {
+    opacity: 0.5;
+  }
+
+  .page-item.page-drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .page-drag-handle {
+    color: var(--text-muted);
+    cursor: grab;
+    padding: 4px 2px;
+    user-select: none;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  .page-drag-handle:active {
+    cursor: grabbing;
   }
 
   .page-index {
