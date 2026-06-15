@@ -46,8 +46,14 @@
       }
     }
 
-    return [...map.entries()].map(([station, messages]) => ({ station, messages }));
+    return [...map.entries()]
+      .map(([station, messages]) => ({ station, messages }))
+      .filter(g => g.messages.length > 0);
   });
+
+  // Total unique messages across all groups — used for the badge count so it
+  // matches exactly what is shown when the panel opens.
+  let totalMessageCount = $derived(grouped.reduce((sum, g) => sum + g.messages.length, 0));
 
   async function toggle() {
     if (expanded) {
@@ -87,7 +93,7 @@
         <g>{@html infoCircle}</g>
       </svg>
       <span class="notice-label">{t.sectionStationNotices}</span>
-      <span class="notice-count">{alerts.length}</span>
+      <span class="notice-count">{totalMessageCount}</span>
       <svg
         class="chevron"
         class:flipped={expanded}
