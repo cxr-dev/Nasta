@@ -587,27 +587,17 @@ function toggleEdit() {
     >
       {#if isRefreshing}
         <div class="ptr-spinner" bind:this={ptrSpinnerEl}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <rect x="4" y="5" width="16" height="12" rx="2.5"/>
-            <circle cx="8" cy="17.5" r="1.5"/>
-            <circle cx="16" cy="17.5" r="1.5"/>
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/>
+            <path d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75,11,11,0,0,0-21.72,0A1.5,1.5,0,0,0,2.62,12h0a1.53,1.53,0,0,0,1.49-1.3A8,8,0,0,1,12,4Z">
+              <animateTransform attributeName="transform" type="rotate" dur="0.75s" values="0 12 12;360 12 12" repeatCount="indefinite"/>
+            </path>
           </svg>
         </div>
       {:else}
-        <svg class="ptr-icon" bind:this={ptrIconEl} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          {#if pullDistance < PULL_THRESHOLD * 0.25}
-            <rect x="4" y="5" width="16" height="12" rx="2.5"/>
-            <circle cx="8" cy="17.5" r="1.5"/>
-            <circle cx="16" cy="17.5" r="1.5"/>
-          {:else if pullDistance < PULL_THRESHOLD * 0.5}
-            <rect x="6" y="3.5" width="12" height="13.5" rx="4"/>
-            <path d="M8.5 7.5h7M9 19l-2 2M15 19l2 2"/>
-          {:else if pullDistance < PULL_THRESHOLD * 0.75}
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M8 8.5h8M12 8.5v7"/>
-          {:else}
-            <path d="M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v2h2c1.38 0 2.74-.35 4-.99 2.52 1.29 5.48 1.29 8 0 1.26.65 2.62.99 4 .99h2v-2h-2z"/>
-          {/if}
+        <svg class="ptr-icon" bind:this={ptrIconEl} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/>
+          <path d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75,11,11,0,0,0-21.72,0A1.5,1.5,0,0,0,2.62,12h0a1.53,1.53,0,0,0,1.49-1.3A8,8,0,0,1,12,4Z"/>
         </svg>
       {/if}
     </div>
@@ -830,29 +820,17 @@ function toggleEdit() {
     height: 26px;
     color: var(--accent);
     opacity: var(--progress, 0);
-    transform: rotate(calc(var(--progress, 0) * 180deg));
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition: opacity 0.15s ease;
   }
 
   .ptr-spinner {
     width: 26px;
     height: 26px;
-    animation: ptr-spin 1s linear infinite;
   }
   .ptr-spinner svg {
     width: 100%;
     height: 100%;
     color: var(--accent);
-    animation: transport-rotate 2s ease-in-out infinite;
-  }
-
-  @keyframes ptr-spin {
-    to { transform: rotate(360deg); }
-  }
-
-  @keyframes transport-rotate {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
   }
 
 .scroll-container {
