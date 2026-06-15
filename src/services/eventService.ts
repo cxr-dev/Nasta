@@ -142,15 +142,12 @@ export async function fetchNearbyEvents(
             return a.startTime.localeCompare(b.startTime);
           });
 
+      // Static file: built at deploy time by prebuild script — primary source for production
       try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 8000);
-        const payload = await fetchEvents(
-          sourceUrl,
-          signal ?? controller.signal,
-        );
-        clearTimeout(id);
-
+        const staticUrl = `${import.meta.env.BASE_URL}events-data.json`;
+        const staticRes = await fetch(staticUrl, { signal });
+        if (!staticRes.ok) throw new Error(`events-data.json returned ${staticRes.status}`);
+        const payload = await staticRes.json();
         const filtered = filterEvents(parseResponse(payload));
         eventsCache.set(key, {
           expires: Date.now() + CACHE_TTL_MS,
@@ -164,16 +161,16 @@ export async function fetchNearbyEvents(
           );
         } catch (e) {}
         return filtered;
-      } catch (primaryError) {
+      } catch (staticError) {
         console.debug(
-          "fetchNearbyEvents: direct event API fetch failed",
-          primaryError,
+          "fetchNearbyEvents: static events-data.json not available (expected in dev)",
+          staticError,
         );
       }
 
-      // Fallback: CORS proxy for GitHub Pages deployment where direct API calls may fail
+      // Dev fallback: CORS proxy for local development where static file doesn't exist
       try {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sourceUrl)}`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(sourceUrl)}`;
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 8000);
         const payload = await fetchEvents(
