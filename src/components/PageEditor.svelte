@@ -2,7 +2,7 @@
   import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
   import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage, getDefaultName } from '../stores/pageStore.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setLanguage, setTheme } from '../stores/settingsStore.svelte';
+  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupDisruptedSegments, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import { THEMES } from '../themes';
   import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
@@ -538,6 +538,26 @@
               </div>
             </div>
           {/if}
+        </div>
+
+        <div class="feature-group">
+          <h3 class="group-title">{t.groupDisruptedSegments}</h3>
+          <label class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-name">{t.groupDisruptedSegments}</span>
+              <span class="toggle-desc">{t.groupDisruptedSegmentsDesc}</span>
+            </div>
+            <button
+              class="toggle-btn"
+              class:on={settings.groupDisruptedSegments ?? false}
+              onclick={() => setGroupDisruptedSegments(!(settings.groupDisruptedSegments ?? false))}
+              aria-label={t.groupDisruptedSegments}
+              role="switch"
+              aria-checked={settings.groupDisruptedSegments ?? false}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </label>
         </div>
 
         <div class="feature-group">

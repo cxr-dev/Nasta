@@ -22,6 +22,7 @@ export interface Settings {
   afterworkStartHour: number;
   afterworkTypes: Array<'beer' | 'wine' | 'cocktail'>;
   eventsEnabled: boolean;
+  groupDisruptedSegments: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -42,7 +43,8 @@ const defaultSettings: Settings = {
   afterworkVenuesEnabled: false,
   afterworkStartHour: 15,
   afterworkTypes: [],
-  eventsEnabled: false
+  eventsEnabled: false,
+  groupDisruptedSegments: false,
 };
 
 export function loadPages(): Page[] {

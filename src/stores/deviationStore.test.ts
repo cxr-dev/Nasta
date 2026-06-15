@@ -262,6 +262,60 @@ describe("deviationStore", () => {
       ]);
     });
 
+    it("deduplicates station names when the API repeats the same stop area", async () => {
+      stopAreaStore.setMapping("9001", "sa-bredang");
+      stopAreaStore.setMapping("9002", "sa-ropsten");
+      stopAreaStore.setMapping("9191", "sa-tcentralen");
+
+      vi.mocked(getDeviations).mockResolvedValueOnce({
+        fromCache: false,
+        messages: [
+          {
+            id: "dev-dup-stations",
+            createdAt: Date.now(),
+            modifiedAt: Date.now(),
+            severity: "info",
+            importanceLevel: 1,
+            influenceLevel: 1,
+            urgencyLevel: 1,
+            messageVariants: [
+              {
+                language: "sv",
+                header: "Avstängd hiss vid T-Centralen",
+              },
+            ],
+            scope: {
+              // Same stop area repeated twice — simulates API duplicate
+              stopAreas: [
+                { id: "sa-tcentralen", name: "T-Centralen" },
+                { id: "sa-tcentralen", name: "T-Centralen" },
+              ],
+              lines: [
+                { id: "13", designation: "13", transportMode: "metro" },
+              ],
+            },
+          },
+        ],
+      });
+
+      await deviationStore.refresh([
+        {
+          id: "seg-13-bredang-ropsten",
+          line: "13",
+          lineName: "13",
+          direction: { code: 1, destination: "Ropsten", stopPointId: "" },
+          fromStop: { id: "s1", name: "Bredäng", siteId: "9001" },
+          toStop: { id: "s2", name: "Ropsten", siteId: "9002" },
+          transportType: "metro",
+        },
+      ]);
+
+      const state = get(deviationStore);
+      expect(state.stationAlerts).toHaveLength(1);
+      // stations array must be deduplicated — no ["T-Centralen", "T-Centralen"]
+      expect(state.stationAlerts[0].stations).toEqual(["T-Centralen"]);
+    });
+
     it("keeps escalator work as direct disruption when segment endpoint matches", async () => {
       stopAreaStore.setMapping("9191", "sa-tcentralen");
       stopAreaStore.setMapping("9192", "sa-odenplan");

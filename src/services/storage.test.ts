@@ -101,6 +101,7 @@ describe("storage service", () => {
         afterworkStartHour: 15,
         afterworkTypes: [],
         eventsEnabled: false,
+        groupDisruptedSegments: false,
       });
     });
 
@@ -143,6 +144,7 @@ describe("storage service", () => {
         afterworkStartHour: 15,
         afterworkTypes: [],
         eventsEnabled: false,
+        groupDisruptedSegments: false,
       };
       saveSettings(settings);
       expect(localStorage.getItem("nasta_settings")).toBe(

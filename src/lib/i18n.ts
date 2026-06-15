@@ -243,6 +243,8 @@ const sv = {
   sectionStationAlerts: "Station",
   sectionStationNotices: "Stationsinfo",
   stationNoticesToggle: "Stationsinfo",
+  groupDisruptedSegments: "Gruppera störda segment",
+  groupDisruptedSegmentsDesc: "Visa segment med störningar separat, nedanför övriga avgångar.",
   disruptionCriticalShort: "Kritisk",
 
   // Transit labels
@@ -506,6 +508,8 @@ const en: typeof sv = {
   sectionStationAlerts: "Station notices",
   sectionStationNotices: "Station info",
   stationNoticesToggle: "Station info",
+  groupDisruptedSegments: "Group disrupted segments",
+  groupDisruptedSegmentsDesc: "Show disrupted segments separately, below your other departures.",
   disruptionCriticalShort: "Critical",
 
   lineLabel: "Line {line}",

@@ -78,6 +78,11 @@ export function setEventsEnabled(enabled: boolean) {
   saveSettings(_settings);
 }
 
+export function setGroupDisruptedSegments(enabled: boolean) {
+  _settings = { ..._settings, groupDisruptedSegments: enabled };
+  saveSettings(_settings);
+}
+
 export function setActiveTransportType(type: TransportType | null) {
   _settings = { ..._settings, activeTransportType: type };
   saveSettings(_settings);
