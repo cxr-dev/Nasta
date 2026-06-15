@@ -241,6 +241,8 @@ const sv = {
   disruptionWeather: "Väder",
   sectionDisrupted: "Med störningar",
   sectionStationAlerts: "Station",
+  sectionStationNotices: "Stationsinfo",
+  stationNoticesToggle: "Stationsinfo",
   disruptionCriticalShort: "Kritisk",
 
   // Transit labels
@@ -502,6 +504,8 @@ const en: typeof sv = {
   disruptionWeather: "Weather",
   sectionDisrupted: "With disruptions",
   sectionStationAlerts: "Station notices",
+  sectionStationNotices: "Station info",
+  stationNoticesToggle: "Station info",
   disruptionCriticalShort: "Critical",
 
   lineLabel: "Line {line}",

@@ -17,10 +17,11 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, infoCircle } from "../icons/departureIcons";
-  import { computeDisplayDevs, isSegmentDisrupted } from "./segmentUtils";
+  import { chevronLeft, chevronRight, settingsGear } from "../icons/departureIcons";
+  import { computeDisplayDevs } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
+  import StationNoticeBar from "./StationNoticeBar.svelte";
 
   let {
     route,
@@ -173,17 +174,12 @@
 
   let segmentGroups = $derived.by(() => {
     const segs = route.segments ?? [];
-    const normal: Array<{ segment: Segment; originalIndex: number }> = [];
-    const disrupted: Array<{ segment: Segment; originalIndex: number }> = [];
-
-    segs.forEach((seg, i) => {
-      const health = deviationHealthBySegment.get(seg.id);
-      const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
-      const isDisrupted = isSegmentDisrupted(siteDevsList.length, health?.state);
-      (isDisrupted ? disrupted : normal).push({ segment: seg, originalIndex: i });
-    });
-
-    return { normal, disrupted, hasDisrupted: disrupted.length > 0 };
+    // Keep all segments in user-defined order. Disruption state is shown
+    // inline on each card (disrupt-strip + severity tinting) — no section split.
+    const all: Array<{ segment: Segment; originalIndex: number }> = segs.map(
+      (seg, i) => ({ segment: seg, originalIndex: i }),
+    );
+    return { all };
   });
 
   async function loadSegmentDeps() {
@@ -333,22 +329,10 @@
       <span class="fresh-label">{freshnessLabel()}</span>
     </div>
 
-    {#if deviationStationAlerts.length > 0}
-      <div class="section-label">{t.sectionStationAlerts}</div>
-      <div class="station-alerts">
-        {#each deviationStationAlerts as alert (alert.id)}
-          <div class="station-alert-item">
-            <svg viewBox="0 0 24 24" fill="none" class="alert-icon">
-              <g>{@html infoCircle}</g>
-            </svg>
-            <span class="station-name">{alert.stations.join(", ")}</span>
-            <span class="station-msg">{alert.message}</span>
-          </div>
-        {/each}
-      </div>
-    {/if}
+    <!-- Station facility notices: collapsed ambient bar, expands inline -->
+    <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
-    <!-- Departure list -->
+    <!-- Departure list: all segments in user-defined order -->
     <div class="card-list" bind:this={depListEl}>
     {#if lastError}
       <div class="error-bar">
@@ -375,7 +359,7 @@
         {/each}
       </div>
     {:else}
-      {#each segmentGroups.normal as item, index (item.segment.id)}
+      {#each segmentGroups.all as item (item.segment.id)}
         {@const deps = segmentDeps[item.originalIndex] ?? []}
         {@const departure = deps[0]}
         {@const subsequent = formatSubsequent(deps)}
@@ -412,48 +396,6 @@
           onprefetch={() => prefetchForSegment(item.segment)}
         />
       {/each}
-
-      {#if segmentGroups.hasDisrupted}
-        <div class="section-label">{t.sectionDisrupted}</div>
-        {#each segmentGroups.disrupted as item, index (item.segment.id)}
-          {@const deps = segmentDeps[item.originalIndex] ?? []}
-          {@const departure = deps[0]}
-          {@const subsequent = formatSubsequent(deps)}
-          {@const hasDeparture = deps.length > 0 && !!departure}
-          {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
-          {@const health = deviationHealthBySegment.get(item.segment.id)}
-          {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
-          {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
-          {@const healthDevs = health?.reason ? [{ message: health.reason }] : []}
-          {@const displayDevs = rawSiteDevs.length > 0 ? rawSiteDevs : healthDevs}
-        {@const hasDisruption = displayDevs.length > 0}
-        {@const isExpanded = expandedSegmentId === item.segment.id}
-          {@const isExpandable = hasDeparture || hasDisruption}
-          {@const topDevMessage = displayDevs[0]?.message ?? ""}
-          {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
-
-          <DepartureRow
-            segment={item.segment}
-            {departure}
-            {subsequent}
-            {hasDeparture}
-            {primaryDepartureText}
-            siteDevs={displayDevs}
-            {isExpanded}
-            {isExpandable}
-            {topDevMessage}
-            {topDevType}
-            {userLocation}
-            locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
-            walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
-            {openFeatureSheet}
-            {t}
-            {severity}
-            ontoggle={() => toggleExpanded(item.segment.id)}
-            onprefetch={() => prefetchForSegment(item.segment)}
-          />
-        {/each}
-      {/if}
 
       {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0)}
         <div class="empty-state">
@@ -627,44 +569,6 @@
     text-transform: uppercase;
     letter-spacing: 0.09em;
     padding: 12px 14px 6px;
-  }
-
-  .station-alerts {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    margin: 0 14px 10px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-    overflow: hidden;
-  }
-  .station-alert-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    font-size: 13px;
-    line-height: 1.35;
-    color: var(--text);
-    background: var(--surface);
-  }
-  .station-alert-item + .station-alert-item {
-    border-top: 1px solid var(--border);
-  }
-  .alert-icon {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    color: var(--accent);
-  }
-  .station-name {
-    flex-shrink: 0;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .station-msg {
-    color: var(--text-muted);
   }
 
   .empty-segments {

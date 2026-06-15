@@ -273,9 +273,18 @@ export async function refresh(
         for (const msg of segAlerts) {
           if (!allStationAlerts.has(msg.id)) {
             const text = pickPreferredMessageText(msg, preferredLanguage);
+            // Deduplicate station names — the API sometimes repeats the same stop area
+            // once per line direction, producing ["T-Centralen", "T-Centralen"].
+            const stations = [
+              ...new Set(
+                msg.scope.stopAreas
+                  .map(a => a.name)
+                  .filter((n): n is string => Boolean(n)),
+              ),
+            ];
             allStationAlerts.set(msg.id, {
               id: msg.id,
-              stations: msg.scope.stopAreas.map(a => a.name).filter((n): n is string => n != null),
+              stations,
               message: text.header || text.details || '',
               severity: msg.severity,
               segmentIds: [],
