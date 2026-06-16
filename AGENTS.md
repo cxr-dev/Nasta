@@ -16,30 +16,31 @@ pnpm run test:e2e   # Playwright E2E (uses `vite preview`)
 pnpm run preview    # preview production build locally
 ```
 
-CI order: `check` → `test` → `build` → `verify:build` → `test:e2e`.
+CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` → `verify:build` → `test:e2e` → upload to Pages.
 
 ## Quirks & conventions
 
-- **pnpm only.** `packageManager: "pnpm@9.15.0"`. There is a stale `package-lock.json` — ignore it.
+- **pnpm only.** `packageManager: "pnpm@9.15.0"`. Stale `package-lock.json` is gitignored — delete it if you see it.
 - **No linter, no formatter.** TypeScript `strict: true` is the only code quality enforcement.
-- **Svelte 5 Runes.** Stores use module-level `$state()` + manual subscriber arrays — *not* `svelte/store` writable/derived. Rune module files use the `.svelte.ts` extension.
+- **Svelte 5 Runes.** Stores use module-level `$state()` + manual subscriber arrays — *not* `svelte/store` writable/derived (except `stopAreaStore` which uses legacy writable). Stores export either an object with methods (`departureStore`, `deviationStore`) or bare functions (`pageStore`, `settingsStore`, `localeStore`). Rune module files use the `.svelte.ts` extension.
 - **Base path** is `/` in dev, `/Nasta/` in production (GitHub Pages). Always use `import.meta.env.BASE_URL` for asset/service worker paths. `verify-build.mjs` enforces this in CI.
 - **PWA service worker only in preview/production** — `vite-plugin-pwa` `devOptions.enabled: false`.
-- **`prebuild` hook** runs `scripts/generate-png-icons.mjs` (requires `sharp`) automatically before every `build`.
+- **`prebuild` hook** runs `scripts/generate-png-icons.mjs` + `scripts/fetch-events-data.mjs` automatically before every `build`. The latter generates `public/events-data.json` (gitignored) — a static snapshot of Visit Stockholm events for offline use.
 - **SL Transport API is public** — no API key needed. Fetched directly from browser.
 - **Sjostadstrafiken ferries** are detected by stop name and served from a hardcoded schedule (`staticTimetable.ts`) instead of the SL API.
 - **Request ID routing** — route changes generate `requestId` values; stale API responses from earlier routes are silently dropped (prevents race conditions on fast route switching).
-- **CSP is a `<meta>` tag in `index.html`** (not an HTTP header). Update `connect-src` when adding new API origins.
+- **CSP is a `<meta>` tag in `index.html`** (not an HTTP header). Update `connect-src` when adding new API origins (especially for feature discovery: Supabase, Overpass, Visit Stockholm, corsproxy.io).
 - **No `<svelte:head>`** — all meta tags live in `index.html`.
 - **Dark mode default.** `defaultSettings.darkMode = true`.
-- **Env vars are all optional** (`VITE_*`). No `.env` file needed.
-- **Line endings** are normalized via `.gitattributes` (`* text=auto`). LF in the repo, platform-native on checkout.
+- **Env vars are all optional** (`VITE_*`). No `.env` file needed. `VITE_SUPABASE_ANON_KEY`, `VITE_USE_CORS_PROXY`, `VITE_CORS_PROXY_BASE` exist but are optional.
 - **`maplibre-gl`** is dynamically imported in `MapPreview.svelte` so it's code-split automatically.
+- **`opening_hours`** dependency used for venue hours parsing in feature discovery.
+- **Feature discovery** uses three external APIs: Visit Stockholm (events, CORS-enabled), Supabase Edge Function (beer venues, needs `VITE_SUPABASE_ANON_KEY`), Overpass API (OSM queries for wine/cocktail venues).
 
 ## Testing
 
-- **Unit tests** (`pnpm test`): vitest with jsdom, setup in `vitest.setup.ts` (mocks `localStorage` on `globalThis`). Tests are `*.test.ts` co-located with source. `@testing-library/svelte` is available for component tests.
-- **E2E tests** (`pnpm run test:e2e`): Playwright in `tests/e2e/`. Service workers blocked (`serviceWorkers: "block"`) so `page.route()` mocks work. Timezone: `Europe/Stockholm`, locale: `en-US`. CSS animations disabled in `beforeEach`. LocalStorage seeded via `page.addInitScript()` (bypasses onboarding). Web server: `vite preview` on port 5173.
+- **Unit tests** (`pnpm test`): vitest with jsdom, setup in `vitest.setup.ts` (mocks `globalThis.localStorage` with a `vi.fn()` object). Tests are `*.test.ts` co-located with source. `@testing-library/svelte` is available for component tests.
+- **E2E tests** (`pnpm run test:e2e`): Playwright in `tests/e2e/`. Service workers blocked (`serviceWorkers: "block"`) so `page.route()` mocks work. Timezone: `Europe/Stockholm`, locale: `en-US`. CSS animations disabled in `beforeEach`. LocalStorage seeded via `page.addInitScript()` (bypasses onboarding). Web server: `vite preview` on port 5173. Mock pattern: `**/*.integration.sl.se/**` for SL API, also stub `izrgqxgsuhogrukisfrd.supabase.co` for venue prefetches.
 
 ## Design constraints
 
@@ -47,4 +48,4 @@ From `.impeccable.md`: no gradient text, no side-stripe borders, no glassmorphis
 
 ## Architecture
 
-`App.svelte` → stores (departure, deviation, page, settings, locale) → services (SL API, caching, geo, static timetable) → components. Persistence is LocalStorage + IndexedDB (deviations cache). See `docs/ARCHITECTURE.md` for data flow details.
+`App.svelte` → stores (`pageStore`, `departureStore`, `deviationStore`, `settingsStore`, `localeStore`, `stopAreaStore`) → services (SL API, caching, geo, static timetable, deviation cache, venue/event prefetching) → components. Persistence is LocalStorage + IndexedDB (deviations cache). See `docs/ARCHITECTURE.md` for data flow details.

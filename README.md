@@ -7,7 +7,7 @@
 
 Nästa helps Stockholm commuters track their daily routes by showing real-time departures from configured stops, calculating arrival times, and providing a simple, mobile-first interface optimized for quick glances while walking or waiting at stops.
 
-**Live → [cxr-dev.github.io/Nasta](https://cxr-dev.github.io/Nasta)**
+**Live → [cxr-dev.github.io/nasta](https://cxr-dev.github.io/nasta)**
 
 ---
 
@@ -16,14 +16,19 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Real-time departures** — Auto-refreshing SL data every 30 seconds (configurable)
 - **Page management** — Multiple pages with drag-to-reorder segments and auto-save to LocalStorage
 - **Disruption alerts** — Real-time transit disruptions and alerts by severity (info/warning/critical)
+- **Station notices** — Facility alerts (elevator/escalator) shown as station-level notices filtered to relevant stops
 - **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
 - **PWA installable** — Works offline with cached data, no app store required
 - **Arrival calculation** — Sums segment travel times to show expected arrival time
 - **Pull-to-refresh** — Manual refresh on mobile with freshness indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
 - **Guided first run** — In-app hint points users to Settings for adding segments
-- **Dark mode & themes** — 16 color themes, auto-detected system preference with contrast adjustment
+- **Dark mode & themes** — 16 color palettes with two variants each, auto contrast adjustment
 - **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
+- **Transport filtering** — Filter by transport mode (bus/metro/train/tram/boat) with single-mode focus
+- **Walking ETA** — Walking distance and time estimates to stops using Geolocation API
+- **Feature discovery** — Afterwork venues (beer/wine/cocktail) and nearby events via Visit Stockholm, Supabase, and Overpass APIs
+- **Map preview** — Interactive map of segment stops with user location using MapLibre GL
 
 ---
 
@@ -58,7 +63,7 @@ Keep these versions in a compatible range when upgrading. If a major changes, va
 
 ### Prerequisites
 
-- Node.js 18 or higher
+- Node.js 20 or higher
 
 ### Installation
 
@@ -129,13 +134,24 @@ Each segment defines:
 
 Available in the Settings panel (tap **"Inställningar"**):
 
-| Setting                 | Options                                              | Default    | Purpose                                     |
-| ----------------------- | ---------------------------------------------------- | ---------- | ------------------------------------------- |
-| **Theme**               | 16 color palettes                                    | "default"  | Visual appearance and colors                |
-| **Language**            | Auto, Swedish, English                               | "auto"     | App UI language                             |
-| **Refresh interval**    | 10-60 seconds                                        | 30 seconds | How often to fetch departures               |
-| **Disruption alerts**   | On/Off                                               | On         | Show transit disruptions and alerts         |
-| **Disruption level**    | All disruptions, Important + critical, Critical only | "warning"  | Filter disruptions by severity              |
+| Setting                         | Options                                                     | Default      | Purpose                                        |
+| ------------------------------- | ----------------------------------------------------------- | ------------ | ---------------------------------------------- |
+| **Theme**                       | 16 color palettes × 2 variants                              | "default"    | Visual appearance and colors                   |
+| **Theme variant**               | A / B                                                       | "A"          | Flips background/accent colors                 |
+| **Language**                    | Auto, Swedish, English                                      | "auto"       | App UI language                                |
+| **Refresh interval**            | 10-60 seconds                                               | 30 seconds   | How often to fetch departures                  |
+| **Disruption alerts**           | On/Off                                                      | On           | Show transit disruptions and alerts            |
+| **Disruption level**            | All, Important + critical, Critical only                    | "warning"    | Filter disruptions by severity                 |
+| **Disruption language**         | Auto, Swedish, English                                      | "auto"       | Language for disruption text                   |
+| **Transport filter mode**       | Multi / Single                                              | "multi"      | Multi-mode or focus single transport mode      |
+| **Active transport type**       | bus/train/metro/tram/boat or null                           | null         | Single-mode focus transport                    |
+| **Location services**           | On/Off                                                      | Off          | Enable geolocation for walking ETA             |
+| **Walking ETA**                 | On/Off                                                      | Off          | Show walking time to stops                     |
+| **Afterwork venues**            | On/Off                                                      | Off          | Show nearby beer/wine/cocktail venues          |
+| **Afterwork start hour**        | 0-23                                                        | 15           | Hour to start showing afterwork venues         |
+| **Afterwork types**             | beer, wine, cocktail (multi-select)                         | []           | Which venue types to show                      |
+| **Events**                      | On/Off                                                      | Off          | Show nearby events from Visit Stockholm        |
+| **Group disrupted segments**    | On/Off                                                      | Off          | Collapse disrupted segments together           |
 
 ---
 
@@ -186,26 +202,38 @@ User Action → Svelte Store → Service → API/Storage
 
 ### Core Modules
 
-| Module                              | Responsibility                                                                      |
-| ----------------------------------- | ----------------------------------------------------------------------------------- |
-| `src/stores/routeStore.ts`          | Page & segment CRUD, reordering, persistence |
-| `src/stores/departureStore.ts`      | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing |
-| `src/stores/deviationStore.ts`      | Disruption fetching, segment health tracking, severity thresholding                 |
-| `src/stores/localeStore.ts`         | Automatic locale detection, i18n translation store                                  |
-| `src/stores/settingsStore.ts`       | User preferences: refresh interval, theme, language, disruption display             |
-| `src/services/slApi.ts`             | SL Transport API client, stop search with result ranking                            |
-| `src/services/slDeviations.ts`      | SL Deviations API client, message parsing, severity scoring                         |
-| `src/services/departureService.ts`  | Routes departures to SL API or static timetable based on source                     |
-| `src/services/staticTimetable.ts`   | Sjöstadstrafiken ferry static schedule                                              |
-| `src/services/deviationCache.ts`    | Disk persistence for disruption data (fallback when API unavailable)                |
-| `src/services/storage.ts`           | LocalStorage persistence for routes, settings, and schedule cache                   |
-| `src/lib/departureDisplay.ts`       | Merges live and predicted departures, computes minutes remaining                    |
-| `src/lib/departureDeduplication.ts` | Deduplicates arrivals by stable key (avoids double-counting)                        |
-| `src/lib/departureEnrichment.ts`    | Adds deviation minutes and source metadata to departures                            |
-| `src/lib/sourceClassification.ts`   | Detects external timetable sources (ferries, etc.)                                  |
-| `src/lib/cacheLifecycle.ts`         | Manages cache eviction and cleanup lifecycle                                        |
-| `src/lib/i18n.ts`                   | Internationalization strings (Swedish & English)                                    |
-| `src/themes.ts`                     | 16 theme palettes with automatic contrast adjustment                                |
+| Module                                   | Responsibility                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/stores/pageStore.svelte.ts`         | Page & segment CRUD, reordering, persistence                                       |
+| `src/stores/departureStore.svelte.ts`    | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing|
+| `src/stores/deviationStore.svelte.ts`    | Disruption fetching, segment health tracking, severity thresholding                |
+| `src/stores/localeStore.svelte.ts`       | Automatic locale detection, i18n translation store                                 |
+| `src/stores/settingsStore.svelte.ts`     | User preferences: refresh interval, theme, language, disruption display            |
+| `src/stores/stopAreaStore.ts`            | SiteId→stopAreaId mapping for disruption matching                                  |
+| `src/stores/timeOfDay.svelte.ts`         | Time-of-day state (morning/afternoon/evening/night)                                |
+| `src/services/slApi.ts`                  | SL Transport API client, stop search with result ranking, timetable cache learning |
+| `src/services/slDeviations.ts`           | SL Deviations API client, message parsing, severity scoring                        |
+| `src/services/departureService.ts`       | Routes departures to SL API or static timetable based on source                    |
+| `src/services/staticTimetable.ts`        | Sjöstadstrafiken ferry static schedule                                             |
+| `src/services/deviationCache.ts`         | IndexedDB persistence for disruption data (fallback when API unavailable)          |
+| `src/services/storage.ts`               | LocalStorage persistence for routes and settings                                   |
+| `src/services/scheduleCache.ts`          | Predicted departure caching from SL API responses                                  |
+| `src/services/timetableCache.ts`         | Timetable cache learning and management                                            |
+| `src/services/geo.ts`                    | Geolocation utilities, distance calculation, walking time estimates                |
+| `src/services/eventService.ts`           | Visit Stockholm events API client                                                  |
+| `src/services/venueService.ts`           | Supabase/Overpass venue API client (beer/wine/cocktail)                            |
+| `src/services/prefetchService.ts`        | Orchestrates venue/event prefetching for segments                                  |
+| `src/services/nextDepartureResolver.ts`  | Resolves next departure from combined sources                                      |
+| `src/services/persistentCache.ts`        | Generic persistent cache layer                                                     |
+| `src/lib/departureDisplay.ts`            | Merges live and predicted departures, computes minutes remaining                   |
+| `src/lib/departureDeduplication.ts`      | Deduplicates arrivals by stable key (avoids double-counting)                       |
+| `src/lib/sourceClassification.ts`        | Detects external timetable sources (ferries, etc.)                                 |
+| `src/lib/cacheLifecycle.ts`              | Manages cache eviction and cleanup lifecycle                                       |
+| `src/lib/i18n.ts`                        | Internationalization strings (~550 keys, Swedish & English)                        |
+| `src/lib/disruptionType.ts`              | Classifies disruption text into types (protest, weather, technical, etc.)          |
+| `src/lib/stopName.ts`                    | Clean stop name normalization                                                      |
+| `src/lib/sw.ts`                          | Service worker URL helper                                                          |
+| `src/themes.ts`                          | 16 theme palettes with two variants, automatic contrast calculation                |
 
 ### PWA & Caching
 
@@ -313,7 +341,7 @@ Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the st
 ## Deployment
 
 **Host:** GitHub Pages  
-**URL:** https://cxr-dev.github.io/Nasta  
+**URL:** https://cxr-dev.github.io/nasta  
 **Branch:** `main` (auto-deploy via GitHub Actions)
 
 Workflow: `.github/workflows/deploy.yml`

@@ -7,22 +7,33 @@ Base URL: `https://transport.integration.sl.se/v1`
 ### Get Departures
 
 ```
-GET /sites/{siteId}/departures
+GET /sites/{siteId}/departures?forecast={minutes}
 ```
 
-Response:
+Query parameters:
+
+| Param       | Default | Description                      |
+| ----------- | ------- | -------------------------------- |
+| `forecast`  | 240     | Forecast window in minutes       |
+
+Response (parsed):
 
 ```json
 {
   "departures": [
     {
-      "line": "76",
+      "line": { "designation": "76", "name": "76", "transport_mode": "bus" },
       "destination": "Klingsta",
+      "direction_code": 1,
       "timeToDeparture": 4,
-      "plannedDepartureTime": "08:04",
-      "expectedDepartureTime": "08:04",
-      "deviation": 0,
-      "transportMode": "bus"
+      "scheduled": "2026-06-16T08:00:00",
+      "expected": "2026-06-16T08:04:00",
+      "display": "4 min",
+      "deviation": null,
+      "stop_point": { "id": "3001" },
+      "journey": { "id": 123456789 },
+      "trip": { "id": "987654321" },
+      "stop_area": { "id": 3031 }
     }
   ],
   "stop_deviations": [
@@ -37,7 +48,9 @@ Response:
 ```
 
 > [!NOTE]
+> The `line` field is an **object** with `designation` (line number), `name`, and `transport_mode`.
 > The `stop_deviations` field provides site-specific context (e.g. why a station is currently empty) that may not always be present in the main Deviations API due to filtering differences.
+> The `stop_area.id` is extracted and published to `stopAreaStore` for disruption matching.
 
 ## SL Deviations API
 
@@ -46,51 +59,59 @@ Base URL: `https://deviations.integration.sl.se/v1`
 ### Get Active Disruptions
 
 ```
-GET /messages?transport_modes={modes}&scope_stop_areas={siteIds}
+GET /messages?future=true&site={siteId}&line={lineDesignation}
 ```
 
-Response:
+Raw response (API shape):
 
 ```json
-{
-  "messages": [
-    {
-      "deviation_case_id": "12345",
-      "created": "2026-04-29T10:00:00Z",
-      "modified": "2026-04-29T10:30:00Z",
-      "priority": {
-        "importance_level": 3,
-        "influence_level": 2,
-        "urgency_level": 2
-      },
-      "message_variants": [
-        {
-          "language": "sv",
-          "header": "Bussbyte på Sergels torg",
-          "details": "Linje 76 går från annan hållplats...",
-          "weblink": "https://..."
-        }
-      ],
-      "scope": {
-        "lines": [{ "id": "76", "designation": "76" }],
-        "stop_areas": [{ "id": "3001", "name": "Sergels torg" }]
+[
+  {
+    "deviation_case_id": "12345",
+    "created": "2026-04-29T10:00:00Z",
+    "modified": "2026-04-29T10:30:00Z",
+    "priority": {
+      "importance_level": 3,
+      "influence_level": 2,
+      "urgency_level": 2
+    },
+    "publish": { "from": "...", "upto": "..." },
+    "message_variants": [
+      {
+        "language": "sv",
+        "header": "Bussbyte på Sergels torg",
+        "details": "Linje 76 går från annan hållplats...",
+        "scope_alias": "Sergels torg",
+        "weblink": "https://..."
       }
+    ],
+    "scope": {
+      "lines": [{ "id": 76, "designation": "76", "transport_mode": "bus", "name": "76" }],
+      "stop_areas": [{ "id": 3001, "name": "Sergels torg" }]
     }
-  ]
-}
+  }
+]
 ```
 
 Severity is determined by:
 
-- `importance_level` (0-4)
-- `influence_level` (0-3)
-- `urgency_level` (0-3)
+- `importance_level` (0–4)
+- `influence_level` (0–3)
+- `urgency_level` (0–3)
 
 Score calculation: `importance * 2 + influence + urgency`
 
-- Score ≥ 8 or importance ≥ 4 → **critical**
+- Score ≥ 8 or importance ≥ 4 or urgency ≥ 3 → **critical**
 - Score ≥ 5 or importance ≥ 3 → **warning**
 - Otherwise → **info**
+
+Query parameters:
+
+| Param    | Description                                    |
+| -------- | ---------------------------------------------- |
+| `future` | Include future-dated messages (`true`)         |
+| `site`   | Stop area IDs (repeatable)                     |
+| `line`   | Line designations (repeatable)                 |
 
 ## SL Journey Planner API
 
@@ -98,7 +119,9 @@ Base URL: `https://journeyplanner.integration.sl.se/v2`
 
 ### Stop Finder
 
-`GET /stop-finder?name_sf={query}&any_obj_filter_sf=2&type_sf=any`
+```
+GET /stop-finder?name_sf={query}&any_obj_filter_sf=2&type_sf=any
+```
 
 Response shape:
 
@@ -128,80 +151,95 @@ Response shape:
 > - This is the endpoint used for stop search in the app (not `transport.integration.sl.se/v1/sites`)
 > - `coord` is `[latitude, longitude]`
 > - `productClasses` is an array of integers representing transport modes served at this stop
-> - `properties.stopId` is the stop identifier used internally
+> - `properties.stopId` is mapped to `siteId` internally (global ID prefix `9091001000` is stripped)
 > - `isBest` and `matchQuality` can be used to rank or pre-select results
+
+### Trip
+
+```
+GET /trip?originId={originId}&destId={destId}&date={date}&time={time}
+```
+
+Used for planned trip fallback and direction lookup when needed.
 
 ## LocalStorage Keys
 
-| Key                       | Type        | Example                              |
-| ------------------------- | ----------- | ------------------------------------ |
-| `nasta_routes`            | JSON array  | `[{id, name, segments}]`  |
-| `nasta_settings`          | JSON object | `{theme, language, refreshInterval}` |
-| `nasta_onboarding_seen`  | String      | `"true"`                             |
-| `nasta_location_prompted`| String      | `"enabled"` or `"skipped"`           |
+| Key                       | Type        | Example                              | TTL       |
+| ------------------------- | ----------- | ------------------------------------ | --------- |
+| `nasta_routes`            | JSON array  | `[{id, name, segments}]`            | Permanent |
+| `nasta_settings`          | JSON object | `{theme, language, refreshInterval}` | Permanent |
+| `nasta_onboarding_seen`  | String      | `"true"`                             | Permanent |
+| `nasta_recent_stops`      | JSON array  | `[{siteId, name, type}]`            | Permanent |
+| `nasta_stop_area_mapping` | JSON object | `{"3001": "3031"}`                  | Permanent |
+
+> [!NOTE]
+> `nasta_location_prompted` was used in earlier versions to track location permission state;
+> location preference is now stored inside the `nasta_settings` object as `locationServicesEnabled`.
+> A migration path from the legacy key is maintained in `storage.ts`.
+
+## IndexedDB (Deviations Cache)
+
+| Key                | Content                             | TTL     |
+| ------------------ | ----------------------------------- | ------- |
+| `deviations_cache` | Deviation message array + timestamp | 6 hours |
 
 ## TypeScript Types
 
 All TypeScript types are defined in `src/types/`:
 
-### Search Types
+### Route / Page Types
 
 ```typescript
-interface StopFinderLocation {
-  coord: [number, number]; // [lat, lon]
-  disassembledName: string;
-  id: string;
-  isBest: boolean;
-  isGlobalId: boolean;
-  matchQuality: number;
-  name: string;
-  productClasses: number[];
-  properties: {
-    mainLocality: string;
-    stopId: string;
-  };
-  type: string;
-}
+type TransportType = "bus" | "train" | "metro" | "boat" | "tram";
 
-interface StopFinderResponse {
-  locations: StopFinderLocation[];
-}
-```
-
-### Route & Page Types
-
-```typescript
-interface Page {
+interface Stop {
   id: string;
   name: string;
-  segments: Segment[];
+  siteId: string;
+  coord?: [number, number];           // [lat, lon]
+  productClasses?: number[];
+  stopAreaId?: string;                 // For disruption matching
+}
+
+interface SegmentDirection {
+  code: number;
+  destination: string;
+  stopPointId: string;
+  via?: string;                        // Optional intermediate stop
 }
 
 interface Segment {
   id: string;
   line: string;
   lineName: string;
-  direction: {
-    code: number;
-    destination: string;
-    stopPointId: string;
-  };
+  direction: SegmentDirection;
   fromStop: Stop;
   toStop: Stop;
   transportType: TransportType;
   travelTimeMinutes?: number;
 }
 
-interface Stop {
+interface Page {
   id: string;
   name: string;
-  siteId: string;
+  segments: Segment[];
 }
 
-type TransportType = "bus" | "train" | "metro" | "tram" | "boat";
+type Route = Page; // Backwards-compatible alias
+```
 
-// Backwards compatible alias
-type Route = Page;
+### Search Types
+
+```typescript
+interface SiteSearchResult {
+  siteId: string;
+  name: string;
+  type: "stop" | "station";
+  note?: string;
+  lat?: number;
+  lon?: number;
+  productClasses?: number[];
+}
 ```
 
 ### Departure Types
@@ -213,16 +251,16 @@ interface Departure {
   destination: string;
   direction_code: number;
   minutes: number;
-  time: string;
-  expectedAt?: number;
+  time: string;                        // Formatted clock time
+  expectedAt?: number;                 // Unix ms timestamp
   deviation?: string;
   transportType: TransportType;
-  predicted?: boolean;
-  journeyRef?: string;
-  tripId?: string;
-  display?: string;
-  stop_point_id?: string;
-  isFirstMorning?: boolean;
+  predicted?: boolean;                 // True if from cached timetable
+  journeyRef?: string;                 // SL journey ID for progress strip
+  tripId?: string;                     // SL trip ID (cache key fallback)
+  display?: string;                    // Raw SL display string
+  stop_point_id?: string;              // Stop point from SL API
+  isFirstMorning?: boolean;            // First departure after night gap
 }
 ```
 
@@ -231,11 +269,36 @@ interface Departure {
 ```typescript
 type DeviationSeverity = "info" | "warning" | "critical";
 
+interface DeviationMessageVariant {
+  language: string;
+  header: string;
+  details?: string;
+  scopeAlias?: string;
+  webLink?: string;
+}
+
+interface DeviationScopeLine {
+  id: string;
+  designation?: string;
+  transportMode?: string;
+  name?: string;
+}
+
+interface DeviationScopeStopArea {
+  id: string;
+  name?: string;
+}
+
 interface DeviationMessage {
   id: string;
   createdAt: number;
   modifiedAt: number;
+  publishFrom?: number;               // Unix ms timestamp
+  publishTo?: number;                 // Unix ms timestamp
   severity: DeviationSeverity;
+  importanceLevel: number;            // 0–4
+  influenceLevel: number;             // 0–3
+  urgencyLevel: number;               // 0–3
   messageVariants: DeviationMessageVariant[];
   scope: {
     lines: DeviationScopeLine[];
@@ -243,61 +306,78 @@ interface DeviationMessage {
   };
 }
 
+type SegmentHealthState = "ok" | "affected" | "critical";
+
 interface SegmentHealth {
-  state: "ok" | "affected" | "critical";
+  state: SegmentHealthState;
   severity: DeviationSeverity | null;
   reason: string | null;
   messages: DeviationMessage[];
   updatedAt: number;
 }
+
+interface StationAlert {
+  id: string;
+  stations: string[];
+  message: string;
+  severity: DeviationSeverity;
+  segmentIds: string[];
+}
 ```
 
-### Caching Strategy
+### Settings Schema
+
+```typescript
+interface Settings {
+  darkMode: boolean;
+  refreshInterval: number;             // ms, default 30000
+  hasSwipedRoutes: boolean;
+  theme: string;                       // Theme palette ID
+  themeVariant: "A" | "B";
+  language: "auto" | "sv" | "en";
+  disruptionAlertsEnabled: boolean;
+  disruptionSeverityThreshold: "info" | "warning" | "critical";
+  disruptionLanguage: "sv" | "en" | "auto";
+  enabledTransportTypes: TransportType[];
+  transportFilterMode: "multi" | "single";
+  activeTransportType: TransportType | null;
+  locationServicesEnabled: boolean;
+  walkingEtaEnabled: boolean;
+  afterworkVenuesEnabled: boolean;
+  afterworkStartHour: number;          // 0–23
+  afterworkTypes: Array<"beer" | "wine" | "cocktail">;
+  eventsEnabled: boolean;
+  groupDisruptedSegments: boolean;
+}
+```
+
+## Caching Strategy
 
 1. Fetch deviations every 60+ seconds
-2. Cache failures fall back to last successful fetch (up to 6 hours old)
+2. Cache failures fall back to last successful fetch (up to 6 hours old, stored in IndexedDB)
 3. External timetable segments (ferries) always show as "ok"
 4. Language-specific text returned based on app locale setting
 
-### Inline Disruptions (Stop Deviations)
+## Inline Disruptions (Stop Deviations)
 
 1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
 2. These are stored in `departureStore.stopDeviations` (site-mapped).
 3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
 4. Clicking the row expands to show the full disruption message(s).
 
-### Architecture Flow
+## Architecture Flow
 
 ```
 User Route Change → App.svelte
             ├─→ departureStore.startAutoRefresh()
-            │   ├─→ Check departureCache
+            │   ├─→ Check scheduleCache
             │   ├─→ Fetch from slApi.ts (returns departures + stop_deviations)
+            │   ├─→ Learn from response → timetableCache
             │   ├─→ Update departureStore.data
             │   ├─→ Update departureStore.stopDeviations
             │   └─→ Merge & deduplicate departures
             │
             └─→ deviationStore.startAutoRefresh()
-                ├─→ Check deviationCache
+                ├─→ Check deviationCache (IndexedDB)
                 └─→ Fetch from slDeviations.ts
-```
-
-## Settings Schema
-
-```typescript
-interface Settings {
-  darkMode: boolean;
-  refreshInterval: number;
-  hasSwipedRoutes: boolean;
-  theme: string;
-  themeVariant: "A" | "B";
-  language: "auto" | "sv" | "en";
-  disruptionAlertsEnabled: boolean;
-  disruptionSeverityThreshold: "info" | "warning" | "critical";
-  disruptionLanguage: "sv" | "en" | "auto";
-  commuteNudgesEnabled: boolean;
-  homeAnchor: string;
-  workAnchor: string;
-  enabledTransportTypes: TransportType[];
-}
 ```
