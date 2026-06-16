@@ -307,7 +307,7 @@
     {/each}
   </div>
 
-  <section class="list" role="tabpanel" aria-labelledby="feature-tab-{activeTab}" bind:this={railEl}>
+  <div class="list" role="tabpanel" aria-labelledby="feature-tab-{activeTab}" bind:this={railEl}>
     {#if currentItems.error && displayItems.length === 0}
       <div class="error-card">
         <p class="error-text">{currentItems.error}</p>
@@ -437,7 +437,7 @@
         {/if}
       {/each}
     {/if}
-  </section>
+  </div>
 </div>
 
 <style>

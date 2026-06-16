@@ -1797,4 +1797,30 @@
       display: none;
     }
   }
+
+  /* ── Tablet/desktop: partial-height bottom sheet ── */
+  @media (min-width: 768px) {
+    .editor-overlay {
+      background: rgba(0, 0, 0, 0.12);
+    }
+
+    .editor-sheet {
+      position: absolute;
+      top: auto;
+      bottom: 0;
+      left: 50%;
+      right: auto;
+      width: min(540px, calc(100vw - 32px));
+      max-width: none;
+      max-height: 70dvh;
+      margin: 0;
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
+      transform: translateX(-50%) translateY(100%);
+    }
+
+    .editor-overlay.open .editor-sheet {
+      transform: translateX(-50%) translateY(0);
+    }
+  }
 </style>

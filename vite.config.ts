@@ -98,6 +98,9 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    css: {
+      transformer: "lightningcss",
+    },
     build: {
       target: "esnext",
       minify: "esbuild",

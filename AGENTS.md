@@ -55,6 +55,10 @@ Skills are loaded via the `skill` tool. Key project-relevant skills:
 - **`svelte-code-writer`** (`.agents/skills/svelte-code-writer/`) — Svelte 5 docs lookup and code analysis.
 - **`svelte-core-bestpractices`** (`.agents/skills/svelte-core-bestpractices/`) — Svelte 5 performance and pattern guidance.
 - **`gsap`** (`.agents/skills/gsap/`) — GSAP animation reference (used by impeccable animate sub-command).
+- **`accessibility-a11y`** (`.agents/skills/accessibility-a11y/`) — WCAG compliance, ARIA, contrast, keyboard nav, screen reader support. Critical for this public-facing PWA.
+- **`playwright-expert`** (`.agents/skills/playwright-expert/`) — E2E test patterns, role-based selectors, Page Object Model, flaky test debugging.
+- **`caveman`** — ultra-compressed output, ~65% fewer tokens. Levels: `lite`/`full`/`ultra`/`wenyan`. Commands: `/caveman`, `/caveman-stats`, `/caveman-compress`, `/caveman-commit`, `/caveman-review`, `/caveman-help`.
+- **`cavecrew`** — caveman subagents (investigator/builder/reviewer), ~60% fewer tokens than vanilla agents.
 
 ### opencode MCP servers
 
