@@ -12,7 +12,7 @@ export async function getDepartures(
   signal?: AbortSignal,
 ): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
   if (isSjostadstrafikenStop(stopName)) {
-    return { departures: getNextDepartures(stopName, 2), stopDeviations: [] };
+    return { departures: getNextDepartures(stopName, 20), stopDeviations: [] };
   }
   
   const { departures, stopDeviations } = await slGetDepartures(siteId, undefined, signal);

@@ -254,31 +254,24 @@ export function getNextDepartures(stopName: string, count: number = 2): Departur
     }
   }
   
-  if (departures.length < count) {
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowIsWeekend = isWeekend(tomorrow);
-    const tomorrowTable = timetables[key];          // re-capture for the correct day
-    const tomorrowSchedule = tomorrowIsWeekend ? tomorrowTable.weekends : tomorrowTable.weekdays;
-    
-    for (const entry of tomorrowSchedule) {
-      const [hours, mins] = entry.time.split(':').map(Number);
-      const baseMins = 24 * 60 - currentTimeMins;
-      const minutesUntil = baseMins + hours * 60 + mins;
-      
-      departures.push({
-        line: entry.line,
-        lineName: "Sjöstadstrafiken",
-        destination: entry.destination,
-        direction_code: entry.directionCode,
-        minutes: minutesUntil,
-        time: entry.time,
-        transportType: entry.transportType,
-      });
-      
-      if (departures.length >= count) break;
-    }
-  }
-  
   return departures;
+}
+
+export function getFirstTomorrowDeparture(
+  stopName: string,
+  line: string,
+  directionCode: number
+): { time: string } | null {
+  const key = getStopKey(stopName);
+  if (!key) return null;
+
+  const table = timetables[key];
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIsWeekend = isWeekend(tomorrow);
+  const schedule = tomorrowIsWeekend ? table.weekends : table.weekdays;
+
+  const first = schedule.find(e => e.line === line && e.directionCode === directionCode);
+  return first ? { time: first.time } : null;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest";
-import { getStopKey, isSjostadstrafikenStop, getNextDepartures } from "./staticTimetable";
+import { getStopKey, isSjostadstrafikenStop, getNextDepartures, getFirstTomorrowDeparture } from "./staticTimetable";
 
 const originalTz = process.env.TZ;
 
@@ -129,25 +129,23 @@ describe("getNextDepartures", () => {
     vi.useFakeTimers({ now: new Date("2026-01-05T23:30:00") });
 
     const deps = getNextDepartures("Lumaparken", 3);
+    expect(deps).toHaveLength(1);
     expect(deps[0].time).toBe("23:45");
     expect(deps[0].minutes).toBe(15);
-    expect(deps[1].time).toBe("06:05");
   });
 
-  it("rolls over to next day when no more departures today", () => {
+  it("returns empty when no more departures today", () => {
     vi.useFakeTimers({ now: new Date("2026-01-05T23:55:00") });
 
     const deps = getNextDepartures("Lumaparken", 2);
-    expect(deps).toHaveLength(2);
-    expect(deps[0].time).toBe("06:05");
-    expect(deps[1].time).toBe("06:25");
+    expect(deps).toHaveLength(0);
   });
 
-  it("rolls over from Saturday to Sunday weekend schedule", () => {
+  it("returns empty on weekend night when no more departures today", () => {
     vi.useFakeTimers({ now: new Date("2026-01-10T23:55:00") });
 
     const deps = getNextDepartures("Lumaparken");
-    expect(deps[0].time).toBe("08:05");
+    expect(deps).toHaveLength(0);
   });
 
   it("schedules 0-minute-away departure as Now with correct line info", () => {
@@ -167,5 +165,65 @@ describe("getNextDepartures", () => {
       expect(deps[0].transportType).toBe("boat");
       expect(deps[0].line).toBe("SJO");
     }
+  });
+});
+
+describe("getFirstTomorrowDeparture", () => {
+  it("returns first departure time for matching line and direction", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    const result = getFirstTomorrowDeparture("Lumaparken", "SJO", 1);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe("06:05");
+  });
+
+  it("returns null for unknown stop", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    expect(getFirstTomorrowDeparture("NonExistent", "SJO", 1)).toBeNull();
+  });
+
+  it("returns null when line does not match", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    expect(getFirstTomorrowDeparture("Lumaparken", "NONEXISTENT", 1)).toBeNull();
+  });
+
+  it("returns null when direction does not match", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    expect(getFirstTomorrowDeparture("Lumaparken", "SJO", 999)).toBeNull();
+  });
+
+  it("returns weekend schedule for Saturday night", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-10T23:00:00") });
+
+    const result = getFirstTomorrowDeparture("Lumaparken", "SJO", 1);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe("08:05");
+  });
+
+  it("returns weekday schedule for Sunday night", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-11T23:00:00") });
+
+    const result = getFirstTomorrowDeparture("Lumaparken", "SJO", 1);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe("06:05");
+  });
+
+  it("finds direction 2 departure at Barnängen", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    const result = getFirstTomorrowDeparture("Barnängen", "SJO", 2);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe("06:10");
+  });
+
+  it("finds direction 1 departure at Barnängen", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-05T23:00:00") });
+
+    const result = getFirstTomorrowDeparture("Barnängen", "SJO", 1);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe("06:00");
   });
 });

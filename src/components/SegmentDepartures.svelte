@@ -23,6 +23,7 @@
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
   import { getNextScheduledDeparture } from "../services/timetableCache";
+  import { isSjostadstrafikenStop, getFirstTomorrowDeparture } from "../services/staticTimetable";
 
   let {
     route,
@@ -243,6 +244,17 @@
           );
           if (next) {
             sleeping.push({ isSleeping: true, nextTime: next.time });
+          } else if (isSjostadstrafikenStop(seg.fromStop.name)) {
+            const boatNext = getFirstTomorrowDeparture(
+              seg.fromStop.name,
+              seg.line,
+              seg.direction?.code ?? 0,
+            );
+            if (boatNext) {
+              sleeping.push({ isSleeping: true, nextTime: boatNext.time });
+            } else {
+              sleeping.push({ isSleeping: false, nextTime: null });
+            }
           } else {
             sleeping.push({ isSleeping: false, nextTime: null });
           }

@@ -224,7 +224,13 @@ export async function getPredictedDepartures(
   const now = Date.now();
   const { transitDay: todayTransitDay, transitMinutes: nowTransitMinutes } =
     toTransitTime(now);
-  const todayCalendarMidnight = getStockholmMidnightMs(now);
+  let todayCalendarMidnight = getStockholmMidnightMs(now);
+  // When now is in night-service (00:00–03:59 Stockholm), the transit-day base
+  // is the previous calendar day's midnight. Adjust to keep midnight aligned
+  // with the transit day that "now" belongs to.
+  if (nowTransitMinutes >= 24 * 60) {
+    todayCalendarMidnight -= 86_400_000;
+  }
 
   const results: PredictedDeparture[] = [];
 
@@ -295,7 +301,10 @@ export async function getNextScheduledDeparture(
   const now = Date.now();
   const { transitDay: todayTransitDay, transitMinutes: nowTransitMinutes } =
     toTransitTime(now);
-  const todayCalendarMidnight = getStockholmMidnightMs(now);
+  let todayCalendarMidnight = getStockholmMidnightMs(now);
+  if (nowTransitMinutes >= 24 * 60) {
+    todayCalendarMidnight -= 86_400_000;
+  }
 
   // Scan up to 14 days forward — no minutes-ahead cap, just find the next slot
   for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
