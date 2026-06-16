@@ -788,11 +788,12 @@ function toggleEdit() {
     --page-work:      #2563EB;
     --page-home:      #059669;
     --color-accent:   #27ae60;
+    --layout-max-width: 480px;
   }
 
   main {
     position: relative;
-    max-width: 480px;
+    max-width: var(--layout-max-width, 480px);
     margin: 0 auto;
     height: 100dvh;
     overflow: hidden;
@@ -907,7 +908,7 @@ function toggleEdit() {
     z-index: 240;
     left: 50%;
     transform: translateX(-50%);
-    max-width: 480px;
+    max-width: var(--layout-max-width, 480px);
     width: 100%;
     border: 0;
     padding: 0;
@@ -1065,7 +1066,7 @@ function toggleEdit() {
     padding: 20px;
     font-size: 11px;
     color: var(--text-muted);
-    max-width: 480px;
+    max-width: var(--layout-max-width, 480px);
     margin-left: auto;
     margin-right: auto;
   }
@@ -1110,6 +1111,19 @@ function toggleEdit() {
     100% {
       transform: translateX(-50%) translateY(0);
       opacity: 1;
+    }
+  }
+
+  /* ── Tablet breakpoint ── */
+  @media (min-width: 768px) {
+    :global(:root) {
+      --layout-max-width: 820px;
+    }
+  }
+
+  @media (min-width: 768px) and (orientation: landscape) {
+    .bottom-nav {
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
   }
 </style>

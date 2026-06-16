@@ -723,4 +723,44 @@
     width: 18px;
     height: 18px;
   }
+
+  /* ── Tablet: multi-column segments ── */
+  @media (min-width: 768px) {
+    .card-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .card-list > .section-label,
+    .card-list > .empty-state,
+    .card-list > .error-bar {
+      grid-column: 1 / -1;
+    }
+
+    .loading-skeleton {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .page-title {
+      font-size: clamp(30px, 4vw, 38px);
+    }
+  }
+
+  @media (min-width: 768px) and (orientation: landscape) {
+    .page-chrome {
+      padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 4px;
+    }
+
+    .page-title {
+      font-size: 24px;
+    }
+
+    .freshness-row {
+      padding-bottom: 6px;
+    }
+  }
 </style>

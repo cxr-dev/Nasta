@@ -439,4 +439,20 @@
   .expanded-actions {
     position: relative;
   }
+
+  /* ── Tablet: larger type for distance viewing ── */
+  @media (min-width: 768px) {
+    .countdown {
+      font-size: clamp(34px, 5vw, 44px);
+    }
+
+    .route-number {
+      font-size: clamp(19px, 2.5vw, 24px);
+    }
+
+    .card-main {
+      padding: 12px 16px 12px 0;
+      gap: 12px;
+    }
+  }
 </style>
