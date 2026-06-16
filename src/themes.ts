@@ -95,6 +95,10 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const surfaceEmphasis = dark ? lightenHex(surface, 12) : 'rgba(0,0,0,0.03)';
   root.style.setProperty('--surface-emphasis', surfaceEmphasis);
 
+  // Status colors — light to dark mode
+  root.style.setProperty('--color-success', dark ? '#4cbf8a' : '#2B8C5E');
+  root.style.setProperty('--color-error',   dark ? '#e8687a' : '#C43A4E');
+
   const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (themeColorMeta) themeColorMeta.content = bg;
 }

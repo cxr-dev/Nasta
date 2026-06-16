@@ -14,6 +14,15 @@
   import { fetchNearbyEvents, type EventItem } from '../services/eventService';
   import { fetchNearbyVenues, type Venue } from '../services/venueService';
 
+  function dedupeById<T extends { id: string }>(items: T[]): T[] {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }
+
   type TabKey = 'beer' | 'wineCocktail' | 'events';
 
   let {
@@ -41,14 +50,15 @@
     loading: boolean;
     loaded: boolean;
     token: number;
+    error?: string;
   };
 
   let venuesByTab: Record<'beer' | 'wineCocktail', TabData<Venue>> = $state({
-    beer: { items: [], loading: false, loaded: false, token: 0 },
-    wineCocktail: { items: [], loading: false, loaded: false, token: 0 },
+    beer: { items: [], loading: false, loaded: false, token: 0, error: undefined },
+    wineCocktail: { items: [], loading: false, loaded: false, token: 0, error: undefined },
   });
   let eventsTab: TabData<EventItem> = $state({
-    items: [], loading: false, loaded: false, token: 0,
+    items: [], loading: false, loaded: false, token: 0, error: undefined,
   });
   let openingHoursParser: any = null;
   let venueOpenState = $state<Record<string, { isOpenNow: boolean; statusText: string; statusClass: string }>>({});
@@ -96,34 +106,35 @@
     const state = venuesByTab[tab];
     if (state.loading || state.loaded) return;
     const token = ++state.token;
-    venuesByTab = { ...venuesByTab, [tab]: { ...state, loading: true } };
+    venuesByTab = { ...venuesByTab, [tab]: { ...state, loading: true, error: undefined } };
     try {
       const types: Array<'beer' | 'wine' | 'cocktail'> = tab === 'beer' ? ['beer'] : ['wine', 'cocktail'];
       const loaded = await fetchNearbyVenues(lat, lon, 1200, types, signal);
-      // Stale check: abort or tab switch happened — don't clobber newer state
       if (signal?.aborted && token !== venuesByTab[tab].token) return;
       if (token !== venuesByTab[tab].token) return;
-      venuesByTab = { ...venuesByTab, [tab]: { items: loaded, loading: false, loaded: true, token } };
+      venuesByTab = { ...venuesByTab, [tab]: { items: loaded, loading: false, loaded: true, token, error: undefined } };
     } catch (e) {
       if ((e as any)?.name === 'AbortError') return;
       if (token !== venuesByTab[tab].token) return;
-      venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: true, token } };
+      console.warn('[FeatureDiscoverySheet] loadVenues failed:', tab, e);
+      venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: true, token, error: t.loadError } };
     }
   }
 
   async function loadEvents(signal?: AbortSignal) {
     if (eventsTab.loading || eventsTab.loaded) return;
     const token = ++eventsTab.token;
-    eventsTab = { ...eventsTab, loading: true };
+    eventsTab = { ...eventsTab, loading: true, error: undefined };
     try {
       const loaded = await fetchNearbyEvents(lat, lon, 5000, signal);
       if (signal?.aborted && token !== eventsTab.token) return;
       if (token !== eventsTab.token) return;
-      eventsTab = { items: loaded, loading: false, loaded: true, token };
+      eventsTab = { items: loaded, loading: false, loaded: true, token, error: undefined };
     } catch (e) {
       if ((e as any)?.name === 'AbortError') return;
       if (token !== eventsTab.token) return;
-      eventsTab = { items: [], loading: false, loaded: true, token };
+      console.warn('[FeatureDiscoverySheet] loadEvents failed:', e);
+      eventsTab = { items: [], loading: false, loaded: true, token, error: t.loadError };
     }
   }
 
@@ -184,7 +195,9 @@
   );
 
   let displayItems = $derived(
-    activeTab !== 'events' ? filteredVenues : (currentItems as TabData<EventItem>).items
+    activeTab !== 'events'
+      ? filteredVenues
+      : dedupeById((currentItems as TabData<EventItem>).items)
   );
 
   let prevVenueKey = $state('');
@@ -219,8 +232,19 @@
     if (!railEl || displayItems.length === 0) return;
     const cards = railEl.querySelectorAll('.card');
     if (cards.length === 0) return;
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return;
     gsap.fromTo(cards, { opacity: 0, y: 12 }, { opacity: 1, y: 0, stagger: 0.07, duration: 0.36, ease: 'power2.out' });
   });
+
+  function retryLoad() {
+    const tab = activeTab;
+    if (tab === 'events') {
+      eventsTab = { items: [], loading: false, loaded: false, token: 0, error: undefined };
+    } else {
+      venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: false, token: 0, error: undefined } };
+    }
+  }
 
   onMount(async () => {
     activeTab = defaultMode;
@@ -275,6 +299,7 @@
         class="tab-btn"
         class:active={activeTab === tab}
         aria-selected={activeTab === tab}
+        id="feature-tab-{tab}"
         onclick={() => (activeTab = tab)}
       >
         {tabLabel[tab]}
@@ -282,8 +307,13 @@
     {/each}
   </div>
 
-  <section class="list" bind:this={railEl} aria-label={tabLabel[activeTab]}>
-    {#if currentItems.loading && displayItems.length === 0}
+  <section class="list" role="tabpanel" aria-labelledby="feature-tab-{activeTab}" bind:this={railEl}>
+    {#if currentItems.error && displayItems.length === 0}
+      <div class="error-card">
+        <p class="error-text">{currentItems.error}</p>
+        <button type="button" class="action-btn" onclick={retryLoad}>{t.retry}</button>
+      </div>
+    {:else if currentItems.loading && displayItems.length === 0}
       <div class="skeleton-list">
         {#each Array(3) as _, i (i)}
           <div class="skeleton-card" style={`--index:${i}`}>
@@ -305,44 +335,76 @@
           {@const openState = venueOpenState[venue.id]}
           <article class="card" style={`--index:${index}`}>
             <div class="card-top">
-              <span class="card-tag">
-                {activeTab === 'beer' ? t.beer : t.wineCocktails}
+              <span class="card-distance">
+                {venue.distance !== undefined
+                  ? (venue.distance < 1000
+                      ? `${Math.round(venue.distance)} m`
+                      : `${(venue.distance / 1000).toFixed(1)} km`)
+                  : ''}
               </span>
-              <span class="card-meta">
-                {venue.distance !== undefined ? (venue.distance < 1000 ? `${Math.round(venue.distance)} m` : `${(venue.distance / 1000).toFixed(1)} km`) : ''}
-                {venue.rawPrice !== undefined ? ` · ${venue.rawPrice} kr` : ''}
-              </span>
-            </div>
-            <div class="card-name-row">
-              <h3 class="card-name">{venue.name}</h3>
-              {#if venue.isSpecificWine}
-                <span class="card-flag" aria-label={t.wineLabel}>🍷</span>
-              {/if}
-              {#if venue.isSpecificCocktail}
-                <span class="card-flag" aria-label={t.cocktailLabel}>🍸</span>
-              {/if}
-            </div>
-            <div class="card-details">
               {#if openState?.statusText}
                 <span class="card-badge open-status {openState.statusClass}">
                   {openState.statusText}
                 </span>
               {/if}
-              {#if venue.hasOutdoorSeating}
-                <span class="card-badge outdoor">☀️ {t.outdoorSeating}</span>
+            </div>
+
+            <h3 class="card-name">{venue.name}</h3>
+
+            {#if activeTab === 'beer' && venue.rawPrice !== undefined}
+              <div class="card-price-row">
+                {#if venue.drinkName}
+                  <span class="card-drink">{venue.drinkName}</span>
+                {/if}
+                <span class="card-price">
+                  <span class="card-price-value">{venue.rawPrice}</span>
+                  <span class="card-price-currency"> kr</span>
+                </span>
+              </div>
+              {#if venue.happyHourPrice != null}
+                <div class="card-happy-row">
+                  <span class="card-happy-label">{t.happyHour}</span>
+                  <span class="card-happy-price">{venue.happyHourPrice} kr</span>
+                </div>
               {/if}
-              {#if venue.address}
-                <span class="card-address">{venue.address}</span>
+            {/if}
+
+            {#if venue.address}
+              <div class="card-address">{venue.address}</div>
+            {/if}
+
+            <div class="card-badges">
+              {#if activeTab === 'beer'}
+                <span class="badge-icon badge-beer" aria-label="Beer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 2 11 2s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/></svg>
+                </span>
+              {/if}
+              {#if venue.isSpecificWine}
+                <span class="badge-icon" aria-label={t.wineLabel}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 22h8"/><path d="M7 10h10"/><path d="M12 15v7"/><path d="M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5Z"/></svg>
+                </span>
+              {/if}
+              {#if venue.isSpecificCocktail}
+                <span class="badge-icon" aria-label={t.cocktailLabel}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 4.207 4.207A.707.707 0 0 1 4.707 3h14.586a.707.707 0 0 1 .5 1.207z"/><path d="M12 12v10"/><path d="M7 22h10"/></svg>
+                </span>
+              {/if}
+              {#if venue.hasOutdoorSeating}
+                <span class="badge-outdoor" aria-label={t.outdoorSeating}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                  {t.outdoorSeating}
+                </span>
               {/if}
             </div>
-            <div class="card-actions">
-              {#if venue.lat !== undefined && venue.lon !== undefined}
-                {@const vLat = venue.lat}{@const vLon = venue.lon}
-                <button type="button" class="action-btn primary" onclick={() => openMapsAt(vLat, vLon, venue.name)}>
+
+            {#if venue.lat !== undefined && venue.lon !== undefined}
+              {@const vLat = venue.lat}{@const vLon = venue.lon}
+              <div class="card-actions">
+                <button type="button" class="action-btn" onclick={() => openMapsAt(vLat, vLon, venue.name)}>
                   {t.openInMaps}
                 </button>
-              {/if}
-            </div>
+              </div>
+            {/if}
           </article>
         {:else}
           {@const event = item as EventItem}
@@ -409,13 +471,13 @@
   }
 
   .count {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: clamp(44px, 12vw, 64px);
-    line-height: 0.86;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    color: var(--accent);
+    font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
     min-width: 1ch;
+    padding-top: 2px;
   }
 
   .copy {
@@ -424,9 +486,9 @@
 
   .copy h2 {
     margin: 0;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
-    line-height: 1.05;
+    line-height: 1.1;
     color: var(--text);
   }
 
@@ -476,6 +538,13 @@
     color: var(--text-on-accent);
   }
 
+  .tab-btn:focus-visible,
+  .close-btn:focus-visible,
+  .action-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .list {
     display: flex;
     flex-direction: column;
@@ -485,7 +554,7 @@
   .card {
     border-radius: 14px;
     background: var(--surface);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
     padding: 16px;
     display: flex;
     flex-direction: column;
@@ -499,30 +568,12 @@
     gap: 8px;
   }
 
-  .card-tag {
-    flex-shrink: 0;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
   .card-meta {
     font-family: 'Neue Machina', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--text-secondary);
     white-space: nowrap;
-  }
-
-  .card-name-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
   }
 
   .card-name {
@@ -534,9 +585,68 @@
     text-wrap: balance;
   }
 
-  .card-flag {
-    font-size: 14px;
+  .card-distance {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .card-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .card-drink {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .card-price {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
     flex-shrink: 0;
+  }
+
+  .card-price-value {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  .card-price-currency {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .card-happy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: -4px;
+  }
+
+  .card-happy-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .card-happy-price {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
   }
 
   .card-details {
@@ -556,13 +666,13 @@
   }
 
   .open-status.open {
-    background: rgba(60, 176, 124, 0.12);
-    color: #3ca07c;
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    color: var(--color-success);
   }
 
   .open-status.closed {
-    background: rgba(215, 63, 91, 0.12);
-    color: #d73f5b;
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+    color: var(--color-error);
   }
 
   .open-status.unknown {
@@ -570,16 +680,53 @@
     color: var(--text-secondary);
   }
 
-  .card-badge.outdoor {
+  .card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  .badge-beer {
+    opacity: 0.8;
+    color: var(--accent);
+  }
+
+  .badge-outdoor {
+    display: inline-flex;
+    align-items: center;
     gap: 4px;
-    background: rgba(255, 190, 61, 0.14);
-    color: #b26a00;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-subtle);
   }
 
   .card-address {
     font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.4;
+  }
+
+  .card-tag {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .card-event-meta {
@@ -649,6 +796,27 @@
     min-height: 120px;
   }
 
+  .error-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px 20px;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    min-height: 120px;
+    text-align: center;
+  }
+
+  .error-text {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
   .skeleton-list {
     display: flex;
     flex-direction: column;
@@ -658,7 +826,7 @@
   .skeleton-card {
     border-radius: 14px;
     background: var(--surface);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
     padding: 16px;
     display: flex;
     flex-direction: column;

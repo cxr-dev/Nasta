@@ -64,10 +64,6 @@ function cacheKey(
   return `${roundCoordinate(lat)}-${roundCoordinate(lon)}-${radius}-${types.slice().sort().join(",")}`;
 }
 
-function stripSupabaseOrphans(venues: Venue[]): Venue[] {
-  return venues.filter((v) => v.source !== "supabase" && v.source !== "supabase-proxy");
-}
-
 export async function fetchNearbyVenues(
   lat: number,
   lon: number,
@@ -86,7 +82,7 @@ export async function fetchNearbyVenues(
   const TTL = 30 * 60 * 1000;
 
   const cached = cache.get(key);
-  if (cached && cached.expiry > now) return stripSupabaseOrphans(cached.data);
+  if (cached && cached.expiry > now) return cached.data;
 
   const inflight = venuesInflight.get(key);
   if (inflight) return inflight;
@@ -94,19 +90,20 @@ export async function fetchNearbyVenues(
   const request = (async () => {
     console.log("venueService: fetchNearbyVenues", { lat, lon, radius, types });
     try {
-      const localCacheKey = `nasta_overpass:${key}`;
+      const localCacheKey = `nasta_venues_v2:${key}`;
       const localCache = readLocalOverpassCache(localCacheKey);
-      if (localCache) return stripSupabaseOrphans(localCache);
+      if (localCache) return localCache;
 
       try {
-        const p = await persistentCache.get(`venues:${key}`);
-        if (p) return stripSupabaseOrphans(p as Venue[]);
+        const p = await persistentCache.get(`venues_v2:${key}`);
+        if (p) return p as Venue[];
       } catch (e) {}
 
       const results: Venue[] = [];
-      const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY as
+      const supabaseAnon = (import.meta.env.VITE_SUPABASE_ANON_KEY as
         | string
-        | undefined;
+        | undefined) ??
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6cmdxeGdzdWhvZ3J1a2lzZnJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MjYxMjMsImV4cCI6MjA3ODUwMjEyM30.ck2Azg890FZQZI_IQ9AkpDWVOWjwZJ_4691GVxWZ4_o";
       const fallbackCityId =
         (import.meta.env.VITE_SUPABASE_DEFAULT_CITY_ID as string | undefined) ??
         "5a76887f-302e-4faf-9a39-520c4689f663";
@@ -129,7 +126,10 @@ export async function fetchNearbyVenues(
             headers,
             body,
             signal: combinedSignal,
-          }).catch(() => null as any);
+          }).catch((_err) => {
+            console.warn("venueService: supabase direct fetch failed", _err);
+            return null as any;
+          });
           clearTimeout(id);
 
           let supabaseProcessed = false;
@@ -192,6 +192,8 @@ export async function fetchNearbyVenues(
                   distance,
                   source: "supabase",
                 });
+                (results[results.length - 1] as any)._classified = "beer";
+                (results[results.length - 1] as any)._score = 4;
               } catch (_e) {}
             }
           }
@@ -274,12 +276,18 @@ export async function fetchNearbyVenues(
                       distance,
                       source: "supabase-proxy",
                     });
+                    (results[results.length - 1] as any)._classified = "beer";
+                    (results[results.length - 1] as any)._score = 4;
                   } catch (_e) {}
                 }
               }
-            } catch (_e) {}
+            } catch (_e) {
+              console.warn("venueService: supabase proxy fallback failed", _e);
+            }
           }
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn("venueService: supabase block failed", _e);
+        }
       }
 
       let overpassQuerySucceeded = false;
@@ -306,10 +314,24 @@ export async function fetchNearbyVenues(
               "cafe",
               "brewery",
               "taproom",
+              "biergarten",
             ]
           : ["bar", "pub", "restaurant", "nightclub", "cafe"];
         const nameKeywords = beerOnly
-          ? []
+          ? [
+              "brew",
+              "bryggeri",
+              "bar",
+              "inn",
+              "arms",
+              "head",
+              "moon",
+              "twist",
+              "pub",
+              "öl",
+              "ölbar",
+              "taproom",
+            ]
           : [
               "vinbar",
               "wine bar",
@@ -340,18 +362,32 @@ export async function fetchNearbyVenues(
           `rel["amenity"~"${amenities.join("|")}"](around:${queryRadius},${lat},${lon});`,
         ];
 
+        qParts.push(
+          `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+        );
+        qParts.push(
+          `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+        );
+        qParts.push(
+          `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+        );
+
         if (!beerOnly) {
           qParts.push(
             `node["shop"~"wine|beverages"](around:${queryRadius},${lat},${lon});`,
           );
+        } else {
           qParts.push(
-            `node["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            `node["shop"~"alcohol|beer|beverages"](around:${queryRadius},${lat},${lon});`,
           );
           qParts.push(
-            `way["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            `node["craft"="brewery"](around:${queryRadius},${lat},${lon});`,
           );
           qParts.push(
-            `rel["name"~"${nameKeywords.join("|")}",i](around:${queryRadius},${lat},${lon});`,
+            `node["microbrewery"="yes"](around:${queryRadius},${lat},${lon});`,
+          );
+          qParts.push(
+            `node["brewery"](around:${queryRadius},${lat},${lon});`,
           );
         }
 
@@ -459,10 +495,13 @@ export async function fetchNearbyVenues(
             typeScores.cocktail += 8;
           }
 
-          // 2. Pubs and cheap beer bars (beer category)
+          // 2. Pubs and beer bars (beer category)
           if (
-            /(bryggeri|brewery|pub|öl|ölbar|taproom)/i.test(lname) ||
-            tags.amenity === "pub"
+            /(bryggeri|brewery|pub|öl|ölbar|taproom|biergarten|beer|ale|stout|ipa|lager|craft|microbrew|inn|arms)/i.test(lname) ||
+            /\bbar\b/i.test(lname) ||
+            tags.amenity === "pub" ||
+            tags.amenity === "biergarten" ||
+            tags.amenity === "bar"
           ) {
             score += 4;
             typeScores.beer += 4;
@@ -596,7 +635,9 @@ export async function fetchNearbyVenues(
           (results[results.length - 1] as any)._classified = classified;
           (results[results.length - 1] as any)._score = score;
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn("venueService: Overpass query failed", _e);
+      }
 
       const uniq: Venue[] = [];
       for (const v of results) {
@@ -628,7 +669,6 @@ export async function fetchNearbyVenues(
       }
 
       const out = uniq
-        .filter((v) => v.source !== "supabase" && v.source !== "supabase-proxy")
         .filter((v) => {
           const cls = (v as any)._classified as
             | ("beer" | "wine" | "cocktail")
@@ -656,7 +696,7 @@ export async function fetchNearbyVenues(
         writeLocalOverpassCache(localCacheKey, out);
         try {
           await persistentCache.set(
-            `venues:${key}`,
+            `venues_v2:${key}`,
             out,
             7 * 24 * 60 * 60 * 1000,
           );

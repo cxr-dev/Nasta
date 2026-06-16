@@ -46,6 +46,24 @@ CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` → `v
 
 From `.impeccable.md`: no gradient text, no side-stripe borders, no glassmorphism. Mobile-first, glanceable UI. Light mode primary. No decorative fluff.
 
+## Skills & AI tools
+
+Skills are loaded via the `skill` tool. Key project-relevant skills:
+
+- **`impeccable`** (`.agents/skills/impeccable/`) — UI design, critique, polish. Sub-commands: `craft`, `audit`, `shape`, `polish`, `critique`, `colorize`, `harden`, `clarify`, and more (see `reference/`).
+- **`design-taste-frontend`** (`.agents/skills/design-taste-frontend/`) — Anti-slop frontend for landing pages, portfolios, redesigns.
+- **`svelte-code-writer`** (`.agents/skills/svelte-code-writer/`) — Svelte 5 docs lookup and code analysis.
+- **`svelte-core-bestpractices`** (`.agents/skills/svelte-core-bestpractices/`) — Svelte 5 performance and pattern guidance.
+- **`gsap`** (`.agents/skills/gsap/`) — GSAP animation reference (used by impeccable animate sub-command).
+
+### opencode MCP servers
+
+Configured in `.opencode/opencode.json`:
+- **Playwright MCP** (`@playwright/mcp`) — browser automation for E2E debugging.
+- **Svelte MCP** (`@sveltejs/mcp`) — Svelte 5 docs, component analysis, Runes-aware code review.
+
+LSP (Svelte + TypeScript) is enabled via `"lsp": true`.
+
 ## Architecture
 
 `App.svelte` → stores (`pageStore`, `departureStore`, `deviationStore`, `settingsStore`, `localeStore`, `stopAreaStore`) → services (SL API, caching, geo, static timetable, deviation cache, venue/event prefetching) → components. Persistence is LocalStorage + IndexedDB (deviations cache). See `docs/ARCHITECTURE.md` for data flow details.

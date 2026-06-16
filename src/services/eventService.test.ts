@@ -7,6 +7,10 @@ describe("eventService", () => {
   });
 
   it("accepts array or wrapped event payloads", async () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 30);
+    const futureIso = futureDate.toISOString().slice(0, 10);
+
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -16,7 +20,7 @@ describe("eventService", () => {
               {
                 id: "e1",
                 name: "Jazz Night",
-                startTime: "2026-05-28T19:00:00+02:00",
+                startTime: `${futureIso}T19:00:00+02:00`,
                 location: "Central",
                 lat: 59.33,
                 lon: 18.06,

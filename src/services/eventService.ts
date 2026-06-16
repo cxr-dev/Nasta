@@ -143,6 +143,16 @@ export async function fetchNearbyEvents(
             (event) =>
               distanceMeters(lat, lon, event.lat!, event.lon!) <= radius,
           )
+          .filter((event) => {
+            if (!event.startTime) return true;
+            const now = new Date();
+            // Date-only (YYYY-MM-DD): keep if today or future
+            if (/^\d{4}-\d{2}-\d{2}$/.test(event.startTime)) {
+              return event.startTime >= now.toISOString().slice(0, 10);
+            }
+            // Datetime string: keep if not yet started
+            return new Date(event.startTime) >= now;
+          })
           .sort((a, b) => {
             if (!a.startTime || !b.startTime) return 0;
             return a.startTime.localeCompare(b.startTime);

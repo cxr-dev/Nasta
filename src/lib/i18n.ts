@@ -88,6 +88,8 @@ const sv = {
   updated: "Uppdaterad",
   loading: "Laddar",
   autoRefresh: "Auto-uppdatering på",
+  loadError: "Kunde inte ladda. Kontrollera din anslutning.",
+  retry: "Försök igen",
 
   // SegmentList
   addSegmentHint: "Lägg till avgångar nedan",
@@ -225,6 +227,7 @@ const sv = {
   cocktailLabel: "Cocktail",
   outdoorSeating: "Uteservering",
   priceLevel: "Prisnivå",
+  happyHour: "Happy hour",
   defaultCity: "Stockholm",
   today: "Idag",
   tomorrow: "Imorgon",
@@ -367,6 +370,8 @@ const en: typeof sv = {
   updated: "Updated",
   loading: "Loading",
   autoRefresh: "Auto-refresh on",
+  loadError: "Couldn't load. Check your connection.",
+  retry: "Retry",
 
   addSegmentHint: "Add travel departures below",
   remove: "Remove",
@@ -494,6 +499,7 @@ const en: typeof sv = {
   cocktailLabel: "Cocktail",
   outdoorSeating: "Outdoor seating",
   priceLevel: "Price level",
+  happyHour: "Happy hour",
   defaultCity: "Stockholm",
   today: "Today",
   tomorrow: "Tomorrow",

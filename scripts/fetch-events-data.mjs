@@ -10,19 +10,32 @@ const VISIT_STOCKHOLM_EVENTS_URL =
   "https://api.visitstockholm.com/api/public-v1/events/";
 
 async function main() {
-  const url = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({ size: "100" })}`;
+  const allResults = [];
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.warn(`fetch-events-data: API returned ${res.status}, writing empty data`);
-    await writeFile(outputPath, JSON.stringify({ results: [] }));
-    return;
+  for (let page = 1; page <= 5; page++) {
+    const url = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({ size: "100", page: String(page) })}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`fetch-events-data: page ${page} returned ${res.status}, stopping pagination`);
+      break;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data.results) || data.results.length === 0) break;
+    allResults.push(...data.results);
+    if (data.results.length < 100) break;
   }
 
-  const data = await res.json();
-  await writeFile(outputPath, JSON.stringify(data));
-  const count = Array.isArray(data.results) ? data.results.length : 0;
-  console.log(`fetch-events-data: ${count} events written to public/events-data.json`);
+  // Deduplicate by event id — the API can return the same event across pages
+  const seen = new Set();
+  const deduped = allResults.filter((e) => {
+    const key = e.id ?? e.url ?? JSON.stringify(e);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  await writeFile(outputPath, JSON.stringify({ results: deduped }));
+  console.log(`fetch-events-data: ${deduped.length} events (${allResults.length - deduped.length} duplicates removed) written to public/events-data.json`);
 }
 
 main().catch((err) => {

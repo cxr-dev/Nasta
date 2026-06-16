@@ -6,6 +6,7 @@
   "homepage": "https://cxr-dev.github.io/nasta",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
+    "predev": "node scripts/fetch-events-data.mjs",
     "dev": "vite",
     "prebuild": "node scripts/generate-png-icons.mjs && node scripts/fetch-events-data.mjs",
     "build": "vite build",
@@ -14,7 +15,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "pnpm run build && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
