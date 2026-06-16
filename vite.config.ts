@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
           // with NetworkFirst so the SW always picks up fresh data from the daily rebuild
           // without waiting for a SW update cycle.
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff}"],
+          globIgnores: ["**/version.json"],
           maximumFileSizeToCacheInBytes: 3000000,
           skipWaiting: true,
           clientsClaim: true,
@@ -60,9 +61,9 @@ export default defineConfig(({ mode }) => {
                 cacheName: "navigation-cache",
                 expiration: {
                   maxEntries: 30,
-                  maxAgeSeconds: 86400,
+                  maxAgeSeconds: 3600,
                 },
-                networkTimeoutSeconds: 3,
+                networkTimeoutSeconds: 2,
               },
             },
 

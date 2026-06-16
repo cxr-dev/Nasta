@@ -44,6 +44,11 @@ jobs:
 
       - name: Build
         run: pnpm run build
+        env:
+          VITE_COMMIT_SHA: ${{ github.sha }}
+
+      - name: Write version.json
+        run: echo '{"version":"${{ github.sha }}"}' > dist/version.json
 
       - name: Verify production artifact
         run: pnpm run verify:build

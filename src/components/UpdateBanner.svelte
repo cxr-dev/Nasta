@@ -6,7 +6,6 @@
   let t = $derived(getT());
 
   let isVisible = $state(false);
-  let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined = $state();
   let bannerEl = $state<HTMLDivElement | undefined>();
 
   $effect(() => {
@@ -19,23 +18,24 @@
   });
 
   onMount(() => {
-    const handleUpdateAvailable = (event: CustomEvent) => {
-      updateSW = event.detail.updateSW;
+    const handleUpdateAvailable = () => {
       isVisible = true;
       if (import.meta.env.DEV) console.log('[PWA] Update available');
     };
 
-    window.addEventListener('pwa-update-available', handleUpdateAvailable as EventListener);
+    window.addEventListener('pwa-update-available', handleUpdateAvailable);
 
     return () => {
-      window.removeEventListener('pwa-update-available', handleUpdateAvailable as EventListener);
+      window.removeEventListener('pwa-update-available', handleUpdateAvailable);
     };
   });
 
   async function handleReload() {
-    if (updateSW) {
-      await updateSW(true);
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg?.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
+    window.location.reload();
   }
 
   function handleDismiss() {
