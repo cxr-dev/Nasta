@@ -7,7 +7,9 @@ dist/
 .env
 .env.local
 .env.*.local
+.codex/
 .superpowers/
+.vscode/
 .claude/settings.local.json
 docs/superpowers/
 .claude/settings.json
@@ -37,7 +39,7 @@ public/apple-touch-icon.png
 
 # Full pnpm store directory
 .pnpm-store
-.impeccable/critique/2026-06-16T13-17-58Z__src-app-svelte.md
+.impeccable/
 
 # Build logs
 vite-out.txt
