@@ -221,7 +221,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
   async function loadDepartures(clearFirst = false) {
     const currentPage = getActivePage();
     if (currentPage && currentPage.segments.length > 0) {
-      // Only create new request ID if route changed, otherwise reuse existing
+      // Only create new request ID if page changed, otherwise reuse existing
       if (currentPage.id !== previousPageId) {
         previousPageId = currentPage.id;
         const newRequestId = `page-${currentPage.id}-manual-${Date.now()}`;
@@ -230,7 +230,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
       
       await startDeparturesForPage(currentPage.segments, clearFirst, currentRequestId);
     } else {
-      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for route ${currentPage?.id}`);
+      if (import.meta.env.DEV) console.log(`[App] loadDepartures: No segments for page ${currentPage?.id}`);
     }
   }
 
@@ -260,9 +260,9 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     // Exit: slide out
     await new Promise<void>(resolve => {
       gsap.to(pageContentEl!, {
-        x: dir * 80,
+        x: dir * 25,
         opacity: 0,
-        duration: 0.2,
+        duration: 0.15,
         ease: 'power2.in',
         overwrite: 'auto',
         onComplete: resolve,
@@ -276,7 +276,7 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
 
     // Enter: slide in from opposite side
     if (pageContentEl) {
-      gsap.set(pageContentEl!, { x: dir * -60, opacity: 0 });
+      gsap.set(pageContentEl!, { x: dir * -25, opacity: 0 });
       await new Promise<void>(resolve => {
         gsap.to(pageContentEl!, {
           x: 0,
@@ -869,7 +869,9 @@ function toggleEdit() {
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
     z-index: 10;
-    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    background: var(--bg);
+    -webkit-mask-image: linear-gradient(to top, black 70%, transparent);
+    mask-image: linear-gradient(to top, black 70%, transparent);
     margin: 0 -20px;
     padding-top: 16px;
   }

@@ -1,11 +1,11 @@
 export type Locale = "sv" | "en";
 
 const sv = {
-  // Route labels
+  // Page labels
   toWork: "TILL JOBBET",
   home: "HEM",
-  swipeHintToWork: "→ dra för att byta rutt",
-  swipeHintHome: "← dra för att byta rutt",
+  swipeHintToWork: "→ dra för att byta sida",
+  swipeHintHome: "← dra för att byta sida",
 
   // BottomBar
   arriving: "Anländer",
@@ -17,15 +17,15 @@ const sv = {
   closeEditor: "Stäng redigering",
   editingPage: "Redigera",
   tabPages: "Sidor",
-  tabSegments: "Segment",
+  tabSegments: "Departures",
   tabFeatures: "Funktioner",
   tabTheme: "Teman",
   cancel: "Avbryt",
-  addSegment: "+ Lägg till segment",
+  addSegment: "+ Lägg till avgång",
   switchTo: "Byt till",
   settings: "Inställningar",
   disruptionAlerts: "Störningsvarningar",
-  disruptionAlertsDesc: "Visa störningar för dina sparade segment",
+  disruptionAlertsDesc: "Visa störningar för dina sparade avgångar",
   disruptionThreshold: "Störningsnivå",
   disruptionThresholdDesc: "Välj hur allvarliga störningar som visas",
   disruptionThresholdInfo: "Alla störningar",
@@ -90,7 +90,7 @@ const sv = {
   autoRefresh: "Auto-uppdatering på",
 
   // SegmentList
-  addSegmentHint: "Lägg till resesegment nedan",
+  addSegmentHint: "Lägg till avgångar nedan",
   remove: "Ta bort",
 
   // SegmentSearch
@@ -122,10 +122,10 @@ const sv = {
   schedule: "Tidtabell",
 
   // App empty states
-  noPages: "Inga rutter ännu",
-  noPagesDesc: "Skapa din första rutt för att se avgångar",
-  createPage: "Skapa rutt",
-  noSegments: "Inga segment",
+  noPages: "Inga sidor ännu",
+  noPagesDesc: "Skapa din första sida för att se avgångar",
+  createPage: "Skapa sida",
+  noSegments: "Inga avgångar",
   noSegmentsDesc: "Lägg till avgångar för att komma igång",
   add: "Lägg till",
 
@@ -156,8 +156,8 @@ const sv = {
   onboardingWelcomeTitle: "Välkommen till Nästa",
   onboardingWelcomeSubtitle: "Din smarta resetusselskap i Stockholm",
   onboardingWelcomeDesc: "Få koll på nästa avgång – snabbt och enkelt.",
-  onboardingPagesTitle: "Spara dina rutter",
-  onboardingPagesSubtitle: "Skapa rutt till jobbet och hem",
+  onboardingPagesTitle: "Spara dina sidor",
+  onboardingPagesSubtitle: "Skapa sida till jobbet och hem",
   onboardingPagesDesc:
     "Lägg till dina vanliga resor och få uppdateringar i realtid.",
   onboardingGlanceTitle: "Aldrig mer att vänta",
@@ -174,12 +174,12 @@ const sv = {
   setupStopTitle: "Sök start-hållplats och linje",
   setupStopDesc: "Välj hållplats och rätt avgång för rutten",
   setupReviewTitle: "Granska och spara",
-  setupReviewDesc: "Skapa rutten och duplicera vid behov för retur",
-  duplicateReturnPage: "Duplicera som returrutt",
-  createFirstPage: "Skapa första rutt",
-  onboardingHint: "Lägg till segment i Inställningar.",
+  setupReviewDesc: "Skapa sidan och duplicera vid behov för retur",
+  duplicateReturnPage: "Duplicera som retursida",
+  createFirstPage: "Skapa första sida",
+  onboardingHint: "Lägg till avgångar i Inställningar.",
   onboardingHintNew: "NYTT",
-  onboardingHintText: "Klicka här för att lägga till ditt första segment!",
+  onboardingHintText: "Här! Lägg till din första avgång!",
   dismissHint: "Stäng",
 
   // Direction selector
@@ -208,9 +208,9 @@ const sv = {
   afterworkVenuesDesc: "Visa närliggande barer vid utvald tid.",
   afterworkStartTime: "Afterwork-start",
   afterworkStartTimeDesc: "Välj när på dagen afterwork visas.",
-  eventsDesc: "Visa närliggande evenemang när du trycker på ett segment.",
+  eventsDesc: "Visa närliggande evenemang när du öppnar en avgång.",
   returnTripNote:
-    "Lägg till returrutten manuellt genom att skapa en andra rutt.",
+    "Lägg till retursidan manuellt genom att skapa en andra sida.",
 
   // Error boundary
   errorTitle: "Något gick fel",
@@ -245,9 +245,9 @@ const sv = {
   sectionStationAlerts: "Station",
   sectionStationNotices: "Stationsinfo",
   stationNoticesToggle: "Stationsinfo",
-  groupDisruptedSegments: "Gruppera störda segment",
+  groupDisruptedSegments: "Gruppera avgångar med störningar",
   groupDisruptedSegmentsDesc:
-    "Visa segment med störningar separat, nedanför övriga avgångar.",
+    "Visa avgångar med störningar separat, nedanför övriga avgångar.",
   disruptionCriticalShort: "Kritisk",
 
   // Transit labels
@@ -273,8 +273,8 @@ const sv = {
   showCelebration: "Visa firande",
 
   // PageEditor UX
-  segmentsCount: "{n} segment",
-  segmentsCountZero: "Inga segment",
+  segmentsCount: "{n} avgångar",
+  segmentsCountZero: "Inga avgångar",
   addSegmentsCta: "Lägg till avgång",
   pageNoun: "Sida",
   selectAPage: "Välj en sida",
@@ -285,8 +285,8 @@ const sv = {
 const en: typeof sv = {
   toWork: "TO WORK",
   home: "HOME",
-  swipeHintToWork: "→ drag to switch route",
-  swipeHintHome: "← drag to switch route",
+  swipeHintToWork: "→ drag to switch page",
+  swipeHintHome: "← drag to switch page",
 
   arriving: "Arriving",
   save: "Save",
@@ -296,15 +296,15 @@ const en: typeof sv = {
   closeEditor: "Close editor",
   editingPage: "Editing",
   tabPages: "Pages",
-  tabSegments: "Segments",
+  tabSegments: "Departures",
   tabFeatures: "Features",
   tabTheme: "Themes",
   cancel: "Cancel",
-  addSegment: "+ Add segment",
+  addSegment: "+ Add departure",
   switchTo: "Switch to",
   settings: "Settings",
   disruptionAlerts: "Disruption alerts",
-  disruptionAlertsDesc: "Show disruptions for saved segments",
+  disruptionAlertsDesc: "Show disruptions for saved departures",
   disruptionThreshold: "Disruption level",
   disruptionThresholdDesc: "Choose how severe disruptions must be to be shown",
   disruptionThresholdInfo: "All disruptions",
@@ -368,12 +368,12 @@ const en: typeof sv = {
   loading: "Loading",
   autoRefresh: "Auto-refresh on",
 
-  addSegmentHint: "Add travel segments below",
+  addSegmentHint: "Add travel departures below",
   remove: "Remove",
 
   searchPlaceholder: "Search stop...",
   searching: "Searching...",
-  noStops: "No stops found",
+  noStops: "No stop found",
   loadingDepartures: "Loading departures...",
   departures: "Departures",
   noDepartures: "No departures found",
@@ -398,10 +398,10 @@ const en: typeof sv = {
   select: "Select →",
   schedule: "Timetable",
 
-  noPages: "No routes yet",
-  noPagesDesc: "Create your first route to see departures",
-  createPage: "Create route",
-  noSegments: "No segments",
+  noPages: "No pages yet",
+  noPagesDesc: "Create your first page to see departures",
+  createPage: "Create page",
+  noSegments: "No departures",
   noSegmentsDesc: "Add departures to get started",
   add: "Add",
 
@@ -430,8 +430,8 @@ const en: typeof sv = {
   onboardingWelcomeSubtitle: "Your smart Stockholm commute companion",
   onboardingWelcomeDesc:
     "See your next departure at a glance, fast and simple.",
-  onboardingPagesTitle: "Save your routes",
-  onboardingPagesSubtitle: "Create one route to work and one home",
+  onboardingPagesTitle: "Save your pages",
+  onboardingPagesSubtitle: "Create one page for work and one for home",
   onboardingPagesDesc: "Add your regular journeys and get real-time updates.",
   onboardingGlanceTitle: "No more waiting around",
   onboardingGlanceSubtitle: "Ultra-glanceable design",
@@ -447,13 +447,13 @@ const en: typeof sv = {
   setupStopTitle: "Search start stop and line",
   setupStopDesc: "Pick a stop and the matching departure",
   setupReviewTitle: "Review and save",
-  setupReviewDesc: "Create the route and optionally duplicate return",
+  setupReviewDesc: "Create the page and optionally duplicate return",
   setupDirection: "Route direction",
-  duplicateReturnPage: "Duplicate as return route",
-  createFirstPage: "Create first route",
-  onboardingHint: "Add segments from Settings.",
+  duplicateReturnPage: "Duplicate as return page",
+  createFirstPage: "Create first page",
+  onboardingHint: "Add departures from Settings.",
   onboardingHintNew: "NEW",
-  onboardingHintText: "Click here to add your first segment!",
+  onboardingHintText: "Click here to add your first departure!",
   dismissHint: "Dismiss",
 
   // Direction selector
@@ -480,8 +480,8 @@ const en: typeof sv = {
   afterworkVenuesDesc: "Show nearby bars at selected time.",
   afterworkStartTime: "Afterwork start",
   afterworkStartTimeDesc: "Choose when during the day afterwork shows.",
-  eventsDesc: "Show nearby events when you tap a segment.",
-  returnTripNote: "Add the return route manually by creating a second route.",
+  eventsDesc: "Show nearby events when you tap a departure.",
+  returnTripNote: "Add the return page manually by creating a second page.",
 
   errorTitle: "Something went wrong",
   errorDefault: "An unexpected error occurred",
@@ -513,9 +513,9 @@ const en: typeof sv = {
   sectionStationAlerts: "Station notices",
   sectionStationNotices: "Station info",
   stationNoticesToggle: "Station info",
-  groupDisruptedSegments: "Group disrupted segments",
+  groupDisruptedSegments: "Group disrupted departures",
   groupDisruptedSegmentsDesc:
-    "Show disrupted segments separately, below your other departures.",
+    "Show disrupted departures separately, below your other departures.",
   disruptionCriticalShort: "Critical",
 
   lineLabel: "Line {line}",
@@ -538,8 +538,8 @@ const en: typeof sv = {
   showCelebration: "Show celebration",
 
   // PageEditor UX
-  segmentsCount: "{n} segments",
-  segmentsCountZero: "No segments",
+  segmentsCount: "{n} departures",
+  segmentsCountZero: "No departures",
   addSegmentsCta: "Add departure",
   pageNoun: "Page",
   selectAPage: "Select a page",
