@@ -311,8 +311,8 @@
   }
   .map-expand-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: calc(8px + env(safe-area-inset-right, 0px));
     z-index: 10;
     display: flex;
     align-items: center;
