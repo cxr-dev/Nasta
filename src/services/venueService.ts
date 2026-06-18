@@ -402,7 +402,7 @@ export async function fetchNearbyVenues(
         ];
 
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 8000);
+        const id = setTimeout(() => controller.abort(), 15000);
         const combinedSignal3 = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
         let res = await fetch(url, {
           method: "POST",
@@ -684,6 +684,13 @@ export async function fetchNearbyVenues(
           return (a.distance ?? 0) - (b.distance ?? 0);
         })
         .slice(0, 12);
+
+      // If Overpass was needed (wine/cocktail) and failed, and no other data source
+      // provided results, throw so UI shows error card with retry instead of "No venues found"
+      const needsOverpass = types.some((t) => t === "wine" || t === "cocktail");
+      if (needsOverpass && !overpassQuerySucceeded && out.length === 0) {
+        throw new Error("Wine/cocktail venue query failed");
+      }
 
       const shouldPersist =
         overpassQuerySucceeded ||
