@@ -13,6 +13,7 @@
   } from '../lib/i18n';
   import { fetchNearbyEvents, type EventItem } from '../services/eventService';
   import { fetchNearbyVenues, type Venue } from '../services/venueService';
+  import { getSunPosition } from '../lib/sunPosition';
 
   function dedupeById<T extends { id: string }>(items: T[]): T[] {
     const seen = new Set<string>();
@@ -333,6 +334,7 @@
         {#if activeTab !== 'events'}
           {@const venue = item as Venue}
           {@const openState = venueOpenState[venue.id]}
+          {@const venSun = venue.lat !== undefined && venue.lon !== undefined ? getSunPosition(venue.lat, venue.lon) : null}
           <article class="card" style={`--index:${index}`}>
             <div class="card-top">
               <span class="card-distance">
@@ -351,7 +353,7 @@
 
             <h3 class="card-name">{venue.name}</h3>
 
-            {#if activeTab === 'beer' && venue.rawPrice !== undefined}
+            {#if venue.rawPrice !== undefined}
               <div class="card-price-row">
                 {#if venue.drinkName}
                   <span class="card-drink">{venue.drinkName}</span>
@@ -367,6 +369,12 @@
                   <span class="card-happy-price">{venue.happyHourPrice} kr</span>
                 </div>
               {/if}
+            {:else if venue.priceLevel}
+              <div class="card-price-level-row">
+                <span class="card-price-level" aria-label={t.priceLevel}>
+                  {'€'.repeat(venue.priceLevel)}
+                </span>
+              </div>
             {/if}
 
             {#if venue.address}
@@ -390,8 +398,16 @@
                 </span>
               {/if}
               {#if venue.hasOutdoorSeating}
-                <span class="badge-outdoor" aria-label={t.outdoorSeating}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                <span class="badge-outdoor" aria-label={t.outdoorSeating} title={venSun?.label === 'sun' ? t.sunLabel : venSun?.label === 'shade' ? t.shadeLabel : t.outdoorSeating}>
+                  {#if venSun?.label === 'sun'}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                  {:else if venSun?.label === 'shade'}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
+                  {:else if venSun?.label === 'low-sun'}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>
+                  {:else}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                  {/if}
                   {t.outdoorSeating}
                 </span>
               {/if}
@@ -647,6 +663,19 @@
     font-size: 13px;
     font-weight: 700;
     color: var(--text-secondary);
+  }
+
+  .card-price-level-row {
+    display: flex;
+    align-items: center;
+  }
+
+  .card-price-level {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
   }
 
   .card-details {

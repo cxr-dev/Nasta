@@ -161,10 +161,10 @@ export async function fetchNearbyVenues(
                 const vlatNum = vlat !== null ? Number(vlat) : NaN;
                 const vlonNum = vlon !== null ? Number(vlon) : NaN;
                 const rawPrice =
-                  v.beer_price ?? v.price ?? v.beerPrice ?? undefined;
+                  v.beer_price ?? v.wine_price ?? v.cocktail_price ?? v.price ?? v.beerPrice ?? undefined;
                 const happy =
-                  v.beer_price_happy_hour ?? v.beer_price_happy ?? null;
-                const drink = v.beer_name ?? v.beer ?? undefined;
+                  v.beer_price_happy_hour ?? v.beer_price_happy ?? v.happy_hour_price ?? null;
+                const drink = v.beer_name ?? v.wine_name ?? v.cocktail_name ?? v.beer ?? undefined;
                 const priceLevel =
                   typeof rawPrice === "number"
                     ? rawPrice <= 35
@@ -172,7 +172,7 @@ export async function fetchNearbyVenues(
                       : rawPrice <= 55
                         ? 2
                         : 3
-                    : (v.price_level ?? v.priceLevel ?? 2);
+                    : (v.price_level ?? v.priceLevel);
                 const distance =
                   !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
                     ? distanceMeters(lat, lon, vlatNum, vlonNum)
@@ -185,7 +185,7 @@ export async function fetchNearbyVenues(
                   lat: !Number.isNaN(vlatNum) ? vlatNum : undefined,
                   lon: !Number.isNaN(vlonNum) ? vlonNum : undefined,
                   openingHours: v.opening_hours ?? v.openingHours ?? undefined,
-                  priceLevel: priceLevel as 1 | 2 | 3,
+                  priceLevel: priceLevel === undefined ? undefined : (priceLevel as 1 | 2 | 3),
                   rawPrice: typeof rawPrice === "number" ? rawPrice : undefined,
                   happyHourPrice: typeof happy === "number" ? happy : null,
                   drinkName: drink,
@@ -243,10 +243,10 @@ export async function fetchNearbyVenues(
                     const vlatNum = vlat !== null ? Number(vlat) : NaN;
                     const vlonNum = vlon !== null ? Number(vlon) : NaN;
                     const rawPrice =
-                      v.beer_price ?? v.price ?? v.beerPrice ?? undefined;
+                      v.beer_price ?? v.wine_price ?? v.cocktail_price ?? v.price ?? v.beerPrice ?? undefined;
                     const happy =
-                      v.beer_price_happy_hour ?? v.beer_price_happy ?? null;
-                    const drink = v.beer_name ?? v.beer ?? undefined;
+                      v.beer_price_happy_hour ?? v.beer_price_happy ?? v.happy_hour_price ?? null;
+                    const drink = v.beer_name ?? v.wine_name ?? v.cocktail_name ?? v.beer ?? undefined;
                     const priceLevel =
                       typeof rawPrice === "number"
                         ? rawPrice <= 35
@@ -254,7 +254,7 @@ export async function fetchNearbyVenues(
                           : rawPrice <= 55
                             ? 2
                             : 3
-                        : (v.price_level ?? v.priceLevel ?? 2);
+                        : (v.price_level ?? v.priceLevel);
                     const distance =
                       !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
                         ? distanceMeters(lat, lon, vlatNum, vlonNum)
@@ -268,7 +268,7 @@ export async function fetchNearbyVenues(
                       lon: !Number.isNaN(vlonNum) ? vlonNum : undefined,
                       openingHours:
                         v.opening_hours ?? v.openingHours ?? undefined,
-                      priceLevel: priceLevel as 1 | 2 | 3,
+                      priceLevel: priceLevel === undefined ? undefined : (priceLevel as 1 | 2 | 3),
                       rawPrice:
                         typeof rawPrice === "number" ? rawPrice : undefined,
                       happyHourPrice: typeof happy === "number" ? happy : null,
@@ -625,7 +625,6 @@ export async function fetchNearbyVenues(
             lat: Number(elLat),
             lon: Number(elLon),
             openingHours: tags.opening_hours ?? undefined,
-            priceLevel: 2,
             distance,
             source: "overpass",
             hasOutdoorSeating,
