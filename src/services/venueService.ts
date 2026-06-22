@@ -14,12 +14,18 @@ export type Venue = {
   hasOutdoorSeating?: boolean;
   isSpecificWine?: boolean;
   isSpecificCocktail?: boolean;
+  /** @internal Used for type-based filtering/sorting */
+  _classified?: "beer" | "wine" | "cocktail";
+  /** @internal Used for relevance-based sorting */
+  _score?: number;
 };
 
 import { distanceMeters } from "./geo";
 import { persistentCache } from "./persistentCache";
 
 const venuesInflight = new Map<string, Promise<Venue[]>>();
+const _venuesCache = new Map<string, { expiry: number; data: Venue[] }>();
+const MAX_VENUE_RESULTS = 12;
 const OVERPASS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function readLocalOverpassCache(key: string): Venue[] | null {
@@ -100,8 +106,8 @@ function processSupabaseRecord(
       distance,
       source,
     };
-    (venue as any)._classified = "beer";
-    (venue as any)._score = 4;
+    venue._classified = "beer";
+    venue._score = 4;
     return venue;
   } catch {
     return null;
@@ -126,12 +132,7 @@ export async function fetchNearbyVenues(
 ): Promise<Venue[]> {
   const key = cacheKey(lat, lon, radius, types);
   const now = Date.now();
-  (fetchNearbyVenues as any)._cache =
-    (fetchNearbyVenues as any)._cache || new Map();
-  const cache = (fetchNearbyVenues as any)._cache as Map<
-    string,
-    { expiry: number; data: Venue[] }
-  >;
+  const cache = _venuesCache;
   const TTL = 30 * 60 * 1000;
 
   const cached = cache.get(key);
@@ -141,7 +142,7 @@ export async function fetchNearbyVenues(
   if (inflight) return inflight;
 
   const request = (async () => {
-    console.log("venueService: fetchNearbyVenues", { lat, lon, radius, types });
+    console.debug("venueService: fetchNearbyVenues", { lat, lon, radius, types });
     try {
       const localCacheKey = `nasta_venues_v2:${key}`;
       const localCache = readLocalOverpassCache(localCacheKey);
@@ -188,7 +189,7 @@ export async function fetchNearbyVenues(
           let supabaseProcessed = false;
           if (res && res.ok) {
             supabaseProcessed = true;
-            console.log(
+            console.debug(
               "venueService: supabase response ok; processing venues",
               url,
             );
@@ -211,7 +212,7 @@ export async function fetchNearbyVenues(
             "https://corsproxy.io/?";
           if (!supabaseProcessed && useProxy) {
             try {
-              console.log(
+              console.debug(
                 "venueService: supabase fetch failed, trying CORS proxy",
                 proxyBase,
               );
@@ -249,7 +250,7 @@ export async function fetchNearbyVenues(
 
       let overpassQuerySucceeded = false;
       try {
-        console.log("venueService: preparing Overpass query");
+        console.debug("venueService: preparing Overpass query");
         const beerOnly = types.length === 1 && types[0] === "beer";
         const wineOrCocktail = types.some(
           (t) => t === "wine" || t === "cocktail",
@@ -588,8 +589,9 @@ export async function fetchNearbyVenues(
             isSpecificWine,
             isSpecificCocktail,
           });
-          (results[results.length - 1] as any)._classified = classified;
-          (results[results.length - 1] as any)._score = score;
+          const last = results[results.length - 1];
+          last._classified = classified;
+          last._score = score;
         }
       } catch (_e) {
         console.warn("venueService: Overpass query failed", _e);
@@ -626,20 +628,18 @@ export async function fetchNearbyVenues(
 
       const out = uniq
         .filter((v) => {
-          const cls = (v as any)._classified as
-            | ("beer" | "wine" | "cocktail")
-            | undefined;
+          const cls = v._classified;
           if (!types || types.length === 0) return true;
           if (!cls) return true;
           return types.includes(cls);
         })
         .sort((a, b) => {
-          const sa = (a as any)._score ?? 0;
-          const sb = (b as any)._score ?? 0;
+          const sa = a._score ?? 0;
+          const sb = b._score ?? 0;
           if (sb !== sa) return sb - sa;
           return (a.distance ?? 0) - (b.distance ?? 0);
         })
-        .slice(0, 12);
+        .slice(0, MAX_VENUE_RESULTS);
 
       // If Overpass was needed (wine/cocktail) and failed, and no other data source
       // provided results, throw so UI shows error card with retry instead of "No venues found"
