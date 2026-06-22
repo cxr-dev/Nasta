@@ -2,6 +2,9 @@ import { test, expect } from "@playwright/test";
 
 test.describe("feature discovery sheet", () => {
   test.beforeEach(async ({ page }) => {
+    const fixedNowIso = "2026-05-28T18:30:00+02:00";
+    const fixedNow = new Date(fixedNowIso).valueOf();
+
     page.on("console", (message) => {
       console.log(`[Browser ${message.type()}] ${message.text()}`);
     });
@@ -9,8 +12,8 @@ test.describe("feature discovery sheet", () => {
       console.log(`[PageError] ${error.message}`);
     });
 
-    await page.addInitScript(() => {
-      const fixedNow = new Date("2026-05-28T18:30:00+02:00").valueOf();
+    await page.addInitScript((nowIso) => {
+      const fixedNow = new Date(nowIso).valueOf();
       const RealDate = Date;
       // @ts-ignore
       globalThis.Date = class extends RealDate {
@@ -42,6 +45,7 @@ test.describe("feature discovery sheet", () => {
           enabledTransportTypes: ["bus", "train", "metro", "boat"],
           walkingEtaEnabled: true,
           afterworkVenuesEnabled: true,
+          afterworkStartHour: 17,
           afterworkTypes: ["beer", "wine", "cocktail"],
           eventsEnabled: true,
         }),
@@ -81,7 +85,7 @@ test.describe("feature discovery sheet", () => {
           },
         ]),
       );
-    });
+    }, fixedNowIso);
 
     await page.route("**/*.integration.sl.se/**", async (route) => {
       await route.fulfill({
@@ -99,7 +103,7 @@ test.describe("feature discovery sheet", () => {
               direction_code: 1,
               destination: "Norra Hammarbyhamnen",
               display: "5 min",
-              expected: new Date(Date.now() + 5 * 60000).toISOString(),
+              expected: new Date(fixedNow + 5 * 60000).toISOString(),
             },
           ],
         }),
@@ -168,7 +172,7 @@ test.describe("feature discovery sheet", () => {
       });
     });
 
-    await page.route("**/api.visitstockholm.com/**", async (route) => {
+    await page.route("**/events-data.json", async (route) => {
       await route.fulfill({
         status: 200,
         headers: {
@@ -177,20 +181,18 @@ test.describe("feature discovery sheet", () => {
           "Access-Control-Allow-Headers": "*",
         },
         contentType: "application/json",
-        body: JSON.stringify({
-          events: [
-            {
-              id: "event-1",
-              name: "Jazz Night",
-              startTime: new Date(
-                Date.now() + 2 * 60 * 60 * 1000,
-              ).toISOString(),
-              location: "Central Stockholm",
+        body: JSON.stringify([
+          {
+            id: "event-1",
+            name: "Jazz Night",
+            startTime: new Date(fixedNow + 2 * 60 * 60 * 1000).toISOString(),
+            location: {
+              name: "Central Stockholm",
               lat: 59.33,
               lon: 18.07,
             },
-          ],
-        }),
+          },
+        ]),
       });
     });
 
@@ -213,29 +215,25 @@ test.describe("feature discovery sheet", () => {
       timeout: 10000,
     });
 
-    // This button is the stable accessible trigger for the feature sheet in the current UI.
-    const nearbyButton = page
-      .locator(".journey-actions button.map-link-primary")
-      .first();
+    const nearbyButton = page.getByRole("button", { name: /Nearby venues/i });
     await expect(nearbyButton).toBeVisible({ timeout: 10000 });
     await nearbyButton.click();
 
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("tab", { name: /Beer|Öl/ })).toBeVisible();
-    await expect(page.getByText("Tap Room")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("tab", { name: /Events|Evenemang/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
 
     await page
       .getByRole("tab", { name: /Wine \+ cocktails|Vin \+ cocktails/ })
       .click();
-    // Target the heading specifically to avoid matching multiple elements (pill / button)
-    await expect(
-      page.getByRole("heading", {
-        name: /Wine\s*(&|and|\+)\s*Dine/,
-      }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Wine & Dine" })).toBeVisible({ timeout: 10000 });
 
-    await sheet.locator('.close-btn').click();
+    await page.getByRole("tab", { name: /Events|Evenemang/ }).click();
+    await expect(page.getByRole("heading", { name: "Jazz Night" })).toBeVisible({ timeout: 10000 });
+
+    await sheet.getByRole("button", { name: /Close panel|Stäng panel/ }).click();
     await expect(sheet).toBeHidden({ timeout: 10000 });
   });
 });

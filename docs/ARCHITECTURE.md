@@ -58,7 +58,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `slDeviations.ts`  | `deviations.integration.sl.se/v1/messages`                                | Active disruptions, alerts, severity scoring                                      |
 | `geo.ts`           | Native Geolocation API                                                    | User distance to stops, walking time calculations                                 |
 | `eventService.ts`  | `api.visitstockholm.com`                                                  | Nearby events from Visit Stockholm                                                |
-| `venueService.ts`  | Supabase Edge Function + Overpass API                                     | Beer/wine/cocktail venues                                                         |
+| `venueService.ts`  | Supabase Edge Function + Overpass API + optional CORS proxy               | Beer/wine/cocktail venues                                                         |
 
 ### Data Processing
 
@@ -222,8 +222,8 @@ Enforced at the data layer to ensure unselected modes don't clutter the UI:
 Three external APIs used for discovering nearby venues and events:
 
 - **Visit Stockholm** (`eventService.ts`) — Public events feed; CORS-enabled, fetched directly from browser
-- **Supabase Edge Function** (`venueService.ts`) — Curated beer venue data (prices, happy hour). Requires `VITE_SUPABASE_ANON_KEY`
-- **Overpass API** (`venueService.ts`) — OpenStreetMap queries for wine/cocktail venues
+- **Supabase Edge Function** (`venueService.ts`) — Curated beer venue data (prices, happy hour). `VITE_SUPABASE_ANON_KEY` is an optional override; the service falls back to a bundled anon token and can retry through a CORS proxy when enabled.
+- **Overpass API** (`venueService.ts`) — OpenStreetMap queries for wine/cocktail venues, with local/persistent caching to reduce repeated fetches.
 
 Prefetching is orchestrated by `prefetchService.ts`. A static snapshot of events is generated at build time via `scripts/fetch-events-data.mjs`.
 
