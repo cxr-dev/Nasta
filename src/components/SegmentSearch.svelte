@@ -5,8 +5,8 @@
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
 import type { SiteSearchResult, Departure } from '../types/departure';
 import type { TransportType, Stop, SegmentDirection } from '../types/page';
-import { transportIcons } from '../icons/transport';
 import { getT } from '../stores/localeStore.svelte';
+import TransportIcon from './TransportIcon.svelte';
 
   let t = $derived(getT());
 import { getSettings, setActiveTransportType } from '../stores/settingsStore.svelte';
@@ -324,13 +324,17 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     }
   }
 
-  function toggleTransportType(type: TransportType) {
-    if (activeTransportTypes.includes(type)) {
-      activeTransportTypes = activeTransportTypes.filter(t => t !== type);
-      return;
-    }
-    activeTransportTypes = [...activeTransportTypes, type];
+function toggleTransportType(type: TransportType) {
+  if (activeTransportTypes.includes(type)) {
+    activeTransportTypes = activeTransportTypes.filter(t => t !== type);
+    return;
   }
+  activeTransportTypes = [...activeTransportTypes, type];
+}
+
+function filterIconType(type: TransportFilterOption): TransportType {
+  return type === 'all' ? 'bus' : type;
+}
 
   async function fetchLocationIfEnabled() {
     if (!(settings.walkingEtaEnabled ?? false)) return;
@@ -469,9 +473,9 @@ function getDistanceSortValue(station: SiteSearchResult): number {
            <button class="item" onclick={() => selectStation(station)}>
             <div class="item-main">
               {#if station.note === 'Sjöstadstrafiken'}
-                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
+                <TransportIcon type="boat" size={18} />
               {:else}
-                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.bus}</g></svg>
+                <TransportIcon type="bus" size={18} />
               {/if}
               <span class="name">{station.name}</span>
             </div>
@@ -520,13 +524,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
                 aria-pressed={type === 'all' ? !settings.activeTransportType : settings.activeTransportType === type}
                 data-testid={`transport-filter-${type}`}
               >
-                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
-                  {#if type === 'all'}
-                    {@html transportIcons.bus}
-                  {:else}
-                    {@html transportIcons[type as TransportType]}
-                  {/if}
-                </svg>
+                <TransportIcon type={filterIconType(type)} size={16} />
                 <span>{type === 'all' ? t.allTransportTypes : type}</span>
               </button>
             {/each}
@@ -540,9 +538,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
                 aria-pressed={activeTransportTypes.includes(type)}
                 data-testid={`transport-filter-${type}`}
               >
-                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor">
-                  {@html transportIcons[type]}
-                </svg>
+                <TransportIcon type={type} size={16} />
                 <span>{type}</span>
               </button>
             {/each}
@@ -552,9 +548,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
           {#each uniqueLinesFiltered as dep (dep.line)}
             <button class="dep-item" onclick={() => handleLineSelect(dep)}>
               <div class="dep-transport">
-                <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
-                  {@html transportIcons[dep.transportType]}
-                </svg>
+                <TransportIcon type={dep.transportType} size={18} />
               </div>
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
@@ -578,9 +572,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         <div class="direction-view">
           <div class="selected-line-header">
             <div class="dep-transport">
-              <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={selectedLine?.transportType === 'boat'}>
-                {@html transportIcons[selectedLine?.transportType || 'bus']}
-              </svg>
+              <TransportIcon type={selectedLine?.transportType || 'bus'} size={18} />
             </div>
             <span class="selected-line-number">{selectedLine?.line}</span>
             <span class="selected-line-name">{selectedLine?.lineName || t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
@@ -691,11 +683,6 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     color: var(--accent);
   }
 
-  .item .transport-icon {
-    font-size: 16px;
-    margin-right: 8px;
-  }
-
   .item .name {
     flex: 1;
     overflow: hidden;
@@ -708,6 +695,11 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     align-items: center;
     flex: 1;
     min-width: 0;
+  }
+
+  .item .transport-icon {
+    margin-right: 8px;
+    color: var(--accent);
   }
 
   .distance {
@@ -796,10 +788,6 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   }
 
   .transport-filter-btn .transport-icon {
-    width: 16px;
-    height: 16px;
-    color: currentColor;
-    fill: currentColor;
     transition: transform 0.2s ease;
   }
   @media (hover: hover) {
@@ -866,16 +854,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     height: 32px;
     border-radius: 8px;
     background: var(--accent-subtle);
-  }
-
-  .transport-icon {
-    width: 18px;
-    height: 18px;
-    fill: var(--accent);
-  }
-
-  .transport-icon.boat {
-    fill: var(--accent);
+    color: var(--accent);
   }
 
   .dep-info {

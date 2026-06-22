@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { Page, Segment, TransportType } from '../types/page';
   import { removeSegment as storeRemoveSegment, reorderSegments } from '../stores/pageStore.svelte';
-  import { transportIcons } from '../icons/transport';
   import { getT } from '../stores/localeStore.svelte';
   import { gripVertical } from '../icons/departureIcons';
+  import TransportIcon from './TransportIcon.svelte';
   import gsap from 'gsap';
 
   let t = $derived(getT());
@@ -99,10 +99,6 @@
     dragOverIndex = null;
   }
 
-  function getIcon(type: string): string {
-    return transportIcons[type as keyof typeof transportIcons] || transportIcons.bus;
-  }
-
   function getLineBadge(transportType: TransportType, line: string): string {
     switch (transportType) {
       case 'metro': return `T${line}`;
@@ -170,9 +166,7 @@
             </svg>
           </div>
           <div class="segment-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor" class="transport-icon">
-              {@html getIcon(segment.transportType)}
-            </svg>
+            <TransportIcon type={segment.transportType} size={18} />
           </div>
           <div class="segment-meta">
             <div class="segment-line">
@@ -279,13 +273,7 @@
     justify-content: center;
     flex-shrink: 0;
     background: var(--accent-subtle);
-  }
-
-  .segment-icon .transport-icon {
-    width: 18px;
-    height: 18px;
     color: var(--accent);
-    fill: var(--accent);
   }
 
   .segment-meta {

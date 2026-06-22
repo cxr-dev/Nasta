@@ -1,0 +1,78 @@
+import { chromium } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, '..');
+const targetFile = join(root, 'src', 'icons', 'transport.ts');
+const artboardSize = 24;
+const targetInnerSize = 20;
+
+const rawIcons = {
+  bus: '<path d="M6 24h-2c-.552 0-1-.448-1-1v-1c-.53 0-1.039-.211-1.414-.586s-.586-.884-.586-1.414v-8c-.552 0-1-.448-1-1v-3c0-.552.448-1 1-1v-4c0-1.657 1.343-3 3-3h16c1.657 0 3 1.343 3 3v4c.552 0 1 .448 1 1v3c0 .552-.448 1-1 1v8c0 .53-.211 1.039-.586 1.414s-.884.586-1.414.586v1c0 .552-.448 1-1 1h-2c-.552 0-1-.448-1-1v-1h-10v1c0 .552-.448 1-1 1zm-1.5-7c.828 0 1.5.672 1.5 1.5s-.672 1.5-1.5 1.5-1.5-.672-1.5-1.5.672-1.5 1.5-1.5zm15 0c.828 0 1.5.672 1.5 1.5s-.672 1.5-1.5 1.5-1.5-.672-1.5-1.5.672-1.5 1.5-1.5zm-5 1h-5c-.276 0-.5.224-.5.5s.224.5.5.5h5c.276 0 .5-.224.5-.5s-.224-.5-.5-.5zm6.5-12.5c0-.276-.224-.5-.5-.5h-17c-.276 0-.5.224-.5.5v8.5s3.098 1 9 1 9-1 9-1v-8.5zm-5-3.5h-8v1h8v-1z"/>',
+  train: '<path d="M21 18a1 1 0 1 1 0 2H2a1 1 0 1 1 0-2zM12 5c3.224 0 5.942 1.075 7.868 2.589C21.759 9.075 23 11.085 23 13c0 .842-.258 1.56-.713 2.14-.443.566-1.034.95-1.636 1.214-1.186.518-2.597.646-3.651.646H2.994A1.995 1.995 0 0 1 1 15V7c0-1.101.89-2 1.998-2zM7 7H3v3h4zm5 0H9v3h4V7.04q-.326-.027-.662-.035zm3 .383V10h4.551a8 8 0 0 0-.919-.839c-.962-.756-2.19-1.395-3.632-1.778"/>',
+  metro: '<path d="M48.89,48.14h1.27a6,6,0,0,0,6-6v-36a6,6,0,0,0-6-6H21.84a6,6,0,0,0-6,6v36a6,6,0,0,0,6,6h1.27L14.55,55.8H20l2.74-2.45H49.31l2.74,2.45h5.4ZM48,44.45a3,3,0,1,1,3-3A2.95,2.95,0,0,1,48,44.45Zm-18.72-42H42.71a1.65,1.65,0,0,1,0,3.3H29.29a1.65,1.65,0,1,1,0-3.3ZM18.84,26.25V11.15a3,3,0,0,1,3-3H50.16a3,3,0,0,1,3,3v15.1a3,3,0,0,1-3,3H21.84A3,3,0,0,1,18.84,26.25ZM21,41.5a3,3,0,1,1,2.95,3A2.95,2.95,0,0,1,21,41.5Zm5.67,8.25,1.78-1.61H43.58l1.71,1.61Z"/>',
+  boat: '<path d="M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v2h2c1.38 0 2.74-.35 4-.99 2.52 1.29 5.48 1.29 8 0 1.26.65 2.62.99 4 .99h2v-2h-2zM3.95 19H4c1.6 0 3.02-.88 4-2 .98 1.12 2.4 2 4 2s3.02-.88 4-2c.98 1.12 2.4 2 4 2h.05l1.89-6.68c.08-.26.06-.54-.06-.78s-.34-.42-.6-.5L20 10.62V6c0-1.1-.9-2-2-2h-3V1H9v3H6c-1.1 0-2 .9-2 2v4.62l-1.29.42c-.26.08-.48.26-.6.5s-.15.52-.06.78L3.95 19z"/>',
+  tram: '<path d="M25 0C17.597656 0 14 1.308594 14 4C14 4.550781 14.449219 5 15 5C15.550781 5 16 4.550781 16 4C16 3.507813 16.996094 2.703125 20.09375 2.28125L20.9375 7.21875C12.851563 8.125 8 11.675781 8 15L8 38.28125C8 41.363281 10.167969 43.964844 13.125 44.75L8.9375 48.25C8.519531 48.601563 8.460938 49.207031 8.8125 49.625C9.007813 49.859375 9.28125 50 9.5625 50C9.785156 50 10.03125 49.90625 10.21875 49.75L15.90625 45L34.09375 45L39.78125 49.75C39.96875 49.90625 40.214844 50 40.4375 50C40.71875 50 40.992188 49.859375 41.1875 49.625C41.539063 49.207031 41.480469 48.601563 41.0625 48.25L36.875 44.75C39.832031 43.964844 42 41.363281 42 38.28125L42 15C42 11.675781 37.148438 8.125 29.0625 7.21875L29.90625 2.28125C33.003906 2.703125 34 3.507813 34 4C34 4.550781 34.445313 5 35 5C35.554688 5 36 4.550781 36 4C36 1.308594 32.402344 0 25 0 Z M 25 2C26.085938 2 27.019531 2.039063 27.875 2.09375L27.03125 7.0625C26.367188 7.027344 25.699219 7 25 7C24.300781 7 23.632813 7.027344 22.96875 7.0625L22.125 2.09375C22.980469 2.039063 23.914063 2 25 2 Z M 19 13L31 13C31.554688 13 32 13.449219 32 14L32 16L18 16L18 14C18 13.449219 18.449219 13 19 13 Z M 15 18L35 18C36.105469 18 37 18.832031 37 19.84375L37 27.15625C37 28.167969 36.105469 29 35 29L15 29C13.894531 29 13 28.167969 13 27.15625L13 19.84375C13 18.832031 13.894531 18 15 18 Z M 16 34C17.65625 34 19 35.34375 19 37C19 38.65625 17.65625 40 16 40C14.34375 40 13 38.65625 13 37C13 35.34375 14.34375 34 16 34 Z M 34 34C35.65625 34 37 35.34375 37 37C37 38.65625 35.65625 40 34 40C32.34375 40 31 38.65625 31 37C31 35.34375 32.34375 34 34 34Z"/>',
+};
+
+function formatNumber(value) {
+  const rounded = Math.round(value * 10000) / 10000;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function computeTransform(bbox) {
+  const scale = Math.min(targetInnerSize / bbox.width, targetInnerSize / bbox.height);
+  const scaledWidth = bbox.width * scale;
+  const scaledHeight = bbox.height * scale;
+  const tx = (artboardSize - scaledWidth) / 2 - bbox.x * scale;
+  const ty = (artboardSize - scaledHeight) / 2 - bbox.y * scale;
+  return {
+    scale: formatNumber(scale),
+    transform: `translate(${formatNumber(tx)} ${formatNumber(ty)}) scale(${formatNumber(scale)})`,
+  };
+}
+
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage();
+const normalizedIcons = {};
+
+for (const [name, body] of Object.entries(rawIcons)) {
+  await page.setContent(`<!doctype html><html><body><svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><g id="icon">${body}</g></svg></body></html>`);
+  const bbox = await page.locator('#icon').evaluate((element) => {
+    const box = element.getBBox();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+  normalizedIcons[name] = {
+    body,
+    bbox,
+    ...computeTransform(bbox),
+  };
+}
+
+await browser.close();
+
+const lines = [
+  'import type { TransportType } from "../types/page";',
+  '',
+  'export interface TransportIconDefinition {',
+  '  body: string;',
+  '  transform: string;',
+  '}',
+  '',
+  'export const transportIcons: Record<TransportType, TransportIconDefinition> = {',
+  ...Object.entries(normalizedIcons).map(
+    ([name, icon]) => `  ${name}: { body: ${JSON.stringify(icon.body)}, transform: ${JSON.stringify(icon.transform)} },`,
+  ),
+  '} as const;',
+  '',
+];
+
+await mkdir(dirname(targetFile), { recursive: true });
+await writeFile(targetFile, lines.join('\n'), 'utf8');
+
+console.log(`Wrote ${targetFile}`);
+for (const [name, icon] of Object.entries(normalizedIcons)) {
+  console.log(`${name}: ${icon.transform} bbox=${JSON.stringify(icon.bbox)}`);
+}

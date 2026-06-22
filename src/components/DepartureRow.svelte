@@ -1,14 +1,13 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
   import type { Departure } from "../stores/departureStore.svelte";
-  import { transportIcons } from "../icons/transport";
   import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
   import DisruptionList from "./DisruptionList.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
-  import type { TransportType } from "../types/page";
+  import TransportIcon from "./TransportIcon.svelte";
 
   let {
     segment,
@@ -53,11 +52,6 @@
     ontoggle?: () => void;
     onprefetch?: () => void;
   } = $props();
-
-  function getTransportIcon(type: TransportType): string {
-    return transportIcons[type] ?? transportIcons.bus;
-  }
-
 
   function pillLabel(type: string, severity: string): string {
     if (severity === 'critical') {
@@ -177,9 +171,7 @@
     <div class="accent-bar" class:imminent={isImminent} class:soon={isSoon} style="background: {accentColor}"></div>
 
     <div class="icon-badge" style="background: {badgeBgIntensity}">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <g>{@html getTransportIcon(segment.transportType)}</g>
-      </svg>
+      <TransportIcon type={segment.transportType} size={18} />
     </div>
 
     <div class="meta-col">
@@ -289,10 +281,6 @@
     border-radius: 8px;
     flex-shrink: 0;
     color: var(--accent);
-  }
-  .icon-badge svg {
-    width: 18px;
-    height: 18px;
   }
 
   .meta-col {
