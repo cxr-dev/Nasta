@@ -111,10 +111,10 @@ describe("mergeDeparturesWithPredictions", () => {
 });
 
 describe("computeDisplayDevs", () => {
-  it("returns site devs when available, ignoring health reason", () => {
+  it("returns health reason when available, ignoring site devs", () => {
     const siteDevs = [{ message: "Signalproblem" }];
     const result = computeDisplayDevs(siteDevs, "Some health reason");
-    expect(result).toEqual([{ message: "Signalproblem" }]);
+    expect(result).toEqual([{ message: "Some health reason" }]);
   });
 
   it("returns health reason as a display dev when site devs are empty", () => {
@@ -132,14 +132,12 @@ describe("computeDisplayDevs", () => {
     expect(result).toEqual([]);
   });
 
-  it("prefers site devs over health reason when both exist", () => {
+  it("prefers health reason over site devs when both exist", () => {
     const siteDevs = [
       { message: "Stopp i tunnelbanan", severity: "critical" },
     ];
     const result = computeDisplayDevs(siteDevs, "Some fallback reason");
-    expect(result).toEqual([
-      { message: "Stopp i tunnelbanan", severity: "critical" },
-    ]);
+    expect(result).toEqual([{ message: "Some fallback reason" }]);
   });
 
   it("returns multiple site devs as-is", () => {

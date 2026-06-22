@@ -18,7 +18,7 @@
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
   import { chevronLeft, chevronRight, settingsGear } from "../icons/departureIcons";
-  import { computeDisplayDevs, isSegmentDisrupted } from "./segmentUtils";
+  import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
@@ -193,7 +193,8 @@
     segs.forEach((seg, i) => {
       const health = deviationHealthBySegment.get(seg.id);
       const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
-      const isDisrupted = isSegmentDisrupted(siteDevsList.length, health?.state);
+      const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold);
+      const isDisrupted = display.messages.length > 0;
       (isDisrupted ? disrupted : all).push({ segment: seg, originalIndex: i });
     });
     return { all, disrupted, hasDisrupted: disrupted.length > 0 };
@@ -421,9 +422,10 @@
         {@const hasDeparture = deps.length > 0 && !!departure}
         {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
         {@const health = deviationHealthBySegment.get(item.segment.id)}
-        {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
         {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
-        {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
+        {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold)}
+        {@const severity = disruptionDisplay.severity}
+        {@const displayDevs = disruptionDisplay.messages}
         {@const hasDisruption = displayDevs.length > 0}
         {@const isExpanded = expandedSegmentId === item.segment.id}
         {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
@@ -464,9 +466,10 @@
           {@const hasDeparture = deps.length > 0 && !!departure}
           {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
           {@const health = deviationHealthBySegment.get(item.segment.id)}
-          {@const severity = health?.state === 'critical' ? 'critical' : health?.state === 'affected' ? 'affected' : 'normal'}
           {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
-          {@const displayDevs = computeDisplayDevs(rawSiteDevs, health?.reason)}
+          {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold)}
+          {@const severity = disruptionDisplay.severity}
+          {@const displayDevs = disruptionDisplay.messages}
           {@const hasDisruption = displayDevs.length > 0}
           {@const isExpanded = expandedSegmentId === item.segment.id}
           {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
