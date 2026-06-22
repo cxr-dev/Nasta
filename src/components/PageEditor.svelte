@@ -271,13 +271,17 @@
   }
 </script>
 
-<div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen} onclick={onClose} onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} role="dialog" tabindex="-1">
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     class="editor-sheet"
     ontouchstart={handleTouchStart}
     ontouchend={handleTouchEnd}
+    onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
   >
+    <div class="sheet-handle" aria-hidden="true"></div>
     <div class="sheet-header">
       <button class="back-btn" onclick={onClose} aria-label={t.closeEditor}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -808,7 +812,7 @@
     margin: 0 auto;
     background: var(--bg);
     transform: translateY(100%);
-    transition: transform 200ms ease-out;
+    transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -816,6 +820,16 @@
   }
 
   .editor-sheet::-webkit-scrollbar { display: none; }
+
+  .sheet-handle {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border);
+    margin: 8px auto 0;
+    flex-shrink: 0;
+    cursor: grab;
+  }
 
   .editor-overlay.open .editor-sheet {
     transform: translateY(0);

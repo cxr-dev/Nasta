@@ -731,6 +731,7 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       align-content: start;
+      align-items: start;
     }
 
     .card-list > .section-label,
