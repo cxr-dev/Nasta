@@ -25,7 +25,13 @@ const _rawPalettes = [
   { id: 'wild-orchid',    name: 'Wild Orchid',    colorA: '#E056FD', colorB: '#6864E0' },
   { id: 'deep-space',     name: 'Deep Space',     colorA: '#2F3640', colorB: '#8C7AE6' },
   { id: 'oceanic-grit',   name: 'Oceanic Grit',   colorA: '#2BCBBA', colorB: '#2D3436' },
-  { id: 'toxic-sun',      name: 'Toxic Sun',      colorA: '#F7B731', colorB: '#EB3B5A' },
+  { id: 'toxic-sun',             name: 'Toxic Sun',           colorA: '#F7B731', colorB: '#EB3B5A' },
+  { id: 'lavender-haze',         name: 'Lavender Haze',         colorA: '#6260FF', colorB: '#E4E4FF' },
+  { id: 'sulu-forest',           name: 'Sulu Forest',           colorA: '#9FE870', colorB: '#163300' },
+  { id: 'arctic-deep',           name: 'Arctic Deep',           colorA: '#BDD9D7', colorB: '#03363D' },
+  { id: 'royal-blush',           name: 'Royal Blush',           colorA: '#3447AA', colorB: '#FBEAEB' },
+  { id: 'solar-storm',           name: 'Solar Storm',           colorA: '#FCDB32', colorB: '#141D38' },
+  { id: 'abyssal-teal',          name: 'Abyssal Teal',          colorA: '#34E0A1', colorB: '#000000' },
 ];
 
 export function needsLightText(hex: string): boolean {

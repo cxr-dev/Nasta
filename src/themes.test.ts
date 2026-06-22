@@ -18,8 +18,8 @@ describe('needsLightText', () => {
 });
 
 describe('THEMES', () => {
-  it('has 16 entries including default', () => {
-    expect(THEMES).toHaveLength(16);
+  it('has 22 entries including default', () => {
+    expect(THEMES).toHaveLength(22);
   });
 
   it('each theme has id, name, colorA, colorB', () => {
