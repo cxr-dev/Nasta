@@ -1,60 +1,55 @@
-export type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night';
+// Reactive time-of-day store
+// Provides current hour, minute, period label, and formatted time
+// Updates every 60 seconds. Used by App.svelte for afterwork venue logic.
 
-interface TimeOfDayState {
+type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night';
+
+interface TimeOfDay {
   hour: number;
   minute: number;
   period: TimePeriod;
   formattedTime: string;
 }
 
-function getTimePeriod(hour: number): TimePeriod {
-  if (hour >= 6 && hour < 10) return 'morning';
-  if (hour >= 10 && hour < 16) return 'afternoon';
-  if (hour >= 16 && hour < 20) return 'evening';
+let _hour = $state(new Date().getHours());
+let _minute = $state(new Date().getMinutes());
+let _interval: ReturnType<typeof setInterval> | undefined;
+
+function getPeriod(h: number): TimePeriod {
+  if (h >= 6 && h < 10) return 'morning';
+  if (h >= 10 && h < 16) return 'afternoon';
+  if (h >= 16 && h < 20) return 'evening';
   return 'night';
 }
 
-function formatTime(hour: number, minute: number): string {
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+function pad(n: number): string {
+  return n.toString().padStart(2, '0');
 }
 
-function createInitialState(): TimeOfDayState {
+function update() {
   const now = new Date();
-  return {
-    hour: now.getHours(),
-    minute: now.getMinutes(),
-    period: getTimePeriod(now.getHours()),
-    formattedTime: formatTime(now.getHours(), now.getMinutes()),
-  };
-}
-
-let _state = $state<TimeOfDayState>(createInitialState());
-let _intervalId: ReturnType<typeof setInterval> | null = null;
-
-export function getTimeOfDay(): TimeOfDayState {
-  return _state;
-}
-
-function updateState() {
-  const now = new Date();
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-  _state = {
-    hour,
-    minute,
-    period: getTimePeriod(hour),
-    formattedTime: formatTime(hour, minute),
-  };
+  _hour = now.getHours();
+  _minute = now.getMinutes();
 }
 
 export function start() {
-  updateState();
-  _intervalId = setInterval(updateState, 60000);
+  if (_interval) return;
+  update();
+  _interval = setInterval(update, 60_000);
 }
 
 export function stop() {
-  if (_intervalId) {
-    clearInterval(_intervalId);
-    _intervalId = null;
+  if (_interval) {
+    clearInterval(_interval);
+    _interval = undefined;
   }
+}
+
+export function getTimeOfDay(): TimeOfDay {
+  return {
+    hour: _hour,
+    minute: _minute,
+    period: getPeriod(_hour),
+    formattedTime: `${pad(_hour)}:${pad(_minute)}`,
+  };
 }

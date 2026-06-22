@@ -1,4 +1,4 @@
-import type { TransportType } from "./route";
+import type { TransportType } from "./page";
 
 export interface Departure {
   line: string;
