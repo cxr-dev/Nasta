@@ -697,11 +697,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     min-width: 0;
   }
 
-  .item .transport-icon {
-    margin-right: 8px;
-    color: var(--accent);
-  }
-
   .distance {
     font-size: 12px;
     color: var(--text-muted);
@@ -787,13 +782,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     -webkit-tap-highlight-color: transparent;
   }
 
-  .transport-filter-btn .transport-icon {
-    transition: transform 0.2s ease;
-  }
-  @media (hover: hover) {
-    .transport-filter-btn:hover .transport-icon { transform: scale(1.12); }
-  }
-
   .transport-filter-btn.active {
     color: var(--accent);
     border-color: var(--accent);
@@ -822,11 +810,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
     will-change: transform, border-color;
   }
-  .dep-item .transport-icon { transition: transform 0.2s ease; }
-  @media (hover: hover) {
-    .dep-item:hover .transport-icon { transform: scale(1.08); }
-  }
-
   @media (hover: hover) {
     .dep-item:hover {
       border-color: var(--accent);
