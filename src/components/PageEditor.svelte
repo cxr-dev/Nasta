@@ -122,6 +122,8 @@
   let hintEl = $state<HTMLDivElement | undefined>();
   let addBtnEl = $state<HTMLButtonElement | undefined>();
   let dotEl = $state<HTMLSpanElement | undefined>();
+  let handleSwipeStartX = 0;
+  let handleSwipeStartY = 0;
 
   $effect(() => {
     if (!hintEl) return;
@@ -269,10 +271,37 @@
       }
     }
   }
+
+  function isTabletOrDesktopViewport(): boolean {
+    return typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+  }
+
+  function handleSheetHandleTouchStart(e: TouchEvent) {
+    if (!isTabletOrDesktopViewport()) return;
+    const touch = e.touches[0];
+    handleSwipeStartX = touch.clientX;
+    handleSwipeStartY = touch.clientY;
+  }
+
+  function handleSheetHandleTouchEnd(e: TouchEvent) {
+    if (!isTabletOrDesktopViewport()) return;
+    if (handleSwipeStartX === 0 && handleSwipeStartY === 0) return;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - handleSwipeStartX;
+    const dy = touch.clientY - handleSwipeStartY;
+
+    handleSwipeStartX = 0;
+    handleSwipeStartY = 0;
+
+    if (dy > 44 && dy > Math.abs(dx) * 1.1) {
+      onClose();
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen} onclick={onClose} onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} role="dialog" tabindex="-1">
+<div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen} aria-modal="true" onclick={onClose} onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} role="dialog" tabindex="-1">
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     class="editor-sheet"
@@ -281,11 +310,19 @@
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
   >
-    <div class="sheet-handle" aria-hidden="true"></div>
+    <div
+      class="sheet-handle"
+      aria-hidden="true"
+      ontouchstart={handleSheetHandleTouchStart}
+      ontouchend={handleSheetHandleTouchEnd}
+    ></div>
     <div class="sheet-header">
-      <button class="back-btn" onclick={onClose} aria-label={t.closeEditor}>
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+      <button type="button" class="back-btn" onclick={onClose} aria-label={t.closeEditor}>
+        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18"/>
         </svg>
       </button>
       <span class="sheet-title">
@@ -797,12 +834,18 @@
   .editor-overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 260;
     pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease, background 180ms ease, visibility 0s linear 180ms;
   }
 
   .editor-overlay.open {
     pointer-events: auto;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 180ms ease, background 180ms ease, visibility 0s linear 0s;
   }
 
   .editor-sheet {
@@ -825,7 +868,7 @@
     width: 40px;
     height: 5px;
     border-radius: 3px;
-    background: var(--border);
+    background: var(--border-subtle);
     margin: 8px auto 0;
     flex-shrink: 0;
     cursor: grab;
@@ -860,6 +903,10 @@
   }
 
   .back-btn:hover { background: var(--border); }
+
+  .desktop-close-icon {
+    display: none;
+  }
 
   .sheet-title {
     font-size: 15px;
@@ -1812,29 +1859,73 @@
     }
   }
 
-  /* ── Tablet/desktop: partial-height bottom sheet ── */
+  /* ── Tablet/desktop: fixed inspector overlay ── */
   @media (min-width: 768px) {
     .editor-overlay {
-      background: rgba(0, 0, 0, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .editor-overlay.open {
+      background: rgba(0, 0, 0, 0.16);
     }
 
     .editor-sheet {
-      position: absolute;
-      top: auto;
-      bottom: 0;
-      left: 50%;
-      right: auto;
-      width: min(540px, calc(100vw - 32px));
+      position: relative;
+      inset: auto;
+      width: min(760px, calc(100vw - 48px));
+      height: min(780px, calc(100dvh - 48px));
       max-width: none;
-      max-height: 70dvh;
+      max-height: none;
       margin: 0;
-      border-radius: 20px 20px 0 0;
-      box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
-      transform: translateX(-50%) translateY(100%);
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 72%, #fff 28%);
+      border-radius: 28px;
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+      transform: translateY(20px) scale(0.985);
+      opacity: 0;
+    }
+
+    .sheet-handle {
+      width: 44px;
+      margin-top: 10px;
+      background: color-mix(in srgb, var(--border-subtle) 70%, #fff 30%);
     }
 
     .editor-overlay.open .editor-sheet {
-      transform: translateX(-50%) translateY(0);
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    .sheet-header {
+      padding-top: 16px;
+    }
+
+    .back-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    }
+
+    .back-btn:hover {
+      background: var(--accent-subtle);
+    }
+
+    .mobile-close-icon {
+      display: none;
+    }
+
+    .desktop-close-icon {
+      display: block;
+    }
+
+    .tab-bar {
+      padding: 0 16px;
     }
   }
 </style>
