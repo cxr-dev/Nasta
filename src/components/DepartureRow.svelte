@@ -8,6 +8,7 @@
   import MapPreview from "./MapPreview.svelte";
   import DisruptionList from "./DisruptionList.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
+  import type { TransportType } from "../types/page";
 
   let {
     segment,
@@ -57,7 +58,6 @@
     return transportIcons[type] ?? transportIcons.bus;
   }
 
-  import type { TransportType } from "../types/page";
 
   function pillLabel(type: string, severity: string): string {
     if (severity === 'critical') {
@@ -171,6 +171,7 @@
     use:prefetch
     type="button"
     aria-expanded={isExpanded}
+    aria-controls={isExpandable ? segment.id : undefined}
     onclick={() => { if (isExpandable) handleToggle(); }}
   >
     <div class="accent-bar" class:imminent={isImminent} class:soon={isSoon} style="background: {accentColor}"></div>
@@ -217,7 +218,7 @@
   {/if}
 
   {#if isExpanded || collapsing}
-    <div bind:this={panelEl} class="expanded-panel" class:collapsing>
+    <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
       <div class="expanded-actions">
         {#if hasDeparture}
           <MapPreview

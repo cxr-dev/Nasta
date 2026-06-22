@@ -171,7 +171,7 @@
           type="button"
           class="map-expand-btn"
           onclick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Minimize map' : 'Expand map fullscreen'}
+          aria-label={isFullscreen ? t.minimizeMap : t.expandMap}
         >
           {#if isFullscreen}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

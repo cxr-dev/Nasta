@@ -58,23 +58,48 @@ export async function fetchNearbyEvents(
   if (inflight) return inflight;
 
   const request = (async () => {
+    const filterEvents = (events: EventItem[]) =>
+      events
+        .filter((event) => event.lat !== undefined && event.lon !== undefined)
+        .filter(
+          (event) =>
+            distanceMeters(lat, lon, event.lat!, event.lon!) <= radius,
+        )
+        .filter((event) => {
+          if (!event.startTime) return true;
+          const today = new Date().toISOString().slice(0, 10);
+          // Date-only (YYYY-MM-DD): keep only events starting today
+          if (/^\d{4}-\d{2}-\d{2}$/.test(event.startTime)) {
+            return event.startTime === today;
+          }
+          // Datetime string: keep only events starting today
+          return event.startTime.slice(0, 10) === today;
+        })
+        .sort((a, b) => {
+          if (!a.startTime || !b.startTime) return 0;
+          return a.startTime.localeCompare(b.startTime);
+        });
+
     try {
       // check persistent cache (longer TTL) — not signal-gated, always worth checking
       try {
         const p = await persistentCache.get(`events:${key}`);
         if (p) {
           const persisted = p as EventItem[];
+          const filtered = filterEvents(persisted);
           eventsCache.set(key, {
             expires: Date.now() + CACHE_TTL_MS,
-            value: persisted,
+            value: filtered,
           });
-          return persisted;
+          return filtered;
         }
       } catch (e) {}
 
       // If signal is already aborted at this point there is no cache to serve —
       // bail early so we don't waste a network slot.
-      if (signal?.aborted) return [];
+      if (signal?.aborted) {
+        return [];
+      }
 
       const sourceUrl = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({
         size: String(MAX_EVENT_PAGE_SIZE),
@@ -135,28 +160,6 @@ export async function fetchNearbyEvents(
           } as EventItem;
         });
       };
-
-      const filterEvents = (events: EventItem[]) =>
-        events
-          .filter((event) => event.lat !== undefined && event.lon !== undefined)
-          .filter(
-            (event) =>
-              distanceMeters(lat, lon, event.lat!, event.lon!) <= radius,
-          )
-          .filter((event) => {
-            if (!event.startTime) return true;
-            const now = new Date();
-            // Date-only (YYYY-MM-DD): keep if today or future
-            if (/^\d{4}-\d{2}-\d{2}$/.test(event.startTime)) {
-              return event.startTime >= now.toISOString().slice(0, 10);
-            }
-            // Datetime string: keep if not yet started
-            return new Date(event.startTime) >= now;
-          })
-          .sort((a, b) => {
-            if (!a.startTime || !b.startTime) return 0;
-            return a.startTime.localeCompare(b.startTime);
-          });
 
       // Static file: built at deploy time by prebuild script — primary source for production.
       // Use an internal AbortController with a generous timeout so that a caller aborting the

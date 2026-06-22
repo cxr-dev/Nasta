@@ -1,4 +1,3 @@
-import { get } from "svelte/store";
 import type { Departure } from "../types/departure";
 import { getDepartures } from "../services/departureService";
 import { getCachedSchedule } from "../services/scheduleCache";

@@ -60,10 +60,13 @@ export function loadPages(): Page[] {
       if (!page || !Array.isArray(page.segments)) return page;
       
       const cleanSegments = page.segments.map((seg: any) => {
-        if (seg && seg.directionText && !seg.direction) {
+        if (!seg) return seg;
+
+        // Migration 1: legacy directionText → direction object
+        if (seg.directionText && !seg.direction) {
           migrated = true;
           const { directionText, ...rest } = seg;
-          return {
+          seg = {
             ...rest,
             direction: {
               code: 1,
@@ -72,6 +75,7 @@ export function loadPages(): Page[] {
             }
           };
         }
+
         return seg;
       });
       

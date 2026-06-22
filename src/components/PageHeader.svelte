@@ -149,7 +149,7 @@
 
   .swipe-hint {
     font-size: 11px;
-    color: var(--text-ghost);
+    color: var(--text-secondary);
     font-weight: 500;
     padding-bottom: 10px;
     padding-left: 1px;

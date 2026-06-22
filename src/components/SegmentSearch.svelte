@@ -205,11 +205,18 @@ function getDistanceSortValue(station: SiteSearchResult): number {
             query.toLowerCase().includes(k)
           )?.[1] || query;
 
+          const sjostadCoords: Record<string, [number, number]> = {
+            'Luma brygga': [59.30566801584885, 18.099309696257656],
+            'Barnängen': [59.30824408961144, 18.097770808925457],
+            'Henriksdal': [59.309253974378066, 18.10136473213606]
+          };
+          const hasCoords = sjostadCoords[actualName];
           const sjostadStation: SiteSearchResult = {
             siteId: 'sjostad-' + actualName.toLowerCase().replace(/\s+/g, '-'),
             name: actualName,
             type: 'stop',
-            note: 'Sjöstadstrafiken'
+            note: 'Sjöstadstrafiken',
+            ...(hasCoords ? { lat: hasCoords[0], lon: hasCoords[1] } : {})
           };
           result.unshift(sjostadStation);
         }
@@ -459,7 +466,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     {:else if filteredStations.length > 0}
       <div class="results">
         {#each filteredStations as station (station.siteId)}
-           <button class="item" onmousedown={() => selectStation(station)}>
+           <button class="item" onclick={() => selectStation(station)}>
             <div class="item-main">
               {#if station.note === 'Sjöstadstrafiken'}
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor"><g>{@html transportIcons.boat}</g></svg>
@@ -481,7 +488,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
     {/if}
   {:else}
     <div class="departures-view">
-      <button class="back" onmousedown={goBack}>
+      <button class="back" onclick={goBack}>
         {t.back}
       </button>
       <h3>{selectedStation?.name}</h3>
@@ -543,7 +550,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
         </div>
         <div class="departures-list">
           {#each uniqueLinesFiltered as dep (dep.line)}
-            <button class="dep-item" onmousedown={() => handleLineSelect(dep)}>
+            <button class="dep-item" onclick={() => handleLineSelect(dep)}>
               <div class="dep-transport">
                 <svg viewBox="0 0 24 24" class="transport-icon" fill="currentColor" class:boat={dep.transportType === 'boat'}>
                   {@html transportIcons[dep.transportType]}
@@ -718,7 +725,7 @@ function getDistanceSortValue(station: SiteSearchResult): number {
 
   .nearby-label {
     font-size: 11px;
-    color: var(--text-ghost);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     align-self: center;

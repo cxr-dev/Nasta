@@ -78,6 +78,7 @@ describe("storage service", () => {
         "Norra Hammarbyhamnen",
       );
     });
+
   });
 
   describe("settings", () => {

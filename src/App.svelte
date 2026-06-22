@@ -26,8 +26,8 @@
   import type { SegmentHealth, StationAlert } from './types/deviation';
 
   let editing = $state(false);
-   let lastRefreshTime = $state(Date.now());
-   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let lastRefreshTime = $state(Date.now());
+  let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
 
   function safeLocalStorageGet(key: string): string | null {
@@ -924,7 +924,9 @@ function toggleEdit() {
     z-index: 245;
     width: min(calc(100% - 24px), 456px);
     max-height: min(72dvh, 620px);
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 20px;

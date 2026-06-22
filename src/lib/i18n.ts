@@ -285,6 +285,10 @@ const sv = {
   selectAPage: "Välj en sida",
   appSettings: "App-inställningar",
   pageIndicator: "Sida: {name}",
+
+  // Map
+  expandMap: "Förstora kartan",
+  minimizeMap: "Förminska kartan",
 };
 
 const en: typeof sv = {
@@ -555,6 +559,10 @@ const en: typeof sv = {
   selectAPage: "Select a page",
   appSettings: "App settings",
   pageIndicator: "Page: {name}",
+
+  // Map
+  expandMap: "Expand map fullscreen",
+  minimizeMap: "Minimize map",
 };
 
 export const translations = { sv, en };

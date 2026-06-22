@@ -72,16 +72,22 @@
   });
 
   $effect(() => {
-    // Cancel any in-progress tab load when switching tabs, but only abort if the
-    // previous tab's data hasn't been loaded yet — loaded tabs keep their data.
+    // Guard against re-entrance: if active tab is already loading or loaded,
+    // skip entirely so we don't abort an in-flight request. This prevents the
+    // cascade: loadEvents/loadVenues sets loading=true → effect re-runs →
+    // aborts signal of first call → empty result.
+    if (activeTab === 'events' && (eventsTab.loading || eventsTab.loaded)) return;
+    if (activeTab !== 'events' && (venuesByTab[activeTab].loading || venuesByTab[activeTab].loaded)) return;
+
+    // Cancel any in-progress tab load when switching tabs.
     tabLoadCtrl?.abort();
     const ctrl = new AbortController();
     tabLoadCtrl = ctrl;
 
     if (activeTab !== 'events') loadVenues(activeTab, ctrl.signal);
     if (activeTab === 'events') loadEvents(ctrl.signal);
-
-    return () => ctrl.abort();
+    // No cleanup registered — onDestroy handles unmount abort. The cleanup
+    // would otherwise fire on every reactive re-run and abort the first signal.
   });
 
   // Kick off background prefetch for all available tabs immediately on mount so
@@ -458,9 +464,11 @@
 
 <style>
   .sheet-shell {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 14px;
+    overflow: hidden;
   }
 
   .sheet-handle {
@@ -562,6 +570,9 @@
   }
 
   .list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 12px;

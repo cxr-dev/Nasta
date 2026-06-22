@@ -88,6 +88,9 @@ export function reorderSegments(pageId: string, fromIndex: number, toIndex: numb
 
 export function initialize(): void {
   _pages = loadPages();
+  if (_pages.length > 0 && _activePageId === null) {
+    _activePageId = _pages[0].id;
+  }
   notify();
 }
 
@@ -131,8 +134,3 @@ export function getDefaultName(): string {
 }
 
 const DEFAULT_PAGE_NAME = "My Departures";
-
-// Initialize active page
-if (_pages.length > 0) {
-  _activePageId = _pages[0].id;
-}

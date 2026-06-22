@@ -911,7 +911,7 @@
   }
 
   .tab.right-group:not(.active) {
-    color: var(--text-ghost);
+    color: var(--text-secondary);
   }
 
   /* Tab content */
