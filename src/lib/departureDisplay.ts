@@ -1,4 +1,5 @@
 import type { Departure } from "../types/departure";
+import { DEPARTURE_SLOT_WINDOW_MS } from "./departureDeduplication";
 import { getLocale } from "../stores/localeStore.svelte";
 
 /** Get the locale-aware "now" text */
@@ -7,7 +8,6 @@ function getNowText(): string {
   return currentLocale === "sv" ? "Nu" : "Now";
 }
 
-const DUPLICATE_WINDOW_MS = 90_000;
 const MINUTES_TO_CLOCK_THRESHOLD = 60;
 
 function formatClockTime(timestamp: number): string {
@@ -54,7 +54,7 @@ export function formatDepartureTime(dep: Departure, now: number): string {
 function isDuplicatePrediction(live: Departure, predicted: Departure): boolean {
   if (live.expectedAt !== undefined && predicted.expectedAt !== undefined) {
     return (
-      Math.abs(predicted.expectedAt - live.expectedAt) <= DUPLICATE_WINDOW_MS
+      Math.abs(predicted.expectedAt - live.expectedAt) <= DEPARTURE_SLOT_WINDOW_MS
     );
   }
 

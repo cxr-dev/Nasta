@@ -1,7 +1,7 @@
 import type { Departure } from "../types/departure";
 
 /** Time window in milliseconds to consider departures as the same slot */
-const DEPARTURE_SLOT_WINDOW_MS = 90_000; // 90 seconds
+export const DEPARTURE_SLOT_WINDOW_MS = 90_000; // 90 seconds
 
 /**
  * Get the time slot for a departure.

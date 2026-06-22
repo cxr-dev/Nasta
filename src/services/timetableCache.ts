@@ -8,6 +8,7 @@
  */
 
 import type { TransportType } from "../types/page";
+import { getTransportType } from "../lib/getTransportType";
 import { parseSlTimestamp } from "./slApi";
 import { persistentCache } from "./persistentCache";
 
@@ -129,25 +130,6 @@ function formatTransitMinutes(transitMinutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function inferTransportType(mode?: string): TransportType {
-  switch (mode?.toLowerCase()) {
-    case "bus":
-      return "bus";
-    case "train":
-    case "rail":
-      return "train";
-    case "metro":
-      return "metro";
-    case "tram":
-    case "lightrail":
-      return "tram";
-    case "boat":
-    case "ferry":
-      return "boat";
-    default:
-      return "bus";
-  }
-}
 
 /**
  * Feed raw SL API departure objects into the timetable cache.
@@ -180,7 +162,7 @@ export async function learnFromApiResponse(
       lineName: dep.line?.name || line,
       destination: dep.destination || "",
       direction_code,
-      transportType: inferTransportType(dep.line?.transport_mode),
+      transportType: getTransportType(dep.line?.transport_mode),
       days: {},
       updatedAt: 0,
     };

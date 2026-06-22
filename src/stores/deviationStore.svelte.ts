@@ -5,7 +5,7 @@ import {
   pickPreferredMessageText,
 } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
-import { stopAreaStore } from "./stopAreaStore";
+import { stopAreaStore } from "./stopAreaStore.svelte";
 
 export type SeverityThreshold = "info" | "warning" | "critical";
 

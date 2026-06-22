@@ -55,6 +55,59 @@ function roundCoordinate(value: number, resolution = 0.004) {
   return Number((Math.round(value / resolution) * resolution).toFixed(4));
 }
 
+/** Process a single Supabase API record into a Venue object */
+function processSupabaseRecord(
+  v: Record<string, any>,
+  source: string,
+  userLat: number,
+  userLon: number,
+): Venue | null {
+  try {
+    const vid = v.id ?? v.venue_id ?? v._id ?? Math.random().toString(36).slice(2, 9);
+    const name = v.name ?? v.title ?? "Unknown";
+    const addr = v.address ?? v.addr ?? undefined;
+    const vlat = v.lat ?? v.latitude ?? v.lat_dd ?? v.center?.lat ?? null;
+    const vlon = v.lon ?? v.longitude ?? v.lon_dd ?? v.center?.lon ?? null;
+    const vlatNum = vlat !== null ? Number(vlat) : NaN;
+    const vlonNum = vlon !== null ? Number(vlon) : NaN;
+    const rawPrice = v.beer_price ?? v.wine_price ?? v.cocktail_price ?? v.price ?? v.beerPrice ?? undefined;
+    const happy = v.beer_price_happy_hour ?? v.beer_price_happy ?? v.happy_hour_price ?? null;
+    const drink = v.beer_name ?? v.wine_name ?? v.cocktail_name ?? v.beer ?? undefined;
+    const priceLevel =
+      typeof rawPrice === "number"
+        ? rawPrice <= 35
+          ? 1
+          : rawPrice <= 55
+            ? 2
+            : 3
+        : (v.price_level ?? v.priceLevel);
+    const distance =
+      !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
+        ? distanceMeters(userLat, userLon, vlatNum, vlonNum)
+        : undefined;
+
+    const venue: Venue = {
+      id: `supabase-${vid}`,
+      name,
+      address: addr,
+      lat: !Number.isNaN(vlatNum) ? vlatNum : undefined,
+      lon: !Number.isNaN(vlonNum) ? vlonNum : undefined,
+      openingHours: v.opening_hours ?? v.openingHours ?? undefined,
+      priceLevel: priceLevel === undefined ? undefined : (priceLevel as 1 | 2 | 3),
+      rawPrice: typeof rawPrice === "number" ? rawPrice : undefined,
+      happyHourPrice: typeof happy === "number" ? happy : null,
+      drinkName: drink,
+      distance,
+      source,
+    };
+    (venue as any)._classified = "beer";
+    (venue as any)._score = 4;
+    return venue;
+  } catch {
+    return null;
+  }
+}
+
 function cacheKey(
   lat: number,
   lon: number,
@@ -146,55 +199,8 @@ export async function fetchNearbyVenues(
                 ? payload.venues
                 : [];
             for (const v of list) {
-              try {
-                const vid =
-                  v.id ??
-                  v.venue_id ??
-                  v._id ??
-                  Math.random().toString(36).slice(2, 9);
-                const name = v.name ?? v.title ?? "Unknown";
-                const addr = v.address ?? v.addr ?? undefined;
-                const vlat =
-                  v.lat ?? v.latitude ?? v.lat_dd ?? v.center?.lat ?? null;
-                const vlon =
-                  v.lon ?? v.longitude ?? v.lon_dd ?? v.center?.lon ?? null;
-                const vlatNum = vlat !== null ? Number(vlat) : NaN;
-                const vlonNum = vlon !== null ? Number(vlon) : NaN;
-                const rawPrice =
-                  v.beer_price ?? v.wine_price ?? v.cocktail_price ?? v.price ?? v.beerPrice ?? undefined;
-                const happy =
-                  v.beer_price_happy_hour ?? v.beer_price_happy ?? v.happy_hour_price ?? null;
-                const drink = v.beer_name ?? v.wine_name ?? v.cocktail_name ?? v.beer ?? undefined;
-                const priceLevel =
-                  typeof rawPrice === "number"
-                    ? rawPrice <= 35
-                      ? 1
-                      : rawPrice <= 55
-                        ? 2
-                        : 3
-                    : (v.price_level ?? v.priceLevel);
-                const distance =
-                  !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
-                    ? distanceMeters(lat, lon, vlatNum, vlonNum)
-                    : undefined;
-
-                results.push({
-                  id: `supabase-${vid}`,
-                  name,
-                  address: addr,
-                  lat: !Number.isNaN(vlatNum) ? vlatNum : undefined,
-                  lon: !Number.isNaN(vlonNum) ? vlonNum : undefined,
-                  openingHours: v.opening_hours ?? v.openingHours ?? undefined,
-                  priceLevel: priceLevel === undefined ? undefined : (priceLevel as 1 | 2 | 3),
-                  rawPrice: typeof rawPrice === "number" ? rawPrice : undefined,
-                  happyHourPrice: typeof happy === "number" ? happy : null,
-                  drinkName: drink,
-                  distance,
-                  source: "supabase",
-                });
-                (results[results.length - 1] as any)._classified = "beer";
-                (results[results.length - 1] as any)._score = 4;
-              } catch (_e) {}
+              const venue = processSupabaseRecord(v, "supabase", lat, lon);
+              if (venue) results.push(venue);
             }
           }
 
@@ -228,57 +234,8 @@ export async function fetchNearbyVenues(
                     ? payload.venues
                     : [];
                 for (const v of list) {
-                  try {
-                    const vid =
-                      v.id ??
-                      v.venue_id ??
-                      v._id ??
-                      Math.random().toString(36).slice(2, 9);
-                    const name = v.name ?? v.title ?? "Unknown";
-                    const addr = v.address ?? v.addr ?? undefined;
-                    const vlat =
-                      v.lat ?? v.latitude ?? v.lat_dd ?? v.center?.lat ?? null;
-                    const vlon =
-                      v.lon ?? v.longitude ?? v.lon_dd ?? v.center?.lon ?? null;
-                    const vlatNum = vlat !== null ? Number(vlat) : NaN;
-                    const vlonNum = vlon !== null ? Number(vlon) : NaN;
-                    const rawPrice =
-                      v.beer_price ?? v.wine_price ?? v.cocktail_price ?? v.price ?? v.beerPrice ?? undefined;
-                    const happy =
-                      v.beer_price_happy_hour ?? v.beer_price_happy ?? v.happy_hour_price ?? null;
-                    const drink = v.beer_name ?? v.wine_name ?? v.cocktail_name ?? v.beer ?? undefined;
-                    const priceLevel =
-                      typeof rawPrice === "number"
-                        ? rawPrice <= 35
-                          ? 1
-                          : rawPrice <= 55
-                            ? 2
-                            : 3
-                        : (v.price_level ?? v.priceLevel);
-                    const distance =
-                      !Number.isNaN(vlatNum) && !Number.isNaN(vlonNum)
-                        ? distanceMeters(lat, lon, vlatNum, vlonNum)
-                        : undefined;
-
-                    results.push({
-                      id: `supabase-${vid}`,
-                      name,
-                      address: addr,
-                      lat: !Number.isNaN(vlatNum) ? vlatNum : undefined,
-                      lon: !Number.isNaN(vlonNum) ? vlonNum : undefined,
-                      openingHours:
-                        v.opening_hours ?? v.openingHours ?? undefined,
-                      priceLevel: priceLevel === undefined ? undefined : (priceLevel as 1 | 2 | 3),
-                      rawPrice:
-                        typeof rawPrice === "number" ? rawPrice : undefined,
-                      happyHourPrice: typeof happy === "number" ? happy : null,
-                      drinkName: drink,
-                      distance,
-                      source: "supabase-proxy",
-                    });
-                    (results[results.length - 1] as any)._classified = "beer";
-                    (results[results.length - 1] as any)._score = 4;
-                  } catch (_e) {}
+                  const venue = processSupabaseRecord(v, "supabase-proxy", lat, lon);
+                  if (venue) results.push(venue);
                 }
               }
             } catch (_e) {

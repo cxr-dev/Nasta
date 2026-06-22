@@ -3,7 +3,7 @@ import { get } from "svelte/store";
 import { deviationStore } from "./deviationStore.svelte";
 import { getDeviations } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
-import { stopAreaStore } from "./stopAreaStore";
+import { stopAreaStore } from "./stopAreaStore.svelte";
 
 vi.mock("../services/slDeviations", () => ({
   getDeviations: vi.fn(async () => ({

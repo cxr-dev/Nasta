@@ -1,9 +1,10 @@
 import type { Departure, SiteSearchResult } from "../types/departure";
 import { cleanStopName } from "../lib/stopName";
 import type { TransportType } from "../types/page";
+import { getTransportType } from "../lib/getTransportType";
 import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
-import { stopAreaStore } from "../stores/stopAreaStore";
+import { stopAreaStore } from "../stores/stopAreaStore.svelte";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
 const JOURNEY_PLANNER_URL = "https://journeyplanner.integration.sl.se/v2";
@@ -76,25 +77,6 @@ export function parseSlTimestamp(raw: string): number {
   return assumedUtcMs - offsetMs;
 }
 
-function getTransportType(mode?: string): TransportType {
-  switch (mode?.toLowerCase()) {
-    case "bus":
-      return "bus";
-    case "train":
-    case "rail":
-      return "train";
-    case "metro":
-      return "metro";
-    case "tram":
-    case "lightrail":
-      return "tram";
-    case "boat":
-    case "ferry":
-      return "boat";
-    default:
-      return "bus";
-  }
-}
 
 function globalIdToSiteId(globalId: string): string {
   return globalId.replace(/^9091001000/, "");
