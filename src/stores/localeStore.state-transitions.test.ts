@@ -47,13 +47,13 @@ describe("getLocale() store state transitions", () => {
 
   it("t stays in sync with getLocale() after multiple transitions", () => {
     setLocale("en");
-    expect(getT().addSegment).toBe("+ Add departure");
+    expect(getT().addSegment).toBe("+ Add");
     setLocale("sv");
-    expect(getT().addSegment).toBe("+ Lägg till avgång");
+    expect(getT().addSegment).toBe("+ Lägg till");
     setLocale("en");
-    expect(getT().addSegment).toBe("+ Add departure");
+    expect(getT().addSegment).toBe("+ Add");
     setLocale("sv");
-    expect(getT().addSegment).toBe("+ Lägg till avgång");
+    expect(getT().addSegment).toBe("+ Lägg till");
   });
 
   it("all translation keys are present in both languages after switch", () => {

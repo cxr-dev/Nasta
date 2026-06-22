@@ -377,6 +377,12 @@
     {#if activeEditorTab === 'pages'}
       <div class="tab-content pages-tab" ontouchmove={handlePageTouchMove} ontouchend={handlePageTouchEnd}>
         <h3 class="section-title">{t.pages}</h3>
+        <button class="add-page-btn" onclick={handleCreatePage}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+            <path d="M8 2v12M2 8h12"/>
+          </svg>
+          {t.add}
+        </button>
         <div class="page-list">
           {#each pages as page, index (page.id)}
             <div
@@ -459,12 +465,6 @@
             </div>
           {/each}
         </div>
-        <button class="add-page-btn" onclick={handleCreatePage}>
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-            <path d="M8 2v12M2 8h12"/>
-          </svg>
-          {t.add}
-        </button>
       </div>
 
     {:else if activeEditorTab === 'segment'}
@@ -495,7 +495,6 @@
             </div>
           {:else}
             <div class="segment-area">
-              <SegmentList page={page} />
               <button
                 bind:this={addBtnEl}
                 class="add-btn"
@@ -507,6 +506,7 @@
                   <span bind:this={dotEl} class="pulse-dot-el"></span>
                 {/if}
               </button>
+              <SegmentList page={page} />
             </div>
           {/if}
         {/if}
