@@ -187,7 +187,118 @@ describe("deviationStore", () => {
     });
   });
 
-  describe("Station facility alerts", () => {
+  describe("Planned positive changes (extra departures)", () => {
+  it("downgrades critical to affected when header is Extrainsatta avgångar", async () => {
+    vi.mocked(getDeviations).mockResolvedValueOnce({
+      fromCache: false,
+      messages: [
+        {
+          id: "dev-extra",
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+          severity: "critical",
+          importanceLevel: 4,
+          influenceLevel: 2,
+          urgencyLevel: 2,
+          messageVariants: [
+            {
+              language: "sv",
+              header: "Extrainsatta avgångar",
+              details: "Gröna linjen 17 kommer att gå i 30-minuterstrafik",
+            },
+          ],
+          scope: {
+            stopAreas: [{ id: "1001" }],
+            lines: [{ id: "17", designation: "17", transportMode: "metro" }],
+          },
+        },
+      ],
+    });
+
+    await deviationStore.refresh([
+      {
+        id: "seg-extra",
+        line: "17",
+        lineName: "17",
+        direction: { code: 1, destination: "Skarpnäck", stopPointId: "123" },
+        fromStop: { id: "s1", name: "Hässelby strand", siteId: "1001" },
+        toStop: { id: "s2", name: "Skarpnäck", siteId: "1002" },
+        transportType: "metro",
+      },
+    ]);
+
+    const state = get(deviationStore);
+    const health = state.bySegmentId.get("seg-extra");
+    expect(health?.state).toBe("affected");
+    expect(health?.reason).toBe("Extrainsatta avgångar");
+  });
+
+  it("downgrades critical to affected when English header says Extra departures", async () => {
+    vi.mocked(getDeviations).mockResolvedValueOnce({
+      fromCache: false,
+      messages: [
+        {
+          id: "dev-extra-en",
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+          severity: "critical",
+          importanceLevel: 4,
+          influenceLevel: 2,
+          urgencyLevel: 2,
+          messageVariants: [
+            {
+              language: "en",
+              header: "Extra departures",
+              details: "Green line 17 will operate every 30 minutes",
+            },
+          ],
+          scope: {
+            stopAreas: [{ id: "1001" }],
+            lines: [{ id: "17", designation: "17", transportMode: "metro" }],
+          },
+        },
+      ],
+    });
+
+    await deviationStore.refresh([
+      {
+        id: "seg-extra-en",
+        line: "17",
+        lineName: "17",
+        direction: { code: 1, destination: "Skarpnäck", stopPointId: "123" },
+        fromStop: { id: "s1", name: "Hässelby strand", siteId: "1001" },
+        toStop: { id: "s2", name: "Skarpnäck", siteId: "1002" },
+        transportType: "metro",
+      },
+    ]);
+
+    const state = get(deviationStore);
+    const health = state.bySegmentId.get("seg-extra-en");
+    expect(health?.state).toBe("affected");
+  });
+
+  it("keeps critical for genuine disruptions like Signal fel", async () => {
+    // Reuses the default mock from the top-level vi.mock — already has "Signal fel"
+    await deviationStore.refresh([
+      {
+        id: "seg-signal",
+        line: "76",
+        lineName: "76",
+        direction: { code: 1, destination: "Odenplan", stopPointId: "123" },
+        fromStop: { id: "s1", name: "Lindarängsvägen", siteId: "1001" },
+        toStop: { id: "s2", name: "Odenplan", siteId: "1002" },
+        transportType: "bus",
+      },
+    ]);
+
+    const state = get(deviationStore);
+    const health = state.bySegmentId.get("seg-signal");
+    expect(health?.state).toBe("critical");
+    expect(health?.reason).toBe("Signal fel");
+  });
+});
+
+describe("Station facility alerts", () => {
     beforeEach(() => {
       stopAreaStore.clear();
     });

@@ -116,6 +116,14 @@ function isStationFacilityAlert(message: DeviationMessage): boolean {
   return /(rulltrapp|hiss|entré|perrong|biljet|spärr|framkomlighet|tillgänglig|utbyte|ombyggnation|renovering)/i.test(texts);
 }
 
+function isPlannedPositiveChange(message: DeviationMessage): boolean {
+  const texts = message.messageVariants
+    .map(v => `${v.header} ${v.details || ''}`)
+    .join(' ')
+    .toLowerCase();
+  return /extrainsatta|extra departures/i.test(texts);
+}
+
 function isPassThroughStop(segment: Segment, message: DeviationMessage): boolean {
   if (!message.scope.stopAreas.length) return false;
   const segStopIds = [
@@ -166,7 +174,7 @@ function buildSegmentHealth(
   const topMessage = pickPreferredMessageText(top, preferredLanguage);
   return {
     health: {
-      state: top.severity === "critical" ? "critical" : "affected",
+      state: top.severity === "critical" && !isPlannedPositiveChange(top) ? "critical" : "affected",
       severity: top.severity,
       reason: topMessage.header || topMessage.details || null,
       messages: direct,
