@@ -4,7 +4,7 @@ export function disruptionType(message: string): DisruptionType {
   const m = message.toLowerCase();
   if (/(protest|demonstration|strejk|blockad)/i.test(m)) return "protest";
   if (/(snow|snö)/i.test(m)) return "snow";
-  if (/(rain|regn)/i.test(m)) return "rain";
+  if (/\b(rain|regn)\b/i.test(m)) return "rain";
   if (/storm/i.test(m)) return "storm";
   if (/wind/i.test(m)) return "wind";
   if (/\b(ice|icy)\b|is(?:ig|gata|halka|bana|ar\b|bildning)/i.test(m)) return "ice";

@@ -134,6 +134,12 @@ describe("disruptionType", () => {
     });
   });
 
+  describe("false-positive protection", () => {
+    it("does NOT match 'rain' inside Swedish 'extrainsatta'", () => {
+      expect(disruptionType("Extrainsatta avgångar")).toBe("general");
+    });
+  });
+
   describe("general", () => {
     it("returns general for unknown messages", () => {
       expect(disruptionType("Planerat banarbete")).toBe("general");
