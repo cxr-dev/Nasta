@@ -214,14 +214,29 @@
       );
 
       const allDeps = departureData.get(seg.fromStop.siteId) ?? [];
-      const targetDest = stopLabel(seg.direction?.destination ?? seg.toStop.name).toLowerCase();
+      // Filter primarily by line and direction_code. Destination is secondary because
+      // API destination strings may vary slightly (abbreviations, extra stops) and
+      // direction_code is the authoritative discriminator from SL.
       const live = allDeps.filter((dep) => {
         if (dep.line !== seg.line) return false;
         if ((dep.direction_code ?? -1) !== (seg.direction?.code ?? -1)) return false;
-        if (!dep.destination) return true;
-        const d = stopLabel(dep.destination).toLowerCase();
-        return d === targetDest || d.includes(targetDest) || targetDest.includes(d);
+        return true;
       });
+
+      // Dev diagnostics: log when live filtering yields no results
+      if (import.meta.env.DEV && live.length === 0 && allDeps.length > 0) {
+        const matchingLine = allDeps.filter(dep => dep.line === seg.line);
+        const matchingDirection = matchingLine.filter(dep => (dep.direction_code ?? -1) === (seg.direction?.code ?? -1));
+        console.warn('[SegmentDepartures] Live departures filtered to 0:', {
+          stop: seg.fromStop.name,
+          line: seg.line,
+          direction_code: seg.direction?.code,
+          totalApiDeps: allDeps.length,
+          matchingLine: matchingLine.length,
+          matchingDirection: matchingDirection.length,
+          sampleApiDestinations: allDeps.slice(0, 3).map(d => d.destination),
+        });
+      }
 
       let merged: Departure[];
       if (live.length > 0) {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Departure } from "../types/departure";
 import {
   getLiveMinutes,
@@ -219,5 +219,118 @@ describe("formatDepartureTime", () => {
     const now = 1_000_000;
     const dep = { ...baseDep, minutes: 90, time: "19:45", expectedAt: undefined };
     expect(formatDepartureTime(dep, now)).toBe("19:45");
+  });
+});
+
+describe("destination-agnostic departure filtering", () => {
+  // Regression test: departures should not be dropped just because the
+  // API's destination string differs slightly from the stored segment destination.
+  // Filtering must rely on line + direction_code as the primary keys.
+
+  function filterDepartures(
+    apiDeps: Departure[],
+    line: string,
+    directionCode: number,
+  ): Departure[] {
+    return apiDeps.filter((dep) => {
+      if (dep.line !== line) return false;
+      if ((dep.direction_code ?? -1) !== directionCode) return false;
+      return true;
+    });
+  }
+
+  it("includes departures when destination strings differ but line/direction match", () => {
+    const apiDeps: Departure[] = [
+      {
+        line: "57",
+        lineName: "Spårväg",
+        destination: "Hjorthagen",
+        direction_code: 0,
+        minutes: 11,
+        time: "19:17",
+        transportType: "tram",
+        expectedAt: Date.now() + 11 * 60_000,
+      },
+    ];
+
+    const result = filterDepartures(apiDeps, "57", 0);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].destination).toBe("Hjorthagen");
+    expect(result[0].minutes).toBe(11);
+  });
+
+  it("includes departures when API destination is abbreviated or has extra text", () => {
+    const apiDeps: Departure[] = [
+      {
+        line: "57",
+        lineName: "Spårväg",
+        destination: "Hjorthagen (end station)",
+        direction_code: 0,
+        minutes: 5,
+        time: "19:11",
+        transportType: "tram",
+        expectedAt: Date.now() + 5 * 60_000,
+      },
+    ];
+
+    const result = filterDepartures(apiDeps, "57", 0);
+
+    // With line+direction_code filtering, abbreviation differences don't matter
+    expect(result).toHaveLength(1);
+  });
+
+  it("excludes departures with different line even if destination matches", () => {
+    const apiDeps: Departure[] = [
+      {
+        line: "56",
+        lineName: "Spårväg",
+        destination: "Hjorthagen",
+        direction_code: 0,
+        minutes: 11,
+        time: "19:17",
+        transportType: "tram",
+      },
+    ];
+
+    const result = filterDepartures(apiDeps, "57", 0);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("excludes departures with different direction_code even if line matches", () => {
+    const apiDeps: Departure[] = [
+      {
+        line: "57",
+        lineName: "Spårväg",
+        destination: "Hjorthagen",
+        direction_code: 1,
+        minutes: 11,
+        time: "19:17",
+        transportType: "tram",
+      },
+    ];
+
+    const result = filterDepartures(apiDeps, "57", 0);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("includes departures when API provides no destination but line/direction match", () => {
+    const apiDeps: Departure[] = [
+      {
+        line: "57",
+        lineName: "Spårväg",
+        destination: "",
+        direction_code: 0,
+        minutes: 11,
+        time: "19:17",
+        transportType: "tram",
+      },
+    ];
+
+    const result = filterDepartures(apiDeps, "57", 0);
+
+    expect(result).toHaveLength(1);
   });
 });
