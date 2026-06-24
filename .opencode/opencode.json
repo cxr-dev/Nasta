@@ -9,7 +9,8 @@
     "opencode-firecrawl",
     "opencode-snip",
     "opencode-command-inject",
-    "@tarquinen/opencode-dcp"
+    "@tarquinen/opencode-dcp",
+    "@dietrichgebert/ponytail"
   ],
   "mcp": {
     "playwright": {
