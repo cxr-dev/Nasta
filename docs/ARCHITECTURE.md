@@ -117,7 +117,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 ### Feature Discovery
 
-- `FeatureDiscoverySheet.svelte` — Tabbed panel for beer, wine/cocktail, and events
+- `FeatureDiscoverySheet.svelte` — Tabbed panel for beer, wine/cocktail, and events. Events tab has binary sort toggle (time/distance) + single-select category chips derived from loaded event categories.
 - `MapPreview.svelte` — Interactive map of segment stops (dynamically imports `maplibre-gl`)
 
 ### Other

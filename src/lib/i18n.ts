@@ -212,6 +212,9 @@ const sv = {
   afterworkStartTime: "Afterwork-start",
   afterworkStartTimeDesc: "Välj när på dagen afterwork visas.",
   eventsDesc: "Visa närliggande evenemang när du öppnar en avgång.",
+  sortByTime: "Efter tid",
+  sortByDistance: "Närmast",
+  eventFilterAll: "Alla",
   returnTripNote:
     "Lägg till retursidan manuellt genom att skapa en andra sida.",
 
@@ -494,6 +497,9 @@ const en: typeof sv = {
   afterworkStartTime: "Afterwork start",
   afterworkStartTimeDesc: "Choose when during the day afterwork shows.",
   eventsDesc: "Show nearby events when you tap a departure.",
+  sortByTime: "By time",
+  sortByDistance: "Closest",
+  eventFilterAll: "All",
   returnTripNote: "Add the return page manually by creating a second page.",
 
   errorTitle: "Something went wrong",

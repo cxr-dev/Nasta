@@ -13,6 +13,7 @@
   } from '../lib/i18n';
   import { fetchNearbyEvents, type EventItem } from '../services/eventService';
   import { fetchNearbyVenues, type Venue } from '../services/venueService';
+  import { distanceMeters } from '../services/geo';
   import { getSunPosition } from '../lib/sunPosition';
 
   function dedupeById<T extends { id: string }>(items: T[]): T[] {
@@ -186,6 +187,11 @@
     return `${timeText} · ${location}`;
   }
 
+  // Events sort/filter state
+  type SortMode = 'time' | 'distance';
+  let sortBy = $state<SortMode>('time');
+  let activeCategory = $state<string | null>(null);
+
   let currentItems = $derived<TabData<Venue | EventItem>>(
     activeTab === 'events' ? eventsTab : venuesByTab[activeTab]
   );
@@ -201,10 +207,53 @@
       : []
   );
 
+  // Events filter/sort derived
+  let eventCategories = $derived.by(() => {
+    if (activeTab !== 'events') return [] as string[];
+    const cats = new Set<string>();
+    for (const ev of (eventsTab as TabData<EventItem>).items) {
+      if (ev.categories) {
+        for (const c of ev.categories) {
+          if (c.title) cats.add(c.title);
+        }
+      }
+    }
+    return [...cats].sort();
+  });
+
+  let filteredEvents = $derived(
+    activeTab !== 'events'
+      ? ([] as EventItem[])
+      : activeCategory === null
+        ? dedupeById((eventsTab as TabData<EventItem>).items)
+        : dedupeById((eventsTab as TabData<EventItem>).items).filter(
+            (ev) => ev.categories?.some((c) => c.title === activeCategory)
+          )
+  );
+
+  let sortedEvents = $derived(
+    sortBy === 'time'
+      ? [...filteredEvents].sort((a, b) => {
+          if (!a.startTime && !b.startTime) return 0;
+          if (!a.startTime) return 1;
+          if (!b.startTime) return -1;
+          // Timed events (contain T) before date-only
+          const aHasTime = a.startTime.includes('T');
+          const bHasTime = b.startTime.includes('T');
+          if (aHasTime !== bHasTime) return aHasTime ? -1 : 1;
+          return a.startTime.localeCompare(b.startTime);
+        })
+      : [...filteredEvents].sort((a, b) => {
+          const dA = a.lat !== undefined && a.lon !== undefined ? distanceMeters(lat, lon, a.lat, a.lon) : Infinity;
+          const dB = b.lat !== undefined && b.lon !== undefined ? distanceMeters(lat, lon, b.lat, b.lon) : Infinity;
+          return dA - dB;
+        })
+  );
+
   let displayItems = $derived(
     activeTab !== 'events'
       ? filteredVenues
-      : dedupeById((currentItems as TabData<EventItem>).items)
+      : sortedEvents
   );
 
   let prevVenueKey = $state('');
@@ -313,6 +362,41 @@
       </button>
     {/each}
   </div>
+
+  {#if activeTab === 'events'}
+    <div class="sort-bar">
+      <button
+        type="button"
+        class="sort-pill"
+        class:active={sortBy === 'time'}
+        onclick={() => (sortBy = 'time')}
+      >{t.sortByTime}</button>
+      <button
+        type="button"
+        class="sort-pill"
+        class:active={sortBy === 'distance'}
+        onclick={() => (sortBy = 'distance')}
+      >{t.sortByDistance}</button>
+    </div>
+    {#if eventCategories.length > 0}
+      <div class="chip-row">
+        <button
+          type="button"
+          class="chip"
+          class:active={activeCategory === null}
+          onclick={() => (activeCategory = null)}
+        >{t.eventFilterAll}</button>
+        {#each eventCategories as cat (cat)}
+          <button
+            type="button"
+            class="chip"
+            class:active={activeCategory === cat}
+            onclick={() => (activeCategory = cat)}
+          >{cat}</button>
+        {/each}
+      </div>
+    {/if}
+  {/if}
 
   <div class="list" role="tabpanel" aria-labelledby="feature-tab-{activeTab}" bind:this={railEl}>
     {#if currentItems.error && displayItems.length === 0}
@@ -433,7 +517,13 @@
           <article class="card" style={`--index:${index}`}>
             <div class="card-top">
               <span class="card-tag">{t.events}</span>
-              <span class="card-meta">{event.startTime ? formatEventRelativeShort(event.startTime, locale, t) : t.emDash}</span>
+              {#if event.lat !== undefined && event.lon !== undefined}
+                {@const dist = distanceMeters(lat, lon, event.lat, event.lon)}
+                <span class="card-distance">
+                  {dist < 1000 ? `${Math.round(dist)} m` : `${(dist / 1000).toFixed(1)} km`}
+                </span>
+              {/if}
+              <span class="card-meta">{event.startTime ? formatEventDateTime(event.startTime, locale, t) : t.emDash}</span>
             </div>
             <h3 class="card-name">{event.name}</h3>
             <div class="card-details">
@@ -565,6 +655,74 @@
   .tab-btn:focus-visible,
   .close-btn:focus-visible,
   .action-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .sort-bar {
+    display: flex;
+    gap: 6px;
+  }
+
+  .sort-pill {
+    flex: 1;
+    border: 0;
+    background: var(--accent-subtle);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .sort-pill.active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .sort-pill:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .chip-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .chip-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex-shrink: 0;
+    border: 0;
+    background: var(--accent-subtle);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+    scroll-snap-align: start;
+  }
+
+  .chip.active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .chip:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }

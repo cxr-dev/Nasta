@@ -1,3 +1,5 @@
+export type EventItemCategory = { slug: string; title: string };
+
 export type EventItem = {
   id: string;
   name: string;
@@ -7,6 +9,7 @@ export type EventItem = {
   ticketUrl?: string;
   lat?: number;
   lon?: number;
+  categories?: EventItemCategory[];
 };
 
 import { distanceMeters } from "./geo";
@@ -135,12 +138,11 @@ export async function fetchNearbyEvents(
           return {
             id: (e.id ?? e.url ?? JSON.stringify(e)).toString(),
             name: normalizeText(e.title ?? e.name ?? e.eventName ?? "Untitled"),
-            startTime:
-              e.start_date ??
-              e.startTime ??
-              e.date ??
-              e.startTimeLocal ??
-              undefined,
+            startTime: (() => {
+              const d = e.start_date ?? e.startTime ?? e.date ?? e.startTimeLocal;
+              const t = d && e.schedule?.dates?.[0]?.start_time;
+              return t ? `${d}T${t}:00` : d ?? undefined;
+            })(),
             location: normalizeText(
               e.venue_name ??
                 e.place ??
@@ -157,6 +159,12 @@ export async function fetchNearbyEvents(
             description: normalizeText(e.description ?? e.summary ?? undefined),
             lat: typeof eventLat === "number" ? eventLat : undefined,
             lon: typeof eventLon === "number" ? eventLon : undefined,
+            categories: Array.isArray(e.categories)
+              ? e.categories.map((c: any) => ({
+                  slug: typeof c.slug === "string" ? c.slug : "",
+                  title: normalizeText(c.title),
+                })).filter((c: EventItemCategory) => c.slug && c.title)
+              : undefined,
           } as EventItem;
         });
       };
