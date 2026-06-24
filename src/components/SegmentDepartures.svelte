@@ -85,7 +85,7 @@
     if (lastRefreshTime === undefined) return t.loading;
     if (isStale) return t.dataMayBeStale;
     const mins = Math.max(0, Math.floor(dataAge / 60000));
-    if (mins === 0) return 'Uppdaterad nyss';
+    if (mins === 0) return t.updatedJustNow;
     return t.updatedMinutesAgo.replace('{minutes}', String(mins));
   }
 
