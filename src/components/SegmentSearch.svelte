@@ -58,6 +58,15 @@ function getDistanceSortValue(station: SiteSearchResult): number {
   if (!userLocation || station.lat === undefined || station.lon === undefined) return Infinity;
   return getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1]);
 }
+
+function getPrimaryType(station: SiteSearchResult): TransportType {
+  if (station.note === 'Sjöstadstrafiken') return 'boat';
+  if (station.productClasses && station.productClasses.length > 0) {
+    const types = mapProductClassesToTransportTypes(station.productClasses);
+    if (types.length > 0) return types[0];
+  }
+  return 'bus';
+}
   
   let query = $state('');
   let stations = $state<SiteSearchResult[]>([]);
@@ -90,6 +99,14 @@ function getDistanceSortValue(station: SiteSearchResult): number {
       if (types.length === 0) return true;
       return types.some(t => activeTransportTypes.includes(t));
     });
+  });
+
+  let nameCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const s of filteredStations) {
+      counts[s.name] = (counts[s.name] ?? 0) + 1;
+    }
+    return counts;
   });
 
   let nearbyStops = $derived.by(() => {
@@ -470,20 +487,44 @@ function filterIconType(type: TransportFilterOption): TransportType {
     {:else if filteredStations.length > 0}
       <div class="results">
         {#each filteredStations as station (station.siteId)}
-           <button class="item" onclick={() => selectStation(station)}>
-            <div class="item-main">
-              {#if station.note === 'Sjöstadstrafiken'}
-                <TransportIcon type="boat" size={18} />
-              {:else}
-                <TransportIcon type="bus" size={18} />
-              {/if}
-              <span class="name">{station.name}</span>
+          {@const nameCount = nameCounts[station.name] ?? 1}
+          {@const showLocality = !!(station.locality && nameCount > 1)}
+          {@const types = station.productClasses ? mapProductClassesToTransportTypes(station.productClasses) : []}
+          {@const isSjostad = station.note === 'Sjöstadstrafiken'}
+          {@const hasNotableTypes = types.some(t => t === 'boat' || t === 'train')}
+          {@const showBadges = isSjostad || hasNotableTypes || nameCount > 1}
+          {@const primaryType = getPrimaryType(station)}
+          <button class="item" onclick={() => selectStation(station)}>
+            <div class="item-top-row">
+              <div class="item-left">
+                <TransportIcon type={primaryType} size={18} />
+                <span class="name">{station.name}</span>
+              </div>
+              <div class="item-right">
+                {#if userLocation && station.lat !== undefined && station.lon !== undefined}
+                  {@const dist = getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1])}
+                  <span class="distance">{formatDistance(dist)}</span>
+                {/if}
+                <span class="arrow">→</span>
+              </div>
             </div>
-            {#if userLocation && station.lat !== undefined && station.lon !== undefined}
-              {@const dist = getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1])}
-              <span class="distance">{formatDistance(dist)}</span>
+            {#if showLocality || showBadges}
+              <div class="item-bottom-row">
+                {#if showLocality}
+                  <span class="locality">{station.locality}</span>
+                {/if}
+                {#if showBadges}
+                  <div class="badges">
+                    {#if isSjostad}
+                      <span class="badge-label">Sjöstadstrafiken</span>
+                    {/if}
+                    {#each types as type}
+                      <TransportIcon {type} size={14} />
+                    {/each}
+                  </div>
+                {/if}
+              </div>
             {/if}
-            <span class="arrow">→</span>
           </button>
         {/each}
       </div>
@@ -644,10 +685,8 @@ function filterIconType(type: TransportFilterOption): TransportType {
 
   .item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     width: 100%;
-    min-height: 48px;
     padding: 12px 16px;
     background: transparent;
     border: none;
@@ -683,11 +722,55 @@ function filterIconType(type: TransportFilterOption): TransportType {
     white-space: nowrap;
   }
 
-  .item-main {
+  .item-top-row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     flex: 1;
     min-width: 0;
+  }
+
+  .item-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .item-bottom-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2px;
+    padding-left: 26px;
+  }
+
+  .locality {
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .badge-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .distance {

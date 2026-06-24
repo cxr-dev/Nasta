@@ -90,6 +90,11 @@ interface StopFinderLocation {
   type: string;
   matchQuality?: number;
   productClasses?: number[];
+  parent?: {
+    id: string;
+    name: string;
+    type: string;
+  };
 }
 
 interface StopFinderResponse {
@@ -169,6 +174,9 @@ export async function searchSites(
       lat: loc.coord?.[0],
       lon: loc.coord?.[1],
       productClasses: loc.productClasses,
+      locality: loc.parent?.name,
+      localityId: loc.parent?.id,
+      matchQuality: loc.matchQuality,
     }));
 
   return stations;

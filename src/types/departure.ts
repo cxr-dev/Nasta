@@ -33,4 +33,7 @@ export interface SiteSearchResult {
   lat?: number;
   lon?: number;
   productClasses?: number[];
+  locality?: string;
+  localityId?: string;
+  matchQuality?: number;
 }

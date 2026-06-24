@@ -4,21 +4,31 @@ const MOCK_STOP_FINDER_RESPONSE = {
   locations: [
     {
       id: "90910010009001",
-      name: "Lindarängsvägen",
+      name: "Stockholm, Lindarängsvägen",
       disassembledName: "Lindarängsvägen",
       type: "stop",
       matchQuality: 1000,
       coord: [59.3165, 18.1115],
       productClasses: [2, 4],
+      parent: {
+        id: "placeID:33001080:1",
+        name: "Stockholm",
+        type: "locality",
+      },
     },
     {
       id: "90910010009002",
-      name: "Österhammarsgatan",
+      name: "Stockholm, Österhammarsgatan",
       disassembledName: "Österhammarsgatan",
       type: "stop",
       matchQuality: 800,
       coord: [59.3338, 18.0867],
       productClasses: [2, 4],
+      parent: {
+        id: "placeID:33001080:1",
+        name: "Stockholm",
+        type: "locality",
+      },
     },
   ],
 };
