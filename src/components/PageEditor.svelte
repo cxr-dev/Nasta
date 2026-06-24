@@ -47,6 +47,10 @@
     pageDraggingIndex = index;
     pageDragStartX = e.touches[0].clientX;
     pageDragStartY = e.touches[0].clientY;
+    const el = document.querySelector(`[data-page-drag-index="${index}"]`) as HTMLElement | null;
+    if (el) {
+      el.style.pointerEvents = 'none';
+    }
   }
 
   function handlePageTouchMove(e: TouchEvent) {
@@ -80,6 +84,7 @@
     const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+      el.style.pointerEvents = '';
     }
     if (pageDragOverIndex !== null && pageDraggingIndex !== pageDragOverIndex) {
       handleReorderPage(pageDraggingIndex, pageDragOverIndex);
@@ -87,6 +92,13 @@
     pageDraggingIndex = null;
     pageDragOverIndex = null;
   }
+
+  $effect(() => {
+    const el = pagesTabEl;
+    if (!el) return;
+    el.addEventListener('touchmove', handlePageTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', handlePageTouchMove);
+  });
 
   let {
     pages,
@@ -124,6 +136,7 @@
   let dotEl = $state<HTMLSpanElement | undefined>();
   let handleSwipeStartX = 0;
   let handleSwipeStartY = 0;
+  let pagesTabEl = $state<HTMLDivElement>();
 
   $effect(() => {
     if (!hintEl) return;
@@ -375,7 +388,7 @@
     </div>
 
     {#if activeEditorTab === 'pages'}
-      <div class="tab-content pages-tab" ontouchmove={handlePageTouchMove} ontouchend={handlePageTouchEnd}>
+      <div class="tab-content pages-tab" bind:this={pagesTabEl} ontouchend={handlePageTouchEnd}>
         <h3 class="section-title">{t.pages}</h3>
         <button class="add-page-btn" onclick={handleCreatePage}>
           <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">

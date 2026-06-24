@@ -10,6 +10,8 @@
 
   let { page }: { page: Page } = $props();
 
+let listEl = $state<HTMLDivElement>();
+
   let expandedId = $state<string | null>(null);
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
@@ -58,6 +60,10 @@
     draggingIndex = index;
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
+    const el = document.querySelector(`[data-drag-index="${index}"]`) as HTMLElement | null;
+    if (el) {
+      el.style.pointerEvents = 'none';
+    }
   }
 
   function handleTouchMove(e: TouchEvent) {
@@ -91,6 +97,7 @@
     const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+      el.style.pointerEvents = '';
     }
     if (dragOverIndex !== null && draggingIndex !== dragOverIndex) {
       reorderSegments(page.id, draggingIndex, dragOverIndex);
@@ -98,6 +105,13 @@
     draggingIndex = null;
     dragOverIndex = null;
   }
+
+  $effect(() => {
+    const el = listEl;
+    if (!el) return;
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', handleTouchMove);
+  });
 
   function getLineBadge(transportType: TransportType, line: string): string {
     switch (transportType) {
@@ -124,7 +138,7 @@
 <div
   class="segment-list"
   role="list"
-  ontouchmove={handleTouchMove}
+  bind:this={listEl}
   ontouchend={handleTouchEnd}
 >
   {#if !page.segments || page.segments.length === 0}
