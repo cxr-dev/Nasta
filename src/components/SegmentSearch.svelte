@@ -553,14 +553,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
                 <span class="dep-dest">{dep.lineName || t.lineLabel.replace('{line}', dep.line)}</span>
-                {#if dep.predicted && dep.minutes === -1}
-                  <span class="dep-sleeping-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="10" height="10">
-                      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-                    </svg>
-                    {t.noDepartures}
-                  </span>
-                {/if}
+
               </div>
               <div class="dep-select">
                 {t.select}
@@ -850,15 +843,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     color: var(--text);
   }
 
-  .dep-sleeping-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
 
   .dep-select {
     color: var(--accent);
