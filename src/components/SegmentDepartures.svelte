@@ -575,7 +575,8 @@
     color: var(--text);
     letter-spacing: -1px;
     margin: 0;
-    line-height: 1;
+    line-height: 1.15;
+    padding-bottom: 2px;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

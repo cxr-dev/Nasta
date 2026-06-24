@@ -390,11 +390,8 @@
     {#if activeEditorTab === 'pages'}
       <div class="tab-content pages-tab" bind:this={pagesTabEl} ontouchend={handlePageTouchEnd}>
         <h3 class="section-title">{t.pages}</h3>
-        <button class="add-page-btn" onclick={handleCreatePage}>
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-            <path d="M8 2v12M2 8h12"/>
-          </svg>
-          {t.add}
+        <button class="add-btn" onclick={handleCreatePage}>
+          + {t.add}
         </button>
         <div class="page-list">
           {#each pages as page, index (page.id)}
@@ -1020,6 +1017,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-top: 12px;
     margin-bottom: 12px;
   }
 
@@ -1186,29 +1184,6 @@
   .page-action-btn.danger:hover {
     color: #dc2626;
     background: #fef2f2;
-  }
-
-  .add-page-btn {
-    width: 100%;
-    padding: 10px;
-    border: 1.5px dashed var(--border-subtle);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    transition: border-color 150ms, color 150ms;
-  }
-
-  .add-page-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
   }
 
   /* Segment tab */
