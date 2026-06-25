@@ -26,4 +26,4 @@ export const moonIcon = `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" stroke="cu
 
 export const mapIcon = `<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="3" x2="9" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15" y1="6" x2="15" y2="21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`;
 
-export const editPencil = `<path d="M15.232 5.232l3.536 3.536M9 11l-1.5 7.5L15 17l7.5-7.5-3.536-3.536M9 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 22h20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`;
+export const editPencil = `<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="m15 5 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
