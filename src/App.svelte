@@ -26,6 +26,8 @@
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
 
+  const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
+
   let editing = $state(false);
   let showQuickAdd = $state(false);
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
@@ -34,17 +36,7 @@
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
 
-  function safeLocalStorageGet(key: string): string | null {
-    try {
-      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  const hasSeenOnboarding = safeLocalStorageGet('nasta_onboarding_seen');
-let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.segments.length === 0));
-   let siteLookupError = $state<string | null>(null);
+  let siteLookupError = $state<string | null>(null);
    let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
@@ -388,9 +380,9 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
 
 function toggleEdit() {
   if (hasNoRoutes) {
-    const newPageId = createPage("My Departures");
+    const newPageId = createPage(t.defaultPageName);
     pageSetActivePage(newPageId);
-    editing = true;
+    showQuickAdd = true;
     return;
   }
   editing = !editing;
@@ -645,23 +637,15 @@ function toggleEdit() {
           {#if hasNoRoutes}
             <div class="empty-state">
               <div class="empty-illustration">
-                <svg viewBox="0 0 120 120" fill="none">
-                  <circle cx="60" cy="60" r="50" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-                  <path d="M40 60h40M60 40v40" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.3"/>
-                </svg>
+                <img src={logoPath} alt="Nästa" width="90" height="90" />
               </div>
-              <h2>{t.noPages}</h2>
+              <h2 class="app-name">Nästa</h2>
               <p>{t.noPagesDesc}</p>
-              <button 
-                class="empty-cta" 
-                class:onboarding-highlight={showOnboardingHint}
+              <button
+                class="empty-cta"
                 onclick={toggleEdit}
               >
                 <span>{t.addSegment}</span>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10 4v12M4 10h12"/>
-                </svg>
               </button>
             </div>
           {:else if page}
@@ -704,7 +688,6 @@ function toggleEdit() {
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchPage={handlePageSwitch}
-        onboardingHighlight={showOnboardingHint}
       />
     {/if}
 
@@ -1019,10 +1002,24 @@ function toggleEdit() {
   }
 
   .empty-illustration {
-    width: 100px;
-    height: 100px;
-    color: var(--text-ghost);
+    width: 90px;
+    height: 90px;
     margin-bottom: 8px;
+  }
+
+  .empty-illustration img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .app-name {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin: 0;
   }
 
   .empty-state h2 {
@@ -1065,54 +1062,7 @@ function toggleEdit() {
     transform: translateY(0);
   }
 
-  .empty-cta svg {
-    width: 18px;
-    height: 18px;
-  }
 
-  .empty-cta.onboarding-highlight {
-    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
-    animation: pulse-ring 1300ms ease-out infinite;
-    position: relative;
-  }
-
-  .empty-cta.onboarding-highlight::after {
-    content: '';
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-    background: var(--accent);
-    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
-    animation: pulse-dot 800ms ease-out infinite;
-  }
-
-  @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.34); }
-    80% { box-shadow: 0 0 0 12px rgba(23, 23, 23, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
-  }
-
-  @keyframes pulse-dot {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35); }
-    75% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(23, 23, 23, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(23, 23, 23, 0); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .empty-cta.onboarding-highlight,
-    .empty-cta.onboarding-highlight::after {
-      animation: none;
-    }
-    .empty-cta.onboarding-highlight {
-      box-shadow: inset 0 0 0 2px var(--accent);
-    }
-    .empty-cta.onboarding-highlight::after {
-      display: none;
-    }
-  }
 
   .attribution {
     text-align: center;

@@ -7,7 +7,6 @@ const sv = {
   swipeHintToWork: "→ dra för att byta sida",
   swipeHintHome: "← dra för att byta sida",
 
-  // BottomBar
   arriving: "Anländer",
   save: "Spara",
   saveAriaLabel: "Spara ändringar",
@@ -127,11 +126,12 @@ const sv = {
 
   // App empty states
   noPages: "Inga sidor ännu",
-  noPagesDesc: "Skapa din första sida för att se avgångar",
+  noPagesDesc: "Lägg till din första avgång för att komma igång",
   createPage: "Skapa sida",
   noSegments: "Inga avgångar",
   noSegmentsDesc: "Lägg till avgångar för att komma igång",
   add: "Lägg till",
+  defaultPageName: "Avgångar",
 
   // Update banner
   updateAvailable: "Ny version tillgänglig!",
@@ -181,9 +181,6 @@ const sv = {
   setupReviewDesc: "Skapa sidan och duplicera vid behov för retur",
   duplicateReturnPage: "Duplicera som retursida",
   createFirstPage: "Skapa första sida",
-  onboardingHint: "Lägg till avgångar i Inställningar.",
-  onboardingHintNew: "NYTT",
-  onboardingHintText: "Här! Lägg till din första avgång!",
   dismissHint: "Stäng",
 
   // Direction selector
@@ -417,11 +414,12 @@ const en: typeof sv = {
   schedule: "Timetable",
 
   noPages: "No pages yet",
-  noPagesDesc: "Create your first page to see departures",
+  noPagesDesc: "Add your first departure to get started",
   createPage: "Create page",
   noSegments: "No departures",
   noSegmentsDesc: "Add departures to get started",
   add: "Add",
+  defaultPageName: "Departures",
 
   updateAvailable: "New version available!",
   reload: "Reload",
@@ -469,9 +467,6 @@ const en: typeof sv = {
   setupDirection: "Route direction",
   duplicateReturnPage: "Duplicate as return page",
   createFirstPage: "Create first page",
-  onboardingHint: "Add departures from Settings.",
-  onboardingHintNew: "NEW",
-  onboardingHintText: "Click here to add your first departure!",
   dismissHint: "Dismiss",
 
   // Direction selector
