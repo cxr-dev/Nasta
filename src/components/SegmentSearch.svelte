@@ -1,6 +1,7 @@
 <script lang="ts">
   import { searchSites, getDepartures, mapProductClassesToTransportTypes } from '../services/slApi';
   import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
+  import { isExternalTimetableSiteId } from '../lib/sourceClassification';
   import { getKnownRoutes } from '../services/timetableCache';
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
 import type { SiteSearchResult, Departure } from '../types/departure';
@@ -11,6 +12,7 @@ import TransportIcon from './TransportIcon.svelte';
   let t = $derived(getT());
 import { getSettings, setActiveTransportType } from '../stores/settingsStore.svelte';
 import DirectionSelector from './DirectionSelector.svelte';
+import { resolveStopSequence } from '../services/routeStops';
 import { onMount } from 'svelte';
 import gsap from 'gsap';
 
@@ -171,6 +173,8 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
   let contentEl = $state<HTMLDivElement | undefined>();
   let debounceTimer: ReturnType<typeof setTimeout>;
   let abortController: AbortController | null = null;
+  let directionStopSequences = $state<Record<number, string[]>>({});
+  let stopSequenceAbortController: AbortController | null = null;
 
   async function handleInput() {
     clearTimeout(debounceTimer);
@@ -292,6 +296,7 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
   function handleLineSelect(lineDep: Departure) {
     selectedLine = lineDep;
     step = 'direction';
+    void fetchDirectionStopSequences();
   }
 
   function handleDirectionSelect(direction: SegmentDirection) {
@@ -312,11 +317,55 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     );
     reset();
   }
+
+  async function fetchDirectionStopSequences() {
+    if (!selectedLine || !selectedStation) return;
+    // Sjostadstrafiken stops use hardcoded timetable, not SL Journey Planner API
+    if (isExternalTimetableSiteId(selectedStation.siteId)) return;
+    stopSequenceAbortController?.abort();
+    stopSequenceAbortController = new AbortController();
+    const signal = stopSequenceAbortController.signal;
+
+    const seen = new Set<number>();
+    const dirs: Array<{ code: number; dest: string }> = [];
+    for (const dep of allDepartures) {
+      if (dep.line === selectedLine.line && !seen.has(dep.direction_code)) {
+        seen.add(dep.direction_code);
+        dirs.push({ code: dep.direction_code, dest: dep.destination });
+      }
+    }
+
+    const results = await Promise.allSettled(
+      dirs.map((dir) =>
+        resolveStopSequence(
+          selectedStation!.siteId,
+          dir.dest,
+          selectedLine!.line,
+          dir.code,
+          signal,
+        ),
+      ),
+    );
+
+    const newSequences: Record<number, string[]> = {};
+    for (let i = 0; i < dirs.length; i++) {
+      const result = results[i];
+      if (result.status === 'fulfilled' && result.value) {
+        newSequences[dirs[i].code] = result.value;
+      }
+    }
+
+    if (Object.keys(newSequences).length > 0) {
+      directionStopSequences = newSequences;
+    }
+  }
   
   function reset() {
     query = '';
     stations = [];
     allDepartures = [];
+    directionStopSequences = {};
+    stopSequenceAbortController?.abort();
     selectedStation = null;
     selectedLine = null;
     departureError = null;
@@ -333,6 +382,8 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
   function goBack() {
     if (step === 'direction') {
       step = 'select';
+      directionStopSequences = {};
+      stopSequenceAbortController?.abort();
       selectedLine = null;
     } else {
       step = 'search';
@@ -611,7 +662,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
             <span class="selected-line-number">{selectedLine?.line}</span>
             <span class="selected-line-name">{selectedLine?.lineName || t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
           </div>
-          <DirectionSelector departures={selectedLineDepartures} onSelect={handleDirectionSelect} />
+          <DirectionSelector departures={selectedLineDepartures} onSelect={handleDirectionSelect} stopSequences={directionStopSequences} />
         </div>
       {/if}
     </div>

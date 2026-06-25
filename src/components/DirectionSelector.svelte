@@ -7,10 +7,12 @@
 
   let { 
     departures, 
-    onSelect 
+    onSelect,
+    stopSequences = {} as Record<number, string[]>
   }: { 
     departures: Departure[], 
-    onSelect: (direction: SegmentDirection) => void 
+    onSelect: (direction: SegmentDirection) => void,
+    stopSequences?: Record<number, string[]>
   } = $props();
 
   let directions = $derived.by(() => {
@@ -39,7 +41,10 @@ function handleConfirm() {
   const code = Number(selectedCode);
   const dir = directions.find(d => d.code === code);
   if (dir) {
-    onSelect(dir);
+    onSelect({
+      ...dir,
+      intermediateStops: stopSequences[code],
+    });
   }
 }
 </script>
@@ -56,12 +61,17 @@ function handleConfirm() {
           class="sr-only"
         />
         <div class="radio-circle"></div>
-        <span class="destination">
-          {dir.destination}
-          {#if dir.via}
-            <span class="via-label"> ({t.via} {dir.via})</span>
+        <div class="direction-option-content">
+          <span class="destination">
+            {dir.destination}
+            {#if dir.via}
+              <span class="via-label"> ({t.via} {dir.via})</span>
+            {/if}
+          </span>
+          {#if stopSequences[dir.code]?.length}
+            <span class="stop-preview">{stopSequences[dir.code].slice(0, 5).join(' · ')}{#if stopSequences[dir.code].length > 5}…{/if}</span>
           {/if}
-        </span>
+        </div>
       </label>
     {/each}
   </div>
@@ -160,10 +170,28 @@ function handleConfirm() {
     transform: scale(0);
   }
 
+  .direction-option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+
   .destination {
     font-size: 16px;
     font-weight: 500;
     color: var(--text);
+  }
+
+  .stop-preview {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.3;
   }
 
   .confirm-btn {

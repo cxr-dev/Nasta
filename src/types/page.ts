@@ -14,6 +14,8 @@ export interface SegmentDirection {
   destination: string;
   stopPointId: string;
   via?: string;
+  /** Intermediate stop names between user's stop and destination, for direction preview. */
+  intermediateStops?: string[];
 }
 
 export interface Segment {

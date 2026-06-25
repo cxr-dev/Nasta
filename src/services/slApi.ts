@@ -9,7 +9,7 @@ import { stopAreaStore } from "../stores/stopAreaStore.svelte";
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
 const JOURNEY_PLANNER_URL = "https://journeyplanner.integration.sl.se/v2";
 const STOP_FINDER_URL = `${JOURNEY_PLANNER_URL}/stop-finder`;
-const TRIP_URL = `${JOURNEY_PLANNER_URL}/trip`;
+const TRIP_URL = `${JOURNEY_PLANNER_URL}/trips`;
 const DEFAULT_FORECAST_MINUTES = 240;
 
 /**
@@ -310,7 +310,9 @@ export async function searchTrips(
     ? time.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
     : "";
 
-  let url = `${TRIP_URL}?originId=${originId}&destId=${destId}`;
+  const originGlobalId = `9091001000${originId}`;
+  const destGlobalId = `9091001000${destId}`;
+  let url = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${originGlobalId}&name_destination=${destGlobalId}`;
   if (dateStr) url += `&date=${dateStr}`;
   if (timeStr) url += `&time=${timeStr}`;
 
@@ -333,13 +335,13 @@ export async function searchTrips(
   if (!response.ok) throw new Error(`Trip API error: ${response.status}`);
 
   const data = await response.json();
-  const trips = Array.isArray(data.trips) ? data.trips : [];
+  const journeys = Array.isArray(data.journeys) ? data.journeys : [];
 
   const results: Departure[] = [];
 
-  for (const trip of trips) {
-    // A trip has multiple legs. We look for legs that start at originId.
-    const legs = Array.isArray(trip.legs) ? trip.legs : [];
+  for (const journey of journeys) {
+    // A journey has multiple legs. We look for legs that start at originId.
+    const legs = Array.isArray(journey.legs) ? journey.legs : [];
     for (const leg of legs) {
       if (globalIdToSiteId(leg.origin?.id || "") === originId) {
         const liveTime = leg.origin?.time || "";
