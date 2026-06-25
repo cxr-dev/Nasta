@@ -214,7 +214,7 @@ test.describe("feature discovery sheet", () => {
       timeout: 10000,
     });
 
-    const nearbyButton = page.getByRole("button", { name: /Nearby venues/i });
+    const nearbyButton = page.getByRole("button", { name: /Discover nearby/i });
     await expect(nearbyButton).toBeVisible({ timeout: 10000 });
     await nearbyButton.click();
 

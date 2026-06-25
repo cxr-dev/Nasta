@@ -388,7 +388,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: #e9edf2;
+    background: #343b41;
     animation: fullscreen-in 200ms ease-out both;
     display: flex;
     align-items: center;
