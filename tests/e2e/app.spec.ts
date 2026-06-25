@@ -165,4 +165,24 @@ test.describe("Nästa App", () => {
       await expect(timeElements.first()).toBeVisible();
     }
   });
+
+  test("should open and close quick-add drawer via FAB", async ({ page }) => {
+    const routeHeader = page.locator("h1.page-title");
+    await routeHeader.waitFor({ state: "visible", timeout: 10000 });
+
+    const fab = page.locator(".quick-add-fab");
+    await expect(fab).toBeVisible();
+
+    await fab.click();
+
+    const drawer = page.locator(".quick-add-drawer");
+    await expect(drawer).toBeVisible();
+
+    const backdrop = page.locator(".quick-add-backdrop");
+    await expect(backdrop).toBeVisible();
+
+    await backdrop.click();
+    await expect(drawer).not.toBeVisible();
+    await expect(backdrop).not.toBeVisible();
+  });
 });

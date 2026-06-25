@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import gsap from 'gsap';
   import { initialize } from './stores/pageStore.svelte';
-  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage } from './stores/pageStore.svelte';
+  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment } from './stores/pageStore.svelte';
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
@@ -14,7 +14,7 @@
   let t = $derived(getT());
   let locale = $derived(getLocale());
   import { searchSites } from './services/slApi';
-  import type { Segment } from './types/page';
+  import type { Segment, Stop, TransportType, SegmentDirection } from './types/page';
   
 
   import PageEditor from './components/PageEditor.svelte';
@@ -22,10 +22,14 @@
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
+  import SegmentSearch from './components/SegmentSearch.svelte';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
 
   let editing = $state(false);
+  let showQuickAdd = $state(false);
+  let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
+  let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -234,6 +238,17 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
     }
   }
 
+  function handleQuickAdd(
+    line: string, lineName: string, direction: SegmentDirection,
+    fromStop: Stop, toStop: Stop, transportType: TransportType
+  ) {
+    const p = getActivePage();
+    if (!p) return;
+    storeAddSegment(p.id, { line, lineName, direction, fromStop, toStop, transportType });
+    showQuickAdd = false;
+    void loadDepartures(true);
+  }
+
   async function handlePageSwitch(pageId: string) {
     if (isTransitioning) return;
     const currentPage = getActivePage();
@@ -343,6 +358,19 @@ let showOnboardingHint = $derived(!hasSeenOnboarding && getPages().every(p => p.
       gsap.fromTo(drawerEl,
         { opacity: 0, y: 16 },
         { opacity: 1, y: 0, duration: 0.28, ease: 'back.out(1.7)' }
+      );
+    }
+  });
+
+  $effect(() => {
+    if (showQuickAdd && quickAddBackdropEl && quickAddDrawerEl) {
+      gsap.fromTo(quickAddBackdropEl,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.2, ease: 'power2.out' }
+      );
+      gsap.fromTo(quickAddDrawerEl,
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.3, ease: 'back.out(1.7)' }
       );
     }
   });
@@ -668,6 +696,18 @@ function toggleEdit() {
           {/if}
     </div>
 
+    {#if !editing && !hasNoRoutes && page && !showQuickAdd}
+      <button
+        class="quick-add-fab"
+        aria-label={t.addSegment}
+        onclick={() => showQuickAdd = true}
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M10 4v12M4 10h12"/>
+        </svg>
+      </button>
+    {/if}
+
     {#if !hasNoRoutes && page}
       <PageEditor
         pages={pages}
@@ -677,6 +717,28 @@ function toggleEdit() {
         onSwitchPage={handlePageSwitch}
         onboardingHighlight={showOnboardingHint}
       />
+    {/if}
+
+    {#if showQuickAdd && page}
+      <button
+        type="button"
+        class="quick-add-backdrop"
+        aria-label={t.closePanel}
+        onclick={() => showQuickAdd = false}
+        bind:this={quickAddBackdropEl}
+      ></button>
+      <div
+        class="quick-add-drawer"
+        bind:this={quickAddDrawerEl}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t.addSegment}
+        tabindex="0"
+        onkeydown={(e) => { if (e.key === 'Escape') showQuickAdd = false; }}
+      >
+        <div class="quick-add-handle"></div>
+        <SegmentSearch onSelect={handleQuickAdd} />
+      </div>
     {/if}
 
     {#if activeFeatureContext}
@@ -1114,6 +1176,68 @@ function toggleEdit() {
       transform: translateX(-50%) translateY(0);
       opacity: 1;
     }
+  }
+
+  .quick-add-fab {
+    position: fixed;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 50;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    font-family: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .quick-add-fab:active {
+    transform: scale(0.92);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .quick-add-fab svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .quick-add-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    background: rgba(0,0,0,0.35);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: block;
+  }
+
+  .quick-add-drawer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 250;
+    background: var(--surface);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    max-height: 70vh;
+    overflow-y: auto;
+    touch-action: pan-y;
+  }
+
+  .quick-add-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 12px;
   }
 
   /* ── Tablet breakpoint ── */
