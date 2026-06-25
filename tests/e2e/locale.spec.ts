@@ -60,7 +60,7 @@ test.describe("locale switching", () => {
   }
 
   test("should start in English and switch between languages", async ({ page }) => {
-    const settingsBtn = page.locator(".header-icon-btn");
+    const settingsBtn = page.getByRole("button", { name: "Settings" });
 
     await expect(settingsBtn).toHaveAttribute("aria-label", "Settings", { timeout: 10000 });
 
@@ -74,18 +74,18 @@ test.describe("locale switching", () => {
     await page.locator(".editor-overlay.open .back-btn").click();
     await page.waitForTimeout(100);
 
-    await expect(page.locator(".header-icon-btn")).toHaveAttribute("aria-label", "Inställningar", { timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Inställningar" })).toBeVisible({ timeout: 10000 });
   });
 
   test("should persist language preference after reload", async ({ page }) => {
-    await page.locator(".header-icon-btn").click();
+    await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
     await langGroup(page).getByRole("button").nth(1).click();
     await page.locator(".editor-overlay.open .back-btn").click();
 
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    await expect(page.locator(".header-icon-btn")).toHaveAttribute("aria-label", "Inställningar", { timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Inställningar" })).toBeVisible({ timeout: 10000 });
   });
 
   test("no console errors during locale switching", async ({ page }) => {
@@ -95,7 +95,7 @@ test.describe("locale switching", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.locator(".header-icon-btn").click();
+    await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
 
     await langGroup(page).getByRole("button").nth(1).click();

@@ -95,7 +95,7 @@ test.describe("Segment search", () => {
     await expect(createRouteButton).toBeVisible({ timeout: 10000 });
     await createRouteButton.click();
 
-    const searchInput = page.locator(".search-input");
+    const searchInput = page.locator(".search-input").first();
     await expect(searchInput).toBeVisible({ timeout: 10000 });
     await searchInput.fill("Lindarängsvägen");
     await page.waitForTimeout(500);

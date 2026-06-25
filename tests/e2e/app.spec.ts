@@ -115,7 +115,7 @@ test.describe("Nästa App", () => {
   });
 
   test("should toggle edit mode", async ({ page }) => {
-    const editBtn = page.locator(".header-icon-btn");
+    const editBtn = page.getByRole("button", { name: "Settings" });
     await editBtn.waitFor({ state: "visible", timeout: 10000 });
     await editBtn.click();
 
