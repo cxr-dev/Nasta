@@ -166,14 +166,14 @@ test.describe("Nästa App", () => {
     }
   });
 
-  test("should open and close quick-add drawer via FAB", async ({ page }) => {
+  test("should open and close quick-add drawer via inline add button", async ({ page }) => {
     const routeHeader = page.locator("h1.page-title");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
 
-    const fab = page.locator(".quick-add-fab");
-    await expect(fab).toBeVisible();
+    const addBtn = page.locator(".quick-add-card");
+    await expect(addBtn).toBeVisible({ timeout: 5000 });
 
-    await fab.click();
+    await addBtn.click();
 
     const drawer = page.locator(".quick-add-drawer");
     await expect(drawer).toBeVisible();
