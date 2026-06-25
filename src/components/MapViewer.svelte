@@ -322,11 +322,9 @@
     }
   }
 
-  function onOverlayTouchStart(e: TouchEvent) {
-    // Prevent browser swipe gestures on the overlay
-    if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.map-overlay')) {
-      // Don't prevent on close button
-    }
+  function stopTouchPropagation(e: TouchEvent) {
+    // Block touch events from bubbling to App.svelte's swipe handlers on <main>
+    e.stopPropagation();
   }
 </script>
 
@@ -339,7 +337,9 @@
     aria-label={t.mapViewerLabel}
     tabindex="-1"
     onpointerdown={onOverlayPointerDown}
-    ontouchstart={onOverlayTouchStart}
+    ontouchstart={stopTouchPropagation}
+    ontouchmove={stopTouchPropagation}
+    ontouchend={stopTouchPropagation}
   >
     <button
       type="button"
@@ -388,7 +388,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: #000;
+    background: #e9edf2;
     animation: fullscreen-in 200ms ease-out both;
     display: flex;
     align-items: center;

@@ -193,11 +193,11 @@
           class="map-link map-link-primary"
           onclick={() => openFeatureSheet(segment)}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" stroke-linejoin="round"/>
-            <path d="M9 22V12h6v10" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" stroke-linejoin="round"/>
           </svg>
-          {t.nearbyVenues}
+          {t.discoverNearby}
         </button>
       {/if}
 

@@ -10,7 +10,7 @@
   import { getQuickLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
   import gsap from 'gsap';
-  import Skeleton from './Skeleton.svelte';
+
   import DepartureRow from "./DepartureRow.svelte";
   import { prefetchSegments } from "../services/prefetchService";
   import { getSettings } from "../stores/settingsStore.svelte";
@@ -437,15 +437,17 @@
       <div class="loading-skeleton">
         {#each Array(3) as _, i (i)}
           <div class="skeleton-card">
-            <div class="skeleton-accent"></div>
-            <div class="skeleton-body">
-              <Skeleton width="32px" height="32px" borderRadius="8px" />
-              <div class="skeleton-meta">
-                <Skeleton width="80px" height="16px" borderRadius="4px" />
-                <Skeleton width="120px" height="10px" borderRadius="3px" />
-                <Skeleton width="90px" height="10px" borderRadius="3px" />
+            <div class="skeleton-inner">
+              <div class="skeleton-accent"></div>
+              <div class="skeleton-body">
+                <div class="skeleton-icon"></div>
+                <div class="skeleton-meta">
+                  <div class="sk-line sk-route"></div>
+                  <div class="sk-line sk-stop"></div>
+                  <div class="sk-line sk-dest"></div>
+                </div>
+                <div class="sk-countdown"></div>
               </div>
-              <Skeleton width="60px" height="28px" borderRadius="4px" />
             </div>
           </div>
         {/each}
@@ -698,10 +700,14 @@
     background: var(--surface);
     border: 1px solid var(--border);
   }
+  .skeleton-inner {
+    display: flex;
+    flex-direction: column;
+  }
   .skeleton-accent {
     width: 100%;
     height: 4px;
-    background: var(--accent-subtle);
+    background: var(--border);
   }
   .skeleton-body {
     display: flex;
@@ -710,11 +716,44 @@
     padding: 10px 14px;
     min-height: 58px;
   }
+  .skeleton-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 8px;
+    background: var(--border);
+  }
   .skeleton-meta {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
     flex: 1;
+    min-width: 0;
+  }
+  .sk-line {
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.5s ease-in-out infinite;
+  }
+  .sk-route { width: 60px; height: 16px; }
+  .sk-stop { width: 130px; height: 10px; }
+  .sk-dest { width: 100px; height: 10px; }
+  .sk-countdown {
+    width: 60px;
+    height: 28px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes sk-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sk-line, .sk-countdown { animation: none; opacity: 0.4; }
   }
 
   .empty-state {

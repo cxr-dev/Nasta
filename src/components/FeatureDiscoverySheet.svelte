@@ -73,10 +73,19 @@
   });
 
   $effect(() => {
-    // Guard against re-entrance: if active tab is already loading or loaded,
-    // skip entirely so we don't abort an in-flight request. This prevents the
-    // cascade: loadEvents/loadVenues sets loading=true → effect re-runs →
-    // aborts signal of first call → empty result.
+    // If the tab already has cached data, render it immediately and refresh
+    // in background without aborting any in-flight request. The user sees
+    // data instantly; freshness comes silently.
+    const tabData = activeTab === 'events' ? eventsTab : venuesByTab[activeTab];
+    if (tabData.items.length > 0) {
+      if (!tabData.loading && tabData.loaded) return;
+      // Has cached items but not fully loaded — background refresh (no abort)
+      if (activeTab !== 'events') loadVenues(activeTab);
+      else loadEvents();
+      return;
+    }
+
+    // Guard against re-entrance: if already loading or loaded (no items yet)
     if (activeTab === 'events' && (eventsTab.loading || eventsTab.loaded)) return;
     if (activeTab !== 'events' && (venuesByTab[activeTab].loading || venuesByTab[activeTab].loaded)) return;
 
