@@ -168,7 +168,6 @@ Used for planned trip fallback and direction lookup when needed.
 | ------------------------- | ----------- | ------------------------------------ | --------- |
 | `nasta_routes`            | JSON array  | `[{id, name, segments}]`            | Permanent |
 | `nasta_settings`          | JSON object | `{theme, language, refreshInterval}` | Permanent |
-| `nasta_onboarding_seen`  | String      | `"true"`                             | Permanent |
 | `nasta_recent_stops`      | JSON array  | `[{siteId, name, type}]`            | Permanent |
 | `nasta_stop_area_mapping` | JSON object | `{"3001": "3031"}`                  | Permanent |
 

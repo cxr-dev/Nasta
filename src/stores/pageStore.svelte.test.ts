@@ -7,7 +7,6 @@ import {
   getActivePage,
   getActivePageId,
   getAll,
-  getDefaultName,
   getPages,
   initialize,
   removePage,
@@ -108,12 +107,6 @@ describe("page CRUD", () => {
     expect(getAll().map((p) => p.name)).toEqual(["A", "B"]);
   });
 
-  it("createPage uses getDefaultName when no name given", () => {
-    createPage();
-    expect(getAll()).toHaveLength(1);
-    expect(getAll()[0].name).toBe("My Departures");
-  });
-
   it("createPage uses provided name", () => {
     createPage("Custom");
     expect(getAll()[0].name).toBe("Custom");
@@ -163,27 +156,7 @@ describe("segment CRUD", () => {
   });
 });
 
-describe("getDefaultName", () => {
-  it("returns default name when no pages exist", () => {
-    expect(getDefaultName()).toBe("My Departures");
-  });
 
-  it("returns incrementing name when default exists", () => {
-    addPage("My Departures");
-    expect(getDefaultName()).toBe("My Departures 2");
-  });
-
-  it("skips occupied numbers", () => {
-    addPage("My Departures");
-    addPage("My Departures 2");
-    expect(getDefaultName()).toBe("My Departures 3");
-  });
-
-  it("returns default if a differently-named page exists", () => {
-    addPage("Commute");
-    expect(getDefaultName()).toBe("My Departures");
-  });
-});
 
 describe("active page", () => {
   it("setActivePage updates active page", () => {

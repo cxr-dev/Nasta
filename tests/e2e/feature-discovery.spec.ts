@@ -27,7 +27,6 @@ test.describe("feature discovery sheet", () => {
         }
       } as typeof Date;
 
-      localStorage.setItem("nasta_onboarding_seen", "true");
       localStorage.setItem(
         "nasta_settings",
         JSON.stringify({

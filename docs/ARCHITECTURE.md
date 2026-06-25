@@ -94,12 +94,10 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 - `App.svelte` — Main app container, route state, auto-refresh orchestration
 - `ErrorBoundary.svelte` — Error catching and user-friendly error display
-- `Onboarding.svelte` — First-run experience for new users
 
 ### Departures & Routes
 
 - `PageHeader.svelte` — Page name, edit/save toggle, page selection
-- `BottomBar.svelte` — Arrival summary, "arriving in X min" CTA
 - `SegmentDepartures.svelte` — List of route segments with departures per stop
 - `DepartureRow.svelte` — Individual departure row with countdown
 - `SegmentList.svelte` — List of segments within a page
@@ -142,7 +140,6 @@ Static assets            → Cache First (hashed filenames)
 | ------------------------- | -------------------------- | --------- |
 | `nasta_routes`            | Serialized Page[]          | Permanent |
 | `nasta_settings`          | Serialized Settings        | Permanent |
-| `nasta_onboarding_seen`   | Boolean flag               | Permanent |
 | `nasta_recent_stops`      | SiteSearchResult[]         | Permanent |
 | `nasta_stop_area_mapping` | siteId→stopAreaId map      | Permanent |
 

@@ -32,7 +32,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
 
     await page.addInitScript((data) => {
       console.log("[InitScript] Setting legacy routes");
-      localStorage.setItem("nasta_onboarding_seen", "true");
       localStorage.setItem("nasta_routes", JSON.stringify(data));
     }, legacyRoutes);
 
@@ -108,7 +107,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     ];
 
     await page.addInitScript((data) => {
-      localStorage.setItem("nasta_onboarding_seen", "true");
       localStorage.setItem("nasta_routes", JSON.stringify(data));
     }, multiSegmentRoute);
 

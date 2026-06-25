@@ -3,7 +3,6 @@ import { test, expect } from "@playwright/test";
 test.describe("locale switching", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("nasta_onboarding_seen", "true");
       localStorage.setItem("nasta_routes", JSON.stringify([
         {
           id: crypto.randomUUID(),

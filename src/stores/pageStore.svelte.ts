@@ -108,9 +108,8 @@ export function getActivePage(): Page | null { return _activePage; }
 export function getActivePageId(): string | null { return _activePageId; }
 export function getPages(): Page[] { return _pages; }
 
-export function createPage(name?: string): string {
-  const pageName = name || getDefaultName();
-  return addPage(pageName);
+export function createPage(name: string): string {
+  return addPage(name);
 }
 
 export function deletePage(id: string): void {
@@ -126,11 +125,4 @@ export function setActivePage(id: string): void {
   _activePageId = id;
 }
 
-export function getDefaultName(): string {
-  if (!_pages.some(p => p.name === DEFAULT_PAGE_NAME)) return DEFAULT_PAGE_NAME;
-  let counter = 2;
-  while (_pages.some(p => p.name === `${DEFAULT_PAGE_NAME} ${counter}`)) counter++;
-  return `${DEFAULT_PAGE_NAME} ${counter}`;
-}
 
-const DEFAULT_PAGE_NAME = "My Departures";

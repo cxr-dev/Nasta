@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
   import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
-  import { setActivePage, createPage, deletePage, getDefaultName } from '../stores/pageStore.svelte';
+  import { setActivePage, createPage, deletePage } from '../stores/pageStore.svelte';
   import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupDisruptedSegments, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import { THEMES } from '../themes';
   import gsap from 'gsap';
@@ -139,15 +139,13 @@
     activePageId,
     isOpen,
     onClose,
-    onSwitchPage,
-    onboardingHighlight = false
+    onSwitchPage
   }: {
     pages: Page[];
     activePageId: string;
     isOpen: boolean;
     onClose: () => void;
     onSwitchPage: (pageId: string) => void;
-    onboardingHighlight?: boolean;
   } = $props();
 
   let activeEditorTab = $state<'pages' | 'segment' | 'features' | 'theme'>('segment');
@@ -157,7 +155,6 @@
   let hasManuallyClosedSearch = $state(false);
   let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
   import { infoCircle } from '../icons/departureIcons';
-  let hintDismissed = $state(false);
   let infoOpen = $state(false);
   let showPagePicker = $state(false);
   let settings = $derived(getSettings());
@@ -165,42 +162,10 @@
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
-  let hintEl = $state<HTMLDivElement | undefined>();
   let addBtnEl = $state<HTMLButtonElement | undefined>();
-  let dotEl = $state<HTMLSpanElement | undefined>();
   let handleSwipeStartX = 0;
   let handleSwipeStartY = 0;
   let pagesTabEl = $state<HTMLDivElement>();
-
-  $effect(() => {
-    if (!hintEl) return;
-    gsap.fromTo(hintEl, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' });
-  });
-
-  $effect(() => {
-    if (!addBtnEl) return;
-    const ring = gsap.to(addBtnEl, {
-      boxShadow: '0 0 0 12px rgba(23,23,23,0)',
-      duration: 1.3,
-      ease: 'power1.inOut',
-      repeat: -1,
-      yoyo: true,
-    });
-    return () => ring.kill();
-  });
-
-  $effect(() => {
-    if (!dotEl) return;
-    const dot = gsap.to(dotEl, {
-      scale: 1.15,
-      boxShadow: '0 0 0 10px rgba(23,23,23,0)',
-      duration: 0.8,
-      ease: 'power1.inOut',
-      repeat: -1,
-      yoyo: true,
-    });
-    return () => dot.kill();
-  });
 
   function getPageLabel(p: Page): string {
     return p.name;
@@ -211,11 +176,6 @@
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255 >= 0.5;
-  }
-
-  function dismissOnboardingHint() {
-    localStorage.setItem('nasta_onboarding_seen', 'true');
-    hintDismissed = true;
   }
 
   function addSegment(
@@ -229,8 +189,7 @@
   }
 
   function handleCreatePage() {
-    const name = getDefaultName();
-    const newId = createPage(name);
+    const newId = createPage(t.defaultPageName);
     setActivePage(newId);
     onSwitchPage(newId);
     activeEditorTab = 'pages';
@@ -540,13 +499,6 @@
           </div>
           {#if showSearch || autoSearch}
             <div class="search-container">
-              {#if onboardingHighlight && !hintDismissed}
-                <div bind:this={hintEl} class="onboarding-hint" role="tooltip" aria-live="polite">
-                  <div class="hint-badge">{t.onboardingHintNew}</div>
-                  <span>{t.onboardingHintText}</span>
-                  <button onclick={dismissOnboardingHint} aria-label={t.dismissHint}>×</button>
-                </div>
-              {/if}
               <SegmentSearch onSelect={addSegment} />
               <button class="cancel-search-btn" onclick={() => { showSearch = false; hasManuallyClosedSearch = true; }}>
                 {t.cancel}
@@ -557,13 +509,9 @@
               <button
                 bind:this={addBtnEl}
                 class="add-btn"
-                class:onboarding-highlight={onboardingHighlight && (!page || page.segments.length === 0)}
                 onclick={() => showSearch = true}
               >
                 {t.addSegment}
-                {#if onboardingHighlight && (!page || page.segments.length === 0)}
-                  <span bind:this={dotEl} class="pulse-dot-el"></span>
-                {/if}
               </button>
               <SegmentList page={page} />
             </div>
@@ -1786,64 +1734,6 @@
     flex-shrink: 0;
   }
 
-  /* Onboarding hint */
-  .onboarding-hint {
-    position: relative;
-    margin-bottom: -4px;
-    z-index: 300;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 90%, #fff), color-mix(in srgb, var(--accent-subtle) 25%, #fff));
-    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
-    border-radius: 16px;
-    padding: 12px 14px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-
-  .onboarding-hint span {
-    font-size: 13px;
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .onboarding-hint button {
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .hint-badge {
-    flex-shrink: 0;
-    border-radius: 999px;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    padding: 3px 7px;
-    color: var(--text-on-accent);
-    background: var(--accent);
-  }
-
-  .add-btn.onboarding-highlight {
-    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.35);
-  }
-
-  .pulse-dot-el {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: var(--accent);
-    box-shadow: 0 0 0 0 rgba(23, 23, 23, 0.4);
-  }
-
   .info-overlay {
     position: fixed;
     inset: 0;
@@ -1968,9 +1858,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .pulse-dot-el {
-      display: none;
-    }
     .page-item {
       transition: none;
     }

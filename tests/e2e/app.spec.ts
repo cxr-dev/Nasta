@@ -40,10 +40,8 @@ test.describe("Nästa App", () => {
       }
     });
 
-    // Bypass onboarding AND seed with default routes before page load
+    // Seed with default routes before page load
     await page.addInitScript(() => {
-      localStorage.setItem("nasta_onboarding_seen", "true");
-
       // Seed default routes that match initialize() logic
       const defaultRoutes = [
         {
