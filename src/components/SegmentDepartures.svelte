@@ -34,6 +34,7 @@
     openFeatureSheet = null,
     onSwitchPage,
     onEditToggle,
+    onQuickAdd,
     lastRefreshTime,
   }: {
     route: Page;
@@ -44,6 +45,7 @@
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
     onEditToggle?: () => void;
+    onQuickAdd?: () => void;
     lastRefreshTime?: number;
   } = $props();
 
@@ -385,7 +387,7 @@
       </svg>
       <h2>{t.noSegments}</h2>
       <p>{t.noSegmentsDesc}</p>
-      <button class="empty-cta" onclick={onEditToggle}>
+      <button class="empty-cta" onclick={onQuickAdd ?? onEditToggle}>
         <span>{t.add}</span>
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10 4v12M4 10h12"/>
@@ -522,6 +524,11 @@
           <p class="empty-text">{t.noDeparturesAvailable}</p>
         </div>
       {/if}
+      {#if onQuickAdd}
+        <button class="quick-add-card" onclick={onQuickAdd}>
+          + {t.add}
+        </button>
+      {/if}
     {/if}
   </div>
   {/if}
@@ -605,9 +612,28 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 0 14px calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: 0 14px calc(24px + env(safe-area-inset-bottom, 0px));
     flex: 1;
     overflow-y: auto;
+  }
+
+  .quick-add-card {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1.5px dashed var(--accent);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms ease;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: 4px;
+  }
+  .quick-add-card:active {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .error-bar {
@@ -755,7 +781,8 @@
 
     .card-list > .section-label,
     .card-list > .empty-state,
-    .card-list > .error-bar {
+    .card-list > .error-bar,
+    .card-list > .quick-add-card {
       grid-column: 1 / -1;
     }
 

@@ -674,6 +674,7 @@ function toggleEdit() {
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
               onEditToggle={toggleEdit}
+              onQuickAdd={() => showQuickAdd = true}
               {lastRefreshTime}
             />
           {/if}
@@ -695,18 +696,6 @@ function toggleEdit() {
             </nav>
           {/if}
     </div>
-
-    {#if !editing && !hasNoRoutes && page && !showQuickAdd}
-      <button
-        class="quick-add-fab"
-        aria-label={t.addSegment}
-        onclick={() => showQuickAdd = true}
-      >
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M10 4v12M4 10h12"/>
-        </svg>
-      </button>
-    {/if}
 
     {#if !hasNoRoutes && page}
       <PageEditor
@@ -1178,34 +1167,6 @@ function toggleEdit() {
     }
   }
 
-  .quick-add-fab {
-    position: fixed;
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-    right: 20px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 50;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    font-family: inherit;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .quick-add-fab:active {
-    transform: scale(0.92);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-  }
-  .quick-add-fab svg {
-    width: 22px;
-    height: 22px;
-  }
-
   .quick-add-backdrop {
     position: fixed;
     inset: 0;
@@ -1244,6 +1205,14 @@ function toggleEdit() {
   @media (min-width: 768px) {
     :global(:root) {
       --layout-max-width: 820px;
+    }
+
+    .quick-add-drawer {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      max-width: var(--layout-max-width, 480px);
+      width: 100%;
     }
   }
 
