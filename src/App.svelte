@@ -13,7 +13,7 @@
 
   let t = $derived(getT());
   let locale = $derived(getLocale());
-  import { searchSites } from './services/slApi';
+  import { transitService } from './providers/init';
   import type { Segment, Stop, TransportType, SegmentDirection } from './types/page';
   
 
@@ -136,8 +136,8 @@
       }
 
       try {
-        const sites = await searchSites(input.stopName);
-        const siteId = sites[0]?.siteId || '';
+        const entityId = await transitService.resolveStopId(input.stopName);
+        const siteId = entityId ? (entityId.includes(':') ? entityId.split(':')[1] : entityId) : '';
         if (!siteId) hadError = true;
         resolved.push({ ...input, siteId });
       } catch {

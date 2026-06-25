@@ -359,10 +359,9 @@ interface Settings {
 
 ## Inline Disruptions (Stop Deviations)
 
-1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
-2. These are stored in `departureStore.stopDeviations` (site-mapped).
-3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
-4. Clicking the row expands to show the full disruption message(s).
+1. The SL departure API response includes `stop_deviations` — captured by `slProvider` and stored in `departureStore.stopDeviations` (site-mapped).
+2. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
+3. Clicking the row expands to show the full disruption message(s).
 
 ## Architecture Flow
 
@@ -370,7 +369,10 @@ interface Settings {
 User Route Change → App.svelte
             ├─→ departureStore.startAutoRefresh()
             │   ├─→ Check scheduleCache
-            │   ├─→ Fetch from slApi.ts (returns departures + stop_deviations)
+            │   ├─→ Fetch from transitService.getDepartures()
+            │   │      └─→ ProviderRegistry.resolve(stopId)
+            │   │              ├─→ slProvider.getDepartures() (wraps slApi)
+            │   │              └─→ sjostadProvider.getDepartures() (wraps staticTimetable)
             │   ├─→ Learn from response → timetableCache
             │   ├─→ Update departureStore.data
             │   ├─→ Update departureStore.stopDeviations

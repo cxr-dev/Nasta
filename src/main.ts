@@ -1,3 +1,4 @@
+import "./providers/init";
 import App from "./App.svelte";
 import { mount } from "svelte";
 import { getServiceWorkerUrl } from "./lib/sw";

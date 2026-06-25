@@ -211,10 +211,14 @@ User Action → Svelte Store → Service → API/Storage
 | `src/stores/settingsStore.svelte.ts`     | User preferences: refresh interval, theme, language, disruption display            |
 | `src/stores/stopAreaStore.ts`            | SiteId→stopAreaId mapping for disruption matching                                  |
 | `src/stores/timeOfDay.svelte.ts`         | Time-of-day state (morning/afternoon/evening/night)                                |
-| `src/services/slApi.ts`                  | SL Transport API client, stop search with result ranking, timetable cache learning |
-| `src/services/slDeviations.ts`           | SL Deviations API client, message parsing, severity scoring                        |
-| `src/services/departureService.ts`       | Routes departures to SL API or static timetable based on source                    |
-| `src/services/staticTimetable.ts`        | Sjöstadstrafiken ferry static schedule                                             |
+| `src/providers/registry.ts`              | O(1) prefix-hash provider registry, register/resolve/withFeature                   |
+| `src/providers/init.ts`                  | Singleton ProviderRegistry + TransitService instantiation                          |
+| `src/providers/slProvider.ts`            | SL provider wrapping slApi + slDeviations + timetableCache behind TransitProvider  |
+| `src/providers/sjostadProvider.ts`       | Sjöstadstrafiken ferry provider wrapping staticTimetable                           |
+| `src/services/transitService.ts`         | Aggregation layer — delegates to owning provider by EntityId prefix                |
+| `src/services/slApi.ts`                  | SL Transport API client (wrapped by slProvider)                                    |
+| `src/services/slDeviations.ts`           | SL Deviations API client (wrapped by slProvider)                                   |
+| `src/services/staticTimetable.ts`        | Sjöstadstrafiken ferry static schedule (wrapped by sjostadProvider)                |
 | `src/services/deviationCache.ts`         | IndexedDB persistence for disruption data (fallback when API unavailable)          |
 | `src/services/storage.ts`               | LocalStorage persistence for routes and settings                                   |
 | `src/services/scheduleCache.ts`          | Predicted departure caching from SL API responses                                  |

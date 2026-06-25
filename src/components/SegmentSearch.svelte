@@ -1,10 +1,7 @@
 <script lang="ts">
-  import { searchSites, getDepartures, mapProductClassesToTransportTypes } from '../services/slApi';
-  import { isSjostadstrafikenStop, getNextDepartures } from '../services/staticTimetable';
-  import { isExternalTimetableSiteId } from '../lib/sourceClassification';
-  import { getKnownRoutes } from '../services/timetableCache';
+  import { transitService } from '../providers/init';
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
-import type { SiteSearchResult, Departure } from '../types/departure';
+import type { TransitStopSearchResult, TransitDeparture } from '../providers/types';
 import type { TransportType, Stop, SegmentDirection } from '../types/page';
 import { getT } from '../stores/localeStore.svelte';
 import TransportIcon from './TransportIcon.svelte';
@@ -12,7 +9,6 @@ import TransportIcon from './TransportIcon.svelte';
   let t = $derived(getT());
 import { getSettings, setActiveTransportType } from '../stores/settingsStore.svelte';
 import DirectionSelector from './DirectionSelector.svelte';
-import { resolveStopSequence } from '../services/routeStops';
 import { onMount } from 'svelte';
 import gsap from 'gsap';
 
@@ -56,26 +52,23 @@ function safeLocalStorageSet(key: string, value: string): void {
   }
 }
 
-function getDistanceSortValue(station: SiteSearchResult): number {
-  if (!userLocation || station.lat === undefined || station.lon === undefined) return Infinity;
-  return getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1]);
+function getDistanceSortValue(station: TransitStopSearchResult): number {
+  if (!userLocation || !station.coord) return Infinity;
+  return getMemoizedDistance(station.id, station.coord[0], station.coord[1], userLocation[0], userLocation[1]);
 }
 
-function getPrimaryType(station: SiteSearchResult): TransportType {
-  if (station.note === 'Sjöstadstrafiken') return 'boat';
-  if (station.productClasses && station.productClasses.length > 0) {
-    const types = mapProductClassesToTransportTypes(station.productClasses);
-    if (types.length > 0) return types[0];
-  }
+function getPrimaryType(station: TransitStopSearchResult): TransportType {
+  const m = station.modes ?? (station.providerMetadata?.modes as string[] | undefined);
+  if (m && m.length > 0) return m[0] as TransportType;
   return 'bus';
 }
   
   let query = $state('');
-  let stations = $state<SiteSearchResult[]>([]);
-  let allDepartures = $state<Departure[]>([]);
+  let stations = $state<TransitStopSearchResult[]>([]);
+  let allDepartures = $state<TransitDeparture[]>([]);
   let userLocation = $state<[number, number] | null>(null);
   let isLoadingLocation = $state(false);
-  let recentStops = $state<SiteSearchResult[]>([]);
+  let recentStops = $state<TransitStopSearchResult[]>([]);
   let activeTransportTypes = $state<TransportType[]>([]);
 
   // Filtering logic: Enforcement at data level
@@ -84,22 +77,16 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     const activeType = settings.activeTransportType;
     
     if (mode === 'single' && activeType) {
-      // Single-select mode: only show stops that support the active transport type
       return stations.filter(s => {
-        if (!s.productClasses || s.productClasses.length === 0) return true;
-        const types = mapProductClassesToTransportTypes(s.productClasses);
-        if (types.length === 0) return true;
-        return types.includes(activeType);
+        if (!s.modes || s.modes.length === 0) return true;
+        return (s.modes as TransportType[]).includes(activeType);
       });
     }
     
-    // Multi-select mode (default): use activeTransportTypes array
     if (activeTransportTypes.length === 0) return stations;
     return stations.filter(s => {
-      if (!s.productClasses || s.productClasses.length === 0) return true;
-      const types = mapProductClassesToTransportTypes(s.productClasses);
-      if (types.length === 0) return true;
-      return types.some(t => activeTransportTypes.includes(t));
+      if (!s.modes || s.modes.length === 0) return true;
+      return s.modes.some(m => activeTransportTypes.includes(m as TransportType));
     });
   });
 
@@ -115,8 +102,8 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     if (!userLocation) return [];
     return recentStops
       .map(s => {
-        if (s.lat === undefined || s.lon === undefined) return { ...s, distance: Infinity };
-        const dist = getMemoizedDistance(s.siteId, s.lat, s.lon, userLocation![0], userLocation![1]);
+        if (!s.coord) return { ...s, distance: Infinity };
+        const dist = getMemoizedDistance(s.id, s.coord[0], s.coord[1], userLocation![0], userLocation![1]);
         return { ...s, distance: dist };
       })
       .filter(s => s.distance < 2.0) // Within 2km for "nearby"
@@ -132,25 +119,25 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     const activeType = settings.activeTransportType;
     
     if (mode === 'single' && activeType) {
-      return d.transportType === activeType;
+      return d.transportMode === (activeType as typeof d.transportMode);
     }
     if (activeTransportTypes.length === 0) return true;
-    return activeTransportTypes.includes(d.transportType);
+    return activeTransportTypes.includes(d.transportMode as unknown as TransportType);
   }));
-
+  
   let uniqueLinesFiltered = $derived.by(() => {
     const mode = settings.transportFilterMode ?? 'multi';
     const activeType = settings.activeTransportType;
     
     const seen = new Set<string>();
-    const lines: Departure[] = [];
+    const lines: TransitDeparture[] = [];
     for (const d of allDepartures) {
       if (seen.has(d.line)) continue;
       
       if (mode === 'single' && activeType) {
-        if (d.transportType !== activeType) continue;
+        if (d.transportMode !== (activeType as typeof d.transportMode)) continue;
       } else if (activeTransportTypes.length > 0) {
-        if (!activeTransportTypes.includes(d.transportType)) continue;
+        if (!activeTransportTypes.includes(d.transportMode as unknown as TransportType)) continue;
       }
       
       seen.add(d.line);
@@ -172,9 +159,9 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     }
     return map;
   });
-  let selectedLine = $state<Departure | null>(null);
+  let selectedLine = $state<TransitDeparture | null>(null);
 
-  let selectedStation = $state<SiteSearchResult | null>(null);
+  let selectedStation = $state<TransitStopSearchResult | null>(null);
   let loading = $state(false);
   let loadingDeps = $state(false);
   let departureError = $state<string | null>(null);
@@ -211,56 +198,29 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
 
       loading = true;
       try {
-        const [result] = await Promise.all([
-          searchSites(query, abortController.signal),
-          minLoadDelay
-        ]);
-
+      const results = await transitService.searchStops(query, abortController.signal);
+      
+        // Sort by relevance and distance
         const normalize = (s: string) =>
           s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
         const q = normalize(query);
-        result.sort((a, b) => {
+        results.sort((a, b) => {
+          if (a.relevance !== b.relevance) return b.relevance - a.relevance;
           const aNorm = normalize(a.name);
           const bNorm = normalize(b.name);
           if (aNorm === q) return -1;
           if (bNorm === q) return 1;
           if (aNorm.startsWith(q)) return -1;
           if (bNorm.startsWith(q)) return 1;
-
+      
           const distanceA = getDistanceSortValue(a);
           const distanceB = getDistanceSortValue(b);
           if (distanceA !== distanceB) return distanceA - distanceB;
-
+      
           return a.name.localeCompare(b.name);
         });
-
-      if (isSjostadstrafikenStop(query)) {
-          const staticStopKeys: Record<string, string> = {
-            'luma': 'Lumabryggan',
-            'barn': 'Barnängsbryggan',
-            'henrik': 'Henriksdalsbryggan'
-          };
-          const actualName = Object.entries(staticStopKeys).find(([k]) =>
-            query.toLowerCase().includes(k)
-          )?.[1] || query;
-
-          const sjostadCoords: Record<string, [number, number]> = {
-            'Lumabryggan': [59.30566801584885, 18.099309696257656],
-            'Barnängsbryggan': [59.30824408961144, 18.097770808925457],
-            'Henriksdalsbryggan': [59.309253974378066, 18.10136473213606]
-          };
-          const hasCoords = sjostadCoords[actualName];
-          const sjostadStation: SiteSearchResult = {
-            siteId: 'sjostad-' + actualName.toLowerCase().replace(/\s+/g, '-'),
-            name: actualName,
-            type: 'stop',
-            note: 'Sjöstadstrafiken',
-            ...(hasCoords ? { lat: hasCoords[0], lon: hasCoords[1] } : {})
-          };
-          result.unshift(sjostadStation);
-        }
-
-        stations = result;
+      
+        stations = results;
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           if (import.meta.env.DEV) console.error('Search failed:', e);
@@ -272,37 +232,39 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     }, SEARCH_DEBOUNCE_MS);
   }
   
-  async function selectStation(station: SiteSearchResult) {
+  async function selectStation(station: TransitStopSearchResult) {
     selectedStation = station;
     step = 'select';
     loadingDeps = true;
     
     // Save to recent stops for "Nearby" feature
-    if (!recentStops.some(s => s.siteId === station.siteId)) {
+    if (!recentStops.some(s => s.id === station.id)) {
       recentStops = [station, ...recentStops].slice(0, 20);
       localStorage.setItem('nasta_recent_stops', JSON.stringify(recentStops));
     }
 
     try {
-      let rawDeps: Departure[] = [];
-      if (station.note === 'Sjöstadstrafiken') {
-        rawDeps = getNextDepartures(station.name, 5);
-      } else {
-        const result = await getDepartures(station.siteId, 240);
-        rawDeps = result.departures;
-      }
-
+      const rawDeps = await transitService.getDepartures(station.id, station.name, undefined, undefined);
       // Supplement with routes known from timetable cache (covers overnight / off-peak)
-      const cachedRoutes = await getKnownRoutes(station.siteId);
+      const cachedRoutes = await transitService.getKnownRoutes(station.id, station.name);
       for (const route of cachedRoutes) {
-        if (!rawDeps.some(d => d.line === route.line && d.direction_code === route.direction_code)) {
+        if (!rawDeps.some(d => d.line === route.line && d.directionCode === route.directionCode)) {
           rawDeps.push({
-            ...route, lineName: route.lineName, minutes: -1, time: '', predicted: true
+            id: `${station.id}|${route.line}|${route.directionCode}|cached`,
+            stopId: station.id,
+            line: route.line,
+            lineName: route.lineName,
+            destination: route.destination,
+            directionCode: route.directionCode,
+            transportMode: route.transportMode,
+            minutes: -1,
+            scheduledTime: '',
+            dataSource: 'predicted',
           });
         }
       }
       allDepartures = rawDeps;
-
+      
       // Auto-skip to direction step if only 1 unique line at this stop
       const uniqueLineSet = new Set(allDepartures.map(d => d.line));
       if (uniqueLineSet.size === 1) {
@@ -321,12 +283,12 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     }
   }
   
-  function handleLineSelect(lineDep: Departure) {
+  function handleLineSelect(lineDep: TransitDeparture) {
     selectedLine = lineDep;
     step = 'direction';
     void fetchDirectionStopSequences();
   }
-
+  
   function handleDirectionSelect(direction: SegmentDirection) {
     if (!selectedLine || !selectedStation) return;
     onSelect(
@@ -336,73 +298,36 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
       { 
         id: crypto.randomUUID(), 
         name: selectedStation.name, 
-        siteId: selectedStation.siteId,
-        coord: selectedStation.lat !== undefined && selectedStation.lon !== undefined ? [selectedStation.lat, selectedStation.lon] : undefined,
-        productClasses: selectedStation.productClasses
+        siteId: selectedStation.id,
+        coord: selectedStation.coord ?? undefined,
+        productClasses: [],
       },
       { id: crypto.randomUUID(), name: direction.destination, siteId: '' },
-      selectedLine.transportType
+      selectedLine.transportMode as unknown as TransportType
     );
     reset();
   }
-
-  const sjostadstrafikenStopSequences: Record<string, Record<number, string[]>> = {
-    'Barnängsbryggan': {
-      1: ['Lumabryggan', 'Henriksdalsbryggan'],
-      2: ['Lumabryggan', 'Henriksdalsbryggan'],
-    },
-    'Lumabryggan': {
-      1: ['Henriksdalsbryggan', 'Barnängsbryggan'],
-    },
-    'Henriksdalsbryggan': {
-      1: ['Barnängsbryggan', 'Lumabryggan'],
-    },
-  };
-
+  
   async function fetchDirectionStopSequences() {
     if (!selectedLine || !selectedStation) return;
     
-    // Sjostadstrafiken — hardcoded stop sequences for one-way cycle
-    if (isExternalTimetableSiteId(selectedStation.siteId)) {
-      const seq = sjostadstrafikenStopSequences[selectedStation.name];
-      if (!seq) return;
-      
-      const seen = new Set<number>();
-      const dirs: Array<{ code: number; dest: string }> = [];
-      for (const dep of allDepartures) {
-        if (dep.line === selectedLine.line && !seen.has(dep.direction_code)) {
-          seen.add(dep.direction_code);
-          dirs.push({ code: dep.direction_code, dest: dep.destination });
-        }
-      }
-      
-      const newSequences: Record<number, string[]> = {};
-      for (const dir of dirs) {
-        newSequences[dir.code] = seq[dir.code] || [];
-      }
-      
-      if (Object.keys(newSequences).length > 0) {
-        directionStopSequences = newSequences;
-      }
-      return;
-    }
     stopSequenceAbortController?.abort();
     stopSequenceAbortController = new AbortController();
     const signal = stopSequenceAbortController.signal;
-
+    
     const seen = new Set<number>();
     const dirs: Array<{ code: number; dest: string }> = [];
     for (const dep of allDepartures) {
-      if (dep.line === selectedLine.line && !seen.has(dep.direction_code)) {
-        seen.add(dep.direction_code);
-        dirs.push({ code: dep.direction_code, dest: dep.destination });
+      if (dep.line === selectedLine.line && !seen.has(dep.directionCode)) {
+        seen.add(dep.directionCode);
+        dirs.push({ code: dep.directionCode, dest: dep.destination });
       }
     }
-
+    
     const results = await Promise.allSettled(
       dirs.map((dir) =>
-        resolveStopSequence(
-          selectedStation!.siteId,
+        transitService.getStopSequence(
+          selectedStation!.id,
           dir.dest,
           selectedLine!.line,
           dir.code,
@@ -410,15 +335,15 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
         ),
       ),
     );
-
+    
     const newSequences: Record<number, string[]> = {};
     for (let i = 0; i < dirs.length; i++) {
       const result = results[i];
       if (result.status === 'fulfilled' && result.value) {
-        newSequences[dirs[i].code] = result.value;
+        newSequences[dirs[i].code] = result.value.stops.map(s => s.stopName);
       }
     }
-
+    
     if (Object.keys(newSequences).length > 0) {
       directionStopSequences = newSequences;
     }
@@ -477,14 +402,24 @@ function filterIconType(type: TransportFilterOption): TransportType {
 
   onMount(async () => {
     if (!(settings.walkingEtaEnabled ?? false)) {
-      const recentStored = safeLocalStorageGet('nasta_recent_stops');
-      if (recentStored) {
-        try {
-          recentStops = JSON.parse(recentStored);
-        } catch {
-          recentStops = [];
-        }
+    const recentStored = safeLocalStorageGet('nasta_recent_stops');
+    if (recentStored) {
+      try {
+        const parsed: any[] = JSON.parse(recentStored);
+        recentStops = parsed.map((s: any) => ({
+          // Migrate old SiteSearchResult format to TransitStopSearchResult
+          id: s.id || s.siteId || `stale-${crypto.randomUUID()}`,
+          name: s.name || '',
+          coord: s.coord || (s.lat != null && s.lon != null ? [s.lat, s.lon] : undefined),
+          modes: s.modes || (s.productClasses ? [] : []), // old format has no modes
+          relevance: s.relevance ?? 50,
+          locationType: s.locationType || (s.type || 'stop'),
+          providerMetadata: s.providerMetadata ?? (s.siteId ? { siteId: s.siteId } : {}),
+        }));
+      } catch {
+        recentStops = [];
       }
+    }
       return;
     }
 
@@ -504,7 +439,16 @@ function filterIconType(type: TransportFilterOption): TransportType {
     const recentStored = safeLocalStorageGet('nasta_recent_stops');
     if (recentStored) {
       try {
-        recentStops = JSON.parse(recentStored);
+        const parsed: any[] = JSON.parse(recentStored);
+        recentStops = parsed.map((s: any) => ({
+          id: s.id || s.siteId || `stale-${crypto.randomUUID()}`,
+          name: s.name || '',
+          coord: s.coord || (s.lat != null && s.lon != null ? [s.lat, s.lon] : undefined),
+          modes: s.modes || [],
+          relevance: s.relevance ?? 50,
+          locationType: s.locationType || (s.type || 'stop'),
+          providerMetadata: s.providerMetadata ?? (s.siteId ? { siteId: s.siteId } : {}),
+        }));
       } catch (e) {
         recentStops = [];
       }
@@ -588,7 +532,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
       <div class="anchor-row">
         {#if nearbyStops.length > 0}
           <div class="nearby-label">{t.nearby}:</div>
-          {#each nearbyStops as stop (stop.siteId)}
+          {#each nearbyStops as stop (stop.id)}
              <button class="anchor-btn nearby-btn" onclick={() => selectStation(stop)}>
               {stop.name} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>
             </button>
@@ -600,7 +544,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
     {#if searchMode === 'idle' && recentStops.length > 0}
       <div class="recent-section">
         <div class="section-label">{t.recentStops}</div>
-        {#each recentStops.slice(0, 5) as stop (stop.siteId)}
+        {#each recentStops.slice(0, 5) as stop (stop.id)}
           <button class="item" onclick={() => selectStation(stop)}>
             <div class="item-top-row">
               <div class="item-left">
@@ -608,8 +552,8 @@ function filterIconType(type: TransportFilterOption): TransportType {
                 <span class="name">{stop.name}</span>
               </div>
               <div class="item-right">
-                {#if userLocation && stop.lat !== undefined && stop.lon !== undefined}
-                  {@const dist = getMemoizedDistance(stop.siteId, stop.lat, stop.lon, userLocation[0], userLocation[1])}
+                {#if userLocation && stop.coord}
+                  {@const dist = getMemoizedDistance(stop.id, stop.coord[0], stop.coord[1], userLocation[0], userLocation[1])}
                   <span class="distance">{formatDistance(dist)}</span>
                 {/if}
                 <span class="arrow">→</span>
@@ -622,12 +566,11 @@ function filterIconType(type: TransportFilterOption): TransportType {
       <div class="msg">{t.searching}</div>
     {:else if filteredStations.length > 0}
       <div class="results">
-        {#each filteredStations as station (station.siteId)}
+        {#each filteredStations as station (station.id)}
           {@const nameCount = nameCounts[station.name] ?? 1}
-          {@const showLocality = !!(station.locality && nameCount > 1)}
-          {@const types = station.productClasses ? mapProductClassesToTransportTypes(station.productClasses) : []}
-          {@const isSjostad = station.note === 'Sjöstadstrafiken'}
-          {@const hasNotableTypes = types.some(t => t === 'boat' || t === 'train')}
+          {@const modes = station.modes}
+          {@const isSjostad = station.id.startsWith('sjostad:')}
+          {@const hasNotableTypes = modes.some(t => t === 'boat' || t === 'train')}
           {@const showBadges = isSjostad || hasNotableTypes || nameCount > 1}
           {@const primaryType = getPrimaryType(station)}
           <button class="item" onclick={() => selectStation(station)}>
@@ -637,25 +580,22 @@ function filterIconType(type: TransportFilterOption): TransportType {
                 <span class="name">{station.name}</span>
               </div>
               <div class="item-right">
-                {#if userLocation && station.lat !== undefined && station.lon !== undefined}
-                  {@const dist = getMemoizedDistance(station.siteId, station.lat, station.lon, userLocation[0], userLocation[1])}
+                {#if userLocation && station.coord}
+                  {@const dist = getMemoizedDistance(station.id, station.coord[0], station.coord[1], userLocation[0], userLocation[1])}
                   <span class="distance">{formatDistance(dist)}</span>
                 {/if}
                 <span class="arrow">→</span>
               </div>
             </div>
-            {#if showLocality || showBadges}
+            {#if showBadges}
               <div class="item-bottom-row">
-                {#if showLocality}
-                  <span class="locality">{station.locality}</span>
-                {/if}
                 {#if showBadges}
                   <div class="badges">
                     {#if isSjostad}
                       <span class="badge-label">Sjöstadstrafiken</span>
                     {/if}
-                    {#each types as type}
-                      <TransportIcon {type} size={14} />
+                    {#each modes as mode}
+                      <TransportIcon type={mode as import('../types/page').TransportType} size={14} />
                     {/each}
                   </div>
                 {/if}
@@ -726,7 +666,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
             {@const dests = lineDestinations.get(dep.line)}
             <button class="dep-item" onclick={() => handleLineSelect(dep)}>
               <div class="dep-transport">
-                <TransportIcon type={dep.transportType} size={18} />
+                <TransportIcon type={dep.transportMode as unknown as import('../types/page').TransportType} size={18} />
               </div>
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
@@ -745,7 +685,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
         <div class="direction-view">
           <div class="selected-line-header">
             <div class="dep-transport">
-              <TransportIcon type={selectedLine?.transportType || 'bus'} size={18} />
+              <TransportIcon type={(selectedLine?.transportMode || 'bus') as unknown as import('../types/page').TransportType} size={18} />
             </div>
             <span class="selected-line-number">{selectedLine?.line}</span>
             <span class="selected-line-name">{selectedLine?.lineName || t.lineLabel.replace('{line}', selectedLine?.line ?? '')}</span>
@@ -889,14 +829,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     gap: 12px;
     margin-top: 2px;
     padding-left: 26px;
-  }
-
-  .locality {
-    font-size: 11px;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .badges {

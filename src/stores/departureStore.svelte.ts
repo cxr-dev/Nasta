@@ -1,6 +1,7 @@
 import type { Departure } from "../types/departure";
-import { getDepartures } from "../services/departureService";
 import { getCachedSchedule } from "../services/scheduleCache";
+import { transitService } from "../providers/init";
+import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
 
 interface DepartureWithSource extends Departure {
   source?: "cache" | "api" | "enriched";
@@ -134,14 +135,15 @@ const fetchAllHybrid = async (
               console.log(
                 `[departureStore] API fetch: ${seg.siteId} (${seg.stopName})`,
               );
-            const apiDepartures = await getDepartures(
+            const segEntityId = toEntityId(seg.siteId);
+            const transitDeps = await transitService.getDepartures(
+              segEntityId,
               seg.stopName,
-              seg.siteId,
               seg.line,
               seg.direction_code,
-              seg.destId,
               currentAbortController?.signal,
             );
+            const apiDepartures = transitDeps.map(toLegacyDeparture);
 
             if (requestId && requestId !== currentRequestId) {
               if (import.meta.env.DEV) {
@@ -152,11 +154,11 @@ const fetchAllHybrid = async (
               return;
             }
 
-            results.set(seg.siteId, apiDepartures.departures);
+            results.set(seg.siteId, apiDepartures);
 
-            _stopDeviations.set(seg.siteId, apiDepartures.stopDeviations);
+            _stopDeviations.set(seg.siteId, []);
 
-            if (apiDepartures.departures.length > 0) {
+            if (apiDepartures.length > 0) {
               _lastSuccessfulFetch = Date.now();
             }
           } catch (e) {

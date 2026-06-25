@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nästa is a frontend-only PWA that uses LocalStorage for persistence, SL Transport API for real-time departures, SL Deviations API for disruption alerts, and a hybrid fetch strategy that combines live data with locally cached schedules. The app is built with Svelte 5 Runes for fine-grained reactivity and TypeScript strict mode.
+Nästa is a frontend-only PWA using LocalStorage for persistence, a **provider-based transit abstraction layer** over SL Transport API, SL Deviations API, Sjöstadstrafiken ferries, and a hybrid fetch strategy combining live data with locally cached schedules. Built with Svelte 5 Runes + TypeScript strict.
 
 ## Data Flow
 
@@ -12,16 +12,40 @@ Nästa is a frontend-only PWA that uses LocalStorage for persistence, SL Transpo
 User Route Change → App.svelte
                     ├─→ departureStore.startAutoRefresh()
                     │   ├─→ Check scheduleCache
-                    │   ├─→ Fetch from slApi.ts (returns departures + stop_deviations)
+                    │   ├─→ Fetch from transitService.getDepartures()
+                    │   │      └─→ ProviderRegistry.resolve(stopId) 
+                    │   │              ├─→ slProvider.getDepartures()  (wraps slApi)
+                    │   │              └─→ sjostadProvider.getDepartures()  (wraps staticTimetable)
                     │   ├─→ Learn from response → timetableCache
                     │   ├─→ Update departureStore.data
-                    │   ├─→ Update departureStore.stopDeviations
                     │   └─→ Merge & deduplicate departures
                     │
                     └─→ deviationStore.startAutoRefresh()
                         ├─→ Check deviationCache (IndexedDB)
-                        └─→ Fetch from slDeviations.ts
+                        └─→ Fetch from slDeviations.ts (not yet migrated to TransitService)
 ```
+
+### Provider Architecture
+
+```
+UI Component
+    ↓
+TransitService (src/services/transitService.ts)
+    ↓
+ProviderRegistry.resolve(stopId) → O(1) prefix hash
+    ↓
+TransitProvider (interface)
+    ├─ slProvider       — SL Transport API + SL Deviations + timetableCache
+    ├─ sjostadProvider  — Hardcoded Sjöstadstrafiken ferry schedules
+    └─ (future) waxholmProvider, gtfsProvider, etc.
+```
+
+Adding a new transit source = 1 provider file + 1 registry line. No store/component changes.
+
+### Provider Resolution
+
+Stop IDs are EntityIds with `providerId:localId` format (e.g. `sl:1234`, `sjostad:luma`).
+ProviderRegistry uses a prefix-hash for O(1) `resolve(stopId)` lookup — no iteration.
 
 ### Reactivity Pattern
 
@@ -42,20 +66,30 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | Store                     | Responsibility                                                                  |
 | ------------------------- | ------------------------------------------------------------------------------- |
 | `pageStore`               | Page/segment CRUD, reordering, persistence to LocalStorage                     |
-| `departureStore`          | Departure fetching, caching, auto-refresh, request ID routing                  |
-| `deviationStore`          | Disruption fetching, segment health tracking, severity filtering               |
+| `departureStore`          | Departure fetching via TransitService, caching, auto-refresh, request ID routing |
+| `deviationStore`          | Disruption fetching (direct slDeviations, not yet migrated), segment health    |
 | `stopAreaStore`           | SiteId→stopAreaId mapping for disruption matching (legacy `svelte/store`)      |
 | `settingsStore`           | User preferences (theme, transport filtering, refresh interval, language, etc) |
 | `localeStore`             | Automatic locale detection and i18n text retrieval                             |
 
 ## Services
 
+### Provider Layer (new)
+
+| File                     | Responsibility                                                      |
+| ------------------------ | ------------------------------------------------------------------- |
+| `src/providers/registry.ts` | O(1) prefix-hash ProviderRegistry, register/resolve/withFeature   |
+| `src/providers/init.ts`  | Singleton registry + TransitService instantiation                    |
+| `src/providers/slProvider.ts` | TransitProvider wrapping SL API + deviations + timetable cache     |
+| `src/providers/sjostadProvider.ts` | TransitProvider wrapping static ferry schedules                 |
+| `src/services/transitService.ts` | Aggregation layer — delegates to owning provider by EntityId    |
+
 ### API Integration
 
 | Service            | Endpoint                                                                  | Purpose                                                                           |
 | ------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `slApi.ts`         | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2`  | Real-time departures, stop search (`stop-finder`), planned trip fallback (`trip`) |
-| `slDeviations.ts`  | `deviations.integration.sl.se/v1/messages`                                | Active disruptions, alerts, severity scoring                                      |
+| `slApi.ts`         | `transport.integration.sl.se/v1` + `journeyplanner.integration.sl.se/v2`  | Real-time departures, stop search, planned trip fallback (wrapped by slProvider) |
+| `slDeviations.ts`  | `deviations.integration.sl.se/v1/messages`                                | Active disruptions, alerts, severity scoring (not yet wrapped by TransitService) |
 | `geo.ts`           | Native Geolocation API                                                    | User distance to stops, walking time calculations                                 |
 | `eventService.ts`  | `api.visitstockholm.com`                                                  | Nearby events from Visit Stockholm                                                |
 | `venueService.ts`  | Supabase Edge Function + Overpass API + optional CORS proxy               | Beer/wine/cocktail venues                                                         |
@@ -64,8 +98,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 | Service                      | Responsibility                                                      |
 | ---------------------------- | ------------------------------------------------------------------- |
-| `departureService.ts`        | Routes API calls to SL or static timetable based on source detection|
-| `staticTimetable.ts`         | Hardcoded Sjöstadstrafiken ferry schedule (weekday/weekend)         |
+| `staticTimetable.ts`         | Hardcoded Sjöstadstrafiken ferry schedule (wrapped by sjostadProvider)|
 | `deviationCache.ts`          | Persists disruptions to IndexedDB (fallback when API unavailable)   |
 | `scheduleCache.ts`           | Caches predicted departures from schedules                          |
 | `timetableCache.ts`          | Learns departure patterns from SL API responses                     |
@@ -101,7 +134,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 - `SegmentDepartures.svelte` — List of route segments with departures per stop
 - `DepartureRow.svelte` — Individual departure row with countdown
 - `SegmentList.svelte` — List of segments within a page
-- `SegmentSearch.svelte` — Stop/segment search with debounced input
+- `SegmentSearch.svelte` — Stop/segment search via TransitService
 
 ### Editors & Settings
 
@@ -123,6 +156,22 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 - `Skeleton.svelte` — Loading skeleton placeholders
 - `UpdateBanner.svelte` — PWA update available banner
 
+## Canonical Domain Types
+
+Defined in `src/types/transit.ts` (993 lines, 0 runtime imports):
+
+| Type | Purpose |
+| ---- | ------- |
+| `EntityId` | Composite identity `${providerId}:${localId}` |
+| `TransportMode` | Canonical taxonomy: train/metro/tram/bus/boat/ferry |
+| `TransitStopSearchResult` | Provider-agnostic stop search result |
+| `TransitDeparture` | Provider-agnostic departure (line, destination, time, delay, etc.) |
+| `TransitProvider` | Interface all providers implement |
+| `ProviderRegistry` | Interface for O(1) prefix-hash provider resolution |
+| `TransitService` | Single entry point for all transit data operations |
+
+Legacy types (`types/departure.ts`, `types/page.ts`, `types/deviation.ts`) still exist for backward compat with stores. New code should use `transit.ts` types.
+
 ## Caching & Offline
 
 ### Service Worker (Workbox)
@@ -140,7 +189,7 @@ Static assets            → Cache First (hashed filenames)
 | ------------------------- | -------------------------- | --------- |
 | `nasta_routes`            | Serialized Page[]          | Permanent |
 | `nasta_settings`          | Serialized Settings        | Permanent |
-| `nasta_recent_stops`      | SiteSearchResult[]         | Permanent |
+| `nasta_recent_stops`      | TransitStopSearchResult[]  | Permanent |
 | `nasta_stop_area_mapping` | siteId→stopAreaId map      | Permanent |
 
 ### IndexedDB Keys (Deviations)
@@ -165,7 +214,6 @@ This prevents race conditions when users quickly switch between routes.
 ### Severity Scoring
 
 Disruptions are classified as:
-
 - **info** — Minor, low urgency (score < 5)
 - **warning** — Moderate impact (score 5–7)
 - **critical** — High urgency, major impact (score ≥ 8)
@@ -200,10 +248,9 @@ Facility alerts (elevator/escalator/entrance disruptions) are separated from lin
 
 ### Inline Disruptions (Stop Deviations)
 
-1. The `slApi.getDepartures` call captures `stop_deviations` from the real-time response.
-2. These are stored in `departureStore.stopDeviations` (site-mapped).
-3. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
-4. Clicking the row expands to show the full disruption message(s).
+1. SL departure API responses include `stop_deviations` — stored in `departureStore.stopDeviations`.
+2. `SegmentDepartures.svelte` displays a warning icon if a site has disruptions but zero active departures.
+3. This path currently bypasses TransitService (stop_deviations are not yet part of the provider interface).
 
 ## Transport Filtering
 
@@ -211,7 +258,7 @@ Enforced at the data layer to ensure unselected modes don't clutter the UI:
 
 1. Enabled modes stored in `settingsStore.enabledTransportTypes`
 2. Filter mode (`multi` / `single`) and `activeTransportType` control single-mode focus
-3. `slApi.searchSites` includes `productClasses` for filtering
+3. `SegmentSearch` filters by `TransportMode[]` from `TransitStopSearchResult`
 4. Global enforcement ensures no hidden modes appear in any view
 
 ## Feature Discovery
@@ -251,8 +298,9 @@ Prefetching is orchestrated by `prefetchService.ts`. A static snapshot of events
 
 ### Type Safety
 
+- `src/types/transit.ts` — Canonical domain model (EntityId, TransportMode, TransitProvider, TransitService)
 - `src/types/route.ts` — Page, Segment, Stop, TransportType definitions
-- `src/types/departure.ts` — Departure, SiteSearchResult
+- `src/types/departure.ts` — Departure, SiteSearchResult (legacy)
 - `src/types/deviation.ts` — DeviationMessage, SegmentHealth, StationAlert, severity types
 - `src/lib/i18n.ts` — Locale and Translations types
 - `src/services/storage.ts` — Settings type

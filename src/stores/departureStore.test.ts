@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { departureStore } from "./departureStore.svelte";
 import { getCachedSchedule } from "../services/scheduleCache";
-import { getDepartures } from "../services/departureService";
+import { transitService } from "../providers/init";
 
 vi.mock("../services/scheduleCache", () => ({
   getCachedSchedule: vi.fn(() => Promise.resolve(null)),
 }));
 
-vi.mock("../services/departureService", () => ({
-  getDepartures: vi.fn(async () => ({ departures: [], stopDeviations: [] })),
+vi.mock("../providers/init", () => ({
+  transitService: {
+    getDepartures: vi.fn(async () => []),
+  },
 }));
 
 describe("departureStore cache key wiring", () => {
@@ -30,7 +32,7 @@ describe("departureStore cache key wiring", () => {
       1,
       24,
     );
-    expect(getDepartures).toHaveBeenCalledWith("Centralen", "1001", "14", 1, undefined, undefined);
+    expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "14", 1, undefined);
   });
 });
 
@@ -180,8 +182,8 @@ describe("departureStore - request identity and stale response filtering", () =>
   });
 
   it("starts a new fetch for a different route while one is already in flight", async () => {
-    const deferred: Array<(value: { departures: any[]; stopDeviations: any[] }) => void> = [];
-    const mockedGetDepartures = vi.mocked(getDepartures);
+    const deferred: Array<(value: any[]) => void> = [];
+    const mockedGetDepartures = vi.mocked(transitService.getDepartures);
 
     mockedGetDepartures.mockImplementation(
       () =>
@@ -212,8 +214,8 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     expect(mockedGetDepartures).toHaveBeenCalledTimes(2);
 
-    deferred[0]({ departures: [], stopDeviations: [] });
-    deferred[1]({ departures: [], stopDeviations: [] });
+    deferred[0]([]);
+    deferred[1]([]);
 
     await Promise.all([firstRequest, secondRequest]);
   });

@@ -3,7 +3,8 @@
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore.svelte";
   import { getPages, getActivePageId } from "../stores/pageStore.svelte";
-  import { getPredictedDepartures } from "../services/timetableCache";
+  import { transitService } from "../providers/init";
+  import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
   import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
   import { deduplicateDeparturesByKey } from "../lib/departureDeduplication";
   import { onMount, onDestroy } from "svelte";
@@ -23,8 +24,6 @@
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
-  import { getNextScheduledDeparture } from "../services/timetableCache";
-  import { isSjostadstrafikenStop, getFirstTomorrowDeparture } from "../services/staticTimetable";
 
   let {
     route,
@@ -212,12 +211,14 @@
     const sleeping: Array<{ isSleeping: boolean; nextTime: string | null }> = [];
 
     for (const seg of segs) {
-      const predicted = await getPredictedDepartures(
-        seg.fromStop.siteId,
+      const segEntityId = toEntityId(seg.fromStop.siteId);
+      const predicted = (await transitService.getPredictedDepartures(
+        segEntityId,
+        seg.fromStop.name,
         seg.line,
         seg.direction?.code ?? 0,
         5,
-      );
+      )).map(toLegacyDeparture);
 
       const allDeps = departureData.get(seg.fromStop.siteId) ?? [];
       // Filter primarily by line and direction_code. Destination is secondary because
@@ -259,24 +260,14 @@
         // departure from the timetable cache (no time-horizon cap).
         deps.push([]);
         try {
-          const next = await getNextScheduledDeparture(
-            seg.fromStop.siteId,
+          const nextTransit = await transitService.getNextScheduledDeparture(
+            toEntityId(seg.fromStop.siteId),
+            seg.fromStop.name,
             seg.line,
             seg.direction?.code ?? 0,
           );
-          if (next) {
-            sleeping.push({ isSleeping: true, nextTime: next.time });
-          } else if (isSjostadstrafikenStop(seg.fromStop.name)) {
-            const boatNext = getFirstTomorrowDeparture(
-              seg.fromStop.name,
-              seg.line,
-              seg.direction?.code ?? 0,
-            );
-            if (boatNext) {
-              sleeping.push({ isSleeping: true, nextTime: boatNext.time });
-            } else {
-              sleeping.push({ isSleeping: false, nextTime: null });
-            }
+          if (nextTransit) {
+            sleeping.push({ isSleeping: true, nextTime: nextTransit.scheduledTime });
           } else {
             sleeping.push({ isSleeping: false, nextTime: null });
           }

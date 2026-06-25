@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Departure } from '../types/departure';
+  import type { TransitDeparture } from '../providers/types';
   import type { SegmentDirection } from '../types/page';
   import { getT } from '../stores/localeStore.svelte';
 
@@ -10,7 +10,7 @@
     onSelect,
     stopSequences = {} as Record<number, string[]>
   }: { 
-    departures: Departure[], 
+    departures: TransitDeparture[], 
     onSelect: (direction: SegmentDirection) => void,
     stopSequences?: Record<number, string[]>
   } = $props();
@@ -19,14 +19,12 @@
     const seen = new Set<number>();
     const unique: SegmentDirection[] = [];
     for (const dep of departures) {
-      if (!seen.has(dep.direction_code)) {
-        seen.add(dep.direction_code);
-        // TODO: When SL API provides intermediate stops in direction object,
-        // format as "Destination (via Intermediate)" for augmented labels
+      if (!seen.has(dep.directionCode)) {
+        seen.add(dep.directionCode);
         unique.push({
-          code: dep.direction_code,
+          code: dep.directionCode,
           destination: dep.destination,
-          stopPointId: dep.stop_point_id || '',
+          stopPointId: '',
         });
       }
     }
