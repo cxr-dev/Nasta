@@ -120,11 +120,11 @@ describe("deviationStore", () => {
       };
       const barnSource = {
         siteId: "sjostad-barn",
-        stopName: "Barnängen",
+        stopName: "Barnängsbryggan",
       };
       const henrikSource = {
         siteId: "sjostad-henrik",
-        stopName: "Henriksdal",
+        stopName: "Henriksdalsbryggan",
       };
 
       expect(isExternalTimetableSource(lumaSource)).toBe(true);
@@ -156,9 +156,9 @@ describe("deviationStore", () => {
           id: "seg-2",
           line: "421",
           lineName: "421",
-          direction: { code: 1, destination: "Henriksdal", stopPointId: "" },
-          fromStop: { id: "s3", name: "Henriksdal", siteId: "sjostad-henrik" },
-          toStop: { id: "s4", name: "Barnängen", siteId: "sjostad-barn" },
+          direction: { code: 1, destination: "Henriksdalsbryggan", stopPointId: "" },
+          fromStop: { id: "s3", name: "Henriksdalsbryggan", siteId: "sjostad-henrik" },
+          toStop: { id: "s4", name: "Barnängsbryggan", siteId: "sjostad-barn" },
           transportType: "ferry" as const,
         },
         {

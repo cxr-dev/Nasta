@@ -183,7 +183,7 @@ describe("formatDepartureTime", () => {
   const baseDep: Departure = {
     line: "SJO",
     lineName: "Sjöstadstrafiken",
-    destination: "Henriksdal",
+    destination: "Henriksdalsbryggan",
     direction_code: 1,
     minutes: 12,
     time: "08:15",

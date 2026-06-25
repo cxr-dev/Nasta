@@ -218,18 +218,18 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
 
       if (isSjostadstrafikenStop(query)) {
           const staticStopKeys: Record<string, string> = {
-            'luma': 'Luma brygga',
-            'barn': 'Barnängen',
-            'henrik': 'Henriksdal'
+            'luma': 'Lumabryggan',
+            'barn': 'Barnängsbryggan',
+            'henrik': 'Henriksdalsbryggan'
           };
           const actualName = Object.entries(staticStopKeys).find(([k]) =>
             query.toLowerCase().includes(k)
           )?.[1] || query;
 
           const sjostadCoords: Record<string, [number, number]> = {
-            'Luma brygga': [59.30566801584885, 18.099309696257656],
-            'Barnängen': [59.30824408961144, 18.097770808925457],
-            'Henriksdal': [59.309253974378066, 18.10136473213606]
+            'Lumabryggan': [59.30566801584885, 18.099309696257656],
+            'Barnängsbryggan': [59.30824408961144, 18.097770808925457],
+            'Henriksdalsbryggan': [59.309253974378066, 18.10136473213606]
           };
           const hasCoords = sjostadCoords[actualName];
           const sjostadStation: SiteSearchResult = {
@@ -318,10 +318,46 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     reset();
   }
 
+  const sjostadstrafikenStopSequences: Record<string, Record<number, string[]>> = {
+    'Barnängsbryggan': {
+      1: ['Lumabryggan', 'Henriksdalsbryggan'],
+      2: ['Lumabryggan', 'Henriksdalsbryggan'],
+    },
+    'Lumabryggan': {
+      1: ['Henriksdalsbryggan', 'Barnängsbryggan'],
+    },
+    'Henriksdalsbryggan': {
+      1: ['Barnängsbryggan', 'Lumabryggan'],
+    },
+  };
+
   async function fetchDirectionStopSequences() {
     if (!selectedLine || !selectedStation) return;
-    // Sjostadstrafiken stops use hardcoded timetable, not SL Journey Planner API
-    if (isExternalTimetableSiteId(selectedStation.siteId)) return;
+    
+    // Sjostadstrafiken — hardcoded stop sequences for one-way cycle
+    if (isExternalTimetableSiteId(selectedStation.siteId)) {
+      const seq = sjostadstrafikenStopSequences[selectedStation.name];
+      if (!seq) return;
+      
+      const seen = new Set<number>();
+      const dirs: Array<{ code: number; dest: string }> = [];
+      for (const dep of allDepartures) {
+        if (dep.line === selectedLine.line && !seen.has(dep.direction_code)) {
+          seen.add(dep.direction_code);
+          dirs.push({ code: dep.direction_code, dest: dep.destination });
+        }
+      }
+      
+      const newSequences: Record<number, string[]> = {};
+      for (const dir of dirs) {
+        newSequences[dir.code] = seq[dir.code] || [];
+      }
+      
+      if (Object.keys(newSequences).length > 0) {
+        directionStopSequences = newSequences;
+      }
+      return;
+    }
     stopSequenceAbortController?.abort();
     stopSequenceAbortController = new AbortController();
     const signal = stopSequenceAbortController.signal;

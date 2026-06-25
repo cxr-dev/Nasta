@@ -7,16 +7,19 @@ import {
 
 describe("sourceClassification helpers", () => {
   describe("isExternalTimetableStop", () => {
-    it("returns true for Luma Brygga", () => {
-      expect(isExternalTimetableStop("Luma Brygga")).toBe(true);
+    it("returns true for Lumabryggan", () => {
+      expect(isExternalTimetableStop("Lumabryggan")).toBe(true);
+      expect(isExternalTimetableStop("Luma Brygga")).toBe(true); // legacy name
     });
 
-    it("returns true for Barnängen", () => {
-      expect(isExternalTimetableStop("Barnängen")).toBe(true);
+    it("returns true for Barnängsbryggan", () => {
+      expect(isExternalTimetableStop("Barnängsbryggan")).toBe(true);
+      expect(isExternalTimetableStop("Barnängen")).toBe(true); // legacy name
     });
 
-    it("returns true for Henriksdal", () => {
-      expect(isExternalTimetableStop("Henriksdal")).toBe(true);
+    it("returns true for Henriksdalsbryggan", () => {
+      expect(isExternalTimetableStop("Henriksdalsbryggan")).toBe(true);
+      expect(isExternalTimetableStop("Henriksdal")).toBe(true); // legacy name
     });
 
     it("returns true for stop names with accents normalized", () => {

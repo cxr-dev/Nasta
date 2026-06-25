@@ -2,7 +2,7 @@ import type { Departure } from '../types/departure';
 import type { TransportType } from '../types/page';
 import { isExternalTimetableStop } from '../lib/sourceClassification';
 
-type StopKey = 'luma_brygga' | 'barnangen' | 'henriksdal';
+type StopKey = 'luma_brygga' | 'barnangsbryggan' | 'henriksdalsbryggan';
 
 interface TimetableEntry {
   time: string;
@@ -38,7 +38,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:05', '21:25', '21:45',
       '22:05', '22:25', '22:45',
       '23:05', '23:25', '23:45'
-    ], 'SJO', 'Henriksdal', 1, 'boat'),
+    ], 'SJO', 'Henriksdalsbryggan', 1, 'boat'),
     weekends: generateTimes([
       '08:05', '08:25', '08:45',
       '09:05', '09:25', '09:45',
@@ -56,9 +56,9 @@ const timetables: Record<StopKey, Timetable> = {
       '21:05', '21:25', '21:45',
       '22:05', '22:25', '22:45',
       '23:05', '23:25', '23:45'
-    ], 'SJO', 'Henriksdal', 1, 'boat'),
+    ], 'SJO', 'Henriksdalsbryggan', 1, 'boat'),
   },
-  barnangen: {
+  barnangsbryggan: {
     weekdays: generateTimes([
       '06:00', '06:20', '06:40',
       '07:00', '07:10', '07:20', '07:30', '07:40', '07:50',
@@ -78,7 +78,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:00', '21:20', '21:40',
       '22:00', '22:20', '22:40',
       '23:00', '23:20', '23:40'
-    ], 'SJO', 'Luma brygga', 1, 'boat').concat(
+    ], 'SJO', 'Lumabryggan', 1, 'boat').concat(
       generateTimes([
         '06:10', '06:30', '06:50',
         '07:10', '07:20', '07:30', '07:40', '07:50',
@@ -98,7 +98,7 @@ const timetables: Record<StopKey, Timetable> = {
         '21:10', '21:30', '21:50',
         '22:10', '22:30', '22:50',
         '23:10', '23:30', '23:50'
-      ], 'SJO', 'Henriksdal', 2, 'boat')
+      ], 'SJO', 'Henriksdalsbryggan', 2, 'boat')
     ),
     weekends: generateTimes([
       '08:00', '08:20', '08:40',
@@ -117,7 +117,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:00', '21:20', '21:40',
       '22:00', '22:20', '22:40',
       '23:00', '23:20', '23:40'
-    ], 'SJO', 'Luma brygga', 1, 'boat').concat(
+    ], 'SJO', 'Lumabryggan', 1, 'boat').concat(
       generateTimes([
         '08:10', '08:30', '08:50',
         '09:10', '09:30', '09:50',
@@ -135,10 +135,10 @@ const timetables: Record<StopKey, Timetable> = {
         '21:10', '21:30', '21:50',
         '22:10', '22:30', '22:50',
         '23:10', '23:30', '23:50'
-      ], 'SJO', 'Henriksdal', 2, 'boat')
+      ], 'SJO', 'Henriksdalsbryggan', 2, 'boat')
     ),
   },
-  henriksdal: {
+  henriksdalsbryggan: {
     weekdays: generateTimes([
       '06:10', '06:30', '06:50',
       '07:00', '07:10', '07:20', '07:30', '07:40', '07:50',
@@ -158,7 +158,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:10', '21:30', '21:50',
       '22:10', '22:30', '22:50',
       '23:10', '23:30', '23:50'
-    ], 'SJO', 'Luma brygga', 1, 'boat'),
+    ], 'SJO', 'Barnängsbryggan', 1, 'boat'),
     weekends: generateTimes([
       '08:10', '08:30', '08:50',
       '09:10', '09:30', '09:50',
@@ -176,7 +176,7 @@ const timetables: Record<StopKey, Timetable> = {
       '21:10', '21:30', '21:50',
       '22:10', '22:30', '22:50',
       '23:10', '23:30', '23:50'
-    ], 'SJO', 'Luma brygga', 1, 'boat'),
+    ], 'SJO', 'Barnängsbryggan', 1, 'boat'),
   },
 };
 
@@ -209,8 +209,8 @@ export function getStopKey(stopName: string): StopKey | null {
     .replace(/[\u0300-\u036f]/g, '');
   
   if (normalized.includes('luma')) return 'luma_brygga';
-  if (normalized.includes('barn')) return 'barnangen';
-  if (normalized.includes('henrik')) return 'henriksdal';
+  if (normalized.includes('barn')) return 'barnangsbryggan';
+  if (normalized.includes('henrik')) return 'henriksdalsbryggan';
   return null;
 }
 

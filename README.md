@@ -186,7 +186,7 @@ Departures are enriched with real-time disruptions, severity levels (info/warnin
 
 ### Static Timetable (Sjöstadstrafiken Ferries)
 
-For the Luma brygga ↔ Barnängen ↔ Henriksdal ferry line, the SL API does not return data. Nästa falls back to a hardcoded weekday/weekend schedule defined in `src/services/staticTimetable.ts`. Ferry stops are automatically detected by name and the static schedule is used instead of the live API.
+For the Barnängsbryggan → Lumabryggan → Henriksdalsbryggan → (back to Barnängsbryggan) ferry line, the SL API does not return data. Nästa falls back to a hardcoded weekday/weekend schedule defined in `src/services/staticTimetable.ts`. Ferry stops are automatically detected by name and the static schedule is used instead of the live API.
 
 ---
 
@@ -334,7 +334,7 @@ This is critical because fetches can take several seconds; without routing, a fa
 
 ### Ferry Detection
 
-Stops matching `luma brygga`, `barnängen`, or `henriksdal` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
+Stops matching `lumabryggan`, `barnängsbryggan`, or `henriksdalsbryggan` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
 
 ---
 

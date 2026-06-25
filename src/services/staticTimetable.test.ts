@@ -21,24 +21,24 @@ describe("getStopKey", () => {
     expect(getStopKey("Luma brygga")).toBe("luma_brygga");
   });
 
-  it("returns barnangen for Barnängen stop names", () => {
-    expect(getStopKey("Barnängen")).toBe("barnangen");
-    expect(getStopKey("Barnangsvägen")).toBe("barnangen");
+  it("returns barnangsbryggan for Barnängen stop names", () => {
+    expect(getStopKey("Barnängen")).toBe("barnangsbryggan");
+    expect(getStopKey("Barnängsbryggan")).toBe("barnangsbryggan");
   });
 
-  it("returns henriksdal for Henriksdal stop names", () => {
-    expect(getStopKey("Henriksdal")).toBe("henriksdal");
-    expect(getStopKey("Henriksdalsbryggan")).toBe("henriksdal");
+  it("returns henriksdalsbryggan for Henriksdal stop names", () => {
+    expect(getStopKey("Henriksdal")).toBe("henriksdalsbryggan");
+    expect(getStopKey("Henriksdalsbryggan")).toBe("henriksdalsbryggan");
   });
 
   it("strips accents for matching", () => {
-    expect(getStopKey("Bärnängen")).toBe("barnangen");
+    expect(getStopKey("Bärnängen")).toBe("barnangsbryggan");
     expect(getStopKey("Lüma")).toBe("luma_brygga");
   });
 
   it("is case insensitive", () => {
     expect(getStopKey("LUMA")).toBe("luma_brygga");
-    expect(getStopKey("barnangen")).toBe("barnangen");
+    expect(getStopKey("barnangen")).toBe("barnangsbryggan");
   });
 
   it("returns null for unknown stops", () => {
@@ -83,9 +83,9 @@ describe("getNextDepartures", () => {
 
     const deps = getNextDepartures("Barnängen");
     expect(deps[0].time).toBe("10:00");
-    expect(deps[0].destination).toBe("Luma brygga");
+    expect(deps[0].destination).toBe("Lumabryggan");
     expect(deps[1].time).toBe("10:20");
-    expect(deps[1].destination).toBe("Luma brygga");
+    expect(deps[1].destination).toBe("Lumabryggan");
   });
 
   it("returns next departures from Henriksdal on weekday morning", () => {
@@ -94,7 +94,7 @@ describe("getNextDepartures", () => {
     const deps = getNextDepartures("Henriksdal");
     expect(deps).toHaveLength(2);
     expect(deps[0].time).toBe("10:10");
-    expect(deps[0].destination).toBe("Luma brygga");
+    expect(deps[0].destination).toBe("Barnängsbryggan");
   });
 
   it("respects custom count parameter", () => {
