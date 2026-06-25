@@ -63,6 +63,32 @@ export const THEMES: ThemePalette[] = _rawPalettes.map(t => ({
   },
 }));
 
+export function previewStyle(palette: ThemePalette, variant: 'A' | 'B'): string {
+  const bg = variant === 'A' ? palette.colorA : palette.colorB;
+  const accent = palette.variants[variant].accent;
+  const isLight = palette.variants[variant].isLight;
+
+  const ar = parseInt(accent.slice(1, 3), 16);
+  const ag = parseInt(accent.slice(3, 5), 16);
+  const ab = parseInt(accent.slice(5, 7), 16);
+
+  const text = isLight ? '#171717' : '#FFFFFF';
+  const textSecondary = isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.65)';
+  const textMuted = isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.40)';
+  const border = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)';
+
+  return [
+    `--preview-bg:${bg}`,
+    `--preview-surface:${palette.variants[variant].surface}`,
+    `--preview-accent:${accent}`,
+    `--preview-accent-subtle:rgba(${ar},${ag},${ab},0.15)`,
+    `--preview-text:${text}`,
+    `--preview-text-secondary:${textSecondary}`,
+    `--preview-text-muted:${textMuted}`,
+    `--preview-border:${border}`,
+  ].join(';') + ';';
+}
+
 export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
   const bg = variant === 'A' ? theme.colorA : theme.colorB;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { THEMES } from '../themes';
+  import { THEMES, previewStyle } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
   import { infoCircle } from '../icons/departureIcons';
@@ -376,32 +376,48 @@
               <button
                 class="palette-half"
                 class:active={isActiveA}
-                style="background:{palette.colorA}"
+                style={previewStyle(palette, 'A')}
                 onclick={() => setTheme(palette.id, 'A')}
                 aria-label={`${palette.name}, A`}
                 aria-pressed={isActiveA}
               >
-                <span class="ph-swatch" style="background:{palette.variants.A.surface}; box-shadow: 0 0 0 1px {palette.variants.A.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-accent" style="background:{palette.variants.A.accent}; box-shadow: 0 0 0 1px {palette.variants.A.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-label" style="color:{palette.variants.A.isLight ? '#000' : '#fff'}">{palette.name}</span>
-                {#if isActiveA}
-                  <span class="ph-check" style="color:{palette.variants.A.isLight ? '#000' : '#fff'}">✓</span>
-                {/if}
+                <span class="ph-accent-bar"></span>
+                <span class="ph-preview-content">
+                  <span class="ph-preview-row">
+                    <span class="ph-preview-route">67</span>
+                    <span class="ph-preview-countdown">4 min</span>
+                  </span>
+                  <span class="ph-preview-row2">
+                    <span class="ph-preview-dest">→ Skansen</span>
+                    <span class="ph-preview-name">{palette.name}</span>
+                    {#if isActiveA}
+                      <span class="ph-preview-check">✓</span>
+                    {/if}
+                  </span>
+                </span>
               </button>
               <button
                 class="palette-half"
                 class:active={isActiveB}
-                style="background:{palette.colorB}"
+                style={previewStyle(palette, 'B')}
                 onclick={() => setTheme(palette.id, 'B')}
                 aria-label={`${palette.name}, B`}
                 aria-pressed={isActiveB}
               >
-                <span class="ph-swatch" style="background:{palette.variants.B.surface}; box-shadow: 0 0 0 1px {palette.variants.B.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-accent" style="background:{palette.variants.B.accent}; box-shadow: 0 0 0 1px {palette.variants.B.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-label" style="color:{palette.variants.B.isLight ? '#000' : '#fff'}">{palette.name}</span>
-                {#if isActiveB}
-                  <span class="ph-check" style="color:{palette.variants.B.isLight ? '#000' : '#fff'}">✓</span>
-                {/if}
+                <span class="ph-accent-bar"></span>
+                <span class="ph-preview-content">
+                  <span class="ph-preview-row">
+                    <span class="ph-preview-route">67</span>
+                    <span class="ph-preview-countdown">4 min</span>
+                  </span>
+                  <span class="ph-preview-row2">
+                    <span class="ph-preview-dest">→ Skansen</span>
+                    <span class="ph-preview-name">{palette.name}</span>
+                    {#if isActiveB}
+                      <span class="ph-preview-check">✓</span>
+                    {/if}
+                  </span>
+                </span>
               </button>
             </div>
           {/each}
@@ -770,21 +786,23 @@
     display: flex;
     border-radius: 12px;
     overflow: hidden;
-    height: 64px;
+    height: 72px;
     border: 1px solid var(--border);
   }
 
   .palette-half {
     flex: 1;
     display: flex;
-    align-items: center;
-    padding: 0 10px;
-    gap: 6px;
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
     border: none;
     cursor: pointer;
     position: relative;
-    transition: transform 180ms ease, filter 80ms ease, box-shadow 180ms ease;
+    transition: transform 180ms ease, filter 80ms ease, background-color 180ms ease;
     text-align: left;
+    font-family: inherit;
+    background-color: var(--preview-bg);
   }
 
   .palette-half:hover {
@@ -798,40 +816,92 @@
   }
 
   .palette-half.active {
-    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.5), inset 0 0 0 5px rgba(0,0,0,0.12);
-    z-index: 2;
+    background-color: color-mix(in srgb, var(--preview-accent) 15%, var(--preview-bg));
+    z-index: 1;
   }
 
-  .ph-swatch {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
+  .palette-half.active .ph-accent-bar {
+    width: 6px;
+    background: var(--preview-text);
+  }
+
+  .ph-accent-bar {
+    width: 3px;
     flex-shrink: 0;
+    background: var(--preview-border);
+    border-radius: 0 2px 2px 0;
+    transition: width 150ms ease, background-color 150ms ease;
   }
 
-  .ph-accent {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .ph-label {
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+  .ph-preview-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     flex: 1;
     min-width: 0;
+    padding: 6px 8px 6px 5px;
+    gap: 3px;
+  }
+
+  .ph-preview-row,
+  .ph-preview-row2 {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .ph-preview-row {
+    justify-content: space-between;
+  }
+
+  .ph-preview-route {
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1.2;
+    color: var(--preview-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .ph-check {
-    font-size: 12px;
+  .ph-preview-countdown {
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 18px;
     font-weight: 900;
+    line-height: 1;
+    color: var(--preview-accent);
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
     flex-shrink: 0;
+  }
+
+  .ph-preview-dest {
+    font-size: 9px;
+    line-height: 1.3;
+    color: var(--preview-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ph-preview-name {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--preview-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .ph-preview-check {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--preview-accent);
+    flex-shrink: 0;
+    margin-left: 2px;
   }
 
   .info-overlay {
