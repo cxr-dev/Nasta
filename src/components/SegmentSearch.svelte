@@ -182,6 +182,10 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
   let stepIndex = $derived(
     step === 'search' ? 0 : step === 'select' ? 1 : 2
   );
+  let searchMode = $derived(
+    step !== 'search' ? 'selected' :
+    query.length < SEARCH_MIN_QUERY_LENGTH ? 'idle' : 'typing'
+  );
   let stepLabels = $derived([t.stepStop, t.stepLine, t.stepDirection]);
   let progressEl = $state<HTMLDivElement | undefined>();
   let contentEl = $state<HTMLDivElement | undefined>();
@@ -593,7 +597,28 @@ function filterIconType(type: TransportFilterOption): TransportType {
       </div>
     {/if}
     
-    {#if loading}
+    {#if searchMode === 'idle' && recentStops.length > 0}
+      <div class="recent-section">
+        <div class="section-label">{t.recentStops}</div>
+        {#each recentStops.slice(0, 5) as stop (stop.siteId)}
+          <button class="item" onclick={() => selectStation(stop)}>
+            <div class="item-top-row">
+              <div class="item-left">
+                <TransportIcon type={getPrimaryType(stop)} size={18} />
+                <span class="name">{stop.name}</span>
+              </div>
+              <div class="item-right">
+                {#if userLocation && stop.lat !== undefined && stop.lon !== undefined}
+                  {@const dist = getMemoizedDistance(stop.siteId, stop.lat, stop.lon, userLocation[0], userLocation[1])}
+                  <span class="distance">{formatDistance(dist)}</span>
+                {/if}
+                <span class="arrow">→</span>
+              </div>
+            </div>
+          </button>
+        {/each}
+      </div>
+    {:else if loading}
       <div class="msg">{t.searching}</div>
     {:else if filteredStations.length > 0}
       <div class="results">
@@ -913,6 +938,18 @@ function filterIconType(type: TransportFilterOption): TransportType {
     border-color: var(--accent-subtle);
     background: var(--accent-subtle);
     color: var(--accent);
+  }
+
+  .recent-section {
+    margin-top: 8px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 0 4px;
   }
 
   .departures-view {
