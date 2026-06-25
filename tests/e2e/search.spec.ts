@@ -108,10 +108,7 @@ test.describe("Segment search", () => {
     );
     await firstResult.click();
 
-    const departureItem = page.locator(".dep-item").first();
-    await expect(departureItem).toBeVisible({ timeout: 10000 });
-    await departureItem.click();
-
+    // Single line mock → auto-skips to direction step
     const directionOption = page.locator(".direction-option").first();
     await expect(directionOption).toBeVisible({ timeout: 10000 });
   });

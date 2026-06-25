@@ -158,6 +158,20 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
     }
     return lines;
   });
+  let lineDestinations = $derived.by(() => {
+    const map = new Map<string, string[]>();
+    for (const dep of allDepartures) {
+      const dests = map.get(dep.line);
+      if (dests) {
+        if (!dests.includes(dep.destination)) {
+          dests.push(dep.destination);
+        }
+      } else {
+        map.set(dep.line, [dep.destination]);
+      }
+    }
+    return map;
+  });
   let selectedLine = $state<Departure | null>(null);
 
   let selectedStation = $state<SiteSearchResult | null>(null);
@@ -284,6 +298,16 @@ function getPrimaryType(station: SiteSearchResult): TransportType {
         }
       }
       allDepartures = rawDeps;
+
+      // Auto-skip to direction step if only 1 unique line at this stop
+      const uniqueLineSet = new Set(allDepartures.map(d => d.line));
+      if (uniqueLineSet.size === 1) {
+        const onlyLine = allDepartures.find(d => d.line === allDepartures[0].line)!;
+        selectedLine = onlyLine;
+        step = 'direction';
+        void fetchDirectionStopSequences();
+        return;
+      }
     } catch (e) {
       if (import.meta.env.DEV) console.error('Failed to load departures:', e);
       departureError = t.failedToFetchDepartures;
@@ -674,6 +698,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
         </div>
         <div class="departures-list">
           {#each uniqueLinesFiltered as dep (dep.line)}
+            {@const dests = lineDestinations.get(dep.line)}
             <button class="dep-item" onclick={() => handleLineSelect(dep)}>
               <div class="dep-transport">
                 <TransportIcon type={dep.transportType} size={18} />
@@ -681,7 +706,9 @@ function filterIconType(type: TransportFilterOption): TransportType {
               <div class="dep-line">{dep.line}</div>
               <div class="dep-info">
                 <span class="dep-dest">{dep.lineName || t.lineLabel.replace('{line}', dep.line)}</span>
-
+                {#if dests && dests.length > 0}
+                  <span class="dep-destinations">{dests.join(' · ')}</span>
+                {/if}
               </div>
               <div class="dep-select">
                 {t.select}
@@ -1011,6 +1038,17 @@ function filterIconType(type: TransportFilterOption): TransportType {
     display: block;
     font-size: 15px;
     color: var(--text);
+  }
+
+  .dep-destinations {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
 
