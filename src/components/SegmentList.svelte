@@ -15,8 +15,11 @@ let listEl = $state<HTMLDivElement>();
   let expandedId = $state<string | null>(null);
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
+  let dropInsertIndex = $state<number | null>(null);
+  let isLongPressing = $state(false);
   let dragStartY = 0;
   let dragStartX = 0;
+  let longPressTimer: ReturnType<typeof setTimeout> | undefined;
 
   function toggleExpand(id: string) {
     expandedId = expandedId === id ? null : id;
@@ -30,6 +33,7 @@ let listEl = $state<HTMLDivElement>();
   // ── HTML5 Drag (desktop) ──────────────────────────────────────────────────
   function handleDragStart(e: DragEvent, index: number) {
     draggingIndex = index;
+    dropInsertIndex = null;
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
     }
@@ -38,6 +42,12 @@ let listEl = $state<HTMLDivElement>();
   function handleDragOver(e: DragEvent, index: number) {
     e.preventDefault();
     dragOverIndex = index;
+    const el = e.currentTarget as HTMLElement;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      dropInsertIndex = e.clientY < midY ? index : index + 1;
+    }
   }
 
   function handleDrop(e: DragEvent, toIndex: number) {
@@ -47,28 +57,46 @@ let listEl = $state<HTMLDivElement>();
     }
     draggingIndex = null;
     dragOverIndex = null;
+    dropInsertIndex = null;
   }
 
   function handleDragEnd() {
     draggingIndex = null;
     dragOverIndex = null;
+    dropInsertIndex = null;
   }
 
   // ── Touch Drag (mobile) — attached to the handle element ─────────────────
   function handleHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation(); // prevent the card's expand click from firing
     draggingIndex = index;
+    dropInsertIndex = null;
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
     const el = document.querySelector(`[data-drag-index="${index}"]`) as HTMLElement | null;
     if (el) {
       el.style.pointerEvents = 'none';
     }
+    // long-press haptic
+    clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      isLongPressing = true;
+      navigator.vibrate?.(15);
+      gsap.to('.drag-handle', {
+        scale: 1.05,
+        duration: 0.1,
+        ease: 'power2.out',
+        yoyo: true,
+        repeat: 1,
+      });
+    }, 300);
   }
 
   function handleTouchMove(e: TouchEvent) {
     if (draggingIndex === null) return;
     e.preventDefault(); // prevent scroll while dragging
+    clearTimeout(longPressTimer);
+    if (isLongPressing) isLongPressing = false;
     const touch = e.touches[0];
     const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
     if (el) {
@@ -88,12 +116,17 @@ let listEl = $state<HTMLDivElement>();
         if (!isNaN(newIndex) && newIndex !== dragOverIndex) {
           dragOverIndex = newIndex;
         }
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        dropInsertIndex = touch.clientY < midY ? newIndex : newIndex + 1;
       }
     }
   }
 
   function handleTouchEnd() {
     if (draggingIndex === null) return;
+    clearTimeout(longPressTimer);
+    isLongPressing = false;
     const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
@@ -104,6 +137,7 @@ let listEl = $state<HTMLDivElement>();
     }
     draggingIndex = null;
     dragOverIndex = null;
+    dropInsertIndex = null;
   }
 
   $effect(() => {
@@ -146,6 +180,18 @@ let listEl = $state<HTMLDivElement>();
   {:else}
     {#each page.segments as segment, index (segment.id)}
       {@const isExpanded = expandedId === segment.id}
+      {@const isDropHere = draggingIndex !== null && dropInsertIndex === index && dropInsertIndex !== draggingIndex}
+      {#if isDropHere}
+        <div class="drop-indicator" role="presentation">
+          <div class="drop-indicator-line"></div>
+          <div class="drop-ghost">
+            <div class="drop-ghost-icon">
+              <TransportIcon type={page.segments[draggingIndex!].transportType} size={16} />
+            </div>
+            <span class="drop-ghost-label">{primaryLineText(page.segments[draggingIndex!])}</span>
+          </div>
+        </div>
+      {/if}
       <div
         class="segment"
         class:expanded={isExpanded}
@@ -172,6 +218,7 @@ let listEl = $state<HTMLDivElement>();
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="drag-handle"
+            class:long-pressing={isLongPressing}
             aria-hidden="true"
             ontouchstart={(e) => handleHandleTouchStart(e, index)}
           >
@@ -221,6 +268,17 @@ let listEl = $state<HTMLDivElement>();
         </div>
       </div>
     {/each}
+    {#if draggingIndex !== null && dropInsertIndex === page.segments.length && dropInsertIndex !== draggingIndex}
+      <div class="drop-indicator" role="presentation">
+        <div class="drop-indicator-line"></div>
+        <div class="drop-ghost">
+          <div class="drop-ghost-icon">
+            <TransportIcon type={page.segments[draggingIndex].transportType} size={16} />
+          </div>
+          <span class="drop-ghost-label">{primaryLineText(page.segments[draggingIndex])}</span>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -404,12 +462,80 @@ let listEl = $state<HTMLDivElement>();
     background: #fef2f2;
   }
 
+  .drop-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    pointer-events: none;
+  }
+
+  .drop-indicator-line {
+    flex: 1;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    opacity: 0.6;
+  }
+
+  .drop-ghost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1.5px dashed var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    opacity: 0.5;
+    flex-shrink: 0;
+    animation: ghost-in 0.2s ease-out;
+  }
+
+  .drop-ghost-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .drop-ghost-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .drag-handle.long-pressing {
+    color: var(--accent);
+  }
+
+  @keyframes ghost-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .expand-chevron {
       transition: none;
     }
     .segment {
       transition: none;
+    }
+    .drop-ghost {
+      animation: none;
     }
   }
 </style>

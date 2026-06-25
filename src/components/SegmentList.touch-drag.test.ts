@@ -105,6 +105,8 @@ describe('SegmentList touch drag', () => {
       await fireEvent.dragOver(items[2]);
       await tick();
       expect(items[2].classList.contains('drag-over')).toBe(true);
+      // drop indicator appears during drag-over
+      expect(container.querySelectorAll('.drop-indicator').length).toBeGreaterThan(0);
 
       await fireEvent.drop(items[2]);
       await tick();
@@ -112,6 +114,8 @@ describe('SegmentList touch drag', () => {
       expect(reorderSegments).toHaveBeenCalledWith('p1', 0, 2);
       expect(items[0].classList.contains('dragging')).toBe(false);
       expect(items[2].classList.contains('drag-over')).toBe(false);
+      // drop indicator removed after drop
+      expect(container.querySelectorAll('.drop-indicator')).toHaveLength(0);
     });
 
     it('does not call reorderSegments when dropped on same index', async () => {
@@ -176,6 +180,8 @@ describe('SegmentList touch drag', () => {
       await tick();
       expect(items[2].classList.contains('drag-over')).toBe(true);
       expect(eFP).toHaveBeenCalledWith(100, 500);
+      // drop indicator appears during touch drag
+      expect(container.querySelectorAll('.drop-indicator').length).toBeGreaterThan(0);
 
       // Touch end
       await fireEvent(listEl, makeTouchEvent('touchend', 100, 500));
@@ -186,6 +192,8 @@ describe('SegmentList touch drag', () => {
       // State reset after end
       expect(items[0].classList.contains('dragging')).toBe(false);
       expect(items[2].classList.contains('drag-over')).toBe(false);
+      // drop indicator removed after end
+      expect(container.querySelectorAll('.drop-indicator')).toHaveLength(0);
     });
 
     it('touch move is no-op without active drag', async () => {
@@ -220,6 +228,65 @@ describe('SegmentList touch drag', () => {
       await tick();
 
       expect(body.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    describe('long-press haptic', () => {
+      it('sets setTimeout on touch start', async () => {
+        const page = makePage(3);
+        const { container } = render(SegmentList, { props: { page } });
+        await tick();
+
+        const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+        const items = container.querySelectorAll('[data-drag-index]');
+        const dragHandle = items[0].querySelector('.drag-handle')!;
+
+        await fireEvent(dragHandle, makeTouchEvent('touchstart', 100, 200));
+        await tick();
+
+        expect(setTimeoutSpy).toHaveBeenCalled();
+        expect(setTimeoutSpy.mock.lastCall?.[1]).toBe(300);
+        setTimeoutSpy.mockRestore();
+      });
+
+      it('calls clearTimeout on touch move', async () => {
+        const page = makePage(3);
+        const { container } = render(SegmentList, { props: { page } });
+        await tick();
+
+        const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+        const items = container.querySelectorAll('[data-drag-index]');
+        const dragHandle = items[0].querySelector('.drag-handle')!;
+        const listEl = container.querySelector('.segment-list')!;
+
+        await fireEvent(dragHandle, makeTouchEvent('touchstart', 100, 200));
+        await tick();
+
+        await fireEvent(listEl, makeTouchEvent('touchmove', 100, 300));
+        await tick();
+
+        expect(clearTimeoutSpy).toHaveBeenCalled();
+        clearTimeoutSpy.mockRestore();
+      });
+
+      it('calls clearTimeout on touch end', async () => {
+        const page = makePage(3);
+        const { container } = render(SegmentList, { props: { page } });
+        await tick();
+
+        const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+        const items = container.querySelectorAll('[data-drag-index]');
+        const dragHandle = items[0].querySelector('.drag-handle')!;
+        const listEl = container.querySelector('.segment-list')!;
+
+        await fireEvent(dragHandle, makeTouchEvent('touchstart', 100, 200));
+        await tick();
+
+        await fireEvent(listEl, makeTouchEvent('touchend', 100, 200));
+        await tick();
+
+        expect(clearTimeoutSpy).toHaveBeenCalled();
+        clearTimeoutSpy.mockRestore();
+      });
     });
   });
 });

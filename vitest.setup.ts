@@ -12,3 +12,17 @@ export const localStorage = {
 };
 
 Object.defineProperty(globalThis, 'localStorage', { value: localStorage });
+
+// jsdom does not implement matchMedia; provide a stub.
+Object.defineProperty(globalThis, 'matchMedia', {
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});

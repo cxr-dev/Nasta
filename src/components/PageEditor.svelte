@@ -17,15 +17,25 @@
   let pageDragOverIndex = $state<number | null>(null);
   let pageDragStartY = 0;
   let pageDragStartX = 0;
+  let pageDropInsertIndex = $state<number | null>(null);
+  let pageIsLongPressing = $state(false);
+  let pageLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 
   function handlePageDragStart(e: DragEvent, index: number) {
     pageDraggingIndex = index;
+    pageDropInsertIndex = null;
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
   }
 
   function handlePageDragOver(e: DragEvent, index: number) {
     e.preventDefault();
     pageDragOverIndex = index;
+    const el = e.currentTarget as HTMLElement | null;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      pageDropInsertIndex = e.clientY < midY ? index : index + 1;
+    }
   }
 
   function handlePageDrop(e: DragEvent, toIndex: number) {
@@ -35,27 +45,45 @@
     }
     pageDraggingIndex = null;
     pageDragOverIndex = null;
+    pageDropInsertIndex = null;
   }
 
   function handlePageDragEnd() {
     pageDraggingIndex = null;
     pageDragOverIndex = null;
+    pageDropInsertIndex = null;
   }
 
   function handlePageHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation();
     pageDraggingIndex = index;
+    pageDropInsertIndex = null;
     pageDragStartX = e.touches[0].clientX;
     pageDragStartY = e.touches[0].clientY;
     const el = document.querySelector(`[data-page-drag-index="${index}"]`) as HTMLElement | null;
     if (el) {
       el.style.pointerEvents = 'none';
     }
+    // long-press haptic
+    clearTimeout(pageLongPressTimer);
+    pageLongPressTimer = setTimeout(() => {
+      pageIsLongPressing = true;
+      navigator.vibrate?.(15);
+      gsap.to('.page-drag-handle', {
+        scale: 1.05,
+        duration: 0.1,
+        ease: 'power2.out',
+        yoyo: true,
+        repeat: 1,
+      });
+    }, 300);
   }
 
   function handlePageTouchMove(e: TouchEvent) {
     if (pageDraggingIndex === null) return;
     e.preventDefault();
+    clearTimeout(pageLongPressTimer);
+    if (pageIsLongPressing) pageIsLongPressing = false;
     const touch = e.touches[0];
     const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
     if (el) {
@@ -75,12 +103,17 @@
         if (!isNaN(newIndex) && newIndex !== pageDragOverIndex) {
           pageDragOverIndex = newIndex;
         }
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        pageDropInsertIndex = touch.clientY < midY ? newIndex : newIndex + 1;
       }
     }
   }
 
   function handlePageTouchEnd() {
     if (pageDraggingIndex === null) return;
+    clearTimeout(pageLongPressTimer);
+    pageIsLongPressing = false;
     const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
@@ -91,6 +124,7 @@
     }
     pageDraggingIndex = null;
     pageDragOverIndex = null;
+    pageDropInsertIndex = null;
   }
 
   $effect(() => {
@@ -395,6 +429,20 @@
         </button>
         <div class="page-list">
           {#each pages as page, index (page.id)}
+            {@const isDropHere = pageDraggingIndex !== null && pageDropInsertIndex === index && pageDropInsertIndex !== pageDraggingIndex}
+            {#if isDropHere}
+              <div class="drop-indicator" role="presentation">
+                <div class="drop-indicator-line"></div>
+                <div class="drop-ghost">
+                  <div class="drop-ghost-icon">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                      <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75zM3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V5.5h-2.75A1.75 1.75 0 018 3.75V1.5H3.75zm6.75.062V3.75c0 .138.112.25.25.25h2.188l-.013-.013-2.425-2.425z"/>
+                    </svg>
+                  </div>
+                  <span class="drop-ghost-label">{pages[pageDraggingIndex!].name}</span>
+                </div>
+              </div>
+            {/if}
             <div
               class="page-item"
               class:active={page.id === activePageId}
@@ -410,6 +458,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="page-drag-handle"
+                class:long-pressing={pageIsLongPressing}
                 aria-hidden="true"
                 ontouchstart={(e) => handlePageHandleTouchStart(e, index)}
               >
@@ -742,9 +791,22 @@
                   >
                     {hour}:00
                   </button>
-                {/each}
+          {/each}
+          {#if pageDraggingIndex !== null && pageDropInsertIndex === pages.length && pageDropInsertIndex !== pageDraggingIndex}
+            <div class="drop-indicator" role="presentation">
+              <div class="drop-indicator-line"></div>
+              <div class="drop-ghost">
+                <div class="drop-ghost-icon">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                    <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75zM3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V5.5h-2.75A1.75 1.75 0 018 3.75V1.5H3.75zm6.75.062V3.75c0 .138.112.25.25.25h2.188l-.013-.013-2.425-2.425z"/>
+                  </svg>
+                </div>
+                <span class="drop-ghost-label">{pages[pageDraggingIndex].name}</span>
               </div>
             </div>
+          {/if}
+        </div>
+      </div>
           {/if}
         </div>
 
@@ -1060,6 +1122,71 @@
 
   .page-drag-handle:active {
     cursor: grabbing;
+  }
+
+  .page-drag-handle.long-pressing {
+    color: var(--accent);
+  }
+
+  .drop-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    pointer-events: none;
+  }
+
+  .drop-indicator-line {
+    flex: 1;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    opacity: 0.6;
+  }
+
+  .drop-ghost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1.5px dashed var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    opacity: 0.5;
+    flex-shrink: 0;
+    animation: ghost-in 0.2s ease-out;
+  }
+
+  .drop-ghost-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .drop-ghost-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @keyframes ghost-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 0.5;
+      transform: scale(1);
+    }
   }
 
   .page-index {
@@ -1843,6 +1970,12 @@
   @media (prefers-reduced-motion: reduce) {
     .pulse-dot-el {
       display: none;
+    }
+    .page-item {
+      transition: none;
+    }
+    .drop-ghost {
+      animation: none;
     }
   }
 
