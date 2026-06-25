@@ -70,15 +70,15 @@
 <style>
   .update-banner {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
     background: var(--accent);
-    color: white;
+    color: var(--text-on-accent);
     padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--radius-md);
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.1);
-    z-index: 9999;
+    z-index: var(--z-toast);
   }
 
   .banner-content {
@@ -98,10 +98,10 @@
   }
 
   .reload-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 6px;
+    background: color-mix(in srgb, var(--text-on-accent) 20%, transparent);
+    color: var(--text-on-accent);
+    border: 1px solid color-mix(in srgb, var(--text-on-accent) 30%, transparent);
+    border-radius: var(--radius-sm);
     padding: 6px 12px;
     font-size: 14px;
     font-weight: 600;
@@ -113,17 +113,17 @@
   }
 
   .reload-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: color-mix(in srgb, var(--text-on-accent) 30%, transparent);
   }
 
   .reload-btn:active {
-    background: rgba(255, 255, 255, 0.15);
+    background: color-mix(in srgb, var(--text-on-accent) 15%, transparent);
   }
 
   .dismiss-btn {
     background: none;
     border: none;
-    color: white;
+    color: var(--text-on-accent);
     cursor: pointer;
     font-size: 18px;
     padding: 4px;

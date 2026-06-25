@@ -217,7 +217,7 @@ let listEl = $state<HTMLDivElement>();
         >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="drag-handle"
+            class="drag-handle no-scale"
             class:long-pressing={isLongPressing}
             aria-hidden="true"
             ontouchstart={(e) => handleHandleTouchStart(e, index)}
@@ -297,7 +297,7 @@ let listEl = $state<HTMLDivElement>();
   }
 
   .segment {
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--surface);
     overflow: hidden;
@@ -339,7 +339,7 @@ let listEl = $state<HTMLDivElement>();
   .segment-icon {
     width: 38px;
     height: 38px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -448,7 +448,7 @@ let listEl = $state<HTMLDivElement>();
     border: 1px solid var(--border);
     background: transparent;
     color: var(--text-muted);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;

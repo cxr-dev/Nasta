@@ -291,6 +291,8 @@ const sv = {
   // Map
   expandMap: "Förstora kartan",
   minimizeMap: "Förminska kartan",
+  mapViewerLabel: "Järnvägskarta",
+  closeMap: "Stäng karta",
 };
 
 const en: typeof sv = {
@@ -568,6 +570,8 @@ const en: typeof sv = {
   // Map
   expandMap: "Expand map fullscreen",
   minimizeMap: "Minimize map",
+  mapViewerLabel: "Railway map",
+  closeMap: "Close map",
 };
 
 export const translations = { sv, en };

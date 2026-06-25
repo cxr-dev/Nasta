@@ -17,7 +17,8 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon } from "../icons/departureIcons";
+  import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
@@ -65,6 +66,7 @@
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
   let lastNearbyPrefetchKey = $state('');
+  let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
 
@@ -370,14 +372,23 @@
   <!-- Page nav header -->
   <header class="page-chrome">
     <h1 class="page-title">{route.name}</h1>
-    {#if onEditToggle}
+    <div class="header-actions">
+      <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.mapViewerLabel}>
+        <svg viewBox="0 0 24 24" fill="none">
+          {@html mapIcon}
+        </svg>
+      </button>
+      {#if onEditToggle}
       <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.settings}>
-        <svg viewBox="0 0 512 512" fill="currentColor">
+        <svg viewBox="0 0 24 24" fill="none">
           {@html settingsGear}
         </svg>
       </button>
-    {/if}
+      {/if}
+    </div>
   </header>
+
+  <MapViewer isOpen={showMap} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
 
   {#if (route.segments ?? []).length === 0}
     <div class="empty-segments">
@@ -563,6 +574,14 @@
     margin-right: -8px;
     -webkit-tap-highlight-color: transparent;
     transition: background 0.15s, transform 0.12s ease;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .header-actions .header-icon-btn {
+    margin-right: -4px;
   }
   .header-icon-btn:hover {
     background: var(--accent-subtle);

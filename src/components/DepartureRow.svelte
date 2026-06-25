@@ -233,7 +233,7 @@
   .departure-card {
     display: flex;
     flex-direction: column;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -278,7 +278,7 @@
     width: 32px;
     height: 32px;
     min-width: 32px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
     color: var(--accent);
   }
@@ -331,7 +331,7 @@
     font-family: 'Neue Machina', sans-serif;
     font-size: 34px;
     font-weight: 900;
-    letter-spacing: -1.5px;
+    letter-spacing: clamp(-1.8px, -0.04em, -1.2px);
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
@@ -397,7 +397,7 @@
     letter-spacing: 0.04em;
     color: var(--pill-text-color);
     padding: 2px 7px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     flex-shrink: 0;
     line-height: 1.2;
     background: var(--strip-color);

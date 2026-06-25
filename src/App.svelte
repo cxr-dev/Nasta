@@ -669,12 +669,11 @@ function toggleEdit() {
             <nav class="bottom-nav" aria-label={t.pageNavigation}>
               <div class="page-dots">
                 {#each pages as p, i (p.id)}
-                  <button
+                  <span
                     class="dot"
                     class:active={p.id === activePageId}
-                    onclick={() => handlePageSwitch(p.id)}
-                    aria-label={p.name}
-                  ></button>
+                    aria-hidden="true"
+                  ></span>
                 {/each}
               </div>
             </nav>
@@ -798,7 +797,7 @@ function toggleEdit() {
   :global(button) {
     transition: transform 120ms ease, opacity 120ms ease;
   }
-  :global(button:active) {
+  :global(button:not(.no-scale):active) {
     transform: scale(0.965);
     opacity: 0.9;
   }
@@ -823,6 +822,18 @@ function toggleEdit() {
     --page-home:      #059669;
     --color-accent:   #27ae60;
     --layout-max-width: 480px;
+
+    /* Border-radius scale */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 999px;
+
+    /* Z-index scale */
+    --z-sticky: 100;
+    --z-overlay: 300;
+    --z-dialog: 400;
+    --z-toast: 500;
   }
 
   main {
@@ -903,7 +914,7 @@ function toggleEdit() {
     justify-content: center;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
-    z-index: 10;
+    z-index: var(--z-sticky);
     background: var(--bg);
     -webkit-mask-image: linear-gradient(to top, black 70%, transparent);
     mask-image: linear-gradient(to top, black 70%, transparent);
@@ -921,10 +932,9 @@ function toggleEdit() {
   .dot {
     width: 6px;
     height: 6px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     border: none;
     padding: 0;
-    cursor: pointer;
     background: var(--text-ghost);
     flex-shrink: 0;
     transition: background 0.15s ease, transform 0.15s ease;
@@ -939,7 +949,7 @@ function toggleEdit() {
   .feature-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 240;
+    z-index: var(--z-overlay);
     left: 50%;
     transform: translateX(-50%);
     max-width: var(--layout-max-width, 480px);
@@ -955,7 +965,7 @@ function toggleEdit() {
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 245;
+    z-index: var(--z-dialog);
     width: min(calc(100% - 24px), 456px);
     max-height: min(72dvh, 620px);
     display: flex;
@@ -963,7 +973,7 @@ function toggleEdit() {
     overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
     padding: 14px 16px 16px;
     bottom: calc(76px + env(safe-area-inset-bottom));
@@ -1045,7 +1055,7 @@ function toggleEdit() {
     color: var(--text-on-accent);
     border: none;
     padding: 14px 24px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
@@ -1087,7 +1097,7 @@ function toggleEdit() {
     padding: 10px 12px;
     background: #FEF3C7;
     border: 1px solid #FCD34D;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     color: #92400E;
     font-size: 13px;
   }
@@ -1120,7 +1130,7 @@ function toggleEdit() {
   .quick-add-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 240;
+    z-index: var(--z-overlay);
     background: rgba(0,0,0,0.35);
     border: none;
     cursor: pointer;
@@ -1133,10 +1143,10 @@ function toggleEdit() {
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 250;
+    z-index: var(--z-dialog);
     background: var(--surface);
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
     padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     max-height: 70vh;
     overflow-y: auto;

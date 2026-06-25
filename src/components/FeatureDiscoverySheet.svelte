@@ -564,7 +564,7 @@
   .sheet-handle {
     width: 54px;
     height: 5px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--border-subtle);
     margin: 2px auto 4px;
   }
@@ -615,7 +615,7 @@
   .close-btn {
     width: 40px;
     height: 40px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text);
@@ -639,7 +639,7 @@
     background: var(--accent-subtle);
     color: var(--text-secondary);
     padding: 10px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
@@ -670,7 +670,7 @@
     background: var(--accent-subtle);
     color: var(--text-secondary);
     padding: 8px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -692,9 +692,12 @@
     display: flex;
     gap: 6px;
     overflow-x: auto;
+    overflow-y: clip;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
+    padding: 4px 0 8px;
+    flex-shrink: 0;
+    min-height: 36px;
   }
 
   .chip-row::-webkit-scrollbar {
@@ -707,7 +710,7 @@
     background: var(--accent-subtle);
     color: var(--text-secondary);
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -737,7 +740,7 @@
   }
 
   .card {
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     background: var(--surface);
     border: 1px solid var(--border);
     padding: 16px;
@@ -858,7 +861,7 @@
     display: inline-flex;
     align-items: center;
     padding: 4px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: 12px;
     font-weight: 700;
   }
@@ -902,7 +905,7 @@
     align-items: center;
     gap: 4px;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: 12px;
     font-weight: 700;
     color: var(--accent);
@@ -918,7 +921,7 @@
   .card-tag {
     flex-shrink: 0;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--accent-subtle);
     color: var(--accent);
     font-size: 11px;
@@ -954,7 +957,7 @@
 
   .action-btn {
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: transparent;
     color: var(--text);
     padding: 9px 14px;
@@ -986,7 +989,7 @@
     align-items: center;
     justify-content: center;
     padding: 40px 20px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     background: var(--surface);
     box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     color: var(--text-secondary);
@@ -1001,7 +1004,7 @@
     justify-content: center;
     gap: 12px;
     padding: 40px 20px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     background: var(--surface);
     box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     min-height: 120px;

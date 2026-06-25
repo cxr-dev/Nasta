@@ -50,7 +50,7 @@
     justify-content: center;
     background: var(--bg, #FAFAF9);
     padding: 20px;
-    z-index: 9999;
+    z-index: var(--z-toast);
   }
 
   .error-content {
@@ -94,7 +94,7 @@
     color: var(--text-on-accent, #fff);
     border: none;
     padding: 14px 28px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;

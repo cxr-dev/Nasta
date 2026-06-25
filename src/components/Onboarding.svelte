@@ -83,14 +83,14 @@
     display: grid;
     place-items: center;
     padding: 20px;
-    z-index: 9999;
+    z-index: var(--z-dialog);
   }
 
   .sheet {
     inline-size: min(100%, 420px);
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
     padding: 22px;
     display: flex;
     flex-direction: column;
@@ -116,7 +116,7 @@
 
   .primary {
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 10px 12px;
     font-family: inherit;
     cursor: pointer;
@@ -127,7 +127,7 @@
 
   .summary {
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 10px;
     display: flex;
     flex-direction: column;

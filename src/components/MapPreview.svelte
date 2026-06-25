@@ -169,7 +169,7 @@
         ></div>
         <button
           type="button"
-          class="map-expand-btn"
+          class="map-expand-btn no-scale"
           onclick={toggleFullscreen}
           aria-label={isFullscreen ? t.minimizeMap : t.expandMap}
         >
@@ -297,7 +297,7 @@
   .map-container.fullscreen {
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: var(--z-overlay);
     background: #000;
     animation: fullscreen-in 200ms ease-out both;
   }

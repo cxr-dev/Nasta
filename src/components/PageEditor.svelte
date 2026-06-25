@@ -416,7 +416,7 @@
             >
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
-                class="page-drag-handle"
+                class="page-drag-handle no-scale"
                 class:long-pressing={pageIsLongPressing}
                 aria-hidden="true"
                 ontouchstart={(e) => handlePageHandleTouchStart(e, index)}
@@ -560,7 +560,7 @@
               <span class="toggle-desc">{t.disruptionAlertsDesc}</span>
             </div>
             <button
-              class="toggle-btn"
+              class="toggle-btn no-scale"
               class:on={settings.disruptionAlertsEnabled ?? true}
               onclick={() => setDisruptionAlertsEnabled(!(settings.disruptionAlertsEnabled ?? true))}
               aria-label={t.disruptionAlerts}
@@ -672,7 +672,7 @@
               <span class="toggle-desc">{t.groupDisruptedSegmentsDesc}</span>
             </div>
             <button
-              class="toggle-btn"
+              class="toggle-btn no-scale"
               class:on={settings.groupDisruptedSegments ?? false}
               onclick={() => setGroupDisruptedSegments(!(settings.groupDisruptedSegments ?? false))}
               aria-label={t.groupDisruptedSegments}
@@ -692,7 +692,7 @@
               <span class="toggle-desc">{t.walkingEtaDesc}</span>
             </div>
             <button
-              class="toggle-btn"
+              class="toggle-btn no-scale"
               class:on={settings.walkingEtaEnabled ?? false}
               onclick={() => {
                 const next = !(settings.walkingEtaEnabled ?? false);
@@ -716,7 +716,7 @@
               <span class="toggle-desc">{t.afterworkVenuesDesc}</span>
             </div>
             <button
-              class="toggle-btn"
+              class="toggle-btn no-scale"
               class:on={settings.afterworkVenuesEnabled ?? false}
               onclick={() => setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
               aria-label={t.afterwork}
@@ -766,7 +766,7 @@
               <span class="toggle-desc">{t.eventsDesc}</span>
             </div>
             <button
-              class="toggle-btn"
+              class="toggle-btn no-scale"
               class:on={settings.eventsEnabled ?? false}
               onclick={() => setEventsEnabled(!(settings.eventsEnabled ?? false))}
               aria-label={t.events}
@@ -854,7 +854,7 @@
   .editor-overlay {
     position: fixed;
     inset: 0;
-    z-index: 260;
+    z-index: var(--z-dialog);
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
@@ -1361,7 +1361,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-toast);
   }
 
   .page-picker-sheet {
