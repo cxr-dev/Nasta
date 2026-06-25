@@ -60,7 +60,7 @@ test.describe("locale switching", () => {
   }
 
   test("should start in English and switch between languages", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "Settings" });
+    const settingsBtn = page.locator('button[aria-label="Settings"]');
 
     await expect(settingsBtn).toHaveAttribute("aria-label", "Settings", { timeout: 10000 });
 
@@ -71,21 +71,21 @@ test.describe("locale switching", () => {
     await expect(langGroup(page).getByRole("button").nth(1)).toContainText("Swedish");
 
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.locator(".editor-overlay.open .back-btn").click();
+    await page.locator(".settings-overlay.open .back-btn").click();
     await page.waitForTimeout(100);
 
-    await expect(page.getByRole("button", { name: "Inställningar" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should persist language preference after reload", async ({ page }) => {
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.locator('button[aria-label="Settings"]').click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.locator(".editor-overlay.open .back-btn").click();
+    await page.locator(".settings-overlay.open .back-btn").click();
 
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("button", { name: "Inställningar" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("no console errors during locale switching", async ({ page }) => {
@@ -95,7 +95,7 @@ test.describe("locale switching", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.locator('button[aria-label="Settings"]').click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
 
     await langGroup(page).getByRole("button").nth(1).click();
@@ -105,7 +105,7 @@ test.describe("locale switching", () => {
     await langGroup(page).getByRole("button").nth(1).click();
     await page.waitForTimeout(50);
     await langGroup(page).getByRole("button").nth(0).click();
-    await page.locator(".editor-overlay.open .back-btn").click();
+    await page.locator(".settings-overlay.open .back-btn").click();
 
     expect(errors.filter((m) => !m.includes("ERR_FAILED") && !m.includes("ERR_ABORTED"))).toEqual([]);
   });

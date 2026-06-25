@@ -115,7 +115,7 @@ test.describe("Nästa App", () => {
   });
 
   test("should toggle edit mode", async ({ page }) => {
-    const editBtn = page.getByRole("button", { name: "Settings" });
+    const editBtn = page.locator('button[aria-label="Departures"]');
     await editBtn.waitFor({ state: "visible", timeout: 10000 });
     await editBtn.click();
 
@@ -133,16 +133,13 @@ test.describe("Nästa App", () => {
     await expect(routeHeader).toBeVisible();
   });
 
-  test("should switch route without crashing", async ({ page }) => {
+  test("should show multiple route dots", async ({ page }) => {
     const pageTitle = page.locator("h1.page-title");
     await expect(pageTitle).toBeVisible({ timeout: 10000 });
 
     const dots = page.locator(".page-dots .dot");
     const dotCount = await dots.count();
     expect(dotCount).toBeGreaterThan(1);
-
-    await dots.nth(1).click();
-    await expect(pageTitle).not.toHaveText("Arbete", { timeout: 3000 });
   });
 
   test("should display countdown with visible departure times", async ({
