@@ -18,6 +18,7 @@
   
 
   import PageEditor from './components/PageEditor.svelte';
+  import SettingsPanel from './components/SettingsPanel.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
@@ -29,6 +30,7 @@
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
   let editing = $state(false);
+  let showSettings = $state(false);
   let showQuickAdd = $state(false);
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
   let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
@@ -394,6 +396,17 @@ function toggleEdit() {
   }
 }
 
+function openSettingsPanel() {
+  showSettings = true;
+  departureStore.stopAutoRefresh();
+  deviationStore.stopAutoRefresh();
+}
+
+function closeSettingsPanel() {
+  showSettings = false;
+  loadDepartures();
+}
+
   function handleTouchStart(e: TouchEvent) {
     if (editing) return;
     swipeStartX = e.touches[0].clientX;
@@ -658,6 +671,7 @@ function toggleEdit() {
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
               onEditToggle={toggleEdit}
+              onOpenSettings={openSettingsPanel}
               onQuickAdd={() => showQuickAdd = true}
               {lastRefreshTime}
             />
@@ -681,6 +695,10 @@ function toggleEdit() {
     </div>
 
     {#if !hasNoRoutes && page}
+      <SettingsPanel
+        isOpen={showSettings}
+        onClose={closeSettingsPanel}
+      />
       <PageEditor
         pages={pages}
         activePageId={activePageId ?? ''}

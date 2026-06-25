@@ -17,7 +17,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
@@ -35,6 +35,7 @@
     openFeatureSheet = null,
     onSwitchPage,
     onEditToggle,
+    onOpenSettings,
     onQuickAdd,
     lastRefreshTime,
   }: {
@@ -46,6 +47,7 @@
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
     onEditToggle?: () => void;
+    onOpenSettings?: () => void;
     onQuickAdd?: () => void;
     lastRefreshTime?: number;
   } = $props();
@@ -379,7 +381,14 @@
         </svg>
       </button>
       {#if onEditToggle}
-      <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.settings}>
+      <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.tabSegments}>
+        <svg viewBox="0 0 24 24" fill="none">
+          {@html editPencil}
+        </svg>
+      </button>
+      {/if}
+      {#if onOpenSettings}
+      <button class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html settingsGear}
         </svg>

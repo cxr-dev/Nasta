@@ -2,8 +2,7 @@
   import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
   import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage } from '../stores/pageStore.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupDisruptedSegments, setLanguage, setTheme } from '../stores/settingsStore.svelte';
-  import { THEMES } from '../themes';
+
   import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
 
@@ -148,34 +147,23 @@
     onSwitchPage: (pageId: string) => void;
   } = $props();
 
-  let activeEditorTab = $state<'pages' | 'segment' | 'features' | 'theme'>('segment');
+  let activeEditorTab = $state<'pages' | 'segment'>('segment');
 
   let page = $derived(pages.find(p => p.id === activePageId));
   let showSearch = $state(false);
   let hasManuallyClosedSearch = $state(false);
   let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
-  import { infoCircle } from '../icons/departureIcons';
-  let infoOpen = $state(false);
+
   let showPagePicker = $state(false);
-  let settings = $derived(getSettings());
-  let activeLanguage = $derived(settings.language ?? 'auto');
-  let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
   let addBtnEl = $state<HTMLButtonElement | undefined>();
-  let handleSwipeStartX = 0;
+
   let handleSwipeStartY = 0;
   let pagesTabEl = $state<HTMLDivElement>();
 
   function getPageLabel(p: Page): string {
     return p.name;
-  }
-
-  function isLightColor(hex: string): boolean {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 >= 0.5;
   }
 
   function addSegment(
@@ -230,7 +218,7 @@
     showPagePicker = false;
   }
 
-  const TABS = ['pages', 'segment', 'features', 'theme'] as const;
+  const TABS = ['pages', 'segment'] as const;
   let swipeStartX = 0;
   let swipeStartY = 0;
 
@@ -278,30 +266,32 @@
     }
   }
 
-  function isTabletOrDesktopViewport(): boolean {
-    return typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+  function handleSheetHandleTouchStart(e: TouchEvent) {
+    handleSwipeStartY = e.touches[0].clientY;
   }
 
-  function handleSheetHandleTouchStart(e: TouchEvent) {
-    if (!isTabletOrDesktopViewport()) return;
-    const touch = e.touches[0];
-    handleSwipeStartX = touch.clientX;
-    handleSwipeStartY = touch.clientY;
+  function handleSheetHandleTouchMove(e: TouchEvent) {
+    if (handleSwipeStartY === 0) return;
+    const dy = e.touches[0].clientY - handleSwipeStartY;
+    if (dy > 0) {
+      gsap.set('.editor-sheet', { y: dy });
+    }
   }
 
   function handleSheetHandleTouchEnd(e: TouchEvent) {
-    if (!isTabletOrDesktopViewport()) return;
-    if (handleSwipeStartX === 0 && handleSwipeStartY === 0) return;
-
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - handleSwipeStartX;
-    const dy = touch.clientY - handleSwipeStartY;
-
-    handleSwipeStartX = 0;
+    if (handleSwipeStartY === 0) return;
+    const dy = e.changedTouches[0].clientY - handleSwipeStartY;
     handleSwipeStartY = 0;
 
-    if (dy > 44 && dy > Math.abs(dx) * 1.1) {
-      onClose();
+    if (dy > 48) {
+      gsap.to('.editor-sheet', {
+        y: '100%',
+        duration: 0.25,
+        ease: 'power2.in',
+        onComplete: onClose
+      });
+    } else {
+      gsap.to('.editor-sheet', { y: 0, duration: 0.2, ease: 'power2.out' });
     }
   }
 </script>
@@ -320,6 +310,7 @@
       class="sheet-handle"
       aria-hidden="true"
       ontouchstart={handleSheetHandleTouchStart}
+      ontouchmove={handleSheetHandleTouchMove}
       ontouchend={handleSheetHandleTouchEnd}
     ></div>
     <div class="sheet-header">
@@ -356,27 +347,6 @@
         onclick={() => activeEditorTab = 'segment'}
       >
         {t.tabSegments}
-      </button>
-      <div class="tab-separator" aria-hidden="true">·</div>
-      <button
-        type="button"
-        role="tab"
-        class="tab right-group"
-        class:active={activeEditorTab === 'features'}
-        aria-selected={activeEditorTab === 'features'}
-        onclick={() => activeEditorTab = 'features'}
-      >
-        {t.tabFeatures}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="tab right-group"
-        class:active={activeEditorTab === 'theme'}
-        aria-selected={activeEditorTab === 'theme'}
-        onclick={() => activeEditorTab = 'theme'}
-      >
-        {t.tabTheme}
       </button>
     </div>
 
@@ -549,303 +519,7 @@
           {/if}
       </div>
 
-    {:else if activeEditorTab === 'features'}
-      <div class="tab-content features-tab">
-        <h3 class="section-title">{t.appSettings}</h3>
-        <div class="feature-group">
-          <h3 class="group-title">{t.disruptionAlerts}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.disruptionAlerts}</span>
-              <span class="toggle-desc">{t.disruptionAlertsDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.disruptionAlertsEnabled ?? true}
-              onclick={() => setDisruptionAlertsEnabled(!(settings.disruptionAlertsEnabled ?? true))}
-              aria-label={t.disruptionAlerts}
-              role="switch"
-              aria-checked={settings.disruptionAlertsEnabled ?? true}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
-          {#if settings.disruptionAlertsEnabled ?? true}
-            <div class="nested-control">
-              <div class="nested-header">
-                <span class="nested-name">{t.disruptionThreshold}</span>
-                <button
-                  class="info-btn"
-                  onclick={() => (infoOpen = !infoOpen)}
-                  aria-label={t.disruptionThresholdInfoAria}
-                >
-                  <svg viewBox="0 0 24 24" fill="none">{@html infoCircle}</svg>
-                </button>
-              </div>
-              <div class="segmented-control" role="group" aria-label={t.disruptionThreshold}>
-                <button
-                  class="segment-choice"
-                  class:active={activeDisruptionThreshold === 'info'}
-                  onclick={() => setDisruptionSeverityThreshold('info')}
-                  aria-pressed={activeDisruptionThreshold === 'info'}
-                  data-level="info"
-                >
-                  {t.disruptionThresholdInfo}
-                </button>
-                <button
-                  class="segment-choice"
-                  class:active={activeDisruptionThreshold === 'warning'}
-                  onclick={() => setDisruptionSeverityThreshold('warning')}
-                  aria-pressed={activeDisruptionThreshold === 'warning'}
-                  data-level="warning"
-                >
-                  {t.disruptionThresholdWarning}
-                </button>
-                <button
-                  class="segment-choice"
-                  class:active={activeDisruptionThreshold === 'critical'}
-                  onclick={() => setDisruptionSeverityThreshold('critical')}
-                  aria-pressed={activeDisruptionThreshold === 'critical'}
-                  data-level="critical"
-                >
-                  {t.disruptionThresholdCritical}
-                </button>
-              </div>
-            </div>
-          {/if}
 
-          {#if infoOpen}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <div class="info-overlay" onclick={() => (infoOpen = false)} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="dialog" aria-label={t.disruptionThresholdInfoTitle} tabindex="-1">
-              <div class="info-card" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="document" tabindex="-1">
-                <button class="info-card-close" onclick={() => (infoOpen = false)} aria-label={t.closeEditor}>×</button>
-                <h4 class="info-card-title">{t.disruptionThresholdInfoTitle}</h4>
-
-                <div class="info-level">
-                  <span class="info-dot info-dot--info"></span>
-                  <div class="info-level-content">
-                    <strong>{t.disruptionThresholdInfo}</strong>
-                    <p>{t.disruptionThresholdInfoDesc}</p>
-                    <ul>
-                      <li>{t.disruptionThresholdInfoExample1}</li>
-                      <li>{t.disruptionThresholdInfoExample2}</li>
-                      <li>{t.disruptionThresholdInfoExample3}</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="info-level">
-                  <span class="info-dot info-dot--warning"></span>
-                  <div class="info-level-content">
-                    <strong>{t.disruptionThresholdWarning}</strong>
-                    <p>{t.disruptionThresholdWarningDesc}</p>
-                    <ul>
-                      <li>{t.disruptionThresholdWarningExample1}</li>
-                      <li>{t.disruptionThresholdWarningExample2}</li>
-                      <li>{t.disruptionThresholdWarningExample3}</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="info-level">
-                  <span class="info-dot info-dot--critical"></span>
-                  <div class="info-level-content">
-                    <strong>{t.disruptionThresholdCritical}</strong>
-                    <p>{t.disruptionThresholdCriticalDesc}</p>
-                    <ul>
-                      <li>{t.disruptionThresholdCriticalExample1}</li>
-                      <li>{t.disruptionThresholdCriticalExample2}</li>
-                      <li>{t.disruptionThresholdCriticalExample3}</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          {/if}
-        </div>
-
-        <div class="feature-group">
-          <h3 class="group-title">{t.groupDisruptedSegments}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.groupDisruptedSegments}</span>
-              <span class="toggle-desc">{t.groupDisruptedSegmentsDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.groupDisruptedSegments ?? false}
-              onclick={() => setGroupDisruptedSegments(!(settings.groupDisruptedSegments ?? false))}
-              aria-label={t.groupDisruptedSegments}
-              role="switch"
-              aria-checked={settings.groupDisruptedSegments ?? false}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
-        </div>
-
-        <div class="feature-group">
-          <h3 class="group-title">{t.walkingEta}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.walkingEta}</span>
-              <span class="toggle-desc">{t.walkingEtaDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.walkingEtaEnabled ?? false}
-              onclick={() => {
-                const next = !(settings.walkingEtaEnabled ?? false);
-                setWalkingEtaEnabled(next);
-                setLocationServicesEnabled(next);
-              }}
-              aria-label={t.walkingEta}
-              role="switch"
-              aria-checked={settings.walkingEtaEnabled ?? false}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
-        </div>
-
-        <div class="feature-group">
-          <h3 class="group-title">{t.afterwork}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.afterwork}</span>
-              <span class="toggle-desc">{t.afterworkVenuesDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.afterworkVenuesEnabled ?? false}
-              onclick={() => setAfterworkVenuesEnabled(!(settings.afterworkVenuesEnabled ?? false))}
-              aria-label={t.afterwork}
-              role="switch"
-              aria-checked={settings.afterworkVenuesEnabled ?? false}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
-          {#if settings.afterworkVenuesEnabled}
-            <div class="nested-control">
-              <span class="nested-name">{t.afterworkStartTime}</span>
-              <div class="hour-selector" role="group" aria-label={t.afterworkStartTime}>
-                {#each [14, 15, 16, 17, 18, 19, 20, 21, 22, 23] as hour (hour)}
-                  <button
-                    class="hour-choice"
-                    class:active={(settings.afterworkStartHour ?? 15) === hour}
-                    onclick={() => setAfterworkStartHour(hour)}
-                    aria-pressed={(settings.afterworkStartHour ?? 15) === hour}
-                  >
-                    {hour}:00
-                  </button>
-          {/each}
-          {#if pageDraggingIndex !== null && pageDropInsertIndex === pages.length && pageDropInsertIndex !== pageDraggingIndex}
-            <div class="drop-indicator" role="presentation">
-              <div class="drop-indicator-line"></div>
-              <div class="drop-ghost">
-                <div class="drop-ghost-icon">
-                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                    <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25V1.75zM3.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V5.5h-2.75A1.75 1.75 0 018 3.75V1.5H3.75zm6.75.062V3.75c0 .138.112.25.25.25h2.188l-.013-.013-2.425-2.425z"/>
-                  </svg>
-                </div>
-                <span class="drop-ghost-label">{pages[pageDraggingIndex].name}</span>
-              </div>
-            </div>
-          {/if}
-        </div>
-      </div>
-          {/if}
-        </div>
-
-        <div class="feature-group">
-          <h3 class="group-title">{t.events}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.events}</span>
-              <span class="toggle-desc">{t.eventsDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.eventsEnabled ?? false}
-              onclick={() => setEventsEnabled(!(settings.eventsEnabled ?? false))}
-              aria-label={t.events}
-              role="switch"
-              aria-checked={settings.eventsEnabled ?? false}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
-        </div>
-
-        <div class="feature-group">
-          <h3 class="group-title">{t.language}</h3>
-          <div class="segmented-control" role="group" aria-label={t.language}>
-            <button
-              class="segment-choice"
-              class:active={activeLanguage === 'en'}
-              onclick={() => setLanguage('en')}
-              aria-pressed={activeLanguage === 'en'}
-            >
-              {t.languageEnglish}
-            </button>
-            <button
-              class="segment-choice"
-              class:active={activeLanguage === 'sv'}
-              onclick={() => setLanguage('sv')}
-              aria-pressed={activeLanguage === 'sv'}
-            >
-              {t.languageSwedish}
-            </button>
-          </div>
-        </div>
-      </div>
-
-    {:else if activeEditorTab === 'theme'}
-      <div class="tab-content theme-tab">
-        <h3 class="section-title">{t.appSettings}</h3>
-        <h3 class="section-title">{t.theme}</h3>
-        <div class="theme-list">
-          {#each THEMES as palette (palette.id)}
-            {@const activeTheme = settings.theme ?? 'default'}
-            {@const activeVariant = settings.themeVariant ?? 'A'}
-            {@const isActiveA = activeTheme === palette.id && activeVariant === 'A'}
-            {@const isActiveB = activeTheme === palette.id && activeVariant === 'B'}
-            <div class="palette-card">
-              <button
-                class="palette-half"
-                class:active={isActiveA}
-                style="background:{palette.colorA}"
-                onclick={() => setTheme(palette.id, 'A')}
-                aria-label={`${palette.name}, A`}
-                aria-pressed={isActiveA}
-              >
-                <span class="ph-swatch" style="background:{palette.variants.A.surface}; box-shadow: 0 0 0 1px {palette.variants.A.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-accent" style="background:{palette.variants.A.accent}; box-shadow: 0 0 0 1px {palette.variants.A.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-label" style="color:{palette.variants.A.isLight ? '#000' : '#fff'}">{palette.name}</span>
-                {#if isActiveA}
-                  <span class="ph-check" style="color:{palette.variants.A.isLight ? '#000' : '#fff'}">✓</span>
-                {/if}
-              </button>
-              <button
-                class="palette-half"
-                class:active={isActiveB}
-                style="background:{palette.colorB}"
-                onclick={() => setTheme(palette.id, 'B')}
-                aria-label={`${palette.name}, B`}
-                aria-pressed={isActiveB}
-              >
-                <span class="ph-swatch" style="background:{palette.variants.B.surface}; box-shadow: 0 0 0 1px {palette.variants.B.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-accent" style="background:{palette.variants.B.accent}; box-shadow: 0 0 0 1px {palette.variants.B.isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)'}"></span>
-                <span class="ph-label" style="color:{palette.variants.B.isLight ? '#000' : '#fff'}">{palette.name}</span>
-                {#if isActiveB}
-                  <span class="ph-check" style="color:{palette.variants.B.isLight ? '#000' : '#fff'}">✓</span>
-                {/if}
-              </button>
-            </div>
-          {/each}
-        </div>
-      </div>
     {/if}
   </div>
 </div>
@@ -980,19 +654,6 @@
 
   .tab.active::after {
     transform: scaleX(1);
-  }
-
-  .tab-separator {
-    display: flex;
-    align-items: center;
-    color: var(--border);
-    font-size: 14px;
-    user-select: none;
-    padding: 0 2px;
-  }
-
-  .tab.right-group:not(.active) {
-    color: var(--text-secondary);
   }
 
   /* Tab content */
@@ -1466,396 +1127,11 @@
     background: var(--border);
   }
 
-  /* Features tab */
-  .features-tab {
-    padding: 16px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
 
-  .feature-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
 
-  .group-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin: 0;
-  }
 
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    cursor: pointer;
-  }
 
-  .toggle-label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
 
-  .toggle-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .toggle-desc {
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .toggle-btn {
-    position: relative;
-    width: 44px;
-    height: 26px;
-    border-radius: 13px;
-    border: none;
-    background: var(--border);
-    cursor: pointer;
-    transition: background 200ms ease;
-    flex-shrink: 0;
-    padding: 0;
-  }
-
-  .toggle-btn.on {
-    background: var(--accent);
-  }
-
-  .toggle-knob {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 200ms ease;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-  }
-
-  .toggle-btn.on .toggle-knob {
-    transform: translateX(18px);
-  }
-
-  .nested-control {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-  }
-
-  .nested-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .info-btn {
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 2px;
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 150ms ease, background 150ms ease;
-  }
-
-  .info-btn:hover {
-    color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  .nested-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .segmented-control {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-
-  .segment-choice {
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text-secondary);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .segment-choice.active[data-level="info"] {
-    border-color: #3B82F6;
-    color: #3B82F6;
-    background: rgba(59, 130, 246, 0.10);
-  }
-
-  .segment-choice.active[data-level="warning"] {
-    border-color: #E67E22;
-    color: #E67E22;
-    background: rgba(230, 126, 34, 0.10);
-  }
-
-  .segment-choice.active[data-level="critical"] {
-    border-color: #E74C3C;
-    color: #E74C3C;
-    background: rgba(231, 76, 60, 0.10);
-  }
-
-  .hour-selector {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-  }
-
-  .hour-choice {
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text-secondary);
-    border-radius: 10px;
-    padding: 10px 6px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hour-choice.active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  /* Theme tab */
-  .theme-tab {
-    padding: 16px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  }
-
-  .theme-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .palette-card {
-    display: flex;
-    border-radius: 12px;
-    overflow: hidden;
-    height: 64px;
-    border: 1px solid var(--border);
-  }
-
-  .palette-half {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    gap: 6px;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    transition: transform 180ms ease, filter 80ms ease, box-shadow 180ms ease;
-    text-align: left;
-  }
-
-  .palette-half:hover {
-    transform: scale(1.03);
-    z-index: 1;
-  }
-
-  .palette-half:active {
-    transform: scale(0.97);
-    filter: brightness(0.9);
-  }
-
-  .palette-half.active {
-    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.5), inset 0 0 0 5px rgba(0,0,0,0.12);
-    z-index: 2;
-  }
-
-  .ph-swatch {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .ph-accent {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .ph-label {
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ph-check {
-    font-size: 12px;
-    font-weight: 900;
-    flex-shrink: 0;
-  }
-
-  .info-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 24px;
-  }
-
-  .info-card {
-    position: relative;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    max-width: 360px;
-    width: 100%;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
-  }
-
-  .info-card-close {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: color 150ms ease, background 150ms ease;
-  }
-
-  .info-card-close:hover {
-    color: var(--text);
-    background: var(--accent-subtle);
-  }
-
-  .info-card-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    margin: 0 0 16px 0;
-    padding-right: 24px;
-  }
-
-  .info-level {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .info-level:last-child {
-    margin-bottom: 0;
-  }
-
-  .info-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    margin-top: 5px;
-  }
-
-  .info-dot--info {
-    background: #3B82F6;
-  }
-
-  .info-dot--warning {
-    background: #E67E22;
-  }
-
-  .info-dot--critical {
-    background: #E74C3C;
-  }
-
-  .info-level-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .info-level-content strong {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    display: block;
-    margin-bottom: 2px;
-  }
-
-  .info-level-content p {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin: 0 0 4px 0;
-    line-height: 1.4;
-  }
-
-  .info-level-content ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .info-level-content li {
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.5;
-    padding-left: 12px;
-    position: relative;
-  }
-
-  .info-level-content li::before {
-    content: '•';
-    position: absolute;
-    left: 0;
-    color: var(--text-ghost);
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .page-item {
