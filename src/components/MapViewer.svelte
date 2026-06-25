@@ -337,6 +337,7 @@
     role="dialog"
     aria-modal="true"
     aria-label={t.mapViewerLabel}
+    tabindex="-1"
     onpointerdown={onOverlayPointerDown}
     ontouchstart={onOverlayTouchStart}
   >
@@ -351,6 +352,7 @@
       </svg>
     </button>
 
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="map-viewport"
       bind:this={containerEl}
