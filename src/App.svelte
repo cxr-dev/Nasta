@@ -1113,17 +1113,17 @@ function closeSettingsPanel() {
     justify-content: space-between;
     margin: 0 20px;
     padding: 10px 12px;
-    background: #FEF3C7;
-    border: 1px solid #FCD34D;
+    background: var(--color-warning-subtle);
+    border: 1px solid var(--color-warning);
     border-radius: var(--radius-sm);
-    color: #92400E;
+    color: var(--color-warning);
     font-size: 13px;
   }
 
   .warning-banner button {
     background: none;
     border: none;
-    color: #92400E;
+    color: var(--color-warning);
     cursor: pointer;
     font-size: 18px;
     line-height: 1;

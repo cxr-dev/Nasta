@@ -84,7 +84,7 @@
   let isSoon = $derived(primaryDepartureText === '1 min');
 
   let accentColor = $derived(
-    severity === 'critical' ? '#e74c3c' : severity === 'affected' ? '#e8950a' : 'var(--accent)'
+    severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--accent)'
   );
 
   let pillTextColor = $derived(
@@ -92,12 +92,12 @@
   );
 
   let badgeBgIntensity = $derived(
-    severity === 'critical' ? 'rgba(231, 76, 60, 0.18)' : severity === 'affected' ? 'rgba(232, 149, 10, 0.18)' : 'var(--accent-subtle)'
+    severity === 'critical' ? 'var(--color-critical-subtle)' : severity === 'affected' ? 'var(--color-warning-subtle)' : 'var(--accent-subtle)'
   );
 
   let cardBg = $derived(
     siteDevs.length > 0
-      ? severity === 'critical' ? 'rgba(231, 76, 60, 0.06)' : severity === 'affected' ? 'rgba(232, 149, 10, 0.05)' : ''
+      ? severity === 'critical' ? 'var(--color-critical-bg)' : severity === 'affected' ? 'var(--color-warning-bg)' : ''
       : ''
   );
 

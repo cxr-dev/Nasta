@@ -105,6 +105,16 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
   root.style.setProperty('--color-success', dark ? '#4cbf8a' : '#2B8C5E');
   root.style.setProperty('--color-error',   dark ? '#e8687a' : '#C43A4E');
 
+  // Disruption status colors — theme-aware
+  root.style.setProperty('--color-critical', dark ? '#E74C3C' : '#C0392B');
+  root.style.setProperty('--color-critical-subtle', dark ? 'rgba(231, 76, 60, 0.20)' : 'rgba(192, 57, 43, 0.12)');
+  root.style.setProperty('--color-critical-bg', dark ? 'rgba(231, 76, 60, 0.08)' : 'rgba(192, 57, 43, 0.05)');
+  root.style.setProperty('--color-warning', dark ? '#F39C12' : '#D68910');
+  root.style.setProperty('--color-warning-subtle', dark ? 'rgba(243, 156, 18, 0.20)' : 'rgba(214, 137, 16, 0.12)');
+  root.style.setProperty('--color-warning-bg', dark ? 'rgba(243, 156, 18, 0.08)' : 'rgba(214, 137, 16, 0.04)');
+  root.style.setProperty('--color-info', dark ? '#3498DB' : '#2980B9');
+  root.style.setProperty('--color-info-subtle', dark ? 'rgba(52, 152, 219, 0.20)' : 'rgba(41, 128, 185, 0.12)');
+
   const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (themeColorMeta) themeColorMeta.content = bg;
 }
