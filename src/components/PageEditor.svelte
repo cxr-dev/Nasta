@@ -1198,20 +1198,19 @@
     position: relative;
     width: 100%;
     padding: 12px;
-    border: 1.5px dashed var(--border-subtle);
+    border: 1.5px dashed var(--accent);
     border-radius: 12px;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--accent);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
-    transition: border-color 150ms, color 150ms;
+    transition: background 150ms ease;
   }
 
-  .add-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+  .add-btn:active {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .search-container {
