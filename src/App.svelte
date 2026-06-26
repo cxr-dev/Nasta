@@ -1105,14 +1105,6 @@ function closeSettingsPanel() {
     margin: 0;
   }
 
-  .empty-state h2 {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.02em;
-  }
-
   .empty-state p {
     font-size: 15px;
     color: var(--text-secondary);

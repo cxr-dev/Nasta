@@ -12,7 +12,8 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "src/**/*.svelte.ts", "playwright.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]

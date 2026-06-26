@@ -53,6 +53,16 @@ test.describe("Segment search", () => {
         "nasta_settings",
         JSON.stringify({ language: "sv" }),
       );
+      // Seed a default page so the quick-add drawer has a target page to add segments to.
+      // Without this, handleQuickAdd returns early because getActivePage() is null.
+      const defaultRoutes = [
+        {
+          id: crypto.randomUUID(),
+          name: "Min rutt",
+          segments: [],
+        },
+      ];
+      localStorage.setItem("nasta_routes", JSON.stringify(defaultRoutes));
     });
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
@@ -107,9 +117,10 @@ test.describe("Segment search", () => {
     );
     await firstResult.click();
 
-    // Single line mock → auto-skips to direction step
-    const directionOption = page.locator(".direction-option").first();
-    await expect(directionOption).toBeVisible({ timeout: 10000 });
+    // Single line + single direction in mock → auto-completes, drawer closes, segment added.
+    // The route page title shows the page name ("Min rutt"), not the stop.
+    // Verify the departure card appears with the stop name.
+    await expect(page.locator("text=Lindarängsvägen")).toBeVisible({ timeout: 10000 });
   });
 
 });

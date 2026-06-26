@@ -272,8 +272,6 @@ export function getFirstTomorrowDeparture(
   const tomorrowIsWeekend = isWeekend(tomorrow);
   const schedule = tomorrowIsWeekend ? table.weekends : table.weekdays;
 
-  // Exact directionCode match first, fall back to any direction on same line
-  let first = schedule.find(e => e.line === line && e.directionCode === directionCode);
-  if (!first) first = schedule.find(e => e.line === line);
+  const first = schedule.find(e => e.line === line && e.directionCode === directionCode);
   return first ? { time: first.time } : null;
 }
