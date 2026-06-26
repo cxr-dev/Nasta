@@ -220,30 +220,8 @@
         5,
       )).map(toLegacyDeparture);
 
-      const allDeps = departureData.get(seg.fromStop.siteId) ?? [];
-      // Filter primarily by line and direction_code. Destination is secondary because
-      // API destination strings may vary slightly (abbreviations, extra stops) and
-      // direction_code is the authoritative discriminator from SL.
-      const live = allDeps.filter((dep) => {
-        if (dep.line !== seg.line) return false;
-        if ((dep.direction_code ?? -1) !== (seg.direction?.code ?? -1)) return false;
-        return true;
-      });
-
-      // Dev diagnostics: log when live filtering yields no results
-      if (import.meta.env.DEV && live.length === 0 && allDeps.length > 0) {
-        const matchingLine = allDeps.filter(dep => dep.line === seg.line);
-        const matchingDirection = matchingLine.filter(dep => (dep.direction_code ?? -1) === (seg.direction?.code ?? -1));
-        console.warn('[SegmentDepartures] Live departures filtered to 0:', {
-          stop: seg.fromStop.name,
-          line: seg.line,
-          direction_code: seg.direction?.code,
-          totalApiDeps: allDeps.length,
-          matchingLine: matchingLine.length,
-          matchingDirection: matchingDirection.length,
-          sampleApiDestinations: allDeps.slice(0, 3).map(d => d.destination),
-        });
-      }
+      const compositeKey = `${seg.fromStop.siteId}|${seg.line}|${seg.direction?.code ?? 0}`;
+      const live = departureData.get(compositeKey) ?? [];
 
       let merged: Departure[];
       if (live.length > 0) {

@@ -28,6 +28,10 @@ let currentRequestId: string | null = null;
 let currentAbortController: AbortController | null = null;
 let activeFetchCount = 0;
 
+function makeCompositeKey(siteId: string, line: string, direction_code: number): string {
+  return `${siteId}|${line}|${direction_code}`;
+}
+
 type Subscriber = (data: Map<string, Departure[]>) => void;
 let _dataSubscribers: Subscriber[] = [];
 
@@ -111,7 +115,7 @@ const fetchAllHybrid = async (
             `[departureStore] Cache hit: ${seg.siteId} (${seg.stopName}) - ${cached.length} departures`,
           );
         cacheResults.set(seg.siteId, cached);
-        results.set(seg.siteId, cached);
+        results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), cached);
       } else {
         if (import.meta.env.DEV)
           console.log(
@@ -154,7 +158,7 @@ const fetchAllHybrid = async (
               return;
             }
 
-            results.set(seg.siteId, apiDepartures);
+            results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), apiDepartures);
 
             _stopDeviations.set(seg.siteId, []);
 
@@ -178,7 +182,7 @@ const fetchAllHybrid = async (
             }
 
             _lastError = "Failed to fetch departures";
-            results.set(seg.siteId, []);
+            results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), []);
           }
         }),
       );
