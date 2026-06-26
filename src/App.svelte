@@ -34,6 +34,9 @@
   let showQuickAdd = $state(false);
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
   let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
+  let quickAddHandleDragging = $state(false);
+  let quickAddHandleStartY = $state(0);
+  let quickAddDragOffset = $state(0);
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -196,7 +199,11 @@
 
   $effect(() => {
     const s = getSettings();
-    setLocale(resolveLocale(s.language ?? 'auto'));
+    const resolved = resolveLocale(s.language ?? 'auto');
+    setLocale(resolved);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = resolved;
+    }
   });
 
   // Watch for page changes and load departures
@@ -269,9 +276,9 @@
     // Exit: slide out
     await new Promise<void>(resolve => {
       gsap.to(pageContentEl!, {
-        x: dir * 25,
+        x: dir * 16,
         opacity: 0,
-        duration: 0.15,
+        duration: 0.1,
         ease: 'power2.in',
         overwrite: 'auto',
         onComplete: resolve,
@@ -285,12 +292,12 @@
 
     // Enter: slide in from opposite side
     if (pageContentEl) {
-      gsap.set(pageContentEl!, { x: dir * -25, opacity: 0 });
+      gsap.set(pageContentEl!, { x: dir * -16, opacity: 0 });
       await new Promise<void>(resolve => {
         gsap.to(pageContentEl!, {
           x: 0,
           opacity: 1,
-          duration: 0.3,
+          duration: 0.18,
           ease: 'power3.out',
           overwrite: 'auto',
           onComplete: () => {
@@ -409,6 +416,7 @@ function closeSettingsPanel() {
 
   function handleTouchStart(e: TouchEvent) {
     if (editing) return;
+    if (e.touches.length !== 1) return;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
     pullTriggered = false;
@@ -610,6 +618,7 @@ function closeSettingsPanel() {
 
 <ErrorBoundary>
   <main
+    id="main-content"
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -652,7 +661,7 @@ function closeSettingsPanel() {
               <div class="empty-illustration">
                 <img src={logoPath} alt="Nästa" width="90" height="90" />
               </div>
-              <h2 class="app-name">Nästa</h2>
+              <h1 class="app-name">Nästa</h1>
               <p>{t.noPagesDesc}</p>
               <button
                 class="empty-cta"
@@ -681,6 +690,7 @@ function closeSettingsPanel() {
 
           {#if pages.length > 1 && !editing && !hasNoRoutes}
             <nav class="bottom-nav" aria-label={t.pageNavigation}>
+              <span class="sr-only">Page {pages.findIndex(p => p.id === activePageId) + 1} of {pages.length}</span>
               <div class="page-dots">
                 {#each pages as p, i (p.id)}
                   <span
@@ -725,7 +735,27 @@ function closeSettingsPanel() {
         tabindex="0"
         onkeydown={(e) => { if (e.key === 'Escape') showQuickAdd = false; }}
       >
-        <div class="quick-add-handle"></div>
+        <div class="quick-add-header">
+          <div class="quick-add-spacer"></div>
+          <div class="quick-add-handle-wrap">
+            <div
+              class="quick-add-handle"
+              role="button"
+              aria-label={t.closePanel}
+              tabindex="0"
+              ontouchstart={(e) => { quickAddHandleDragging = true; quickAddHandleStartY = e.touches[0].clientY; }}
+              ontouchmove={(e) => { if (!quickAddHandleDragging) return; const dy = e.touches[0].clientY - quickAddHandleStartY; quickAddDragOffset = Math.max(0, dy); if (quickAddDrawerEl) gsap.set(quickAddDrawerEl, { y: quickAddDragOffset }); if (quickAddBackdropEl) gsap.set(quickAddBackdropEl, { opacity: 1 - Math.min(quickAddDragOffset / 200, 1) * 0.6 }); }}
+              ontouchend={() => { quickAddHandleDragging = false; if (!quickAddDrawerEl || !quickAddBackdropEl) return; if (quickAddDragOffset > 80) { gsap.to(quickAddDrawerEl, { y: quickAddDrawerEl.offsetHeight, opacity: 0, duration: 0.25, ease: 'power2.in', onComplete: () => { showQuickAdd = false; quickAddDragOffset = 0; } }); gsap.to(quickAddBackdropEl, { opacity: 0, duration: 0.25 }); } else { gsap.to(quickAddDrawerEl, { y: 0, duration: 0.25, ease: 'power2.out' }); gsap.to(quickAddBackdropEl, { opacity: 1, duration: 0.25 }); quickAddDragOffset = 0; } }}
+              ontouchcancel={() => { quickAddHandleDragging = false; if (quickAddDrawerEl) gsap.to(quickAddDrawerEl, { y: 0, duration: 0.2, ease: 'power2.out' }); if (quickAddBackdropEl) gsap.to(quickAddBackdropEl, { opacity: 1, duration: 0.2 }); quickAddDragOffset = 0; }}
+            ></div>
+          </div>
+          <button
+            type="button"
+            class="quick-add-close"
+            aria-label={t.closePanel}
+            onclick={() => showQuickAdd = false}
+          >×</button>
+        </div>
         <SegmentSearch onSelect={handleQuickAdd} />
       </div>
     {/if}
@@ -811,9 +841,19 @@ function closeSettingsPanel() {
     }
   }
 
+  /* Focus-visible: ensure visible outline on all themes */
+  :global(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :global(:focus:not(:focus-visible)) {
+    outline: none;
+  }
+
   /* Global button press feedback for snappy feel */
   :global(button) {
     transition: transform 120ms ease, opacity 120ms ease;
+    -webkit-tap-highlight-color: transparent;
   }
   :global(button:not(.no-scale):active) {
     transform: scale(0.965);
@@ -838,7 +878,9 @@ function closeSettingsPanel() {
     --accent-subtle:   rgba(23,23,23,0.10);
     --page-work:      #2563EB;
     --page-home:      #059669;
-    --color-accent:   #27ae60;
+    --color-success:  #27ae60;
+    --color-error:    #dc2626;
+    --color-warning:  #e8950a;
     --layout-max-width: 480px;
 
     /* Border-radius scale */
@@ -923,6 +965,19 @@ function closeSettingsPanel() {
     min-height: 100%;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Screen-reader-only utility */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .bottom-nav {
@@ -1078,12 +1133,13 @@ function closeSettingsPanel() {
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     transition: transform 150ms ease, box-shadow 150ms ease;
   }
 
   .empty-cta:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+    box-shadow: 0 4px 12px color-mix(in oklch, var(--accent) 25%, transparent);
   }
 
   .empty-cta:active {
@@ -1149,7 +1205,8 @@ function closeSettingsPanel() {
     position: fixed;
     inset: 0;
     z-index: var(--z-overlay);
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.38);
+    backdrop-filter: blur(2px);
     border: none;
     cursor: pointer;
     padding: 0;
@@ -1165,18 +1222,62 @@ function closeSettingsPanel() {
     background: var(--surface);
     border-top-left-radius: var(--radius-lg);
     border-top-right-radius: var(--radius-lg);
-    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
     max-height: 70vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
   }
 
+  .quick-add-header {
+    display: flex;
+    align-items: center;
+    padding: 16px 8px 8px;
+    min-height: 52px;
+  }
+
+  .quick-add-spacer {
+    width: 40px;
+    flex-shrink: 0;
+  }
+
+  .quick-add-handle-wrap {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
   .quick-add-handle {
-    width: 36px;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    margin: 0 auto 12px;
+    width: 40px;
+    height: 5px;
+    background: var(--border-subtle);
+    border-radius: 3px;
+    cursor: grab;
+  }
+
+  .quick-add-handle:active {
+    cursor: grabbing;
+  }
+
+  .quick-add-close {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .quick-add-close:active {
+    opacity: 0.6;
   }
 
   /* ── Tablet breakpoint ── */

@@ -109,7 +109,7 @@ function toTransitDisruptions(messages: DeviationMessage[]): TransitDisruption[]
 }
 
 /** Convert SiteSearchResult[] → TransitStopSearchResult[]. */
-function toSearchResults(results: Array<{ siteId: string; name: string; lat?: number; lon?: number; productClasses?: number[]; matchQuality?: number; type: "stop" | "station" }>): TransitStopSearchResult[] {
+function toSearchResults(results: Array<{ siteId: string; name: string; lat?: number; lon?: number; productClasses?: number[]; matchQuality?: number; type: "stop" | "station"; locality?: string }>): TransitStopSearchResult[] {
   return results.map((r) => ({
     id: toStopEntityId(r.siteId),
     name: r.name,
@@ -120,6 +120,7 @@ function toSearchResults(results: Array<{ siteId: string; name: string; lat?: nu
     }),
     relevance: r.matchQuality != null ? Math.round(r.matchQuality * 20) : 50,
     locationType: r.type === "station" ? "station" : "stop",
+    locality: r.locality,
     providerMetadata: { siteId: r.siteId },
   }));
 }

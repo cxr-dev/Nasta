@@ -1,6 +1,7 @@
 import type { Settings } from '../services/storage';
 import type { TransportType } from '../types/page';
 import { loadSettings, saveSettings } from '../services/storage';
+import { getDarkVariant } from '../themes';
 
 let _settings = $state<Settings>(loadSettings());
 
@@ -9,12 +10,12 @@ export function getSettings(): Settings {
 }
 
 export function setDarkMode(darkMode: boolean) {
-  _settings = { ..._settings, darkMode };
+  _settings = { ..._settings, darkMode, themeVariant: getDarkVariant(_settings.theme ?? 'default') };
   saveSettings(_settings);
 }
 
 export function toggleDarkMode() {
-  _settings = { ..._settings, darkMode: !_settings.darkMode };
+  _settings = { ..._settings, darkMode: !_settings.darkMode, themeVariant: getDarkVariant(_settings.theme ?? 'default') };
   saveSettings(_settings);
 }
 

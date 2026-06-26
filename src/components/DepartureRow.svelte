@@ -87,9 +87,7 @@
     severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--accent)'
   );
 
-  let pillTextColor = $derived(
-    severity === 'critical' ? '#fff' : severity === 'affected' ? '#292929' : 'var(--text-on-accent)'
-  );
+  let pillTextColor = $derived('var(--text-on-accent)');
 
   let badgeBgIntensity = $derived(
     severity === 'critical' ? 'var(--color-critical-subtle)' : severity === 'affected' ? 'var(--color-warning-subtle)' : 'var(--accent-subtle)'
@@ -258,6 +256,7 @@
     cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .card-main:active {
     opacity: 0.95;
@@ -371,10 +370,10 @@
     align-items: center;
     gap: 6px;
     padding: 8px 14px 10px 18px;
-    border-top: 1px solid color-mix(in srgb, var(--strip-color) 20%, var(--border));
+    border-top: 1px solid color-mix(in oklch, var(--strip-color) 20%, var(--border));
     font-size: 12px;
     line-height: 1.3;
-    background: color-mix(in srgb, var(--strip-color) 8%, var(--surface));
+    background: color-mix(in oklch, var(--strip-color) 8%, var(--surface));
   }
   .disrupt-icon {
     width: 14px;

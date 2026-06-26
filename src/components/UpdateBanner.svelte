@@ -98,9 +98,9 @@
   }
 
   .reload-btn {
-    background: color-mix(in srgb, var(--text-on-accent) 20%, transparent);
+    background: color-mix(in oklch, var(--text-on-accent) 20%, transparent);
     color: var(--text-on-accent);
-    border: 1px solid color-mix(in srgb, var(--text-on-accent) 30%, transparent);
+    border: 1px solid color-mix(in oklch, var(--text-on-accent) 30%, transparent);
     border-radius: var(--radius-sm);
     padding: 6px 12px;
     font-size: 14px;
@@ -113,11 +113,11 @@
   }
 
   .reload-btn:hover {
-    background: color-mix(in srgb, var(--text-on-accent) 30%, transparent);
+    background: color-mix(in oklch, var(--text-on-accent) 30%, transparent);
   }
 
   .reload-btn:active {
-    background: color-mix(in srgb, var(--text-on-accent) 15%, transparent);
+    background: color-mix(in oklch, var(--text-on-accent) 15%, transparent);
   }
 
   .dismiss-btn {

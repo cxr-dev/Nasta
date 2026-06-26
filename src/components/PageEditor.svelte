@@ -55,6 +55,7 @@
 
   function handlePageHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation();
+    if (e.touches.length !== 1) return;
     pageDraggingIndex = index;
     pageDropInsertIndex = null;
     pageDragStartX = e.touches[0].clientX;
@@ -563,7 +564,7 @@
     height: 5px;
     border-radius: 3px;
     background: var(--border-subtle);
-    margin: 8px auto 0;
+    margin: 8px auto 6px;
     flex-shrink: 0;
     cursor: grab;
   }
@@ -594,6 +595,7 @@
     justify-content: center;
     border-radius: 8px;
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .back-btn:hover { background: var(--border); }
@@ -632,6 +634,7 @@
     cursor: pointer;
     font-family: inherit;
     position: relative;
+    -webkit-tap-highlight-color: transparent;
     transition: color 0.15s;
   }
 
@@ -727,6 +730,7 @@
     align-items: center;
     justify-content: center;
     touch-action: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .page-drag-handle:active {
@@ -760,7 +764,7 @@
     padding: 6px 10px;
     border-radius: 10px;
     border: 1.5px dashed var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in oklch, var(--accent) 8%, transparent);
     opacity: 0.5;
     flex-shrink: 0;
     animation: ghost-in 0.2s ease-out;
@@ -835,6 +839,7 @@
     font-size: 14px;
     font-weight: 600;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -865,6 +870,7 @@
     font-weight: 700;
     font-family: inherit;
     transition: opacity 150ms;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .add-seg-cta:hover {
@@ -910,6 +916,7 @@
     align-items: center;
     justify-content: center;
     transition: color 150ms, background 150ms;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .page-action-btn:hover {
@@ -918,8 +925,8 @@
   }
 
   .page-action-btn.danger:hover {
-    color: #dc2626;
-    background: #fef2f2;
+    color: var(--color-error);
+    background: color-mix(in oklch, var(--color-error) 10%, transparent);
   }
 
   /* Segment tab */
@@ -942,11 +949,12 @@
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     transition: background 150ms ease;
   }
 
   .add-btn:active {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    background: color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
   .search-container {
@@ -966,6 +974,7 @@
     font-size: 14px;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .cancel-search-btn:hover {
@@ -1079,6 +1088,7 @@
     cursor: pointer;
     font-family: inherit;
     text-align: left;
+    -webkit-tap-highlight-color: transparent;
     transition: border-color 150ms, background 150ms;
     width: 100%;
   }
@@ -1120,6 +1130,7 @@
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     transition: background 150ms;
   }
 
@@ -1163,7 +1174,7 @@
       max-width: none;
       max-height: none;
       margin: 0;
-      border: 1px solid color-mix(in srgb, var(--border-subtle) 72%, #fff 28%);
+      border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, var(--bg) 28%);
       border-radius: 28px;
       box-shadow:
         0 24px 80px rgba(0, 0, 0, 0.18),
@@ -1173,9 +1184,9 @@
     }
 
     .sheet-handle {
-      width: 44px;
-      margin-top: 10px;
-      background: color-mix(in srgb, var(--border-subtle) 70%, #fff 30%);
+      width: 40px;
+      margin-top: 8px;
+      background: color-mix(in oklch, var(--border-subtle) 70%, var(--bg) 30%);
     }
 
     .editor-overlay.open .editor-sheet {

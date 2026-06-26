@@ -458,10 +458,10 @@
 
   .sheet-handle {
     width: 40px;
-    height: 5px;
+    height: 8px;
     border-radius: 3px;
     background: var(--border-subtle);
-    margin: 8px auto 0;
+    margin: 8px auto 6px;
     flex-shrink: 0;
     cursor: grab;
     touch-action: manipulation;
@@ -651,7 +651,7 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--text-on-accent, #fff);
     transition: transform 200ms ease;
     box-shadow: 0 1px 4px rgba(0,0,0,0.2);
   }
@@ -684,8 +684,8 @@
     color: var(--text-muted);
     cursor: pointer;
     padding: 2px;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
     border-radius: 50%;
     display: flex;
@@ -816,7 +816,7 @@
   }
 
   .palette-half.active {
-    background-color: color-mix(in srgb, var(--preview-accent) 15%, var(--preview-bg));
+    background-color: color-mix(in oklch, var(--preview-accent) 15%, var(--preview-bg));
     z-index: 1;
   }
 
@@ -1063,7 +1063,7 @@
       max-width: none;
       max-height: none;
       margin: 0;
-      border: 1px solid color-mix(in srgb, var(--border-subtle) 72%, #fff 28%);
+      border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, var(--bg) 28%);
       border-radius: 28px;
       box-shadow:
         0 24px 80px rgba(0, 0, 0, 0.18),
@@ -1075,7 +1075,7 @@
     .sheet-handle {
       width: 44px;
       margin-top: 10px;
-      background: color-mix(in srgb, var(--border-subtle) 70%, #fff 30%);
+      background: color-mix(in oklch, var(--border-subtle) 70%, var(--bg) 30%);
     }
 
     .settings-overlay.open .settings-sheet {

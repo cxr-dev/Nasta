@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["logosvg.svg", "apple-touch-icon.png", "robots.txt"],
         manifest: {
-          name: "Nästa - Commute Dashboard",
+          name: "Nästa",
           short_name: "Nästa",
           description: "Swedish public transit commute tracker",
           theme_color: "#635BFF",

@@ -83,7 +83,7 @@
   function freshnessDotColor(): string {
     if (lastRefreshTime === undefined) return 'var(--text-ghost)';
     if (isStale) return '#e8950a';
-    return 'var(--color-accent, #27ae60)';
+    return 'var(--color-success, #27ae60)';
   }
 
   function freshnessLabel(): string {
@@ -654,7 +654,7 @@
     margin-top: 4px;
   }
   .quick-add-card:active {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    background: color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
   .error-bar {
@@ -662,10 +662,10 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
+    background: var(--color-error-bg, #fef2f2);
+    border: 1px solid var(--color-error-subtle, #fecaca);
     border-radius: 8px;
-    color: #991b1b;
+    color: var(--color-error, #991b1b);
     font-size: 13px;
   }
   .error-bar button {
@@ -723,7 +723,7 @@
   }
   .sk-line {
     border-radius: 4px;
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
     background-size: 200% 100%;
     animation: sk-shimmer 1.5s ease-in-out infinite;
   }
@@ -735,7 +735,7 @@
     height: 28px;
     border-radius: 4px;
     flex-shrink: 0;
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
     background-size: 200% 100%;
     animation: sk-shimmer 1.5s ease-in-out infinite;
   }

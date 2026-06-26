@@ -571,11 +571,11 @@
   }
 
   .sheet-handle {
-    width: 54px;
+    width: 40px;
     height: 5px;
-    border-radius: var(--radius-full);
+    border-radius: 3px;
     background: var(--border-subtle);
-    margin: 2px auto 4px;
+    margin: 8px auto 6px;
   }
 
   .sheet-header {
@@ -635,6 +635,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .tabs {
@@ -653,6 +654,7 @@
     font-weight: 700;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     transition: background 0.15s, color 0.15s;
   }
 
@@ -684,6 +686,7 @@
     font-weight: 700;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
     transition: background 0.15s, color 0.15s;
   }
 
@@ -725,6 +728,7 @@
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
     transition: background 0.15s, color 0.15s;
     scroll-snap-align: start;
   }
@@ -876,12 +880,12 @@
   }
 
   .open-status.open {
-    background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    background: color-mix(in oklch, var(--color-success) 12%, transparent);
     color: var(--color-success);
   }
 
   .open-status.closed {
-    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+    background: color-mix(in oklch, var(--color-error) 12%, transparent);
     color: var(--color-error);
   }
 
@@ -975,6 +979,7 @@
     cursor: pointer;
     font-family: inherit;
     text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
     transition: background 0.12s, border-color 0.12s;
   }
 
@@ -1044,7 +1049,7 @@
   }
 
   .skeleton-element {
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in srgb, var(--surface) 95%, #000 5%)) 50%, var(--border) 100%);
+    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 95%, #000 5%)) 50%, var(--border) 100%);
     background-size: 200% 100%;
     border-radius: 4px;
   }

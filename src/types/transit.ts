@@ -186,6 +186,7 @@ export interface TransitStopSearchResult {
   /** Distance from search reference point, meters */
   distance?: number;
   locationType: StopLocationType;
+  locality?: string;
   providerMetadata?: Record<string, unknown>;
 }
 

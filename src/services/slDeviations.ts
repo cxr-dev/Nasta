@@ -6,6 +6,7 @@ import type {
   DeviationSeverity,
 } from "../types/deviation";
 import { loadDeviationCache, saveDeviationCache } from "./deviationCache";
+import { parseEntityId } from "../types/transit";
 
 const DEVIATIONS_URL = "https://deviations.integration.sl.se/v1/messages";
 
@@ -136,7 +137,7 @@ export async function getDeviations(
   const params = new URLSearchParams();
   params.set("future", "true");
   const uniqueSiteIds = [...new Set(siteIds.filter(Boolean).map(String))];
-  uniqueSiteIds.forEach((siteId) => params.append("site", siteId));
+  uniqueSiteIds.forEach((siteId) => params.append("site", parseEntityId(siteId).localId));
 
   const uniqueLines = [...new Set(lineDesignations.filter(Boolean))];
   uniqueLines.forEach((line) => {

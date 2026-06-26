@@ -69,6 +69,7 @@ let listEl = $state<HTMLDivElement>();
   // ── Touch Drag (mobile) — attached to the handle element ─────────────────
   function handleHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation(); // prevent the card's expand click from firing
+    if (e.touches.length !== 1) return;
     draggingIndex = index;
     dropInsertIndex = null;
     dragStartX = e.touches[0].clientX;
@@ -302,6 +303,7 @@ let listEl = $state<HTMLDivElement>();
     background: var(--surface);
     overflow: hidden;
     transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .segment.dragging {
@@ -326,6 +328,7 @@ let listEl = $state<HTMLDivElement>();
     font-family: inherit;
     color: inherit;
     transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .segment-body:hover {
@@ -434,6 +437,7 @@ let listEl = $state<HTMLDivElement>();
     align-items: center;
     justify-content: center;
     touch-action: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .drag-handle:active {
@@ -454,12 +458,13 @@ let listEl = $state<HTMLDivElement>();
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .remove-btn:hover {
-    color: #dc2626;
-    border-color: #dc2626;
-    background: #fef2f2;
+    color: var(--color-error);
+    border-color: var(--color-error);
+    background: color-mix(in oklch, var(--color-error) 10%, transparent);
   }
 
   .drop-indicator {
@@ -485,7 +490,7 @@ let listEl = $state<HTMLDivElement>();
     padding: 6px 10px;
     border-radius: 10px;
     border: 1.5px dashed var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    background: color-mix(in oklch, var(--accent) 8%, transparent);
     opacity: 0.5;
     flex-shrink: 0;
     animation: ghost-in 0.2s ease-out;
