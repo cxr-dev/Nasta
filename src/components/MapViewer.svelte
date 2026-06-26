@@ -104,21 +104,18 @@
     const ih = imgEl.naturalHeight || 1984;
     const sw = iw * scale;
     const sh = ih * scale;
-    // Allow 100px overscroll for rubber-band feel, then hard-clamp
     const OVERSCROLL = 100;
-    const maxTx = Math.max(0, (sw - cw) / 2) + OVERSCROLL;
-    const maxTy = Math.max(0, (sh - ch) / 2) + OVERSCROLL;
-    const minTx = Math.min(0, (cw - sw) / 2) - OVERSCROLL;
-    const minTy = Math.min(0, (ch - sh) / 2) - OVERSCROLL;
+    const maxTx = Math.max(0, cw - sw) + OVERSCROLL;
+    const maxTy = Math.max(0, ch - sh) + OVERSCROLL;
+    const minTx = Math.min(0, cw - sw) - OVERSCROLL;
+    const minTy = Math.min(0, ch - sh) - OVERSCROLL;
     tx = Math.max(minTx, Math.min(maxTx, tx));
     ty = Math.max(minTy, Math.min(maxTy, ty));
-    // Check if we're overscrolling; snap back during momentum
-    const hardMaxTx = Math.max(0, (sw - cw) / 2);
-    const hardMaxTy = Math.max(0, (sh - ch) / 2);
-    const hardMinTx = Math.min(0, (cw - sw) / 2);
-    const hardMinTy = Math.min(0, (ch - sh) / 2);
+    const hardMaxTx = Math.max(0, cw - sw);
+    const hardMaxTy = Math.max(0, ch - sh);
+    const hardMinTx = Math.min(0, cw - sw);
+    const hardMinTy = Math.min(0, ch - sh);
     if (tx > hardMaxTx || tx < hardMinTx || ty > hardMaxTy || ty < hardMinTy) {
-      // Spring back
       velocityX = 0;
       velocityY = 0;
       cancelMomentum();
@@ -144,10 +141,10 @@
       const ih = imgEl.naturalHeight || 1984;
       const sw = iw * scale;
       const sh = ih * scale;
-      const hardMaxTx = Math.max(0, (sw - cw) / 2);
-      const hardMaxTy = Math.max(0, (sh - ch) / 2);
-      const hardMinTx = Math.min(0, (cw - sw) / 2);
-      const hardMinTy = Math.min(0, (ch - sh) / 2);
+      const hardMaxTx = Math.max(0, cw - sw);
+      const hardMaxTy = Math.max(0, ch - sh);
+      const hardMinTx = Math.min(0, cw - sw);
+      const hardMinTy = Math.min(0, ch - sh);
       let spring = false;
       if (tx > hardMaxTx) { tx += (hardMaxTx - tx) * 0.3; spring = true; }
       if (tx < hardMinTx) { tx += (hardMinTx - tx) * 0.3; spring = true; }
@@ -249,10 +246,10 @@
     const sw = iw * scale;
     const sh = ih * scale;
     const OVERSCROLL = 120;
-    const maxTx = Math.max(0, (sw - cw) / 2) + OVERSCROLL;
-    const maxTy = Math.max(0, (sh - ch) / 2) + OVERSCROLL;
-    const minTx = Math.min(0, (cw - sw) / 2) - OVERSCROLL;
-    const minTy = Math.min(0, (ch - sh) / 2) - OVERSCROLL;
+    const maxTx = Math.max(0, cw - sw) + OVERSCROLL;
+    const maxTy = Math.max(0, ch - sh) + OVERSCROLL;
+    const minTx = Math.min(0, cw - sw) - OVERSCROLL;
+    const minTy = Math.min(0, ch - sh) - OVERSCROLL;
     tx = Math.max(minTx, Math.min(maxTx, tx));
     ty = Math.max(minTy, Math.min(maxTy, ty));
   }
@@ -265,10 +262,10 @@
     const ih = imgEl.naturalHeight || 1984;
     const sw = iw * scale;
     const sh = ih * scale;
-    const maxTx = Math.max(0, (sw - cw) / 2);
-    const maxTy = Math.max(0, (sh - ch) / 2);
-    const minTx = Math.min(0, (cw - sw) / 2);
-    const minTy = Math.min(0, (ch - sh) / 2);
+    const maxTx = Math.max(0, cw - sw);
+    const maxTy = Math.max(0, ch - sh);
+    const minTx = Math.min(0, cw - sw);
+    const minTy = Math.min(0, ch - sh);
     tx = Math.max(minTx, Math.min(maxTx, tx));
     ty = Math.max(minTy, Math.min(maxTy, ty));
   }
