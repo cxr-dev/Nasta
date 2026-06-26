@@ -11,7 +11,7 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
     target: document.getElementById("app")!,
   });
 
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && !import.meta.env.DEV) {
     const swUrl = getServiceWorkerUrl();
 
     async function registerServiceWorker() {
