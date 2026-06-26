@@ -68,9 +68,10 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `pageStore`               | Page/segment CRUD, reordering, persistence to LocalStorage                     |
 | `departureStore`          | Departure fetching via TransitService, caching, auto-refresh, request ID routing |
 | `deviationStore`          | Disruption fetching (direct slDeviations, not yet migrated), segment health    |
-| `stopAreaStore`           | SiteId→stopAreaId mapping for disruption matching (legacy `svelte/store`)      |
+| `stopAreaStore`           | SiteId→stopAreaId mapping for disruption matching                              |
 | `settingsStore`           | User preferences (theme, transport filtering, refresh interval, language, etc) |
 | `localeStore`             | Automatic locale detection and i18n text retrieval                             |
+| `timeOfDayStore`          | Time-of-day state (morning/afternoon/evening/night) for afterwork logic       |
 
 ## Services
 
@@ -106,6 +107,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `prefetchService.ts`         | Orchestrates venue/event prefetching for segments                   |
 | `nextDepartureResolver.ts`   | Resolves next departure from combined sources                       |
 | `storage.ts`                 | LocalStorage persistence for routes, settings                       |
+| `routeStops.ts`              | Stop-finder + trip planning with persistent cache                  |
 
 ### Processing Libraries
 
@@ -118,6 +120,11 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `disruptionType.ts`          | Classifies disruption text into types (protest, weather, technical) |
 | `stopName.ts`                | Clean stop name normalization                                       |
 | `sw.ts`                      | Service worker URL helper (base-aware)                              |
+| `departureConverter.ts`      | TransitDeparture → legacy Departure conversion                      |
+| `getTransportType.ts`        | Transport mode classification helper                                |
+| `sunPosition.ts`             | Sun position calculation for auto theme                             |
+| `checkVersion.ts`            | PWA version check against deployed version.json                     |
+| `departureIcons.ts`          | Departure icon mapping for transport modes                          |
 | `i18n.ts`                    | Full Swedish + English translations (~550 keys)                     |
 | `timeOfDay.svelte.ts`        | Time-of-day state (morning/afternoon/evening/night)                 |
 
@@ -140,6 +147,11 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 - `PageEditor.svelte` — Page/segment CRUD, stop search, travel time inputs
 - `DirectionSelector.svelte` — Transit direction selection UI
+- `SettingsPanel.svelte` — Settings pane with theme, language, transport filtering
+
+### Onboarding
+
+- `Onboarding.svelte` — First-run guided hint pointing to Settings
 
 ### Disruptions
 
@@ -150,15 +162,18 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 - `FeatureDiscoverySheet.svelte` — Tabbed panel for beer, wine/cocktail, and events. Events tab has binary sort toggle (time/distance) + single-select category chips derived from loaded event categories.
 - `MapPreview.svelte` — Interactive map of segment stops (dynamically imports `maplibre-gl`)
+- `MapViewer.svelte` — Full-screen map view with user location
 
 ### Other
 
 - `Skeleton.svelte` — Loading skeleton placeholders
 - `UpdateBanner.svelte` — PWA update available banner
+- `TransportIcon.svelte` — Transport mode icon component
+- `IconButton.svelte` — Icon button with tooltip
 
 ## Canonical Domain Types
 
-Defined in `src/types/transit.ts` (993 lines, 0 runtime imports):
+Defined in `src/types/transit.ts` (994 lines, 0 runtime imports):
 
 | Type | Purpose |
 | ---- | ------- |
@@ -177,10 +192,11 @@ Legacy types (`types/departure.ts`, `types/page.ts`, `types/deviation.ts`) still
 ### Service Worker (Workbox)
 
 ```
-Navigation requests      → Network First (30-entry cache, instant fallback)
-Journey Planner          → Stale-While-Revalidate (50-entry, 24h TTL)
-SL /sites/{id}/departures → Network First (20-entry, 60s TTL)
-Static assets            → Cache First (hashed filenames)
+Navigation requests          → Network First (30-entry, 1h TTL, 2s timeout)
+Journey Planner              → Stale-While-Revalidate (50-entry, 24h TTL)
+SL /sites/{id}/departures    → Network First (20-entry, 60s TTL, 5s timeout)
+events-data.json             → Network First (5-entry, 12h TTL, 4s timeout)
+Static assets                → Cache First (hashed filenames)
 ```
 
 ### LocalStorage Keys

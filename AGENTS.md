@@ -34,7 +34,7 @@ CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` (with 
 - **CSP is a `<meta>` tag in `index.html`** (not an HTTP header). Update `connect-src` when adding new API origins (Supabase, Overpass, Visit Stockholm, corsproxy.io).
 - **No `<svelte:head>`** — all meta tags live in `index.html`.
 - **Dark mode default.** `defaultSettings.darkMode = true`.
-- **Env vars all optional** (`VITE_*`). No `.env` file needed. `VITE_SUPABASE_ANON_KEY`, `VITE_USE_CORS_PROXY`, `VITE_CORS_PROXY_BASE` exist but optional.
+- **Env vars all optional** (`VITE_*`). No `.env` file needed. `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_DEFAULT_CITY_ID`, `VITE_USE_CORS_PROXY`, `VITE_CORS_PROXY_BASE` exist but optional.
 - **`maplibre-gl`** dynamically imported in `MapPreview.svelte` — code-split automatically.
 - **`opening_hours`** dependency used for venue hours parsing in feature discovery.
 - **Feature discovery** uses three external APIs: Visit Stockholm (events, CORS-enabled), Supabase Edge Function (beer venues), Overpass API (OSM wine/cocktail venues).

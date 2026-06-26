@@ -23,7 +23,7 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Pull-to-refresh** — Manual refresh on mobile with freshness indicator
 - **Swipe navigation** — Horizontal swipe to switch between routes on mobile
 - **Guided first run** — In-app hint points users to Settings for adding segments
-- **Dark mode & themes** — 16 color palettes with two variants each, auto contrast adjustment
+- **Dark mode & themes** — 18 color palettes with two variants each, auto contrast adjustment
 - **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
 - **Transport filtering** — Filter by transport mode (bus/metro/train/tram/boat) with single-mode focus
 - **Walking ETA** — Walking distance and time estimates to stops using Geolocation API
@@ -50,10 +50,10 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 | Package                        | Supported Version |
 | ------------------------------ | ----------------- |
 | Node.js                        | 20+               |
-| `svelte`                       | `^5.55.2`         |
-| `vite`                         | `^7.0.0`          |
-| `@sveltejs/vite-plugin-svelte` | `^7.0.0`          |
-| `vite-plugin-pwa`              | `^1.2.0`          |
+| `svelte`                       | `^5.56.0`         |
+| `vite`                         | `^8.1.0`          |
+| `@sveltejs/vite-plugin-svelte` | `^7.1.0`          |
+| `vite-plugin-pwa`              | `^1.3.0`          |
 
 Keep these versions in a compatible range when upgrading. If a major changes, validate with `pnpm run build` and `pnpm run verify:build` before deploy.
 
@@ -136,7 +136,7 @@ Available in the Settings panel (tap **"Inställningar"**):
 
 | Setting                         | Options                                                     | Default      | Purpose                                        |
 | ------------------------------- | ----------------------------------------------------------- | ------------ | ---------------------------------------------- |
-| **Theme**                       | 16 color palettes × 2 variants                              | "default"    | Visual appearance and colors                   |
+| **Theme**                       | 18 color palettes × 2 variants                              | "default"    | Visual appearance and colors                   |
 | **Theme variant**               | A / B                                                       | "A"          | Flips background/accent colors                 |
 | **Language**                    | Auto, Swedish, English                                      | "auto"       | App UI language                                |
 | **Refresh interval**            | 10-60 seconds                                               | 30 seconds   | How often to fetch departures                  |
@@ -171,7 +171,7 @@ GET /sites/{siteId}/departures         → Get real-time departures
 Base URL: https://journeyplanner.integration.sl.se/v2
 
 GET /stop-finder?name_sf={query}&...   → Search stops & stations
-GET /trip?originId={id}&destId={id}    → Planned trip fallback / direction lookup
+GET /trips?originId={id}&destId={id}   → Planned trip fallback / direction lookup
 ```
 
 ### SL Deviations API
@@ -209,8 +209,8 @@ User Action → Svelte Store → Service → API/Storage
 | `src/stores/deviationStore.svelte.ts`    | Disruption fetching, segment health tracking, severity thresholding                |
 | `src/stores/localeStore.svelte.ts`       | Automatic locale detection, i18n translation store                                 |
 | `src/stores/settingsStore.svelte.ts`     | User preferences: refresh interval, theme, language, disruption display            |
-| `src/stores/stopAreaStore.ts`            | SiteId→stopAreaId mapping for disruption matching                                  |
-| `src/stores/timeOfDay.svelte.ts`         | Time-of-day state (morning/afternoon/evening/night)                                |
+| `src/stores/stopAreaStore.svelte.ts`     | SiteId→stopAreaId mapping for disruption matching                                  |
+| `src/lib/stores/timeOfDay.svelte.ts`      | Time-of-day state (morning/afternoon/evening/night)                                |
 | `src/providers/registry.ts`              | O(1) prefix-hash provider registry, register/resolve/withFeature                   |
 | `src/providers/init.ts`                  | Singleton ProviderRegistry + TransitService instantiation                          |
 | `src/providers/slProvider.ts`            | SL provider wrapping slApi + slDeviations + timetableCache behind TransitProvider  |
@@ -229,6 +229,7 @@ User Action → Svelte Store → Service → API/Storage
 | `src/services/prefetchService.ts`        | Orchestrates venue/event prefetching for segments                                  |
 | `src/services/nextDepartureResolver.ts`  | Resolves next departure from combined sources                                      |
 | `src/services/persistentCache.ts`        | Generic persistent cache layer                                                     |
+| `src/services/routeStops.ts`             | Stop-finder + trip planning with persistent cache                                  |
 | `src/lib/departureDisplay.ts`            | Merges live and predicted departures, computes minutes remaining                   |
 | `src/lib/departureDeduplication.ts`      | Deduplicates arrivals by stable key (avoids double-counting)                       |
 | `src/lib/sourceClassification.ts`        | Detects external timetable sources (ferries, etc.)                                 |
@@ -237,7 +238,12 @@ User Action → Svelte Store → Service → API/Storage
 | `src/lib/disruptionType.ts`              | Classifies disruption text into types (protest, weather, technical, etc.)          |
 | `src/lib/stopName.ts`                    | Clean stop name normalization                                                      |
 | `src/lib/sw.ts`                          | Service worker URL helper                                                          |
-| `src/themes.ts`                          | 16 theme palettes with two variants, automatic contrast calculation                |
+| `src/lib/departureConverter.ts`          | TransitDeparture → legacy Departure conversion                                     |
+| `src/lib/getTransportType.ts`            | Transport mode classification helper                                               |
+| `src/lib/sunPosition.ts`                 | Sun position calculation for auto theme                                            |
+| `src/lib/checkVersion.ts`                | PWA version check against deployed version.json                                    |
+| `src/lib/departureIcons.ts`              | Departure icon mapping for transport modes                                         |
+| `src/themes.ts`                          | 18 theme palettes with two variants, automatic contrast calculation                |
 
 ### PWA & Caching
 
@@ -272,7 +278,7 @@ Both loaded asynchronously from [Fontshare](https://fontshare.com) to avoid rend
 
 ### Themes
 
-16 built-in color palettes toggle via settings (toggle in-app). Themes dynamically compute light/dark contrast and update CSS custom properties on `:root`. Border, text, and surface colors automatically adapt to background luminance.
+18 built-in color palettes toggle via settings (toggle in-app). Themes dynamically compute light/dark contrast and update CSS custom properties on `:root`. Border, text, and surface colors automatically adapt to background luminance.
 
 See [`src/themes.ts`](src/themes.ts) for the full palette list.
 

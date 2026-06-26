@@ -157,7 +157,7 @@ Response shape:
 ### Trip
 
 ```
-GET /trip?originId={originId}&destId={destId}&date={date}&time={time}
+GET /trips?originId={originId}&destId={destId}&date={date}&time={time}
 ```
 
 Used for planned trip fallback and direction lookup when needed.
@@ -205,6 +205,7 @@ interface SegmentDirection {
   destination: string;
   stopPointId: string;
   via?: string;                        // Optional intermediate stop
+  intermediateStops?: string[];         // Stops between user stop and destination
 }
 
 interface Segment {
@@ -223,8 +224,6 @@ interface Page {
   name: string;
   segments: Segment[];
 }
-
-type Route = Page; // Backwards-compatible alias
 ```
 
 ### Search Types
