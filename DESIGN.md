@@ -269,7 +269,7 @@ Nästa uses a **flat-by-default** elevation model. Depth is conveyed through ton
 ### Don't:
 - **Don't** use gradient text (`background-clip: text` + gradient). Single solid color only.
 - **Don't** use side-stripe borders (colored `border-left` / `border-right` greater than 1px as decoration).
-- **Don't** use glassmorphism (`backdrop-filter: blur` + semi-transparent bg) except on the defined floating action bar and modal backdrop. Never on cards or panels.
+- **Don't** use glassmorphism (`backdrop-filter: blur` + semi-transparent bg) except on the defined floating action bar, modal backdrop, and MapViewer close button. Never on cards or panels.
 - **Don't** pair `border: 1px solid` with `box-shadow` blur ≥ 16px on the same element. Pick one: a solid border at `--border`, OR a shadow (action bar uses shadow; cards use border).
 - **Don't** use card radii larger than 14px for departure cards. The 20px radius is reserved for the feature drawer; 16px for the action bar button.
 - **Don't** apply borders to cards that have a disruption strip. Disrupted cards use a transparent border to avoid double-stroke with the strip.

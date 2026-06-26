@@ -24,6 +24,7 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
   import SegmentSearch from './components/SegmentSearch.svelte';
+  import IconButton from './components/IconButton.svelte';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
 
@@ -749,12 +750,11 @@ function closeSettingsPanel() {
               ontouchcancel={() => { quickAddHandleDragging = false; if (quickAddDrawerEl) gsap.to(quickAddDrawerEl, { y: 0, duration: 0.2, ease: 'power2.out' }); if (quickAddBackdropEl) gsap.to(quickAddBackdropEl, { opacity: 1, duration: 0.2 }); quickAddDragOffset = 0; }}
             ></div>
           </div>
-          <button
-            type="button"
-            class="quick-add-close"
-            aria-label={t.closePanel}
-            onclick={() => showQuickAdd = false}
-          >×</button>
+          <IconButton onclick={() => showQuickAdd = false} ariaLabel={t.closePanel}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M6 6l12 12M18 6 6 18"/>
+            </svg>
+          </IconButton>
         </div>
         <SegmentSearch onSelect={handleQuickAdd} />
       </div>
@@ -886,7 +886,7 @@ function closeSettingsPanel() {
     /* Border-radius scale */
     --radius-sm: 8px;
     --radius-md: 12px;
-    --radius-lg: 16px;
+    --radius-lg: 14px;
     --radius-full: 999px;
 
     /* Z-index scale */
@@ -1229,7 +1229,7 @@ function closeSettingsPanel() {
   }
 
   .quick-add-spacer {
-    width: 40px;
+    width: 36px;
     flex-shrink: 0;
   }
 
@@ -1251,26 +1251,6 @@ function closeSettingsPanel() {
     cursor: grabbing;
   }
 
-  .quick-add-close {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    line-height: 1;
-    padding: 0;
-  }
-
-  .quick-add-close:active {
-    opacity: 0.6;
-  }
 
   /* ── Tablet breakpoint ── */
   @media (min-width: 768px) {
