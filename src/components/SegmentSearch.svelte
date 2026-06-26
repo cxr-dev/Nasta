@@ -244,7 +244,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
     }
 
     try {
-      const rawDeps = await transitService.getDepartures(station.id, station.name, undefined, undefined);
+      const rawDeps = await transitService.getDepartures(station.id, station.name);
       // Supplement with routes known from timetable cache (covers overnight / off-peak)
       const cachedRoutes = await transitService.getKnownRoutes(station.id, station.name);
       for (const route of cachedRoutes) {
@@ -270,6 +270,13 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
       if (uniqueLineSet.size === 1) {
         const onlyLine = allDepartures.find(d => d.line === allDepartures[0].line)!;
         selectedLine = onlyLine;
+        // Auto-complete when both line and direction are singular
+        const dirDeps = allDepartures.filter(d => d.line === onlyLine.line);
+        const uniqueDirSet = new Set(dirDeps.map(d => d.directionCode));
+        if (uniqueDirSet.size === 1) {
+          handleDirectionSelect({ code: dirDeps[0].directionCode, destination: dirDeps[0].destination, stopPointId: '' });
+          return;
+        }
         step = 'direction';
         void fetchDirectionStopSequences();
         return;
@@ -571,7 +578,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
           {@const modes = station.modes}
           {@const isSjostad = station.id.startsWith('sjostad:')}
           {@const hasNotableTypes = modes.some(t => t === 'boat' || t === 'train')}
-          {@const showBadges = isSjostad || hasNotableTypes || nameCount > 1}
+          {@const showBadges = isSjostad || hasNotableTypes || nameCount > 1 || !!station.locality}
           {@const primaryType = getPrimaryType(station)}
           <button class="item" onclick={() => selectStation(station)}>
             <div class="item-top-row">
@@ -593,6 +600,9 @@ function filterIconType(type: TransportFilterOption): TransportType {
                   <div class="badges">
                     {#if isSjostad}
                       <span class="badge-label">Sjöstadstrafiken</span>
+                    {/if}
+                    {#if station.locality}
+                      <span class="badge-locality">{station.locality}</span>
                     {/if}
                     {#each modes as mode}
                       <TransportIcon type={mode as import('../types/page').TransportType} size={14} />
@@ -747,8 +757,8 @@ function filterIconType(type: TransportFilterOption): TransportType {
   .error {
     padding: 16px;
     text-align: center;
-    color: #dc2626;
-    background: #fef2f2;
+    color: var(--color-error, #dc2626);
+    background: var(--color-error-bg, #fef2f2);
     border-radius: 8px;
     margin-top: 8px;
   }
@@ -1068,6 +1078,11 @@ function filterIconType(type: TransportFilterOption): TransportType {
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+  }
+
+  .step-node:first-child,
+  .step-node:last-child {
+    flex: 1;
   }
 
   .step-dot {

@@ -130,9 +130,34 @@
     return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
   }
 
+  function lockBodyScroll(lock: boolean) {
+    document.documentElement.style.overscrollBehavior = lock ? 'none' : '';
+    document.documentElement.style.touchAction = lock ? 'none' : '';
+  }
+
+  function stopTouchPropagation(e: TouchEvent) {
+    e.stopPropagation();
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
+  }
+
+  $effect(() => {
+    if (isFullscreen) {
+      lockBodyScroll(true);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      lockBodyScroll(false);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  });
+
   function toggleFullscreen() {
     if (isFullscreen) {
       isClosing = true;
+      lockBodyScroll(false);
       setTimeout(() => {
         isFullscreen = false;
         isClosing = false;
@@ -162,7 +187,15 @@
         </div>
       {/if}
 
-      <div class="map-container" class:fullscreen={isFullscreen} class:closing={isClosing}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="map-container"
+        class:fullscreen={isFullscreen}
+        class:closing={isClosing}
+        ontouchstart={isFullscreen ? stopTouchPropagation : undefined}
+        ontouchmove={isFullscreen ? stopTouchPropagation : undefined}
+        ontouchend={isFullscreen ? stopTouchPropagation : undefined}
+      >
         <div
           class="mini-map"
           bind:this={mapDiv}
@@ -251,7 +284,7 @@
     display: block;
     border-radius: 12px;
     overflow: hidden;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, #000 12%), var(--surface));
+    background: linear-gradient(135deg, color-mix(in oklch, var(--surface) 88%, #000 12%), var(--surface));
   }
   .journey-actions {
     display: flex;
@@ -284,7 +317,7 @@
   }
   .map-link-primary:active {
     transform: scale(0.96);
-    background: color-mix(in srgb, var(--accent) 85%, #000);
+    background: color-mix(in oklch, var(--accent) 85%, #000);
   }
   .map-link-secondary {
     color: var(--text-secondary);
