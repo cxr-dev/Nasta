@@ -175,7 +175,7 @@
     <div class="meta-col">
       <span class="route-number" data-testid="segment-line">{segment.line}</span>
       <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
-      <span class="to-dest">→ {stopLabel(segment.direction?.destination)}</span>
+      <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
     </div>
 
     <div class="time-col">
@@ -288,7 +288,7 @@
     justify-content: center;
     min-width: 0;
     flex: 1;
-    gap: 1px;
+    gap: 2px;
   }
   .route-number {
     font-size: 19px;
@@ -300,20 +300,26 @@
     text-overflow: ellipsis;
   }
   .from-stop {
-    font-size: 12px;
-    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
   }
   .to-dest {
-    font-size: 11px;
-    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
+  }
+  .route-arrow {
+    color: var(--accent);
+    font-weight: 700;
   }
 
   .time-col {
