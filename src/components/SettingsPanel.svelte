@@ -2,9 +2,10 @@
   import { THEMES, previewStyle } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
-  import { infoCircle } from '../icons/departureIcons';
+  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
   import IconButton from './IconButton.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupDisruptedSegments, setLanguage, setTheme } from '../stores/settingsStore.svelte';
+  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme } from '../stores/settingsStore.svelte';
+  import type { SortMode, GroupingMode } from '../types/page';
 
   let t = $derived(getT());
 
@@ -21,6 +22,22 @@
   let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
+
+  let sortSettingsOptions = $derived([
+    { mode: 'manual' as SortMode, icon: gripIcon, label: t.sortManual },
+    { mode: 'time' as SortMode, icon: clockIcon, label: t.sortTime },
+    { mode: 'station' as SortMode, icon: sortAlphaIcon, label: t.sortStation },
+    { mode: 'line' as SortMode, icon: sortNumericIcon, label: t.sortLine },
+    { mode: 'transport' as SortMode, icon: busFrontIcon, label: t.sortTransport },
+    { mode: 'distance' as SortMode, icon: mapPinIcon, label: t.sortDistance },
+  ]);
+
+  let groupingSettingsOptions = $derived([
+    { mode: 'none' as GroupingMode, label: t.groupNone },
+    { mode: 'disrupted' as GroupingMode, label: t.groupDisrupted },
+    { mode: 'station' as GroupingMode, label: t.groupStation },
+    { mode: 'transport' as GroupingMode, label: t.groupTransport },
+  ]);
 
   let swipeStartY = 0;
 
@@ -239,48 +256,95 @@
           {/if}
         </div>
 
-        <div class="feature-group">
-          <h3 class="group-title">{t.groupDisruptedSegments}</h3>
+        <!-- Location Section -->
+        <div class="settings-section">
+          <div class="section-header">
+            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html infoCircle}</svg>
+            <span>{t.location}</span>
+          </div>
           <label class="toggle-row">
             <div class="toggle-label">
-              <span class="toggle-name">{t.groupDisruptedSegments}</span>
-              <span class="toggle-desc">{t.groupDisruptedSegmentsDesc}</span>
+              <span class="toggle-name">{t.locationServices}</span>
             </div>
             <button
               class="toggle-btn no-scale"
-              class:on={settings.groupDisruptedSegments ?? false}
-              onclick={() => setGroupDisruptedSegments(!(settings.groupDisruptedSegments ?? false))}
-              aria-label={t.groupDisruptedSegments}
+              class:on={settings.locationServicesEnabled ?? false}
+              onclick={() => setLocationServicesEnabled(!(settings.locationServicesEnabled ?? false))}
+              aria-label={t.locationServices}
               role="switch"
-              aria-checked={settings.groupDisruptedSegments ?? false}
+              aria-checked={settings.locationServicesEnabled ?? false}
             >
               <span class="toggle-knob"></span>
             </button>
           </label>
+          {#if settings.locationServicesEnabled}
+            <label class="toggle-row sub-row">
+              <div class="toggle-label">
+                <span class="toggle-name">{t.walkingEta}</span>
+                <span class="toggle-desc">{t.walkingEtaDesc}</span>
+              </div>
+              <button
+                class="toggle-btn no-scale"
+                class:on={settings.walkingEtaEnabled ?? false}
+                onclick={() => setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? false))}
+                aria-label={t.walkingEta}
+                role="switch"
+                aria-checked={settings.walkingEtaEnabled ?? false}
+              >
+                <span class="toggle-knob"></span>
+              </button>
+            </label>
+          {/if}
         </div>
 
-        <div class="feature-group">
-          <h3 class="group-title">{t.walkingEta}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.walkingEta}</span>
-              <span class="toggle-desc">{t.walkingEtaDesc}</span>
-            </div>
-            <button
-              class="toggle-btn no-scale"
-              class:on={settings.walkingEtaEnabled ?? false}
-              onclick={() => {
-                const next = !(settings.walkingEtaEnabled ?? false);
-                setWalkingEtaEnabled(next);
-                setLocationServicesEnabled(next);
-              }}
-              aria-label={t.walkingEta}
-              role="switch"
-              aria-checked={settings.walkingEtaEnabled ?? false}
-            >
-              <span class="toggle-knob"></span>
-            </button>
-          </label>
+        <!-- Sort Section -->
+        <div class="settings-section">
+          <div class="section-header">
+            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html arrowUpDown}</svg>
+            <span>{t.defaultSort}</span>
+          </div>
+          <div class="radio-group" role="radiogroup" aria-label={t.defaultSort}>
+            {#each sortSettingsOptions as opt}
+              {@const disabled = opt.mode === 'distance' && !(settings.locationServicesEnabled ?? false)}
+              <label class="radio-row" class:disabled>
+                <input
+                  type="radio"
+                  name="defaultSort"
+                  value={opt.mode}
+                  checked={settings.sortMode === opt.mode}
+                  disabled={disabled}
+                  onchange={() => setSortMode(opt.mode)}
+                />
+                <svg viewBox="0 0 18 18" fill="none" class="radio-icon">{@html opt.icon}</svg>
+                <span class="radio-label">{opt.label}</span>
+                {#if disabled}
+                  <span class="radio-hint" title={t.sortDistanceDisabled}>ⓘ</span>
+                {/if}
+              </label>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Grouping Section -->
+        <div class="settings-section">
+          <div class="section-header">
+            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html layersIcon}</svg>
+            <span>{t.groupBy}</span>
+          </div>
+          <div class="radio-group" role="radiogroup" aria-label={t.groupBy}>
+            {#each groupingSettingsOptions as opt}
+              <label class="radio-row">
+                <input
+                  type="radio"
+                  name="groupingMode"
+                  value={opt.mode}
+                  checked={settings.groupingMode === opt.mode}
+                  onchange={() => setGroupingMode(opt.mode)}
+                />
+                <span class="radio-label">{opt.label}</span>
+              </label>
+            {/each}
+          </div>
         </div>
 
         <div class="feature-group">
@@ -587,6 +651,97 @@
     margin: 0;
   }
 
+  /* Sort & Group settings sections */
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .section-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+  }
+
+  .sub-row {
+    padding-left: 8px;
+  }
+
+  .radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .radio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .radio-row:hover {
+    background: var(--accent-subtle);
+  }
+
+  .radio-row input[type="radio"] {
+    display: none;
+  }
+
+  .radio-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.6;
+    color: var(--text);
+  }
+
+  .radio-row:has(input:checked) .radio-icon {
+    opacity: 1;
+    color: var(--accent);
+  }
+
+  .radio-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: left;
+  }
+
+  .radio-row:has(input:checked) .radio-label {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .radio-row.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .radio-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* Existing styles continue */
   .toggle-row {
     display: flex;
     align-items: center;

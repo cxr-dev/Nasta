@@ -1,4 +1,4 @@
-import type { Page, Segment } from "../types/page";
+import type { Page, Segment, SortMode } from "../types/page";
 import { loadPages, savePages } from "../services/storage";
 
 let _pages = $state<Page[]>(loadPages());
@@ -123,6 +123,14 @@ export function deletePage(id: string): void {
 
 export function setActivePage(id: string): void {
   _activePageId = id;
+}
+
+export function setPageSortMode(pageId: string, mode: SortMode): void {
+  const page = _pages.find(p => p.id === pageId);
+  if (!page) return;
+  page.sortMode = mode;
+  savePages(_pages);
+  notify();
 }
 
 

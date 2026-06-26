@@ -1,4 +1,4 @@
-import type { Page, TransportType } from '../types/page';
+import type { Page, TransportType, SortMode, GroupingMode } from '../types/page';
 
 const ROUTES_KEY = 'nasta_routes';
 const SETTINGS_KEY = 'nasta_settings';
@@ -23,6 +23,8 @@ export interface Settings {
   afterworkTypes: Array<'beer' | 'wine' | 'cocktail'>;
   eventsEnabled: boolean;
   groupDisruptedSegments: boolean;
+  sortMode: SortMode;
+  groupingMode: GroupingMode;
 }
 
 const defaultSettings: Settings = {
@@ -45,6 +47,8 @@ const defaultSettings: Settings = {
   afterworkTypes: [],
   eventsEnabled: false,
   groupDisruptedSegments: false,
+  sortMode: 'manual',
+  groupingMode: 'none',
 };
 
 export function loadPages(): Page[] {
@@ -103,6 +107,9 @@ export function loadSettings(): Settings {
     const data = localStorage.getItem(SETTINGS_KEY);
     const parsed = data ? JSON.parse(data) : {};
     const merged = { ...defaultSettings, ...parsed };
+    if (parsed.groupDisruptedSegments === true && !parsed.groupingMode) {
+      merged.groupingMode = 'disrupted';
+    }
     if (typeof parsed.locationServicesEnabled !== 'boolean') {
       const legacyLocationPrompt = localStorage.getItem('nasta_location_prompted');
       if (legacyLocationPrompt === 'enabled') {

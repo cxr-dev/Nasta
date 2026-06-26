@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { Page, Segment } from "../types/page";
+  import type { Page, Segment, SortMode, GroupingMode, TransportType } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore.svelte";
-  import { getPages, getActivePageId } from "../stores/pageStore.svelte";
+  import { getPages, getActivePageId, setPageSortMode } from "../stores/pageStore.svelte";
   import { transitService } from "../providers/init";
   import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
   import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
@@ -18,7 +18,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, arrowUpDown, clockIcon, mapPinIcon, busFrontIcon, sortNumericIcon, sortAlphaIcon, gripIcon, chevronDown, checkIcon } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
@@ -70,6 +70,10 @@
   let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
+
+  // Sort flyout state
+  let showSortFlyout = $state(false);
+  let sortFlyoutEl: HTMLDivElement | undefined = $state();
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -180,29 +184,178 @@
   let segmentDeps = $state<Departure[][]>([]);
   let segmentSleeping = $state<Array<{ isSleeping: boolean; nextTime: string | null }>>([]);
 
-  let segmentGroups = $derived.by(() => {
-    const segs = route.segments ?? [];
-    const group = settings.groupDisruptedSegments ?? false;
+  // Sort options
+  let sortOptions = $derived([
+    { mode: 'manual' as SortMode, icon: gripIcon, label: t.sortManual },
+    { mode: 'time' as SortMode, icon: clockIcon, label: t.sortTime },
+    { mode: 'station' as SortMode, icon: sortAlphaIcon, label: t.sortStation },
+    { mode: 'line' as SortMode, icon: sortNumericIcon, label: t.sortLine },
+    { mode: 'transport' as SortMode, icon: busFrontIcon, label: t.sortTransport },
+    { mode: 'distance' as SortMode, icon: mapPinIcon, label: t.sortDistance },
+  ]);
 
-    if (!group) {
-      // Default: flat list in user-defined order
-      const all: Array<{ segment: Segment; originalIndex: number }> = segs.map(
-        (seg, i) => ({ segment: seg, originalIndex: i }),
-      );
-      return { all, disrupted: [] as typeof all, hasDisrupted: false };
+  let activeSortMode = $derived(route.sortMode ?? 'manual');
+
+  function sortModeIcon(mode: SortMode): string {
+    return sortOptions.find(o => o.mode === mode)?.icon ?? gripIcon;
+  }
+
+  // Haversine distance
+  function haversineDistance(a: [number, number], b: [number, number]): number {
+    const R = 6371000;
+    const dLat = (b[0] - a[0]) * Math.PI / 180;
+    const dLon = (b[1] - a[1]) * Math.PI / 180;
+    const lat1 = a[0] * Math.PI / 180;
+    const lat2 = b[0] * Math.PI / 180;
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLon = Math.sin(dLon / 2);
+    const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+    return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  function sortByNextDeparture(segs: Segment[]): Segment[] {
+    return [...segs].sort((a, b) => {
+      const keyA = `${a.fromStop.siteId}|${a.line}|${a.direction?.code ?? 0}`;
+      const keyB = `${b.fromStop.siteId}|${b.line}|${b.direction?.code ?? 0}`;
+      const depsA = departureData.get(keyA) ?? [];
+      const depsB = departureData.get(keyB) ?? [];
+      const timeA = depsA[0]?.expectedAt ?? Infinity;
+      const timeB = depsB[0]?.expectedAt ?? Infinity;
+      return timeA - timeB;
+    });
+  }
+
+  const TRANSPORT_ORDER: Record<string, number> = {
+    metro: 0, train: 1, bus: 2, tram: 3, boat: 4
+  };
+
+  function sortByTransportType(segs: Segment[]): Segment[] {
+    return [...segs].sort((a, b) => {
+      const orderA = TRANSPORT_ORDER[a.transportType] ?? 99;
+      const orderB = TRANSPORT_ORDER[b.transportType] ?? 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return sortByNextDeparture([a, b]).indexOf(a) === 0 ? -1 : 1;
+    });
+  }
+
+  function sortByLineNumber(segs: Segment[]): Segment[] {
+    return [...segs].sort((a, b) => {
+      const numA = parseInt(a.line, 10);
+      const numB = parseInt(b.line, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      if (!isNaN(numA)) return -1;
+      if (!isNaN(numB)) return 1;
+      return a.line.localeCompare(b.line);
+    });
+  }
+
+  function sortByDistance(segs: Segment[], userLoc: [number, number] | null): Segment[] {
+    if (!userLoc) return segs;
+    return [...segs].sort((a, b) => {
+      const distA = a.fromStop.coord ? haversineDistance(userLoc, a.fromStop.coord) : Infinity;
+      const distB = b.fromStop.coord ? haversineDistance(userLoc, b.fromStop.coord) : Infinity;
+      return distA - distB;
+    });
+  }
+
+  let sortedSegments = $derived.by(() => {
+    const segs = [...(route.segments ?? [])];
+    const mode: SortMode = route.sortMode ?? 'manual';
+    switch (mode) {
+      case 'time': return sortByNextDeparture(segs);
+      case 'station': return segs.sort((a, b) => a.fromStop.name.localeCompare(b.fromStop.name, 'sv'));
+      case 'transport': return sortByTransportType(segs);
+      case 'line': return sortByLineNumber(segs);
+      case 'distance': return sortByDistance(segs, userLocation);
+      default: return segs;
+    }
+  });
+
+  // Flyout
+  function toggleSortFlyout() { showSortFlyout = !showSortFlyout; }
+  function selectSortMode(mode: SortMode) {
+    setPageSortMode(route.id, mode);
+    showSortFlyout = false;
+  }
+
+  $effect(() => {
+    if (!showSortFlyout || !sortFlyoutEl) return;
+    function handleClick(e: MouseEvent) {
+      if (sortFlyoutEl && !sortFlyoutEl.contains(e.target as Node)) {
+        showSortFlyout = false;
+      }
+    }
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  });
+
+  function transportTypeLabel(type: TransportType): string {
+    const map: Record<TransportType, string> = {
+      bus: t.transportBus,
+      train: t.transportTrain,
+      metro: t.transportMetro,
+      tram: t.transportTram,
+      boat: t.transportBoat,
+    };
+    return map[type] ?? type;
+  }
+
+  let segmentGroups = $derived.by(() => {
+    const segs = sortedSegments;
+    const mode: GroupingMode = settings.groupingMode ?? 'none';
+
+    if (mode === 'none') {
+      const items = segs.map((seg, i) => ({ segment: seg, originalIndex: i }));
+      return { groups: [{ label: null as string | null, items }] };
     }
 
-    // Grouped mode: normal first, disrupted below with section label
-    const all: Array<{ segment: Segment; originalIndex: number }> = [];
-    const disrupted: Array<{ segment: Segment; originalIndex: number }> = [];
-    segs.forEach((seg, i) => {
-      const health = deviationHealthBySegment.get(seg.id);
-      const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
-      const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold);
-      const isDisrupted = display.messages.length > 0;
-      (isDisrupted ? disrupted : all).push({ segment: seg, originalIndex: i });
-    });
-    return { all, disrupted, hasDisrupted: disrupted.length > 0 };
+    if (mode === 'disrupted') {
+      const all: Array<{ segment: Segment; originalIndex: number }> = [];
+      const disrupted: Array<{ segment: Segment; originalIndex: number }> = [];
+      segs.forEach((seg, i) => {
+        const health = deviationHealthBySegment.get(seg.id);
+        const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
+        const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold);
+        const isDisrupted = display.messages.length > 0;
+        (isDisrupted ? disrupted : all).push({ segment: seg, originalIndex: i });
+      });
+      const groups = [];
+      if (all.length > 0) groups.push({ label: null as string | null, items: all });
+      if (disrupted.length > 0) groups.push({ label: t.sectionDisrupted, items: disrupted });
+      return { groups };
+    }
+
+    if (mode === 'station') {
+      const map = new Map<string, Array<{ segment: Segment; originalIndex: number }>>();
+      segs.forEach((seg, i) => {
+        const key = seg.fromStop.name;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push({ segment: seg, originalIndex: i });
+      });
+      const groups = [...map.entries()]
+        .sort(([a], [b]) => a.localeCompare(b, 'sv'))
+        .map(([label, items]) => ({ label, items }));
+      return { groups };
+    }
+
+    if (mode === 'transport') {
+      const map = new Map<TransportType, Array<{ segment: Segment; originalIndex: number }>>();
+      segs.forEach((seg, i) => {
+        const key = seg.transportType;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push({ segment: seg, originalIndex: i });
+      });
+      const groups = [...map.entries()]
+        .sort(([a], [b]) => (TRANSPORT_ORDER[a] ?? 99) - (TRANSPORT_ORDER[b] ?? 99))
+        .map(([transportType, items]) => ({
+          label: transportTypeLabel(transportType),
+          items,
+        }));
+      return { groups };
+    }
+
+    const items = segs.map((seg, i) => ({ segment: seg, originalIndex: i }));
+    return { groups: [{ label: null as string | null, items }] };
   });
 
   async function loadSegmentDeps() {
@@ -343,6 +496,14 @@
   <!-- Page nav header -->
   <header class="page-chrome">
     <h1 class="page-title">{route.name}</h1>
+    <button class="header-icon-btn sort-toggle" onclick={toggleSortFlyout} aria-label={t.sortBy}>
+      <svg viewBox="0 0 20 20" fill="none">
+        {@html sortModeIcon(activeSortMode)}
+      </svg>
+      <svg viewBox="0 0 12 12" fill="none" class="sort-chevron">
+        {@html chevronDown}
+      </svg>
+    </button>
     <div class="header-actions">
       <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.mapViewerLabel}>
         <svg viewBox="0 0 24 24" fill="none">
@@ -365,6 +526,37 @@
       {/if}
     </div>
   </header>
+
+  {#if showSortFlyout}
+    <div class="sort-flyout" bind:this={sortFlyoutEl} role="listbox" aria-label={t.sortBy}>
+      {#each sortOptions as opt}
+        {@const isActive = activeSortMode === opt.mode}
+        {@const isDisabled = opt.mode === 'distance' && !settings.locationServicesEnabled}
+        <button
+          class="sort-option"
+          class:active={isActive}
+          class:disabled={isDisabled}
+          onclick={() => !isDisabled && selectSortMode(opt.mode)}
+          role="option"
+          aria-selected={isActive}
+          disabled={isDisabled}
+        >
+          <svg viewBox="0 0 18 18" fill="none" class="sort-option-icon">
+            {@html opt.icon}
+          </svg>
+          <span class="sort-option-label">{opt.label}</span>
+          {#if isActive}
+            <svg viewBox="0 0 16 16" fill="none" class="sort-option-check">
+              {@html checkIcon}
+            </svg>
+          {/if}
+          {#if isDisabled}
+            <span class="sort-option-hint" title={t.sortDistanceDisabled}>ⓘ</span>
+          {/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   <MapViewer isOpen={showMap} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
 
@@ -422,51 +614,11 @@
         {/each}
       </div>
     {:else}
-      {#each segmentGroups.all as item (item.segment.id)}
-        {@const deps = segmentDeps[item.originalIndex] ?? []}
-        {@const sleepInfo = segmentSleeping[item.originalIndex] ?? { isSleeping: false, nextTime: null }}
-        {@const departure = deps[0]}
-        {@const subsequent = formatSubsequent(deps)}
-        {@const hasDeparture = deps.length > 0 && !!departure}
-        {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
-        {@const health = deviationHealthBySegment.get(item.segment.id)}
-        {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
-        {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold)}
-        {@const severity = disruptionDisplay.severity}
-        {@const displayDevs = disruptionDisplay.messages}
-        {@const hasDisruption = displayDevs.length > 0}
-        {@const isExpanded = expandedSegmentId === item.segment.id}
-        {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
-        {@const topDevMessage = displayDevs[0]?.message ?? ""}
-        {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
-
-        <DepartureRow
-          segment={item.segment}
-          {departure}
-          {subsequent}
-          {hasDeparture}
-          {primaryDepartureText}
-          siteDevs={displayDevs}
-          {isExpanded}
-          {isExpandable}
-          {topDevMessage}
-          {topDevType}
-          {userLocation}
-          locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
-          walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
-          {openFeatureSheet}
-          {t}
-          {severity}
-          isSleeping={sleepInfo.isSleeping}
-          nextDepartureTime={sleepInfo.nextTime}
-          ontoggle={() => toggleExpanded(item.segment.id)}
-          onprefetch={() => prefetchForSegment(item.segment)}
-        />
-      {/each}
-
-      {#if segmentGroups.hasDisrupted}
-        <div class="section-label">{t.sectionDisrupted}</div>
-        {#each segmentGroups.disrupted as item (item.segment.id)}
+      {#each segmentGroups.groups as group}
+        {#if group.label}
+          <div class="section-label">{group.label}</div>
+        {/if}
+        {#each group.items as item (item.segment.id)}
           {@const deps = segmentDeps[item.originalIndex] ?? []}
           {@const sleepInfo = segmentSleeping[item.originalIndex] ?? { isSleeping: false, nextTime: null }}
           {@const departure = deps[0]}
@@ -507,7 +659,7 @@
             onprefetch={() => prefetchForSegment(item.segment)}
           />
         {/each}
-      {/if}
+      {/each}
 
       {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0) && segmentSleeping.every(s => !s.isSleeping)}
         <div class="empty-state">
@@ -574,6 +726,111 @@
     width: 24px;
     height: 24px;
   }
+
+  .sort-toggle {
+    position: relative;
+    margin-left: auto;
+    margin-right: -4px;
+  }
+
+  .sort-chevron {
+    width: 10px;
+    height: 10px;
+    margin-left: -3px;
+    opacity: 0.5;
+  }
+
+  .sort-flyout {
+    position: absolute;
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    min-width: 210px;
+    padding: 6px;
+    animation: sortFadeIn 0.12s ease;
+  }
+
+  .sort-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sort-option:hover,
+  .sort-option:focus-visible {
+    background: var(--accent-subtle);
+  }
+
+  .sort-option.active {
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    font-weight: 600;
+  }
+
+  .sort-option.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .sort-option-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.6;
+    color: var(--text);
+  }
+
+  .sort-option.active .sort-option-icon {
+    opacity: 1;
+    color: var(--accent);
+  }
+
+  .sort-option-label {
+    flex: 1;
+    text-align: left;
+  }
+
+  .sort-option-check {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+
+  .sort-option-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  @keyframes sortFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-label {
+    padding: 12px 16px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+
   .page-title {
     font-family: 'Neue Machina', sans-serif;
     font-size: 30px;

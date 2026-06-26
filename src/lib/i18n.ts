@@ -294,6 +294,28 @@ const sv = {
   minimizeMap: "Förminska kartan",
   mapViewerLabel: "Järnvägskarta",
   closeMap: "Stäng karta",
+
+  // Sort & Group
+  sortBy: "Sortera efter",
+  sortManual: "Manuell",
+  sortTime: "Avgångstid",
+  sortStation: "Stationsnamn",
+  sortLine: "Linjenummer",
+  sortTransport: "Transporttyp",
+  sortDistance: "Avstånd",
+  sortDistanceDisabled: "Aktivera Plats i Inställningar",
+  defaultSort: "Standardsortering",
+  groupBy: "Gruppera efter",
+  groupNone: "Ingen",
+  groupDisrupted: "Endast störda",
+  groupStation: "Station",
+  groupTransport: "Transporttyp",
+  location: "Plats",
+  transportBus: "Bussar",
+  transportTrain: "Tåg",
+  transportMetro: "Tunnelbana",
+  transportTram: "Spårvagn",
+  transportBoat: "Färjor",
 };
 
 const en: typeof sv = {
@@ -574,6 +596,28 @@ const en: typeof sv = {
   minimizeMap: "Minimize map",
   mapViewerLabel: "Railway map",
   closeMap: "Close map",
+
+  // Sort & Group
+  sortBy: "Sort by",
+  sortManual: "Manual",
+  sortTime: "Departure time",
+  sortStation: "Station name",
+  sortLine: "Line number",
+  sortTransport: "Transport type",
+  sortDistance: "Distance",
+  sortDistanceDisabled: "Enable Location in Settings",
+  defaultSort: "Default sort",
+  groupBy: "Group by",
+  groupNone: "None",
+  groupDisrupted: "Disrupted only",
+  groupStation: "Station",
+  groupTransport: "Transport type",
+  location: "Location",
+  transportBus: "Buses",
+  transportTrain: "Trains",
+  transportMetro: "Metro",
+  transportTram: "Trams",
+  transportBoat: "Ferries",
 };
 
 export const translations = { sv, en };

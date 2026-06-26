@@ -59,7 +59,12 @@ test.describe("locale switching", () => {
     return page.getByRole("group", { name: /language|språk/i });
   }
 
-  test("should start in English and switch between languages", async ({ page }) => {
+// e2e-tests: close settings overlay (backdrop click closes the panel)
+function closeSettings(page: import("@playwright/test").Page) {
+  return page.locator('.settings-overlay.open').click({ position: { x: 10, y: 10 } });
+}
+
+test("should start in English and switch between languages", async ({ page }) => {
     const settingsBtn = page.locator('button[aria-label="Settings"]');
 
     await expect(settingsBtn).toHaveAttribute("aria-label", "Settings", { timeout: 10000 });
@@ -71,7 +76,7 @@ test.describe("locale switching", () => {
     await expect(langGroup(page).getByRole("button").nth(1)).toContainText("Swedish");
 
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.locator(".settings-overlay.open .back-btn").click();
+    await closeSettings(page);
     await page.waitForTimeout(100);
 
     await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible({ timeout: 10000 });
@@ -81,7 +86,7 @@ test.describe("locale switching", () => {
     await page.locator('button[aria-label="Settings"]').click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.locator(".settings-overlay.open .back-btn").click();
+    await closeSettings(page);
 
     await page.reload({ waitUntil: "domcontentloaded" });
 
@@ -105,7 +110,7 @@ test.describe("locale switching", () => {
     await langGroup(page).getByRole("button").nth(1).click();
     await page.waitForTimeout(50);
     await langGroup(page).getByRole("button").nth(0).click();
-    await page.locator(".settings-overlay.open .back-btn").click();
+    await closeSettings(page);
 
     expect(errors.filter((m) => !m.includes("ERR_FAILED") && !m.includes("ERR_ABORTED"))).toEqual([]);
   });

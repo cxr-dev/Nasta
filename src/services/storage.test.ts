@@ -103,6 +103,8 @@ describe("storage service", () => {
         afterworkTypes: [],
         eventsEnabled: false,
         groupDisruptedSegments: false,
+        sortMode: "manual" as const,
+        groupingMode: "none" as const,
       });
     });
 
@@ -146,6 +148,8 @@ describe("storage service", () => {
         afterworkTypes: [],
         eventsEnabled: false,
         groupDisruptedSegments: false,
+        sortMode: "manual" as const,
+        groupingMode: "none" as const,
       };
       saveSettings(settings);
       expect(localStorage.getItem("nasta_settings")).toBe(

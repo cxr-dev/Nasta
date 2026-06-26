@@ -1,4 +1,6 @@
 export type TransportType = "bus" | "train" | "metro" | "boat" | "tram";
+export type SortMode = 'manual' | 'time' | 'station' | 'transport' | 'line' | 'distance';
+export type GroupingMode = 'none' | 'disrupted' | 'station' | 'transport';
 
 export interface Stop {
   id: string;
@@ -33,4 +35,5 @@ export interface Page {
   id: string;
   name: string;
   segments: Segment[];
+  sortMode?: SortMode;
 }

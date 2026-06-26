@@ -80,7 +80,17 @@ export function setEventsEnabled(enabled: boolean) {
 }
 
 export function setGroupDisruptedSegments(enabled: boolean) {
-  _settings = { ..._settings, groupDisruptedSegments: enabled };
+  _settings = { ..._settings, groupingMode: enabled ? 'disrupted' : 'none' };
+  saveSettings(_settings);
+}
+
+export function setSortMode(mode: Settings['sortMode']) {
+  _settings = { ..._settings, sortMode: mode };
+  saveSettings(_settings);
+}
+
+export function setGroupingMode(mode: Settings['groupingMode']) {
+  _settings = { ..._settings, groupingMode: mode };
   saveSettings(_settings);
 }
 
