@@ -550,7 +550,7 @@
       <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
       <span class="fresh-label">{freshnessLabel()}</span>
       <button class="sort-btn" onclick={toggleSortFlyout} aria-label={t.sortBy}>
-        <svg viewBox="0 0 18 18" fill="none">
+        <svg viewBox="0 0 24 24" fill="none">
           {@html arrowUpDown}
         </svg>
       </button>
@@ -573,10 +573,10 @@
             aria-selected={isActive}
             disabled={isDisabled}
           >
-            <span class="sort-option-icon">{@html opt.icon}</span>
+            <span class="sort-option-icon"><svg viewBox="0 0 24 24" fill="none">{@html opt.icon}</svg></span>
             <span class="sort-option-label">{opt.label}</span>
             {#if isActive}
-              <span class="sort-option-check">{@html checkIcon}</span>
+              <span class="sort-option-check"><svg viewBox="0 0 24 24" fill="none">{@html checkIcon}</svg></span>
             {/if}
           </button>
         {/each}
@@ -730,13 +730,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     border: none;
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: 10px;
     margin-left: auto;
     -webkit-tap-highlight-color: transparent;
     transition: background 0.15s, color 0.15s;
@@ -749,8 +749,8 @@
   }
 
   .sort-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
   }
 
   /* Sort flyout popover */
