@@ -274,7 +274,11 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
         const dirDeps = allDepartures.filter(d => d.line === onlyLine.line);
         const uniqueDirSet = new Set(dirDeps.map(d => d.directionCode));
         if (uniqueDirSet.size === 1) {
-          handleDirectionSelect({ code: dirDeps[0].directionCode, destination: dirDeps[0].destination, stopPointId: '' });
+          step = 'direction';
+          // Let progress bar render direction stage before completing
+          requestAnimationFrame(() => {
+            handleDirectionSelect({ code: dirDeps[0].directionCode, destination: dirDeps[0].destination, stopPointId: '' });
+          });
           return;
         }
         step = 'direction';
@@ -1080,11 +1084,6 @@ function filterIconType(type: TransportFilterOption): TransportType {
     flex-shrink: 0;
   }
 
-  .step-node:first-child,
-  .step-node:last-child {
-    flex: 1;
-  }
-
   .step-dot {
     width: 10px;
     height: 10px;
@@ -1130,6 +1129,12 @@ function filterIconType(type: TransportFilterOption): TransportType {
     background: var(--accent);
     transform: scaleX(0);
     transform-origin: left center;
+  }
+
+  /* CSS fallback: fill connector instantly when adjacent step is completed.
+     Guarantees visible state when reduced-motion is on or GSAP misses a tick. */
+  .step-node.completed + .step-connector-wrap .step-connector-fill {
+    transform: scaleX(1);
   }
 
   .step-label {
