@@ -285,8 +285,15 @@
         showSortFlyout = false;
       }
     }
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
+    // Defer listener addition so the opening click event finishes
+    // propagating before we start listening — prevents immediate close.
+    const id = requestAnimationFrame(() => {
+      document.addEventListener('click', handleClick);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener('click', handleClick);
+    };
   });
 
   function transportTypeLabel(type: TransportType): string {
@@ -565,8 +572,11 @@
             aria-selected={isActive}
             disabled={isDisabled}
           >
-            <span class="sort-option-dot" class:active-dot={isActive}></span>
+            <span class="sort-option-icon">{@html opt.icon}</span>
             <span class="sort-option-label">{opt.label}</span>
+            {#if isActive}
+              <span class="sort-option-check">{@html checkIcon}</span>
+            {/if}
           </button>
         {/each}
       </div>
@@ -746,14 +756,16 @@
   .sort-flyout {
     position: absolute;
     top: calc(100% + 4px);
-    right: -8px;
+    right: 0;
     z-index: 200;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
     min-width: 190px;
+    max-width: calc(100vw - 32px);
     padding: 6px;
     animation: sortFadeIn 0.12s ease;
+    box-sizing: border-box;
   }
 
 
@@ -789,28 +801,42 @@
     cursor: not-allowed;
   }
 
-  .sort-option-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-muted);
+  .sort-option-icon {
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
-    transition: background 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
   }
 
-  .sort-option-dot.active-dot {
-    border-color: var(--accent);
-    background: var(--accent);
+  .sort-option-icon :global(svg) {
+    width: 18px;
+    height: 18px;
+    display: block;
   }
 
-  .sort-option.active .sort-option-dot {
-    border-color: var(--accent);
-    background: var(--accent);
+  .sort-option.active .sort-option-icon {
+    color: var(--accent);
   }
 
   .sort-option-label {
     flex: 1;
     text-align: left;
+  }
+
+  .sort-option-check {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+
+  .sort-option-check :global(svg) {
+    width: 16px;
+    height: 16px;
+    display: block;
   }
 
   @keyframes sortFadeIn {

@@ -947,7 +947,6 @@ function closeSettingsPanel() {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    overflow-x: hidden;
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;

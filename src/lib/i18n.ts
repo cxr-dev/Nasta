@@ -308,7 +308,7 @@ const sv = {
   defaultSort: "Standardsortering",
   groupBy: "Gruppera efter",
   groupNone: "Ingen",
-  groupDisrupted: "Endast störda",
+  groupDisrupted: "Störningar",
   groupStation: "Station",
   groupTransport: "Transporttyp",
   groupSegmentsDesc: "Visa avgångar i grupper efter station eller transporttyp.",

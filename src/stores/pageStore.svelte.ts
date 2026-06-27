@@ -126,9 +126,7 @@ export function setActivePage(id: string): void {
 }
 
 export function setPageSortMode(pageId: string, mode: SortMode): void {
-  const page = _pages.find(p => p.id === pageId);
-  if (!page) return;
-  page.sortMode = mode;
+  _pages = _pages.map(p => (p.id === pageId ? { ...p, sortMode: mode } : p));
   savePages(_pages);
   notify();
 }

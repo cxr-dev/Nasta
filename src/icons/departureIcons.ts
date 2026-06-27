@@ -47,7 +47,7 @@ export const layersIcon = `<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 
 
 export const chevronDown = `<path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-export const gripIcon = `<circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="6" r="1" fill="currentColor"/><circle cx="9" cy="18" r="1" fill="currentColor"/><circle cx="15" cy="18" r="1" fill="currentColor"/>`;
+export const gripIcon = `<circle cx="9" cy="12" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="5" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="19" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="15" cy="12" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="15" cy="5" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="15" cy="19" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>`;
 
 export const checkIcon = `<path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
