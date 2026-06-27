@@ -32,12 +32,28 @@
     { mode: 'distance' as SortMode, icon: mapPinIcon, label: t.sortDistance },
   ]);
 
+  let compactSortOptions = $derived([
+    { mode: 'manual' as SortMode, label: t.sortManual },
+    { mode: 'time' as SortMode, label: t.sortTime },
+    { mode: 'line' as SortMode, label: t.sortLine },
+  ]);
+
+  let extraSortOptions = $derived([
+    { mode: 'station' as SortMode, label: t.sortStation },
+    { mode: 'transport' as SortMode, label: t.sortTransport },
+    { mode: 'distance' as SortMode, label: t.sortDistance },
+  ]);
+
+  let sortMoreOpen = $state(false);
+
   let groupingSettingsOptions = $derived([
     { mode: 'none' as GroupingMode, label: t.groupNone },
     { mode: 'disrupted' as GroupingMode, label: t.groupDisrupted },
     { mode: 'station' as GroupingMode, label: t.groupStation },
     { mode: 'transport' as GroupingMode, label: t.groupTransport },
   ]);
+
+  let groupingEnabled = $derived(settings.groupingMode !== 'none');
 
   let swipeStartY = 0;
 
@@ -257,11 +273,8 @@
         </div>
 
         <!-- Location Section -->
-        <div class="settings-section">
-          <div class="section-header">
-            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html infoCircle}</svg>
-            <span>{t.location}</span>
-          </div>
+        <div class="feature-group">
+          <h3 class="group-title">{t.location}</h3>
           <label class="toggle-row">
             <div class="toggle-label">
               <span class="toggle-name">{t.locationServices}</span>
@@ -298,53 +311,85 @@
         </div>
 
         <!-- Sort Section -->
-        <div class="settings-section">
-          <div class="section-header">
-            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html arrowUpDown}</svg>
-            <span>{t.defaultSort}</span>
-          </div>
-          <div class="radio-group" role="radiogroup" aria-label={t.defaultSort}>
-            {#each sortSettingsOptions as opt}
-              {@const disabled = opt.mode === 'distance' && !(settings.locationServicesEnabled ?? false)}
-              <label class="radio-row" class:disabled>
-                <input
-                  type="radio"
-                  name="defaultSort"
-                  value={opt.mode}
-                  checked={settings.sortMode === opt.mode}
-                  disabled={disabled}
-                  onchange={() => setSortMode(opt.mode)}
-                />
-                <svg viewBox="0 0 18 18" fill="none" class="radio-icon">{@html opt.icon}</svg>
-                <span class="radio-label">{opt.label}</span>
-                {#if disabled}
-                  <span class="radio-hint" title={t.sortDistanceDisabled}>ⓘ</span>
-                {/if}
-              </label>
+        <div class="feature-group">
+          <h3 class="group-title">{t.defaultSort}</h3>
+          <div class="segmented-control sort-mode-control" role="group" aria-label={t.defaultSort}>
+            {#each compactSortOptions as opt}
+              <button
+                class="segment-choice"
+                class:active={settings.sortMode === opt.mode}
+                onclick={() => setSortMode(opt.mode)}
+                aria-pressed={settings.sortMode === opt.mode}
+              >
+                {opt.label}
+              </button>
             {/each}
+            <button
+              class="segment-choice segment-more"
+              class:active={sortMoreOpen}
+              onclick={() => sortMoreOpen = !sortMoreOpen}
+              aria-pressed={sortMoreOpen}
+            >
+              {t.sortMore}
+            </button>
           </div>
+          {#if sortMoreOpen}
+            <div class="nested-control sort-more-list">
+              {#each extraSortOptions as opt}
+                {@const disabled = opt.mode === 'distance' && !(settings.locationServicesEnabled ?? false)}
+                <label class="radio-row" class:disabled>
+                  <input
+                    type="radio"
+                    name="defaultSort"
+                    value={opt.mode}
+                    checked={settings.sortMode === opt.mode}
+                    disabled={disabled}
+                    onchange={() => { setSortMode(opt.mode); sortMoreOpen = false; }}
+                  />
+                  <span class="sort-option-dot" class:active-dot={settings.sortMode === opt.mode}></span>
+                  <span class="radio-label">{opt.label}</span>
+                </label>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <!-- Grouping Section -->
-        <div class="settings-section">
-          <div class="section-header">
-            <svg viewBox="0 0 20 20" fill="none" class="section-icon">{@html layersIcon}</svg>
-            <span>{t.groupBy}</span>
-          </div>
-          <div class="radio-group" role="radiogroup" aria-label={t.groupBy}>
-            {#each groupingSettingsOptions as opt}
-              <label class="radio-row">
-                <input
-                  type="radio"
-                  name="groupingMode"
-                  value={opt.mode}
-                  checked={settings.groupingMode === opt.mode}
-                  onchange={() => setGroupingMode(opt.mode)}
-                />
-                <span class="radio-label">{opt.label}</span>
-              </label>
-            {/each}
-          </div>
+        <div class="feature-group">
+          <h3 class="group-title">{t.groupBy}</h3>
+          <label class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-name">{t.groupBy}</span>
+              <span class="toggle-desc">{t.groupSegmentsDesc}</span>
+            </div>
+            <button
+              class="toggle-btn no-scale"
+              class:on={groupingEnabled}
+              onclick={() => setGroupingMode(groupingEnabled ? 'none' : 'station')}
+              aria-label={t.groupBy}
+              role="switch"
+              aria-checked={groupingEnabled}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </label>
+          {#if groupingEnabled}
+            <div class="nested-control sort-more-list">
+              {#each groupingSettingsOptions as opt}
+                <label class="radio-row">
+                  <input
+                    type="radio"
+                    name="groupingMode"
+                    value={opt.mode}
+                    checked={settings.groupingMode === opt.mode}
+                    onchange={() => setGroupingMode(opt.mode)}
+                  />
+                  <span class="sort-option-dot" class:active-dot={settings.groupingMode === opt.mode}></span>
+                  <span class="radio-label">{opt.label}</span>
+                </label>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <div class="feature-group">
@@ -651,38 +696,8 @@
     margin: 0;
   }
 
-  /* Sort & Group settings sections */
-  .settings-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .section-icon {
-    width: 16px;
-    height: 16px;
-    opacity: 0.7;
-  }
-
   .sub-row {
     padding-left: 8px;
-  }
-
-  .radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
   }
 
   .radio-row {
@@ -704,19 +719,6 @@
     display: none;
   }
 
-  .radio-icon {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-    opacity: 0.6;
-    color: var(--text);
-  }
-
-  .radio-row:has(input:checked) .radio-icon {
-    opacity: 1;
-    color: var(--accent);
-  }
-
   .radio-label {
     flex: 1;
     font-size: 14px;
@@ -733,12 +735,6 @@
   .radio-row.disabled {
     opacity: 0.35;
     cursor: not-allowed;
-  }
-
-  .radio-hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    flex-shrink: 0;
   }
 
   /* Existing styles continue */
@@ -853,6 +849,37 @@
 
   .language-control {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sort-mode-control {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .segment-more {
+    font-weight: 500;
+  }
+
+  .sort-more-list {
+    padding: 6px;
+    gap: 2px;
+  }
+
+  .sort-more-list .radio-row {
+    padding: 9px 10px;
+  }
+
+  .sort-option-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .sort-option-dot.active-dot {
+    border-color: var(--accent);
+    background: var(--accent);
   }
 
   .segment-choice {

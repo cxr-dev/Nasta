@@ -496,14 +496,6 @@
   <!-- Page nav header -->
   <header class="page-chrome">
     <h1 class="page-title">{route.name}</h1>
-    <button class="header-icon-btn sort-toggle" onclick={toggleSortFlyout} aria-label={t.sortBy}>
-      <svg viewBox="0 0 20 20" fill="none">
-        {@html sortModeIcon(activeSortMode)}
-      </svg>
-      <svg viewBox="0 0 12 12" fill="none" class="sort-chevron">
-        {@html chevronDown}
-      </svg>
-    </button>
     <div class="header-actions">
       <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.mapViewerLabel}>
         <svg viewBox="0 0 24 24" fill="none">
@@ -527,37 +519,6 @@
     </div>
   </header>
 
-  {#if showSortFlyout}
-    <div class="sort-flyout" bind:this={sortFlyoutEl} role="listbox" aria-label={t.sortBy}>
-      {#each sortOptions as opt}
-        {@const isActive = activeSortMode === opt.mode}
-        {@const isDisabled = opt.mode === 'distance' && !settings.locationServicesEnabled}
-        <button
-          class="sort-option"
-          class:active={isActive}
-          class:disabled={isDisabled}
-          onclick={() => !isDisabled && selectSortMode(opt.mode)}
-          role="option"
-          aria-selected={isActive}
-          disabled={isDisabled}
-        >
-          <svg viewBox="0 0 18 18" fill="none" class="sort-option-icon">
-            {@html opt.icon}
-          </svg>
-          <span class="sort-option-label">{opt.label}</span>
-          {#if isActive}
-            <svg viewBox="0 0 16 16" fill="none" class="sort-option-check">
-              {@html checkIcon}
-            </svg>
-          {/if}
-          {#if isDisabled}
-            <span class="sort-option-hint" title={t.sortDistanceDisabled}>ⓘ</span>
-          {/if}
-        </button>
-      {/each}
-    </div>
-  {/if}
-
   <MapViewer isOpen={showMap} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
 
   {#if (route.segments ?? []).length === 0}
@@ -580,12 +541,38 @@
     <div class="freshness-row">
       <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
       <span class="fresh-label">{freshnessLabel()}</span>
+      <button class="sort-btn" onclick={toggleSortFlyout} aria-label={t.sortBy}>
+        <svg viewBox="0 0 18 18" fill="none">
+          {@html arrowUpDown}
+        </svg>
+      </button>
     </div>
 
     <!-- Station facility notices: collapsed ambient bar, expands inline -->
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
-    <!-- Departure list: all segments in user-defined order -->
+    {#if showSortFlyout}
+      <div class="sort-flyout" bind:this={sortFlyoutEl} role="listbox" aria-label={t.sortBy}>
+        {#each sortOptions as opt}
+          {@const isActive = activeSortMode === opt.mode}
+          {@const isDisabled = opt.mode === 'distance' && !settings.locationServicesEnabled}
+          <button
+            class="sort-option"
+            class:active={isActive}
+            class:disabled={isDisabled}
+            onclick={() => !isDisabled && selectSortMode(opt.mode)}
+            role="option"
+            aria-selected={isActive}
+            disabled={isDisabled}
+          >
+            <span class="sort-option-dot" class:active-dot={isActive}></span>
+            <span class="sort-option-label">{opt.label}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Departure list -->
     <div class="card-list" bind:this={depListEl}>
     {#if lastError}
       <div class="error-bar">
@@ -727,39 +714,55 @@
     height: 24px;
   }
 
-  .sort-toggle {
-    position: relative;
+  /* Sort button in freshness row */
+  .sort-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
     margin-left: auto;
-    margin-right: -4px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
   }
 
-  .sort-chevron {
-    width: 10px;
-    height: 10px;
-    margin-left: -3px;
-    opacity: 0.5;
+  .sort-btn:hover {
+    background: var(--accent-subtle);
+    color: var(--text);
   }
 
+  .sort-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Sort flyout popover */
   .sort-flyout {
     position: absolute;
-    top: calc(60px + env(safe-area-inset-top, 0px));
-    right: 12px;
+    top: auto;
+    right: 16px;
     z-index: 200;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-    min-width: 210px;
+    min-width: 190px;
     padding: 6px;
     animation: sortFadeIn 0.12s ease;
   }
 
+
   .sort-option {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 10px 12px;
+    padding: 9px 12px;
     border: none;
     background: transparent;
     color: var(--text);
@@ -777,44 +780,37 @@
   }
 
   .sort-option.active {
-    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
     font-weight: 600;
   }
 
   .sort-option.disabled {
-    opacity: 0.35;
+    color: var(--text-muted);
     cursor: not-allowed;
   }
 
-  .sort-option-icon {
-    width: 18px;
-    height: 18px;
+  .sort-option-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-muted);
     flex-shrink: 0;
-    opacity: 0.6;
-    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
   }
 
-  .sort-option.active .sort-option-icon {
-    opacity: 1;
-    color: var(--accent);
+  .sort-option-dot.active-dot {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .sort-option.active .sort-option-dot {
+    border-color: var(--accent);
+    background: var(--accent);
   }
 
   .sort-option-label {
     flex: 1;
     text-align: left;
-  }
-
-  .sort-option-check {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    color: var(--accent);
-  }
-
-  .sort-option-hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    flex-shrink: 0;
   }
 
   @keyframes sortFadeIn {
