@@ -280,20 +280,21 @@
 
   $effect(() => {
     if (!showSortFlyout || !sortFlyoutEl) return;
+    // Skip the first click event — it's the same tap that toggled the flyout open.
+    // Without this guard, the opening click also triggers the outside-close handler
+    // and the flyout closes immediately (especially on mobile where touch→click has tight timing).
+    let ignoreNextClick = true;
     function handleClick(e: MouseEvent) {
+      if (ignoreNextClick) {
+        ignoreNextClick = false;
+        return;
+      }
       if (sortFlyoutEl && !sortFlyoutEl.contains(e.target as Node)) {
         showSortFlyout = false;
       }
     }
-    // Defer listener addition so the opening click event finishes
-    // propagating before we start listening — prevents immediate close.
-    const id = requestAnimationFrame(() => {
-      document.addEventListener('click', handleClick);
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      document.removeEventListener('click', handleClick);
-    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
   });
 
   function transportTypeLabel(type: TransportType): string {
