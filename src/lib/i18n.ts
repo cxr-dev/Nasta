@@ -296,6 +296,7 @@ const sv = {
   closeMap: "Stäng karta",
 
   // Sort & Group
+  sortGroupSection: "Sortering & gruppering",
   sortBy: "Sortera efter",
   sortManual: "Manuell",
   sortTime: "Avgångstid",
@@ -600,6 +601,7 @@ const en: typeof sv = {
   closeMap: "Close map",
 
   // Sort & Group
+  sortGroupSection: "Sort & group",
   sortBy: "Sort by",
   sortManual: "Manual",
   sortTime: "Departure time",

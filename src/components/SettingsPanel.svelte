@@ -32,20 +32,6 @@
     { mode: 'distance' as SortMode, icon: mapPinIcon, label: t.sortDistance },
   ]);
 
-  let compactSortOptions = $derived([
-    { mode: 'manual' as SortMode, label: t.sortManual },
-    { mode: 'time' as SortMode, label: t.sortTime },
-    { mode: 'line' as SortMode, label: t.sortLine },
-  ]);
-
-  let extraSortOptions = $derived([
-    { mode: 'station' as SortMode, label: t.sortStation },
-    { mode: 'transport' as SortMode, label: t.sortTransport },
-    { mode: 'distance' as SortMode, label: t.sortDistance },
-  ]);
-
-  let sortMoreOpen = $state(false);
-
   let groupingSettingsOptions = $derived([
     { mode: 'none' as GroupingMode, label: t.groupNone },
     { mode: 'disrupted' as GroupingMode, label: t.groupDisrupted },
@@ -53,7 +39,14 @@
     { mode: 'transport' as GroupingMode, label: t.groupTransport },
   ]);
 
-  let groupingEnabled = $derived(settings.groupingMode !== 'none');
+  let openPicker = $state<'sort' | 'group' | null>(null);
+
+  let currentSortLabel = $derived(
+    sortSettingsOptions.find(o => o.mode === settings.sortMode)?.label ?? ''
+  );
+  let currentGroupLabel = $derived(
+    groupingSettingsOptions.find(o => o.mode === settings.groupingMode)?.label ?? ''
+  );
 
   let swipeStartY = 0;
 
@@ -310,86 +303,90 @@
           {/if}
         </div>
 
-        <!-- Sort Section -->
+        <!-- Sort & Group Section -->
         <div class="feature-group">
-          <h3 class="group-title">{t.defaultSort}</h3>
-          <div class="segmented-control sort-mode-control" role="group" aria-label={t.defaultSort}>
-            {#each compactSortOptions as opt}
-              <button
-                class="segment-choice"
-                class:active={settings.sortMode === opt.mode}
-                onclick={() => setSortMode(opt.mode)}
-                aria-pressed={settings.sortMode === opt.mode}
-              >
-                {opt.label}
-              </button>
-            {/each}
-            <button
-              class="segment-choice segment-more"
-              class:active={sortMoreOpen}
-              onclick={() => sortMoreOpen = !sortMoreOpen}
-              aria-pressed={sortMoreOpen}
-            >
-              {t.sortMore}
-            </button>
-          </div>
-          {#if sortMoreOpen}
-            <div class="nested-control sort-more-list">
-              {#each extraSortOptions as opt}
-                {@const disabled = opt.mode === 'distance' && !(settings.locationServicesEnabled ?? false)}
-                <label class="radio-row" class:disabled>
-                  <input
-                    type="radio"
-                    name="defaultSort"
-                    value={opt.mode}
-                    checked={settings.sortMode === opt.mode}
-                    disabled={disabled}
-                    onchange={() => { setSortMode(opt.mode); sortMoreOpen = false; }}
-                  />
-                  <span class="sort-option-dot" class:active-dot={settings.sortMode === opt.mode}></span>
-                  <span class="radio-label">{opt.label}</span>
-                </label>
-              {/each}
-            </div>
-          {/if}
-        </div>
+          <h3 class="group-title">{t.sortGroupSection}</h3>
 
-        <!-- Grouping Section -->
-        <div class="feature-group">
-          <h3 class="group-title">{t.groupBy}</h3>
-          <label class="toggle-row">
-            <div class="toggle-label">
-              <span class="toggle-name">{t.groupBy}</span>
-              <span class="toggle-desc">{t.groupSegmentsDesc}</span>
-            </div>
+          <!-- Sort picker -->
+          <div class="picker-row">
             <button
-              class="toggle-btn no-scale"
-              class:on={groupingEnabled}
-              onclick={() => setGroupingMode(groupingEnabled ? 'none' : 'station')}
-              aria-label={t.groupBy}
-              role="switch"
-              aria-checked={groupingEnabled}
+              class="picker-trigger"
+              onclick={() => openPicker = openPicker === 'sort' ? null : 'sort'}
+              aria-expanded={openPicker === 'sort'}
+              aria-controls="sort-picker-options"
             >
-              <span class="toggle-knob"></span>
+              <span class="picker-label">{t.sortBy}</span>
+              <span class="picker-value">{currentSortLabel}</span>
+              <span class="picker-chevron" class:open={openPicker === 'sort'}>
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                  <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                </svg>
+              </span>
             </button>
-          </label>
-          {#if groupingEnabled}
-            <div class="nested-control sort-more-list">
-              {#each groupingSettingsOptions as opt}
-                <label class="radio-row">
-                  <input
-                    type="radio"
-                    name="groupingMode"
-                    value={opt.mode}
-                    checked={settings.groupingMode === opt.mode}
-                    onchange={() => setGroupingMode(opt.mode)}
-                  />
-                  <span class="sort-option-dot" class:active-dot={settings.groupingMode === opt.mode}></span>
-                  <span class="radio-label">{opt.label}</span>
-                </label>
-              {/each}
-            </div>
-          {/if}
+            {#if openPicker === 'sort'}
+              <div class="picker-options" id="sort-picker-options" role="listbox" aria-label={t.sortBy}>
+                {#each sortSettingsOptions as opt}
+                  {@const disabled = opt.mode === 'distance' && !(settings.locationServicesEnabled ?? false)}
+                  <button
+                    class="picker-option"
+                    class:selected={settings.sortMode === opt.mode}
+                    disabled={disabled}
+                    onclick={() => { setSortMode(opt.mode); openPicker = null; }}
+                    role="option"
+                    aria-selected={settings.sortMode === opt.mode}
+                  >
+                    <span class="picker-check" class:visible={settings.sortMode === opt.mode}>
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                        <path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <span class="picker-option-label">{opt.label}</span>
+                    {#if disabled}
+                      <span class="picker-hint">{t.sortDistanceDisabled}</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+
+          <!-- Group picker -->
+          <div class="picker-row">
+            <button
+              class="picker-trigger"
+              onclick={() => openPicker = openPicker === 'group' ? null : 'group'}
+              aria-expanded={openPicker === 'group'}
+              aria-controls="group-picker-options"
+            >
+              <span class="picker-label">{t.groupBy}</span>
+              <span class="picker-value">{currentGroupLabel}</span>
+              <span class="picker-chevron" class:open={openPicker === 'group'}>
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                  <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                </svg>
+              </span>
+            </button>
+            {#if openPicker === 'group'}
+              <div class="picker-options" id="group-picker-options" role="listbox" aria-label={t.groupBy}>
+                {#each groupingSettingsOptions as opt}
+                  <button
+                    class="picker-option"
+                    class:selected={settings.groupingMode === opt.mode}
+                    onclick={() => { setGroupingMode(opt.mode); openPicker = null; }}
+                    role="option"
+                    aria-selected={settings.groupingMode === opt.mode}
+                  >
+                    <span class="picker-check" class:visible={settings.groupingMode === opt.mode}>
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                        <path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <span class="picker-option-label">{opt.label}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
 
         <div class="feature-group">
@@ -700,43 +697,6 @@
     padding-left: 8px;
   }
 
-  .radio-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: background 0.1s;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .radio-row:hover {
-    background: var(--accent-subtle);
-  }
-
-  .radio-row input[type="radio"] {
-    display: none;
-  }
-
-  .radio-label {
-    flex: 1;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
-    text-align: left;
-  }
-
-  .radio-row:has(input:checked) .radio-label {
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .radio-row.disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
   /* Existing styles continue */
   .toggle-row {
     display: flex;
@@ -851,36 +811,7 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .sort-mode-control {
-    grid-template-columns: repeat(4, 1fr);
-  }
 
-  .segment-more {
-    font-weight: 500;
-  }
-
-  .sort-more-list {
-    padding: 6px;
-    gap: 2px;
-  }
-
-  .sort-more-list .radio-row {
-    padding: 9px 10px;
-  }
-
-  .sort-option-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-muted);
-    flex-shrink: 0;
-    transition: background 0.15s, border-color 0.15s;
-  }
-
-  .sort-option-dot.active-dot {
-    border-color: var(--accent);
-    background: var(--accent);
-  }
 
   .segment-choice {
     border: 1px solid var(--border);
@@ -910,6 +841,127 @@
     border-color: var(--color-critical);
     color: var(--color-critical);
     background: var(--color-critical-subtle);
+  }
+
+  /* Sort & Group picker dropdowns */
+  .picker-row {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .picker-row + .picker-row {
+    margin-top: 8px;
+  }
+
+  .picker-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 14px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .picker-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .picker-value {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .picker-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .picker-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .picker-options {
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    gap: 2px;
+    background: var(--surface);
+  }
+
+  .picker-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
+  }
+
+  .picker-option:hover {
+    background: var(--accent-subtle);
+  }
+
+  .picker-option.selected {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .picker-option:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .picker-check {
+    width: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .picker-check.visible {
+    opacity: 1;
+  }
+
+  .picker-option-label {
+    flex: 1;
+  }
+
+  .picker-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .hour-selector {
