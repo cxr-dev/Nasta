@@ -745,8 +745,8 @@
   /* Sort flyout popover */
   .sort-flyout {
     position: absolute;
-    top: auto;
-    right: 16px;
+    top: calc(100% + 4px);
+    right: -8px;
     z-index: 200;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -814,7 +814,7 @@
   }
 
   @keyframes sortFadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
+    from { opacity: 0; transform: translateY(-2px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
@@ -843,6 +843,7 @@
   }
 
   .freshness-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -858,6 +859,10 @@
     font-size: 11px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .card-list {
