@@ -739,6 +739,7 @@
     border-radius: 10px;
     margin-left: auto;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     transition: background 0.15s, color 0.15s;
     flex-shrink: 0;
   }
@@ -751,6 +752,7 @@
   .sort-btn svg {
     width: 22px;
     height: 22px;
+    pointer-events: none;
   }
 
   /* Sort flyout popover */
@@ -785,6 +787,7 @@
     border-radius: 10px;
     transition: background 0.1s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .sort-option:hover,
