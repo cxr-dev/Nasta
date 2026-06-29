@@ -673,7 +673,7 @@ function closeSettingsPanel() {
             </div>
           {:else if page}
             <SegmentDepartures
-              route={page}
+              page={page}
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
               deviationUsedCache={deviationUsedCache}

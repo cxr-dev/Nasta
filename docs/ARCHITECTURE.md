@@ -106,7 +106,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `persistentCache.ts`         | Generic persistent cache layer                                      |
 | `prefetchService.ts`         | Orchestrates venue/event prefetching for segments                   |
 | `nextDepartureResolver.ts`   | Resolves next departure from combined sources                       |
-| `storage.ts`                 | LocalStorage persistence for routes, settings                       |
+| `storage.ts`                 | LocalStorage persistence for pages, settings                       |
 | `routeStops.ts`              | Stop-finder + trip planning with persistent cache                  |
 
 ### Processing Libraries
@@ -132,13 +132,13 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 
 ### Page-level
 
-- `App.svelte` — Main app container, route state, auto-refresh orchestration
+- `App.svelte` — Main app container, page state, auto-refresh orchestration
 - `ErrorBoundary.svelte` — Error catching and user-friendly error display
 
-### Departures & Routes
+### Departures & Pages
 
 - `PageHeader.svelte` — Page name, edit/save toggle, page selection
-- `SegmentDepartures.svelte` — List of route segments with departures per stop
+- `SegmentDepartures.svelte` — List of page segments with departures per stop
 - `DepartureRow.svelte` — Individual departure row with countdown
 - `SegmentList.svelte` — List of segments within a page
 - `SegmentSearch.svelte` — Stop/segment search via TransitService
@@ -216,14 +216,14 @@ Static assets                → Cache First (hashed filenames)
 
 ## Request ID Routing
 
-To prevent stale responses when switching routes, `departureStore` uses request IDs:
+To prevent stale responses when switching pages, `departureStore` uses request IDs:
 
-1. Route changes generate new `requestId = route-${id}-${timestamp}`
+1. Page changes generate new `requestId = page-${id}-${timestamp}`
 2. API responses include the `requestId` that spawned them
 3. Store only applies responses matching the current `requestId`
 4. Pending responses with old IDs are silently dropped
 
-This prevents race conditions when users quickly switch between routes.
+This prevents race conditions when users quickly switch between pages.
 
 ## Disruption Handling
 
@@ -315,7 +315,7 @@ Prefetching is orchestrated by `prefetchService.ts`. A static snapshot of events
 ### Type Safety
 
 - `src/types/transit.ts` — Canonical domain model (EntityId, TransportMode, TransitProvider, TransitService)
-- `src/types/route.ts` — Page, Segment, Stop, TransportType definitions
+- `src/types/page.ts` — Page, Segment, Stop, TransportType definitions
 - `src/types/departure.ts` — Departure, SiteSearchResult (legacy)
 - `src/types/deviation.ts` — DeviationMessage, SegmentHealth, StationAlert, severity types
 - `src/lib/i18n.ts` — Locale and Translations types

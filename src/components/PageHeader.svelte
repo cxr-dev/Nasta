@@ -67,7 +67,7 @@
       </svg>
     </button>
 
-    <h1 bind:this={titleEl} class="page-name route-name" data-testid="route-name">{activePage?.name ?? ''}</h1>
+    <h1 bind:this={titleEl} class="page-name" data-testid="page-name">{activePage?.name ?? ''}</h1>
 
     <button bind:this={nextBtnEl} class="nav-arrow" class:inactive={!hasNext} onclick={handleNext} aria-label={t.nextPage} disabled={!hasNext}>
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">

@@ -25,7 +25,7 @@
   import StationNoticeBar from "./StationNoticeBar.svelte";
 
   let {
-    route,
+    page,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationStationAlerts = [] as StationAlert[],
     deviationUsedCache = false,
@@ -37,7 +37,7 @@
     onQuickAdd,
     lastRefreshTime,
   }: {
-    route: Page;
+    page: Page;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationStationAlerts?: StationAlert[];
     deviationUsedCache?: boolean;
@@ -96,7 +96,7 @@
   }
 
   $effect(() => {
-    route.id;
+    page.id;
     expandedSegmentId = null;
   });
 
@@ -167,14 +167,14 @@
 
   function scheduleNearbyPrefetch() {
     const shouldPrefetch = settings.afterworkVenuesEnabled || settings.eventsEnabled;
-    if (!shouldPrefetch || !(route.segments ?? []).length) return;
+    if (!shouldPrefetch || !(page.segments ?? []).length) return;
 
-    const prefKey = `${route.id}:${settings.afterworkVenuesEnabled ? 1 : 0}:${settings.eventsEnabled ? 1 : 0}`;
+    const prefKey = `${page.id}:${settings.afterworkVenuesEnabled ? 1 : 0}:${settings.eventsEnabled ? 1 : 0}`;
     if (prefKey === lastNearbyPrefetchKey) return;
     lastNearbyPrefetchKey = prefKey;
 
     void import('../services/prefetchService')
-      .then((m) => m.prefetchSegments(route.segments ?? [], settings, { concurrency: 4 }))
+      .then((m) => m.prefetchSegments(page.segments ?? [], settings, { concurrency: 4 }))
       .catch(() => {});
   }
 
@@ -242,7 +242,7 @@
   }
 
   let sortedSegments = $derived.by(() => {
-    const segs = [...(route.segments ?? [])];
+    const segs = [...(page.segments ?? [])];
     const mode: SortMode = settings.sortMode ?? 'manual';
     switch (mode) {
       case 'time': return sortByNextDeparture(segs);
@@ -326,7 +326,7 @@
   });
 
   async function loadSegmentDeps() {
-    const segs = route.segments ?? [];
+    const segs = page.segments ?? [];
     const deps = new Map<string, Departure[]>();
     const sleeping = new Map<string, { isSleeping: boolean; nextTime: string | null }>();
 
@@ -379,7 +379,7 @@
   }
 
   $effect(() => {
-    route.segments;
+    page.segments;
     if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
       scheduleNearbyPrefetch();
     }
@@ -397,7 +397,7 @@
   });
 
   $effect(() => {
-    route.id;
+    page.id;
     departureData;
     loadSegmentDeps().catch((e) => console.error('loadSegmentDeps failed', e));
   });
@@ -448,7 +448,7 @@
     startClockTimer();
 
     try {
-      const initial = (route.segments ?? []).slice(0, PREFETCH_SEGMENT_COUNT);
+      const initial = (page.segments ?? []).slice(0, PREFETCH_SEGMENT_COUNT);
       for (const seg of initial) prefetchForSegment(seg);
     } catch (e) {}
   });
@@ -462,7 +462,7 @@
 <div class="departures-view">
   <!-- Page nav header -->
   <header class="page-chrome">
-    <h1 class="page-title">{route.name}</h1>
+    <h1 class="page-title">{page.name}</h1>
     <div class="header-actions">
       <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.mapViewerLabel}>
         <svg viewBox="0 0 24 24" fill="none">
@@ -488,7 +488,7 @@
 
   <MapViewer isOpen={showMap} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
 
-  {#if (route.segments ?? []).length === 0}
+  {#if (page.segments ?? []).length === 0}
     <div class="empty-segments">
       <svg class="empty-illustration" viewBox="0 0 80 80" fill="none">
         <rect x="15" y="20" width="50" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
@@ -589,7 +589,7 @@
         {/each}
       {/each}
 
-      {#if (route.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
+      {#if (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
           <p class="empty-text">{t.noDeparturesAvailable}</p>
