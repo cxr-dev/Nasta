@@ -54,7 +54,7 @@ export class TransitServiceImpl implements TransitService {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<TransitDeparture[]> {
+  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }> {
     return this.resolveOrThrow(stopId, _stopName).getDepartures(
       stopId, line, directionCode, signal,
     );

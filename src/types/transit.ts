@@ -785,7 +785,7 @@ export interface TransitProvider {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<TransitDeparture[]>;
+  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }>;
 
   /** Get predicted future departures (schedule-based, not live).
    *  Used for "sleeping" state (late night / early morning).
@@ -918,7 +918,7 @@ export interface TransitService {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<TransitDeparture[]>;
+  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }>;
 
   getPredictedDepartures(
     stopId: EntityId,

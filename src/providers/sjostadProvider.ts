@@ -114,11 +114,11 @@ export const sjostadProvider: TransitProvider = {
     line?: string,
     directionCode?: number,
     _signal?: AbortSignal,
-  ): Promise<TransitDeparture[]> {
+  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }> {
     const stopKey = fromStopEntityId(stopId);
-    if (!stopKey) return [];
+    if (!stopKey) return { departures: [], stopDeviations: [] };
     const stopName = STOP_METADATA[stopKey]?.name;
-    if (!stopName) return [];
+    if (!stopName) return { departures: [], stopDeviations: [] };
 
     const all = staticNextDepartures(stopName, 20);
     let filtered = all;
@@ -130,7 +130,7 @@ export const sjostadProvider: TransitProvider = {
       filtered = filtered.filter((d) => d.direction_code === directionCode);
     }
 
-    return toTransitDepartures(filtered, stopId);
+    return { departures: toTransitDepartures(filtered, stopId), stopDeviations: [] };
   },
 
   async getPredictedDepartures(

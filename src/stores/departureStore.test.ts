@@ -9,7 +9,7 @@ vi.mock("../services/scheduleCache", () => ({
 
 vi.mock("../providers/init", () => ({
   transitService: {
-    getDepartures: vi.fn(async () => []),
+    getDepartures: vi.fn(async () => ({ departures: [], stopDeviations: [] })),
   },
 }));
 
@@ -182,7 +182,7 @@ describe("departureStore - request identity and stale response filtering", () =>
   });
 
   it("starts a new fetch for a different route while one is already in flight", async () => {
-    const deferred: Array<(value: any[]) => void> = [];
+    const deferred: Array<(value: { departures: any[]; stopDeviations: any[] }) => void> = [];
     const mockedGetDepartures = vi.mocked(transitService.getDepartures);
 
     mockedGetDepartures.mockImplementation(
@@ -214,8 +214,8 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     expect(mockedGetDepartures).toHaveBeenCalledTimes(2);
 
-    deferred[0]([]);
-    deferred[1]([]);
+    deferred[0]({ departures: [], stopDeviations: [] });
+    deferred[1]({ departures: [], stopDeviations: [] });
 
     await Promise.all([firstRequest, secondRequest]);
   });

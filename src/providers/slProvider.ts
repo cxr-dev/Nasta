@@ -163,9 +163,9 @@ export const slProvider: TransitProvider = {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<TransitDeparture[]> {
+  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }> {
     const siteId = fromStopEntityId(stopId);
-    const { departures } = await slGetDepartures(siteId, undefined, signal);
+    const { departures, stopDeviations } = await slGetDepartures(siteId, undefined, signal);
 
     let filtered = departures;
     if (line != null) {
@@ -175,7 +175,7 @@ export const slProvider: TransitProvider = {
       filtered = filtered.filter((d) => d.direction_code === directionCode);
     }
 
-    return toTransitDepartures(filtered, stopId);
+    return { departures: toTransitDepartures(filtered, stopId), stopDeviations };
   },
 
   async getPredictedDepartures(

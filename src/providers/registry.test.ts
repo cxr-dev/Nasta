@@ -24,7 +24,7 @@ function mockProvider(id: string, features: Partial<ProviderCapabilities["featur
     ownsStop(stopId: EntityId): boolean {
       return stopId.startsWith(`${id}:`);
     },
-    getDepartures: () => Promise.resolve([]),
+    getDepartures: () => Promise.resolve({ departures: [], stopDeviations: [] }),
   } as TransitProvider;
 }
 

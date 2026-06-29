@@ -112,16 +112,16 @@ describe("sjostadProvider", () => {
       vi.mocked(getNextDepartures).mockReturnValue([mockDeparture]);
 
       const deps = await sjostadProvider.getDepartures("sjostad:luma_brygga");
-      expect(deps).toHaveLength(1);
-      expect(deps[0].stopId).toBe("sjostad:luma_brygga");
-      expect(deps[0].line).toBe("SJO");
-      expect(deps[0].lineName).toBe("Sjöstadstrafiken");
-      expect(deps[0].destination).toBe("Henriksdalsbryggan");
-      expect(deps[0].directionCode).toBe(1);
-      expect(deps[0].transportMode).toBe("boat");
-      expect(deps[0].minutes).toBe(5);
-      expect(deps[0].scheduledTime).toBe("12:05");
-      expect(deps[0].dataSource).toBe("static");
+      expect(deps.departures).toHaveLength(1);
+      expect(deps.departures[0].stopId).toBe("sjostad:luma_brygga");
+      expect(deps.departures[0].line).toBe("SJO");
+      expect(deps.departures[0].lineName).toBe("Sjöstadstrafiken");
+      expect(deps.departures[0].destination).toBe("Henriksdalsbryggan");
+      expect(deps.departures[0].directionCode).toBe(1);
+      expect(deps.departures[0].transportMode).toBe("boat");
+      expect(deps.departures[0].minutes).toBe(5);
+      expect(deps.departures[0].scheduledTime).toBe("12:05");
+      expect(deps.departures[0].dataSource).toBe("static");
       expect(getNextDepartures).toHaveBeenCalledWith("Lumabryggan", 20);
     });
 
@@ -129,7 +129,7 @@ describe("sjostadProvider", () => {
       vi.mocked(getNextDepartures).mockReturnValue([mockDeparture, mockDeparture2]);
 
       const deps = await sjostadProvider.getDepartures("sjostad:luma_brygga", "SJO");
-      expect(deps).toHaveLength(2);
+      expect(deps.departures).toHaveLength(2);
     });
 
     it("filters by directionCode when specified", async () => {
@@ -137,8 +137,8 @@ describe("sjostadProvider", () => {
       vi.mocked(getNextDepartures).mockReturnValue([mockDeparture, depDir2]);
 
       const deps = await sjostadProvider.getDepartures("sjostad:henriksdalsbryggan", undefined, 2);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].directionCode).toBe(2);
+      expect(deps.departures).toHaveLength(1);
+      expect(deps.departures[0].directionCode).toBe(2);
     });
   });
 

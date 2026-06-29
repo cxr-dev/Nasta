@@ -22,7 +22,7 @@ function mockProvider(
     ownsStop(stopId: EntityId): boolean {
       return stopId.startsWith(`${id}:`);
     },
-    getDepartures: vi.fn().mockResolvedValue([]),
+    getDepartures: vi.fn().mockResolvedValue({ departures: [], stopDeviations: [] }),
     ...overrides,
   };
 }
@@ -57,14 +57,14 @@ describe("TransitServiceImpl", () => {
   it("getDepartures delegates to resolved provider", async () => {
     const registry = new ProviderRegistry();
     const mock = mockProvider("sl", {
-      getDepartures: vi.fn().mockResolvedValue([{ id: "d1" }]),
+      getDepartures: vi.fn().mockResolvedValue({ departures: [{ id: "d1" }], stopDeviations: [] }),
     });
     registry.register(mock);
 
     const svc = createTransitService(registry);
     const result = await svc.getDepartures("sl:123", "Test", "4", 1);
 
-    expect(result).toEqual([{ id: "d1" }]);
+    expect(result).toEqual({ departures: [{ id: "d1" }], stopDeviations: [] });
     expect(mock.getDepartures).toHaveBeenCalledWith("sl:123", "4", 1, undefined);
   });
 

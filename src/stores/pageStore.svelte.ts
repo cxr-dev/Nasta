@@ -1,4 +1,4 @@
-import type { Page, Segment, SortMode } from "../types/page";
+import type { Page, Segment } from "../types/page";
 import { loadPages, savePages } from "../services/storage";
 
 let _pages = $state<Page[]>(loadPages());
@@ -125,10 +125,5 @@ export function setActivePage(id: string): void {
   _activePageId = id;
 }
 
-export function setPageSortMode(pageId: string, mode: SortMode): void {
-  _pages = _pages.map(p => (p.id === pageId ? { ...p, sortMode: mode } : p));
-  savePages(_pages);
-  notify();
-}
 
 

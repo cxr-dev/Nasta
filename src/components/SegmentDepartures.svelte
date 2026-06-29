@@ -2,7 +2,7 @@
   import type { Page, Segment, SortMode, GroupingMode, TransportType } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore.svelte";
-  import { getPages, getActivePageId, setPageSortMode } from "../stores/pageStore.svelte";
+  import { getPages, getActivePageId } from "../stores/pageStore.svelte";
   import { transitService } from "../providers/init";
   import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
   import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
@@ -18,7 +18,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, arrowUpDown, clockIcon, mapPinIcon, busFrontIcon, sortNumericIcon, sortAlphaIcon, gripIcon, chevronDown, checkIcon } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, chevronDown } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { disruptionType } from "../lib/disruptionType";
@@ -71,9 +71,7 @@
   let t = $derived(getT());
   let settings = $derived(getSettings());
 
-  // Sort flyout state
-  let showSortFlyout = $state(false);
-  let sortFlyoutEl: HTMLDivElement | undefined = $state();
+
 
   const UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -181,24 +179,10 @@
       .catch(() => {});
   }
 
-  let segmentDeps = $state<Departure[][]>([]);
-  let segmentSleeping = $state<Array<{ isSleeping: boolean; nextTime: string | null }>>([]);
+  let segmentDeps = $state<Map<string, Departure[]>>(new Map());
+  let segmentSleeping = $state<Map<string, { isSleeping: boolean; nextTime: string | null }>>(new Map());
 
-  // Sort options
-  let sortOptions = $derived([
-    { mode: 'manual' as SortMode, icon: gripIcon, label: t.sortManual },
-    { mode: 'time' as SortMode, icon: clockIcon, label: t.sortTime },
-    { mode: 'station' as SortMode, icon: sortAlphaIcon, label: t.sortStation },
-    { mode: 'line' as SortMode, icon: sortNumericIcon, label: t.sortLine },
-    { mode: 'transport' as SortMode, icon: busFrontIcon, label: t.sortTransport },
-    { mode: 'distance' as SortMode, icon: mapPinIcon, label: t.sortDistance },
-  ]);
 
-  let activeSortMode = $derived(route.sortMode ?? 'manual');
-
-  function sortModeIcon(mode: SortMode): string {
-    return sortOptions.find(o => o.mode === mode)?.icon ?? gripIcon;
-  }
 
   // Haversine distance
   function haversineDistance(a: [number, number], b: [number, number]): number {
@@ -260,7 +244,7 @@
 
   let sortedSegments = $derived.by(() => {
     const segs = [...(route.segments ?? [])];
-    const mode: SortMode = route.sortMode ?? 'manual';
+    const mode: SortMode = settings.sortMode ?? 'manual';
     switch (mode) {
       case 'time': return sortByNextDeparture(segs);
       case 'station': return segs.sort((a, b) => a.fromStop.name.localeCompare(b.fromStop.name, 'sv'));
@@ -271,31 +255,7 @@
     }
   });
 
-  // Flyout
-  function toggleSortFlyout() { showSortFlyout = !showSortFlyout; }
-  function selectSortMode(mode: SortMode) {
-    setPageSortMode(route.id, mode);
-    showSortFlyout = false;
-  }
 
-  $effect(() => {
-    if (!showSortFlyout || !sortFlyoutEl) return;
-    // Skip the first click event — it's the same tap that toggled the flyout open.
-    // Without this guard, the opening click also triggers the outside-close handler
-    // and the flyout closes immediately (especially on mobile where touch→click has tight timing).
-    let ignoreNextClick = true;
-    function handleClick(e: MouseEvent) {
-      if (ignoreNextClick) {
-        ignoreNextClick = false;
-        return;
-      }
-      if (sortFlyoutEl && !sortFlyoutEl.contains(e.target as Node)) {
-        showSortFlyout = false;
-      }
-    }
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  });
 
   function transportTypeLabel(type: TransportType): string {
     const map: Record<TransportType, string> = {
@@ -368,8 +328,8 @@
 
   async function loadSegmentDeps() {
     const segs = route.segments ?? [];
-    const deps: Departure[][] = [];
-    const sleeping: Array<{ isSleeping: boolean; nextTime: string | null }> = [];
+    const deps = new Map<string, Departure[]>();
+    const sleeping = new Map<string, { isSleeping: boolean; nextTime: string | null }>();
 
     for (const seg of segs) {
       const segEntityId = toEntityId(seg.fromStop.siteId);
@@ -392,12 +352,12 @@
       }
 
       if (merged.length > 0) {
-        deps.push(merged);
-        sleeping.push({ isSleeping: false, nextTime: null });
+        deps.set(seg.id, merged);
+        sleeping.set(seg.id, { isSleeping: false, nextTime: null });
       } else {
         // No departures in the live/predicted window — look up next scheduled
         // departure from the timetable cache (no time-horizon cap).
-        deps.push([]);
+        deps.set(seg.id, []);
         try {
           const nextTransit = await transitService.getNextScheduledDeparture(
             toEntityId(seg.fromStop.siteId),
@@ -406,12 +366,12 @@
             seg.direction?.code ?? 0,
           );
           if (nextTransit) {
-            sleeping.push({ isSleeping: true, nextTime: nextTransit.scheduledTime });
+            sleeping.set(seg.id, { isSleeping: true, nextTime: nextTransit.scheduledTime });
           } else {
-            sleeping.push({ isSleeping: false, nextTime: null });
+            sleeping.set(seg.id, { isSleeping: false, nextTime: null });
           }
         } catch {
-          sleeping.push({ isSleeping: false, nextTime: null });
+          sleeping.set(seg.id, { isSleeping: false, nextTime: null });
         }
       }
     }
@@ -427,7 +387,7 @@
   });
 
   $effect(() => {
-    const count = segmentDeps.reduce((a, b) => a + b.length, 0);
+    const count = [...segmentDeps.values()].reduce((a, b) => a + b.length, 0);
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
     hasAnimatedStagger = true;
     gsap.fromTo(
@@ -549,39 +509,10 @@
     <div class="freshness-row">
       <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
       <span class="fresh-label">{freshnessLabel()}</span>
-      <button class="sort-btn" onclick={toggleSortFlyout} aria-label={t.sortBy}>
-        <svg viewBox="0 0 24 24" fill="none">
-          {@html arrowUpDown}
-        </svg>
-      </button>
     </div>
 
     <!-- Station facility notices: collapsed ambient bar, expands inline -->
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
-
-    {#if showSortFlyout}
-      <div class="sort-flyout" bind:this={sortFlyoutEl} role="listbox" aria-label={t.sortBy}>
-        {#each sortOptions as opt}
-          {@const isActive = activeSortMode === opt.mode}
-          {@const isDisabled = opt.mode === 'distance' && !settings.locationServicesEnabled}
-          <button
-            class="sort-option"
-            class:active={isActive}
-            class:disabled={isDisabled}
-            onclick={() => !isDisabled && selectSortMode(opt.mode)}
-            role="option"
-            aria-selected={isActive}
-            disabled={isDisabled}
-          >
-            <span class="sort-option-icon"><svg viewBox="0 0 24 24" fill="none">{@html opt.icon}</svg></span>
-            <span class="sort-option-label">{opt.label}</span>
-            {#if isActive}
-              <span class="sort-option-check"><svg viewBox="0 0 24 24" fill="none">{@html checkIcon}</svg></span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-    {/if}
 
     <!-- Departure list -->
     <div class="card-list" bind:this={depListEl}>
@@ -617,8 +548,8 @@
           <div class="section-label">{group.label}</div>
         {/if}
         {#each group.items as item (item.segment.id)}
-          {@const deps = segmentDeps[item.originalIndex] ?? []}
-          {@const sleepInfo = segmentSleeping[item.originalIndex] ?? { isSleeping: false, nextTime: null }}
+          {@const deps = segmentDeps.get(item.segment.id) ?? []}
+          {@const sleepInfo = segmentSleeping.get(item.segment.id) ?? { isSleeping: false, nextTime: null }}
           {@const departure = deps[0]}
           {@const subsequent = formatSubsequent(deps)}
           {@const hasDeparture = deps.length > 0 && !!departure}
@@ -659,7 +590,7 @@
         {/each}
       {/each}
 
-      {#if (route.segments ?? []).length > 0 && !isLoading && segmentDeps.every((d) => d.length === 0) && segmentSleeping.every(s => !s.isSleeping)}
+      {#if (route.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
           <p class="empty-text">{t.noDeparturesAvailable}</p>
@@ -725,128 +656,7 @@
     height: 24px;
   }
 
-  /* Sort button in freshness row */
-  .sort-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-radius: 10px;
-    margin-left: auto;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
-  }
 
-  .sort-btn:hover {
-    background: var(--accent-subtle);
-    color: var(--text);
-  }
-
-  .sort-btn svg {
-    width: 22px;
-    height: 22px;
-    pointer-events: none;
-  }
-
-  /* Sort flyout popover */
-  .sort-flyout {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 200;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    min-width: 190px;
-    max-width: calc(100vw - 32px);
-    padding: 6px;
-    animation: sortFadeIn 0.12s ease;
-    box-sizing: border-box;
-  }
-
-
-  .sort-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 9px 12px;
-    border: none;
-    background: transparent;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    cursor: pointer;
-    border-radius: 10px;
-    transition: background 0.1s;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-
-  .sort-option:hover,
-  .sort-option:focus-visible {
-    background: var(--accent-subtle);
-  }
-
-  .sort-option.active {
-    background: color-mix(in oklab, var(--accent) 10%, transparent);
-    font-weight: 600;
-  }
-
-  .sort-option.disabled {
-    color: var(--text-muted);
-    cursor: not-allowed;
-  }
-
-  .sort-option-icon {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-  }
-
-  .sort-option-icon :global(svg) {
-    width: 18px;
-    height: 18px;
-    display: block;
-  }
-
-  .sort-option.active .sort-option-icon {
-    color: var(--accent);
-  }
-
-  .sort-option-label {
-    flex: 1;
-    text-align: left;
-  }
-
-  .sort-option-check {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    color: var(--accent);
-  }
-
-  .sort-option-check :global(svg) {
-    width: 16px;
-    height: 16px;
-    display: block;
-  }
-
-  @keyframes sortFadeIn {
-    from { opacity: 0; transform: translateY(-2px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
 
   .section-label {
     padding: 12px 16px 4px;
@@ -1034,8 +844,9 @@
 
 
   .section-label {
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.09em;
     padding: 12px 14px 6px;

@@ -35,5 +35,4 @@ export interface Page {
   id: string;
   name: string;
   segments: Segment[];
-  sortMode?: SortMode;
 }

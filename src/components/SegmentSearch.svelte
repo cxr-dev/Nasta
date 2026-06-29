@@ -244,12 +244,13 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
     }
 
     try {
-      const rawDeps = await transitService.getDepartures(station.id, station.name);
+      const { departures: rawDeps } = await transitService.getDepartures(station.id, station.name);
       // Supplement with routes known from timetable cache (covers overnight / off-peak)
       const cachedRoutes = await transitService.getKnownRoutes(station.id, station.name);
+      const supplemented = [...rawDeps];
       for (const route of cachedRoutes) {
-        if (!rawDeps.some(d => d.line === route.line && d.directionCode === route.directionCode)) {
-          rawDeps.push({
+        if (!supplemented.some(d => d.line === route.line && d.directionCode === route.directionCode)) {
+          supplemented.push({
             id: `${station.id}|${route.line}|${route.directionCode}|cached`,
             stopId: station.id,
             line: route.line,
@@ -263,7 +264,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
           });
         }
       }
-      allDepartures = rawDeps;
+      allDepartures = supplemented;
       
       // Auto-skip to direction step if only 1 unique line at this stop
       const uniqueLineSet = new Set(allDepartures.map(d => d.line));

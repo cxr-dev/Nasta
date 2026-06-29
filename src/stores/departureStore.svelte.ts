@@ -140,7 +140,7 @@ const fetchAllHybrid = async (
                 `[departureStore] API fetch: ${seg.siteId} (${seg.stopName})`,
               );
             const segEntityId = toEntityId(seg.siteId);
-            const transitDeps = await transitService.getDepartures(
+            const { departures: transitDeps, stopDeviations } = await transitService.getDepartures(
               segEntityId,
               seg.stopName,
               seg.line,
@@ -160,7 +160,7 @@ const fetchAllHybrid = async (
 
             results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), apiDepartures);
 
-            _stopDeviations.set(seg.siteId, []);
+            _stopDeviations.set(seg.siteId, stopDeviations ?? []);
 
             if (apiDepartures.length > 0) {
               _lastSuccessfulFetch = Date.now();

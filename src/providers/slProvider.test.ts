@@ -139,15 +139,15 @@ describe("slProvider", () => {
       });
 
       const deps = await slProvider.getDepartures("sl:1001");
-      expect(deps).toHaveLength(1);
-      expect(deps[0].stopId).toBe("sl:1001");
-      expect(deps[0].line).toBe("4");
-      expect(deps[0].lineName).toBe("Linje 4");
-      expect(deps[0].destination).toBe("Radiohuset");
-      expect(deps[0].directionCode).toBe(0);
-      expect(deps[0].transportMode).toBe("metro");
-      expect(deps[0].dataSource).toBe("realtime");
-      expect(deps[0].providerMetadata?.journeyRef).toBe("12345");
+      expect(deps.departures).toHaveLength(1);
+      expect(deps.departures[0].stopId).toBe("sl:1001");
+      expect(deps.departures[0].line).toBe("4");
+      expect(deps.departures[0].lineName).toBe("Linje 4");
+      expect(deps.departures[0].destination).toBe("Radiohuset");
+      expect(deps.departures[0].directionCode).toBe(0);
+      expect(deps.departures[0].transportMode).toBe("metro");
+      expect(deps.departures[0].dataSource).toBe("realtime");
+      expect(deps.departures[0].providerMetadata?.journeyRef).toBe("12345");
 
       vi.useRealTimers();
     });
@@ -162,8 +162,8 @@ describe("slProvider", () => {
       });
 
       const deps = await slProvider.getDepartures("sl:1001", "4");
-      expect(deps).toHaveLength(1);
-      expect(deps[0].line).toBe("4");
+      expect(deps.departures).toHaveLength(1);
+      expect(deps.departures[0].line).toBe("4");
     });
   });
 
