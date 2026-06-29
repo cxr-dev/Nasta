@@ -13,7 +13,6 @@
   import gsap from 'gsap';
 
   import DepartureRow from "./DepartureRow.svelte";
-  import { prefetchSegments } from "../services/prefetchService";
   import { getSettings } from "../stores/settingsStore.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
