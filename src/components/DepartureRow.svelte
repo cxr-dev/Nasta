@@ -5,7 +5,8 @@
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
-  import DisruptionList from "./DisruptionList.svelte";
+  import { dismissedStore } from "../stores/dismissedStore.svelte";
+
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import TransportIcon from "./TransportIcon.svelte";
 
@@ -79,6 +80,7 @@
 
   let panelEl: HTMLDivElement | undefined = $state();
   let collapsing = $state(false);
+  let showAllMessages = $state(false);
 
   let isImminent = $derived(primaryDepartureText === 'Nu' || primaryDepartureText === 'Now');
   let isSoon = $derived(primaryDepartureText === '1 min');
@@ -95,7 +97,7 @@
 
   let cardBg = $derived(
     siteDevs.length > 0
-      ? severity === 'critical' ? 'var(--color-critical-bg)' : severity === 'affected' ? 'var(--color-warning-bg)' : ''
+      ? severity === 'critical' ? 'var(--color-critical-bg)' : severity === 'affected' ? 'var(--color-warning-bg)' : 'var(--surface)'
       : ''
   );
 
@@ -130,7 +132,9 @@
     );
   });
 
-
+  $effect(() => {
+    if (!isExpanded) showAllMessages = false;
+  });
 
   function prefetch(node: HTMLElement) {
     const observer = new IntersectionObserver((entries) => {
@@ -198,30 +202,62 @@
   </button>
 
   {#if siteDevs.length > 0}
-    <div class="disrupt-strip" style="--strip-color: {accentColor}; --pill-text-color: {pillTextColor}">
+    <div
+      class="disrupt-strip"
+      class:expanded={isExpanded}
+      style="--strip-color: {accentColor}; --pill-text-color: {pillTextColor}"
+    >
       <svg viewBox="0 0 24 24" fill="none" class="disrupt-icon">
         <g>{@html disruptionIcon(topDevType)}</g>
       </svg>
-      <span class="disrupt-msg">{topDevMessage}</span>
+      {#if isExpanded}
+        <div class="disrupt-body">
+          {#each siteDevs.slice(0, showAllMessages ? siteDevs.length : 3) as dev}
+            <span class="disrupt-msg-line">{dev.message}</span>
+          {/each}
+          {#if siteDevs.length > 3}
+            <button
+              type="button"
+              class="show-all-btn"
+              onclick={() => { showAllMessages = !showAllMessages; }}
+            >
+              {showAllMessages
+                ? (t.showLess ?? 'Show less')
+                : (t.showNMore ?? '+{n} more').replace('{n}', String(siteDevs.length - 3))}
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <span class="disrupt-msg">{topDevMessage}</span>
+      {/if}
       <span class="disrupt-pill">{pillLabel(topDevType, severity)}</span>
+      {#if !isExpanded}
+        <span class="disrupt-count">{siteDevs.length}</span>
+      {/if}
+      <button
+        type="button"
+        class="disrupt-dismiss"
+        aria-label={topDevType === "general" ? 'Hide notice' : 'Dismiss'}
+        onclick={(e: Event) => { e.stopPropagation(); e.preventDefault(); for (const dev of siteDevs) dismissedStore.dismissMessage(dev.message); }}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="10" height="10">
+          <path d="M4 4l8 8M12 4l-8 8"/>
+        </svg>
+      </button>
     </div>
   {/if}
 
-  {#if isExpanded || collapsing}
+  {#if (isExpanded || collapsing) && hasDeparture}
     <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
       <div class="expanded-actions">
-        {#if hasDeparture}
-          <MapPreview
-            {segment}
-            {userLocation}
-            {locationRequestInFlight}
-            {walkingEtaEnabled}
-            {openFeatureSheet}
-            {t}
-          />
-        {:else}
-          <DisruptionList {siteDevs} {t} />
-        {/if}
+        <MapPreview
+          {segment}
+          {userLocation}
+          {locationRequestInFlight}
+          {walkingEtaEnabled}
+          {openFeatureSheet}
+          {t}
+        />
       </div>
     </div>
   {/if}
@@ -237,7 +273,7 @@
     border: 1px solid var(--border);
   }
   .departure-card.has-disruption {
-    border-color: transparent;
+    border-color: var(--border);
   }
   .departure-card.expanded {
     border-color: var(--accent-subtle);
@@ -390,7 +426,7 @@
   .disrupt-msg {
     flex: 1;
     min-width: 0;
-    color: var(--strip-color);
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -406,6 +442,49 @@
     flex-shrink: 0;
     line-height: 1.2;
     background: var(--strip-color);
+  }
+  .disrupt-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    line-height: 1;
+    padding-left: 2px;
+  }
+  .disrupt-strip.expanded {
+    align-items: flex-start;
+  }
+  .disrupt-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .disrupt-msg-line {
+    display: block;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .disrupt-msg-line + .disrupt-msg-line {
+    margin-top: 2px;
+  }
+  .show-all-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--strip-color);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    opacity: 0.8;
+    align-self: flex-start;
+  }
+  .show-all-btn:hover {
+    opacity: 1;
   }
 
   .accent-bar.imminent {

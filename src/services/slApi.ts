@@ -274,6 +274,15 @@ export async function getDepartures(
       cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(() => {});
     }
 
+    // Extract departure-level deviations (plural "deviations" field from SL API)
+    const depDeviations = Array.isArray(dep.deviations)
+      ? dep.deviations.map((d: any) => ({
+          importance_level: d.importance_level ?? 0,
+          consequence: d.consequence ?? "INFORMATION",
+          message: d.message ?? "",
+        }))
+      : undefined;
+
     return {
       line: dep.line?.designation || dep.line?.name || "",
       lineName: dep.line?.name || "",
@@ -282,7 +291,7 @@ export async function getDepartures(
       minutes,
       time: formattedTime,
       expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
-      deviation: dep.deviation,
+      deviations: depDeviations,
       transportType: getTransportType(dep.line?.transport_mode),
       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
       journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,

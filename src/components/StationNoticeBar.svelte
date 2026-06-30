@@ -3,6 +3,7 @@
   import gsap from 'gsap';
   import { infoCircle } from '../icons/departureIcons';
   import type { StationAlert } from '../types/deviation';
+  import { dismissedStore } from '../stores/dismissedStore.svelte';
 
   let {
     alerts,
@@ -16,12 +17,25 @@
   let panelEl = $state<HTMLDivElement | undefined>();
   let collapsing = $state(false);
 
+  let dismissedSet = $state<Set<string>>(new Set());
+  $effect(() => {
+    const unsub = dismissedStore.subscribe((ids) => {
+      dismissedSet = ids;
+    });
+    return unsub;
+  });
+
   // Group alerts by station name, stripping redundant leading "StationName: " prefix
   // from message text and deduplicating identical messages within a group.
+  // Each entry carries alert.id so the dismiss button can dismiss by stable ID.
+  // Also filter out dismissed alerts.
   let grouped = $derived.by(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, Array<{ msg: string; alertId: string }>>();
 
     for (const alert of alerts) {
+      // Skip dismissed alerts
+      if (dismissedSet.has(alert.id)) continue;
+
       // An alert may cover multiple stations; use each station as a key
       const stations = alert.stations.length > 0 ? alert.stations : [''];
       for (const station of stations) {
@@ -40,8 +54,8 @@
 
         // Deduplicate identical messages within the same station group
         const normalised = msg.toLowerCase();
-        if (!list.some(m => m.toLowerCase() === normalised)) {
-          list.push(msg);
+        if (!list.some(m => m.msg.toLowerCase() === normalised)) {
+          list.push({ msg, alertId: alert.id });
         }
       }
     }
@@ -111,12 +125,26 @@
       <div bind:this={panelEl} class="notice-panel" class:collapsing>
         {#each grouped as group (group.station)}
           <div class="station-group">
-            {#if group.station}
-              <span class="station-heading">{group.station}</span>
-            {/if}
+            <div class="station-header">
+              {#if group.station}
+                <span class="station-heading">{group.station}</span>
+              {/if}
+            </div>
             <ul class="message-list" role="list">
-              {#each group.messages as msg (msg)}
-                <li class="message-item">{msg}</li>
+              {#each group.messages as { msg, alertId } (alertId + msg)}
+                <li class="message-item">
+                  <span class="message-text">{msg}</span>
+                  <button
+                    type="button"
+                    class="dismiss-btn"
+                    aria-label={t.dismissNotice ?? 'Dismiss'}
+                    onclick={() => dismissedStore.dismiss(alertId)}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12">
+                      <path d="M4 4l8 8M12 4l-8 8"/>
+                    </svg>
+                  </button>
+                </li>
               {/each}
             </ul>
           </div>
@@ -236,12 +264,45 @@
     line-height: 1.45;
     color: var(--text-secondary);
     position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding-right: 2px;
   }
 
-  .message-item::before {
-    content: '·';
-    position: absolute;
-    left: -10px;
+  .message-text {
+    flex: 1;
+  }
+
+  .dismiss-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
     color: var(--text-muted);
+    margin-top: 1px;
+    opacity: 0.6;
+    transition: opacity 0.15s, color 0.15s;
+  }
+
+  .dismiss-btn:hover {
+    opacity: 1;
+    color: var(--text);
+  }
+
+  .dismiss-btn:active {
+    opacity: 0.8;
+  }
+
+  .station-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 </style>

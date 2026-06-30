@@ -257,6 +257,9 @@ const sv = {
   groupDisruptedSegmentsDesc:
     "Visa avgångar med störningar separat, nedanför övriga avgångar.",
   disruptionCriticalShort: "Kritisk",
+  showAll: "Visa alla",
+  showLess: "Visa mindre",
+  showNMore: "+{n} till",
 
   // Transit labels
   lineLabel: "Linje {line}",
@@ -565,6 +568,9 @@ const en: typeof sv = {
   groupDisruptedSegmentsDesc:
     "Show disrupted departures separately, below your other departures.",
   disruptionCriticalShort: "Critical",
+  showAll: "Show all",
+  showLess: "Show less",
+  showNMore: "+{n} more",
 
   lineLabel: "Line {line}",
 

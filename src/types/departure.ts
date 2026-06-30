@@ -1,5 +1,13 @@
 import type { TransportType } from "./page";
 
+/** A deviation attached to a specific departure by the SL Transport API.
+ *  Distinct from the separate Deviations API (slDeviations.ts). */
+export interface DepartureDeviation {
+  importance_level: number;
+  consequence: string;
+  message: string;
+}
+
 export interface Departure {
   line: string;
   lineName: string;
@@ -9,7 +17,9 @@ export interface Departure {
   minutes: number;
   time: string;
   expectedAt?: number;
-  deviation?: string;
+  /** Departure-level deviations from SL Transport API — these actually affect
+   *  this specific journey (e.g. skipped stops, reroutes). */
+  deviations?: DepartureDeviation[];
   transportType: TransportType;
   /** True when computed from cached timetable rather than confirmed by live API. */
   predicted?: boolean;

@@ -62,6 +62,7 @@ function toTransitDepartures(deps: Departure[], stopId: EntityId): TransitDepart
         tripId: d.tripId,
         display: d.display,
         stopPointId: d.stop_point_id,
+        deviations: d.deviations,
       },
     };
   });

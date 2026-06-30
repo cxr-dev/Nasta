@@ -20,9 +20,11 @@
   import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, chevronDown } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
+  import { getLocale } from "../stores/localeStore.svelte";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
+  import { dismissedStore } from "../stores/dismissedStore.svelte";
 
   let {
     page,
@@ -282,7 +284,7 @@
       segs.forEach((seg, i) => {
         const health = deviationHealthBySegment.get(seg.id);
         const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
-        const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold);
+        const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold, getLocale(), seg.line, undefined, seg.fromStop.siteId);
         const isDisrupted = display.messages.length > 0;
         (isDisrupted ? disrupted : all).push({ segment: seg, originalIndex: i });
       });
@@ -555,9 +557,9 @@
           {@const primaryDepartureText = hasDeparture ? formatDepartureTime(departure, now) : ""}
           {@const health = deviationHealthBySegment.get(item.segment.id)}
           {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
-          {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold)}
+          {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold, getLocale(), item.segment.line, departure?.deviations, item.segment.fromStop.siteId)}
           {@const severity = disruptionDisplay.severity}
-          {@const displayDevs = disruptionDisplay.messages}
+          {@const displayDevs = disruptionDisplay.messages.filter((d) => !dismissedStore.isMessageDismissed(d.message))}
           {@const hasDisruption = displayDevs.length > 0}
           {@const isExpanded = expandedSegmentId === item.segment.id}
           {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}

@@ -148,7 +148,7 @@ export async function getDeviations(
   const url = `${DEVIATIONS_URL}?${params.toString()}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error(`Deviation API error: ${response.status}`);
     const data = (await response.json()) as unknown[];
     const messages = Array.isArray(data)

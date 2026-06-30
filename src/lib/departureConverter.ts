@@ -1,4 +1,4 @@
-import type { Departure } from "../types/departure";
+import type { Departure, DepartureDeviation } from "../types/departure";
 import type { TransportType } from "../types/page";
 import type { TransitDeparture } from "../providers/types";
 
@@ -6,6 +6,7 @@ import type { TransitDeparture } from "../providers/types";
  *  Fixes: maps expectedTime→expectedAt, reads stopPointId from providerMetadata,
  *  distinguishes static vs predicted dataSource. */
 export function toLegacyDeparture(td: TransitDeparture): Departure {
+  const meta = td.providerMetadata ?? {};
   return {
     line: td.line,
     lineName: td.lineName,
@@ -17,12 +18,13 @@ export function toLegacyDeparture(td: TransitDeparture): Departure {
     predicted: td.dataSource === "predicted", // only predicted cache, not static/scheduled
     transportType: td.transportMode === "ferry" ? "boat" : (td.transportMode as TransportType),
     isFirstMorning: td.isFirstMorning,
-    display: td.providerMetadata?.display as string | undefined,
-    journeyRef: td.providerMetadata?.journeyRef as string | undefined,
-    tripId: td.providerMetadata?.tripId as string | undefined,
+    display: meta.display as string | undefined,
+    journeyRef: meta.journeyRef as string | undefined,
+    tripId: meta.tripId as string | undefined,
+    deviations: meta.deviations as DepartureDeviation[] | undefined,
     stop_point_id:
-      (td.providerMetadata?.stopPointId as string | undefined) ??
-      (td.providerMetadata?.stop_point_id as string | undefined),
+      (meta.stopPointId as string | undefined) ??
+      (meta.stop_point_id as string | undefined),
   };
 }
 
