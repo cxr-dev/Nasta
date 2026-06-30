@@ -47,4 +47,19 @@ vite-err.txt
 *-snapshot.md
 _*.py
 
+# IDE / AI tool local configs
+.agents/
+.continue/
+.kilocode/
+.kiro/
+.trae/
+.windsurf/
+
+# Temp / scratch directories
+.tmp*/
+tmp/
+scripts/debug-*
+scripts/verify-*
+scripts/test-*
+
 .impeccable
