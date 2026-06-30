@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { get } from "svelte/store";
 import { deviationStore } from "./deviationStore.svelte";
+
+function get<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
+  let value!: T;
+  store.subscribe((v) => { value = v; })();
+  return value;
+}
 import { getDeviations } from "../services/slDeviations";
 import { isExternalTimetableSource } from "../lib/sourceClassification";
 import { stopAreaStore } from "./stopAreaStore.svelte";
