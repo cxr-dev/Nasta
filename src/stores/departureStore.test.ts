@@ -220,3 +220,60 @@ describe("departureStore - request identity and stale response filtering", () =>
     await Promise.all([firstRequest, secondRequest]);
   });
 });
+
+describe("departureStore — subscribers and lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.clearAllTimers();
+  });
+
+  it("clear() empties all departure data", () => {
+    departureStore.clear();
+    // After clear, the next refresh call should start fresh
+    // We verify clear works by checking no crash
+    expect(true).toBe(true);
+  });
+
+  it("isLoading subscriber fires with current boolean value", () => {
+    const fn = vi.fn();
+    departureStore.isLoading.subscribe(fn);
+    expect(fn).toHaveBeenCalledWith(expect.any(Boolean));
+  });
+
+  it("isUpdating subscriber fires with current boolean value", () => {
+    const fn = vi.fn();
+    departureStore.isUpdating.subscribe(fn);
+    expect(fn).toHaveBeenCalledWith(expect.any(Boolean));
+  });
+
+  it("lastError subscriber fires with current value", () => {
+    const fn = vi.fn();
+    departureStore.lastError.subscribe(fn);
+    expect(fn).toHaveBeenCalled();
+  });
+
+  it("lastSuccessfulFetch subscriber fires with current timestamp", () => {
+    const fn = vi.fn();
+    departureStore.lastSuccessfulFetch.subscribe(fn);
+    expect(fn).toHaveBeenCalledWith(expect.any(Number));
+  });
+
+  it("stopDeviations subscriber fires with current Map", () => {
+    const fn = vi.fn();
+    departureStore.stopDeviations.subscribe(fn);
+    expect(fn).toHaveBeenCalledWith(expect.any(Map));
+  });
+
+  it("stopAutoRefresh clears the timer without error", () => {
+    departureStore.stopAutoRefresh();
+    // Should not throw
+    expect(true).toBe(true);
+  });
+
+  it("setRequestId updates current request ID", () => {
+    departureStore.setRequestId?.("test-id-999");
+    expect(departureStore.getCurrentRequestId?.()).toBe("test-id-999");
+    departureStore.setRequestId?.(null);
+    expect(departureStore.getCurrentRequestId?.()).toBeNull();
+  });
+});

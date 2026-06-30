@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { searchSites, getDepartures, parseSlTimestamp, mapProductClassesToTransportTypes } from "./slApi";
+import { searchSites, getDepartures, parseSlTimestamp, mapProductClassesToTransportTypes, searchTrips } from "./slApi";
 
 (globalThis as any).fetch = vi.fn();
 
@@ -76,6 +76,27 @@ describe("slApi service", () => {
         status: 500,
       });
 
+      const result = await searchSites("test");
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array on JSON parse error", async () => {
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => { throw new Error("Invalid JSON"); },
+      });
+      const result = await searchSites("test");
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array on fetch AbortError", async () => {
+      (globalThis as any).fetch = vi.fn().mockRejectedValue({ name: "AbortError" });
+      const result = await searchSites("test");
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array on network error", async () => {
+      (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error("Network error"));
       const result = await searchSites("test");
       expect(result).toEqual([]);
     });
@@ -286,8 +307,158 @@ describe("slApi service", () => {
       const result = await getDepartures("9001");
       expect(result.departures[0].transportType).toBe("tram");
     });
+
+    it("falls back to timeToDeparture when expected is missing", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            timeToDeparture: 3,
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].minutes).toBe(3);
+    });
+
+    it("defaults minutes to 1 when both expected and timeToDeparture are missing", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].minutes).toBe(1);
+    });
+
+    it("throws on network fetch error", async () => {
+      (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      await expect(getDepartures("9001")).rejects.toThrow("Connection refused");
+    });
+
+    it("maps departure-level deviations from API", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            expected: "2024-01-01T10:00:00",
+            deviations: [
+              { importance_level: 3, consequence: "DELAYED", message: "5 min sen" },
+            ],
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].deviations).toHaveLength(1);
+      expect(result.departures[0].deviations![0].importance_level).toBe(3);
+      expect(result.departures[0].deviations![0].message).toBe("5 min sen");
+    });
   });
 
+  describe("searchTrips", () => {
+    it("returns planned trips between origin and destination", async () => {
+      const mockResponse = {
+        journeys: [
+          {
+            legs: [
+              {
+                origin: {
+                  id: "90910010009001",
+                  time: "10:00:00",
+                  date: "2026-06-15",
+                  stopPoint: { id: "sp1" },
+                },
+                destination: { name: "Centralen" },
+                line: { designation: "19", name: "19" },
+                direction: { code: 1 },
+                transport_mode: "metro",
+              },
+            ],
+          },
+        ],
+      };
+
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const results = await searchTrips("9001", "9002");
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].line).toBe("19");
+      expect(results[0].predicted).toBe(true);
+      expect(results[0].transportType).toBe("metro");
+    });
+
+    it("returns empty array when no matching legs found", async () => {
+      const mockResponse = {
+        journeys: [
+          {
+            legs: [
+              {
+                origin: { id: "90910010009999", time: "10:00:00", date: "2026-06-15" },
+                destination: { name: "Other" },
+                line: { designation: "X" },
+                direction: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const results = await searchTrips("9001", "9002");
+      expect(results).toEqual([]);
+    });
+
+    it("throws on API error", async () => {
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      await expect(searchTrips("9001", "9002")).rejects.toThrow("Trip API error: 500");
+    });
+
+    it("returns empty for empty journeys response", async () => {
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+
+      const results = await searchTrips("9001", "9002");
+      expect(results).toEqual([]);
+    });
+  });
   describe("mapProductClassesToTransportTypes", () => {
     it("maps class 4 (light rail) to tram", () => {
       expect(mapProductClassesToTransportTypes([4])).toEqual(["tram"]);
@@ -306,6 +477,17 @@ describe("slApi service", () => {
     it("handles mixed classes with tram", () => {
       const types = mapProductClassesToTransportTypes([4, 128]);
       expect(types).toEqual(["tram", "bus"]);
+    });
+
+    it("maps class 256 to boat", () => {
+      expect(mapProductClassesToTransportTypes([256])).toEqual(["boat"]);
+    });
+
+    it("maps multiple classes including boat", () => {
+      const types = mapProductClassesToTransportTypes([1, 256, 128]);
+      expect(types).toContain("metro");
+      expect(types).toContain("boat");
+      expect(types).toContain("bus");
     });
   });
 });
