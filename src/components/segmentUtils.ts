@@ -120,15 +120,7 @@ export function getDisruptionDisplay(
   return { messages: [], severity: "normal" };
 }
 
-/** Legacy alias for callers that only need the messages array */
-export function computeDisplayDevs(
-  siteDevs: any[],
-  healthReason?: string | null,
-): any[] {
-  if (healthReason) return [{ message: healthReason }];
-  if (siteDevs.length > 0) return siteDevs;
-  return [];
-}
+
 
 export function isSegmentDisrupted(
   siteDevsCount: number,

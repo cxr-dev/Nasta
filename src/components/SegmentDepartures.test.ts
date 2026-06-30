@@ -6,7 +6,7 @@ import {
   mergeDeparturesWithPredictions,
 } from "../lib/departureDisplay";
 import {
-  computeDisplayDevs,
+  getDisruptionDisplay,
   isSegmentDisrupted,
 } from "./segmentUtils";
 
@@ -110,47 +110,7 @@ describe("mergeDeparturesWithPredictions", () => {
   });
 });
 
-describe("computeDisplayDevs", () => {
-  it("returns health reason when available, ignoring site devs", () => {
-    const siteDevs = [{ message: "Signalproblem" }];
-    const result = computeDisplayDevs(siteDevs, "Some health reason");
-    expect(result).toEqual([{ message: "Some health reason" }]);
-  });
 
-  it("returns health reason as a display dev when site devs are empty", () => {
-    const result = computeDisplayDevs([], "Försenad på grund av väder");
-    expect(result).toEqual([{ message: "Försenad på grund av väder" }]);
-  });
-
-  it("returns empty array when both sources are empty", () => {
-    const result = computeDisplayDevs([], null);
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array when both sources are missing", () => {
-    const result = computeDisplayDevs([], undefined);
-    expect(result).toEqual([]);
-  });
-
-  it("prefers health reason over site devs when both exist", () => {
-    const siteDevs = [
-      { message: "Stopp i tunnelbanan", severity: "critical" },
-    ];
-    const result = computeDisplayDevs(siteDevs, "Some fallback reason");
-    expect(result).toEqual([{ message: "Some fallback reason" }]);
-  });
-
-  it("returns multiple site devs as-is", () => {
-    const siteDevs = [
-      { message: "Dev 1" },
-      { message: "Dev 2" },
-      { message: "Dev 3" },
-    ];
-    const result = computeDisplayDevs(siteDevs, null);
-    expect(result).toHaveLength(3);
-    expect(result).toEqual(siteDevs);
-  });
-});
 
 describe("isSegmentDisrupted", () => {
   it("returns true when site devs exist", () => {
@@ -332,5 +292,244 @@ describe("destination-agnostic departure filtering", () => {
     const result = filterDepartures(apiDeps, "57", 0);
 
     expect(result).toHaveLength(1);
+  });
+});
+
+// --- getDisruptionDisplay tests ---
+
+describe("getDisruptionDisplay", () => {
+  const emptyHealth = undefined;
+  const emptySiteDevs: any[] = [];
+
+  // Priority 1: Deviations API messages
+  describe("Priority 1 — health.messages", () => {
+    it("returns message text and severity from health state", () => {
+      const health = {
+        state: "affected" as const,
+        severity: "warning" as const,
+        reason: null,
+        messages: [{
+          id: "m1", createdAt: 1, modifiedAt: 1, importanceLevel: 3, influenceLevel: 2, urgencyLevel: 2,
+          severity: "warning" as const,
+          messageVariants: [{ language: "sv", header: "Banarbete pågår" }],
+          scope: { lines: [], stopAreas: [] },
+        }],
+        updatedAt: Date.now(),
+      };
+      const result = getDisruptionDisplay(emptySiteDevs, health, "info", "sv");
+      expect(result.messages).toEqual([{ message: "Banarbete pågår" }]);
+      expect(result.severity).toBe("affected");
+    });
+
+    it("uses 'critical' severity when health state is critical", () => {
+      const health = {
+        state: "critical" as const,
+        severity: "critical" as const,
+        reason: null,
+        messages: [{
+          id: "m2", createdAt: 1, modifiedAt: 1, importanceLevel: 5, influenceLevel: 3, urgencyLevel: 3,
+          severity: "critical" as const,
+          messageVariants: [{ language: "sv", header: "Inställt" }],
+          scope: { lines: [], stopAreas: [] },
+        }],
+        updatedAt: Date.now(),
+      };
+      const result = getDisruptionDisplay(emptySiteDevs, health, "info", "sv");
+      expect(result.messages).toEqual([{ message: "Inställt" }]);
+      expect(result.severity).toBe("critical");
+    });
+
+    it("falls through to health.reason when message text is empty", () => {
+      const health = {
+        state: "affected" as const,
+        severity: "warning" as const,
+        reason: "Förseningar pga signalfel",
+        messages: [{
+          id: "m3", createdAt: 1, modifiedAt: 1, importanceLevel: 2, influenceLevel: 1, urgencyLevel: 1,
+          severity: "warning" as const,
+          messageVariants: [{ language: "sv", header: "" }], // empty header
+          scope: { lines: [], stopAreas: [] },
+        }],
+        updatedAt: Date.now(),
+      };
+      const result = getDisruptionDisplay(emptySiteDevs, health, "info", "sv");
+      expect(result.messages).toEqual([{ message: "Förseningar pga signalfel" }]);
+      expect(result.severity).toBe("affected");
+    });
+  });
+
+  // Priority 2: health.reason fallback
+  describe("Priority 2 — health.reason", () => {
+    it("returns health.reason when messages are absent", () => {
+      const health = {
+        state: "affected" as const,
+        severity: "warning" as const,
+        reason: "Spårfel — 10 min försening",
+        messages: [],
+        updatedAt: Date.now(),
+      };
+      const result = getDisruptionDisplay(emptySiteDevs, health, "info", "sv");
+      expect(result.messages).toEqual([{ message: "Spårfel — 10 min försening" }]);
+      expect(result.severity).toBe("affected");
+    });
+
+    it("returns 'critical' when health state is critical with reason only", () => {
+      const health = {
+        state: "critical" as const,
+        severity: "critical" as const,
+        reason: "Inställd trafik",
+        messages: [],
+        updatedAt: Date.now(),
+      };
+      const result = getDisruptionDisplay(emptySiteDevs, health, "info", "sv");
+      expect(result.severity).toBe("critical");
+    });
+  });
+
+  // Priority 3: Departure-level deviations
+  describe("Priority 3 — departureDeviations", () => {
+    it("includes departures with importance_level at or above threshold", () => {
+      const departures = [
+        { importance_level: 3, consequence: "delay", message: "5 min försenad" },
+      ];
+      const result = getDisruptionDisplay(emptySiteDevs, emptyHealth, "warning", "sv", undefined, departures);
+      expect(result.messages).toEqual([{ message: "5 min försenad" }]);
+      expect(result.severity).toBe("affected");
+    });
+
+    it("filters out departures below threshold", () => {
+      const departures = [
+        { importance_level: 1, consequence: "info", message: "Mindre försening" },
+      ];
+      // threshold is "critical" (rank 3), importance_level 1 maps to "info" (rank 1) — filtered
+      const result = getDisruptionDisplay(emptySiteDevs, emptyHealth, "critical", "sv", undefined, departures);
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("uses highest importance departure for severity", () => {
+      const departures = [
+        { importance_level: 1, consequence: "info", message: "Info" },
+        { importance_level: 5, consequence: "critical", message: "Inställt" },
+        { importance_level: 2, consequence: "warning", message: "Varning" },
+      ];
+      const result = getDisruptionDisplay(emptySiteDevs, emptyHealth, "info", "sv", undefined, departures);
+      expect(result.messages).toHaveLength(3);
+      expect(result.severity).toBe("critical"); // highest importance (5 → critical)
+    });
+  });
+
+  // Priority 4: siteDevs with line and scope filtering
+  describe("Priority 4 — siteDevs (stop deviations)", () => {
+    it("returns normal when siteDevs is empty and no other sources", () => {
+      const result = getDisruptionDisplay([], emptyHealth, "info", "sv");
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("returns normal when siteDevs has entries but segmentLine is missing", () => {
+      const siteDevs = [{ message: "Some deviation", importance_level: 3 }];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", undefined);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("includes siteDevs that match the segment line", () => {
+      const siteDevs = [{
+        message: "Grön linje avstängd",
+        importance_level: 3,
+        scope: { lines: [19], stop_areas: [], stop_points: [] },
+      }];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19");
+      expect(result.messages).toEqual([{ message: "Grön linje avstängd" }]);
+      expect(result.severity).toBe("affected");
+    });
+
+    it("excludes siteDevs with non-matching line", () => {
+      const siteDevs = [{
+        message: "Röd linje avstängd",
+        importance_level: 3,
+        scope: { lines: [14], stop_areas: [], stop_points: [] },
+      }];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19");
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("excludes siteDevs matching line but wrong stopArea when stopSiteId provided", () => {
+      const siteDevs = [{
+        message: "Odenplan stängt",
+        importance_level: 4,
+        scope: {
+          lines: [19],
+          stop_points: [],
+          stop_areas: [{ id: "9001" }],
+        },
+      }];
+      // stopSiteId 9999 does NOT match scope.stop_areas[0].id "9001"
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19", undefined, "9999");
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("includes siteDevs matching line AND stopArea when stopSiteId matches", () => {
+      const siteDevs = [{
+        message: "Slussen avstängt",
+        importance_level: 4,
+        scope: {
+          lines: [19],
+          stop_points: [],
+          stop_areas: [{ id: "9002" }],
+        },
+      }];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19", undefined, "9002");
+      expect(result.messages).toEqual([{ message: "Slussen avstängt" }]);
+    });
+
+    it("includes siteDevs matching line AND stop_points when stopSiteId matches", () => {
+      const siteDevs = [{
+        message: "Centralen stängt",
+        importance_level: 3,
+        scope: {
+          lines: [19],
+          stop_points: [{ id: "5001" }],
+          stop_areas: [],
+        },
+      }];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19", undefined, "5001");
+      expect(result.messages).toEqual([{ message: "Centralen stängt" }]);
+    });
+
+    it("filters siteDevs below threshold severity", () => {
+      const siteDevs = [{
+        message: "Info",
+        importance_level: 1,
+        scope: { lines: [19], stop_areas: [], stop_points: [] },
+      }];
+      // threshold "critical" (rank 3), importance_level 1 → "info" (rank 1) → filtered
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "critical", "sv", "19");
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
+
+    it("uses highest importance for severity across multiple matching siteDevs", () => {
+      const siteDevs = [
+        { message: "Liten störning", importance_level: 1, scope: { lines: [19], stop_areas: [], stop_points: [] } },
+        { message: "Stor störning", importance_level: 5, scope: { lines: [19], stop_areas: [], stop_points: [] } },
+        { message: "Mellan störning", importance_level: 3, scope: { lines: [19], stop_areas: [], stop_points: [] } },
+      ];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "info", "sv", "19");
+      expect(result.messages).toHaveLength(3);
+      expect(result.severity).toBe("critical"); // level 5
+    });
+
+    it("returns normal when all matching siteDevs are below threshold", () => {
+      const siteDevs = [
+        { message: "Låg", importance_level: 1, scope: { lines: [19], stop_areas: [], stop_points: [] } },
+        { message: "Medel", importance_level: 2, scope: { lines: [19], stop_areas: [], stop_points: [] } },
+      ];
+      const result = getDisruptionDisplay(siteDevs, emptyHealth, "critical", "sv", "19");
+      expect(result.messages).toEqual([]);
+      expect(result.severity).toBe("normal");
+    });
   });
 });

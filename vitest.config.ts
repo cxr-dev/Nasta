@@ -9,6 +9,12 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
     environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts']
+    setupFiles: ['./vitest.setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.{ts,svelte,svelte.ts}'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.svelte.test.ts'],
+    },
   }
 });

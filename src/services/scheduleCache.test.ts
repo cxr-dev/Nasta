@@ -10,15 +10,31 @@ import type { Departure } from "../types/departure";
 
 const TEST_NOW = new Date("2026-04-15T12:00:00Z").getTime();
 
+// Mock persistentCache with simple in-memory store — scheduleCache's in-memory
+// layer already does the real work; persistentCache is secondary persistence.
+// With fake-indexeddb + vi.useFakeTimers(), IDB operations hang, so we mock it.
+const store = new Map<string, unknown>();
+vi.mock("../services/persistentCache", () => ({
+  persistentCache: {
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    set: vi.fn(async (key: string, value: unknown) => { store.set(key, value); }),
+    remove: vi.fn(async (key: string) => { store.delete(key); }),
+    clearExpired: vi.fn(async () => {}),
+    getAllKeys: vi.fn(async () => Array.from(store.keys())),
+    migrateFromLocalStorage: vi.fn(async () => {}),
+  },
+}));
+
 describe("scheduleCache service", () => {
   beforeEach(async () => {
+    store.clear();
     await clearAllCache();
     vi.useFakeTimers({ now: TEST_NOW });
   });
 
   afterEach(async () => {
-    await clearAllCache();
     vi.useRealTimers();
+    await clearAllCache();
   });
 
   describe("cacheScheduleTime", () => {
@@ -41,24 +57,9 @@ describe("scheduleCache service", () => {
       const line = "76";
       const direction = 1;
 
-      await cacheScheduleTime(
-        siteId,
-        line,
-        direction,
-        new Date("2026-04-15T14:30:00Z"),
-      );
-      await cacheScheduleTime(
-        siteId,
-        line,
-        direction,
-        new Date("2026-04-15T14:45:00Z"),
-      );
-      await cacheScheduleTime(
-        siteId,
-        line,
-        direction,
-        new Date("2026-04-15T15:00:00Z"),
-      );
+      await cacheScheduleTime(siteId, line, direction, new Date("2026-04-15T14:30:00Z"));
+      await cacheScheduleTime(siteId, line, direction, new Date("2026-04-15T14:45:00Z"));
+      await cacheScheduleTime(siteId, line, direction, new Date("2026-04-15T15:00:00Z"));
 
       const cached = await getCachedSchedule(siteId, line, direction);
       expect(cached?.length).toBe(3);
@@ -70,16 +71,13 @@ describe("scheduleCache service", () => {
       const direction = 1;
       const now = Date.now();
 
-      // Cache 1 hour ago (should be filtered)
       const pastTime = new Date(now - 60 * 60 * 1000);
-      // Cache 30 minutes in future (should be included)
       const futureTime = new Date(now + 30 * 60 * 1000);
 
       await cacheScheduleTime(siteId, line, direction, pastTime);
       await cacheScheduleTime(siteId, line, direction, futureTime);
 
       const cached = await getCachedSchedule(siteId, line, direction);
-      // Should only include future times
       expect(cached?.length).toBeGreaterThan(0);
       expect(cached?.every((d) => d.minutes > 0)).toBe(true);
     });
@@ -102,26 +100,16 @@ describe("scheduleCache service", () => {
       const siteId = "1001";
       const line = "76";
 
-      await cacheScheduleTime(
-        siteId,
-        line,
-        1,
-        new Date("2026-04-15T14:30:00Z"),
-      );
-      await cacheScheduleTime(
-        siteId,
-        line,
-        2,
-        new Date("2026-04-15T15:00:00Z"),
-      );
+      await cacheScheduleTime(siteId, line, 1, new Date("2026-04-15T14:30:00Z"));
+      await cacheScheduleTime(siteId, line, 2, new Date("2026-04-15T15:00:00Z"));
 
-      const fruångenCache = await getCachedSchedule(siteId, line, 1);
-      const ropstenCache = await getCachedSchedule(siteId, line, 2);
+      const dir1Cache = await getCachedSchedule(siteId, line, 1);
+      const dir2Cache = await getCachedSchedule(siteId, line, 2);
 
-      expect(fruångenCache?.length).toBe(1);
-      expect(ropstenCache?.length).toBe(1);
-      expect(fruångenCache?.[0].time).toBe("16:30"); // UTC+2 Stockholm
-      expect(ropstenCache?.[0].time).toBe("17:00"); // UTC+2 Stockholm
+      expect(dir1Cache?.length).toBe(1);
+      expect(dir2Cache?.length).toBe(1);
+      expect(dir1Cache?.[0].time).toBe("16:30"); // UTC+2 Stockholm
+      expect(dir2Cache?.[0].time).toBe("17:00"); // UTC+2 Stockholm
     });
   });
 
@@ -136,12 +124,7 @@ describe("scheduleCache service", () => {
       const line = "76";
       const direction = 1;
 
-      await cacheScheduleTime(
-        siteId,
-        line,
-        direction,
-        new Date("2026-04-15T14:30:00Z"),
-      );
+      await cacheScheduleTime(siteId, line, direction, new Date("2026-04-15T14:30:00Z"));
 
       const cached = await getCachedSchedule(siteId, line, direction);
       expect(cached).toBeInstanceOf(Array);
@@ -155,17 +138,11 @@ describe("scheduleCache service", () => {
       const line = "76";
       const direction = 1;
 
-      // Store a time from yesterday (relative to TEST_NOW)
       const yesterdayTime = new Date(TEST_NOW - 30 * 60 * 60 * 1000);
       await cacheScheduleTime(siteId, line, direction, yesterdayTime);
 
-      // Bypass time filtering by checking getCacheStats - the entry EXISTS but has old timestamp
       const stats = await getCacheStats();
       expect(stats.entries).toBe(1);
-
-      // Now manually set updatedAt to a different time to test maxAgeHours behavior
-      // Note: This is complex to test directly since getCachedSchedule also filters by time
-      // We test that the cache stores the entry correctly
       expect(stats.routes[0].timeCount).toBe(1);
     });
   });
@@ -175,24 +152,19 @@ describe("scheduleCache service", () => {
       const siteId = "1001";
       const line = "76";
 
-      // Store old entry
       vi.useFakeTimers({ now: new Date("2026-04-10").getTime() });
       await cacheScheduleTime(siteId, line, 1, new Date("2026-04-10T14:30:00Z"));
 
-      // Move time forward
       vi.setSystemTime(new Date("2026-04-12").getTime());
-
-      // Store new entry
       await cacheScheduleTime(siteId, line, 2, new Date("2026-04-12T14:30:00Z"));
 
-      // Clear entries older than 24 hours
       await clearExpiredCache(24);
 
       const oldCache = await getCachedSchedule(siteId, line, 1);
       const newCache = await getCachedSchedule(siteId, line, 2);
 
-      expect(oldCache).toBeNull(); // Old entry should be cleared
-      expect(newCache).not.toBeNull(); // New entry should remain
+      expect(oldCache).toBeNull();
+      expect(newCache).not.toBeNull();
 
       vi.useRealTimers();
     });

@@ -26,29 +26,6 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function withStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => Promise<T> | T): Promise<T> {
-  try {
-    const db = await openDB();
-    return new Promise<T>((resolve, reject) => {
-      const tx = db.transaction("cache", mode);
-      const store = tx.objectStore("cache");
-      try {
-        const result = callback(store);
-        Promise.resolve(result)
-          .then((v) => {
-            tx.oncomplete = () => resolve(v);
-          })
-          .catch((err) => reject(err));
-      } catch (err) {
-        reject(err);
-      }
-    });
-  } catch {
-    // Fallback to in-memory
-    throw new Error('Use in-memory');
-  }
-}
-
 export const persistentCache = {
   async migrateFromLocalStorage(localStorageKey: string, cacheKey: string, ttlMs?: number): Promise<void> {
     if (MIGRATED_KEYS.has(localStorageKey)) return;

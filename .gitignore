@@ -62,4 +62,7 @@ scripts/debug-*
 scripts/verify-*
 scripts/test-*
 
+# Test coverage output
+coverage/
+
 .impeccable

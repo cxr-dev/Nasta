@@ -6,11 +6,15 @@ async function loadVenueService() {
 }
 
 describe("venueService", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.resetModules();
     localStorage.clear();
+    // Clear persistentCache (IndexedDB survives vi.resetModules with fake-indexeddb)
+    const { persistentCache } = await import("./persistentCache");
+    const keys = await persistentCache.getAllKeys();
+    for (const k of keys) await persistentCache.remove(k);
   });
 
   it("merges Overpass metadata with Supabase pricing for matching venues", async () => {
