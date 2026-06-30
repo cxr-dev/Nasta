@@ -3,13 +3,22 @@ export interface ThemePalette {
   name: string;
   colorA: string;
   colorB: string;
+  surfaceHue?: number;
   variants: {
     A: { isLight: boolean; surface: string; accent: string };
     B: { isLight: boolean; surface: string; accent: string };
   };
 }
 
-const _rawPalettes = [
+interface RawPalette {
+  id: string;
+  name: string;
+  colorA: string;
+  colorB: string;
+  surfaceHue?: number; // override OKLCH hue (0-360) for surface tint
+}
+
+const _rawPalettes: RawPalette[] = [
   { id: 'default',        name: 'Default',       colorA: '#FAFAF9', colorB: '#171717' },
   { id: 'electric-pulse', name: 'Electric Pulse', colorA: '#635BFF', colorB: '#00E5E5' },
   { id: 'acid-forest',    name: 'Acid Forest',    colorA: '#DFFF00', colorB: '#1A4D2E' },
@@ -156,39 +165,50 @@ function oklchRgba(l: number, c: number, h: number, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** Derive text color — prefers neutral white/black, uses palette color only when needed for contrast */
-function deriveTextColor(bgHex: string, otherHex: string): string {
-  const bgL = wcagLuminance(bgHex);
-
-  // Preferred: neutral white on dark bg, dark on light bg (classic look)
-  if (bgL < 0.4) {
-    if (wcagContrast(bgHex, '#FFFFFF') >= MIN_CONTRAST) return '#FFFFFF';
-  } else {
-    if (wcagContrast(bgHex, '#171717') >= MIN_CONTRAST) return '#171717';
-  }
-
-  // Neutral fails — try the other palette color directly
-  if (wcagContrast(bgHex, otherHex) >= MIN_CONTRAST) return otherHex;
-
-  // Derive from other palette color in OKLCH, keeping hue and full chroma
+/** Derive text color — searches both light & dark directions exhaustively, returns best-contrast candidate */
+export function deriveTextColor(bgHex: string, otherHex: string): string {
   const [ol, oc, oh] = hexToOklch(otherHex);
-  const step = 0.02;
 
-  if (bgL < 0.4) {
-    // Dark bg — lighten text, keep full chroma
-    for (let tl = Math.max(ol + 0.05, 0.65); tl <= 0.98; tl += step) {
-      const c = oklchToHex(tl, oc * 0.8, oh);
-      if (wcagContrast(bgHex, c) >= MIN_CONTRAST) return c;
+  // Start with the obvious candidates, tracking best
+  let best = { color: '#FFFFFF', contrast: wcagContrast(bgHex, '#FFFFFF') };
+  const darkC = wcagContrast(bgHex, '#171717');
+  if (darkC > best.contrast) best = { color: '#171717', contrast: darkC };
+  const otherC = wcagContrast(bgHex, otherHex);
+  if (otherC > best.contrast) best = { color: otherHex, contrast: otherC };
+
+  if (best.contrast >= MIN_CONTRAST) return best.color;
+
+  // Exhaustive search in both lightness directions with multiple chroma levels
+  const chromaLevels = [1.0, 0.8, 0.5, 0.2, 0.0];
+  const step = 0.01;
+
+  // Light direction
+  for (let tl = 0.65; tl <= 0.99; tl += step) {
+    for (const cm of chromaLevels) {
+      const c = oklchToHex(tl, oc * cm, oh);
+      const contrast = wcagContrast(bgHex, c);
+      if (contrast >= MIN_CONTRAST) return c;
+      if (contrast > best.contrast) best = { color: c, contrast };
     }
-    return '#FFFFFF';
-  } else {
-    // Light bg — darken text, keep full chroma
-    for (let tl = Math.min(ol - 0.05, 0.30); tl >= 0.03; tl -= step) {
-      const c = oklchToHex(tl, oc * 0.8, oh);
-      if (wcagContrast(bgHex, c) >= MIN_CONTRAST) return c;
-    }
-    return '#171717';
   }
+
+  // Dark direction
+  for (let tl = 0.35; tl >= 0.01; tl -= step) {
+    for (const cm of chromaLevels) {
+      const c = oklchToHex(tl, oc * cm, oh);
+      const contrast = wcagContrast(bgHex, c);
+      if (contrast >= MIN_CONTRAST) return c;
+      if (contrast > best.contrast) best = { color: c, contrast };
+    }
+  }
+
+  // Final fallback: try pure extremes
+  for (const ext of ['#000000', '#FFFFFF', '#0A0A0A', '#FAFAF9']) {
+    const c = wcagContrast(bgHex, ext);
+    if (c > best.contrast) best = { color: ext, contrast: c };
+  }
+
+  return best.color;
 }
 
 /** Derive text-on-accent color */
@@ -197,36 +217,50 @@ function deriveTextOnAccent(accentHex: string): string {
   if (accL < 0.18) return '#FFFFFF';
   if (accL > 0.5) return '#0A0A0A';
 
-  // Mid-luminance accent: try white first
-  if (wcagContrast(accentHex, '#FFFFFF') >= 4.5) return '#FFFFFF';
-  if (wcagContrast(accentHex, '#0A0A0A') >= 4.5) return '#0A0A0A';
+  // Try neutral extremes first
+  if (wcagContrast(accentHex, '#FFFFFF') >= MIN_CONTRAST) return '#FFFFFF';
+  if (wcagContrast(accentHex, '#0A0A0A') >= MIN_CONTRAST) return '#0A0A0A';
 
-  // Neither passes — derive from OKLCH
+  // Neither passes — derive from OKLCH with best-contrast fallback
   const [ol, oc, oh] = hexToOklch(accentHex);
+  let best = { color: accL < 0.3 ? '#FFFFFF' : '#0A0A0A', contrast: 0 };
+
   if (accL < 0.3) {
-    // Accent is dark-ish → use light text
-    for (let tl = 0.85; tl <= 0.98; tl += 0.02) {
+    for (let tl = 0.85; tl <= 0.99; tl += 0.02) {
       const c = oklchToHex(tl, oc * 0.6, oh);
-      if (wcagContrast(accentHex, c) >= 4.5) return c;
+      const contrast = wcagContrast(accentHex, c);
+      if (contrast >= MIN_CONTRAST) return c;
+      if (contrast > best.contrast) best = { color: c, contrast };
     }
   }
-  return accL < 0.3 ? '#FFFFFF' : '#0A0A0A';
+
+  // Validate fallback: return whichever extreme has better contrast
+  const whiteContrast = wcagContrast(accentHex, '#FFFFFF');
+  const darkContrast = wcagContrast(accentHex, '#0A0A0A');
+  return whiteContrast >= darkContrast ? '#FFFFFF' : '#0A0A0A';
 }
 
-function computeSurfaceOkLch(bgHex: string, dark: boolean): string {
+function deriveSurfaceColor(bgHex: string, isDark: boolean, hueOverride?: number): string {
   const [l, c, h] = hexToOklch(bgHex);
-  // Surface is subtly shifted from bg: lighten dark themes, darken light themes
-  const shift = dark ? 0.04 : -0.03;
-  const surfaceL = Math.max(0, Math.min(1, l + shift));
-  // Reduce chroma slightly for a subdued surface
-  return oklchToHex(surfaceL, c * 0.55, h);
+  if (isDark) {
+    const surfaceL = Math.max(0, Math.min(1, l + 0.04));
+    return oklchToHex(surfaceL, c * 0.55, h);
+  }
+  // Light mode: consistent very-light tinted neutral, carrying theme hue
+  // Hue defaults to bg's own hue; achromatic bgs (<0.005 chroma) default to warm-neutral 85
+  // surfaceHue override allows hand-tuning for edge cases
+  const hue = hueOverride ?? (c < 0.005 ? 85 : h);
+  return oklchToHex(0.94, 0.018, hue);
 }
 
-function computeSurfaceEmphasis(bgHex: string, dark: boolean): string {
+function deriveSurfaceEmphasis(bgHex: string, isDark: boolean, hueOverride?: number): string {
   const [l, c, h] = hexToOklch(bgHex);
-  const shift = dark ? 0.08 : -0.06;
-  const emphL = Math.max(0, Math.min(1, l + shift));
-  return oklchToHex(emphL, c * 0.65, h);
+  if (isDark) {
+    const emphL = Math.max(0, Math.min(1, l + 0.08));
+    return oklchToHex(emphL, c * 0.65, h);
+  }
+  const hue = hueOverride ?? (c < 0.005 ? 85 : h);
+  return oklchToHex(0.88, 0.022, hue);
 }
 
 /** Derive status colors from theme accent in OKLCH */
@@ -259,34 +293,69 @@ function computeStatusColors(accentHex: string, bgHex: string, dark: boolean) {
     'error-bg':    oklchToHex(isDarkBg ? 0.16 : 0.94, ac * 0.15, errH),
     critical:      oklchToHex(isDarkBg ? 0.60 : 0.42, ac * 0.8, critH),
     'critical-subtle': oklchRgba(isDarkBg ? 0.35 : 0.85, ac * 0.3, critH, isDarkBg ? 0.25 : 0.12),
-    'critical-bg': oklchRgba(isDarkBg ? 0.18 : 0.94, ac * 0.15, critH, isDarkBg ? 0.10 : 0.05),
+    'critical-bg': oklchRgba(isDarkBg ? 0.18 : 0.88, ac * 0.15, critH, isDarkBg ? 0.10 : 0.12),
     warning:       oklchToHex(isDarkBg ? 0.70 : 0.40, ac * 0.6, warnH),
     'warning-subtle': oklchRgba(isDarkBg ? 0.30 : 0.86, ac * 0.25, warnH, isDarkBg ? 0.22 : 0.12),
-    'warning-bg':  oklchRgba(isDarkBg ? 0.16 : 0.94, ac * 0.12, warnH, isDarkBg ? 0.09 : 0.04),
+    'warning-bg':  oklchRgba(isDarkBg ? 0.16 : 0.90, ac * 0.12, warnH, isDarkBg ? 0.09 : 0.10),
     info:          oklchToHex(isDarkBg ? 0.72 : 0.38, ac * 0.5, infoH),
     'info-subtle': oklchRgba(isDarkBg ? 0.28 : 0.87, ac * 0.2, infoH, isDarkBg ? 0.20 : 0.12),
   };
 }
 
+// ——— Accent contrast enforcement ———
+const MIN_UI_CONTRAST = 3.0; // WCAG 1.4.11 non-text contrast minimum
+
+/** Derive accent color with at least 3:1 contrast against bg, preserving hue */
+function ensureAccentContrast(accentHex: string, bgHex: string): string {
+  if (wcagContrast(bgHex, accentHex) >= MIN_UI_CONTRAST) return accentHex;
+
+  const [, ac, ah] = hexToOklch(accentHex);
+  let best = { color: accentHex, contrast: wcagContrast(bgHex, accentHex) };
+  const step = 0.01;
+
+  // Light direction
+  for (let tl = 0.45; tl <= 0.98; tl += step) {
+    for (const cm of [0.9, 0.6, 0.3]) {
+      const c = oklchToHex(tl, ac * cm, ah);
+      const contrast = wcagContrast(bgHex, c);
+      if (contrast >= MIN_UI_CONTRAST) return c;
+      if (contrast > best.contrast) best = { color: c, contrast };
+    }
+  }
+
+  // Dark direction
+  for (let tl = 0.55; tl >= 0.03; tl -= step) {
+    for (const cm of [0.9, 0.6, 0.3]) {
+      const c = oklchToHex(tl, ac * cm, ah);
+      const contrast = wcagContrast(bgHex, c);
+      if (contrast >= MIN_UI_CONTRAST) return c;
+      if (contrast > best.contrast) best = { color: c, contrast };
+    }
+  }
+
+  return best.color;
+}
+
 // ——— Variant computation ———
-function computeVariant(bg: string, accent: string) {
+function computeVariant(bg: string, accent: string, surfaceHue?: number) {
   const isLight = !needsLightText(bg);
-  const surface = computeSurfaceOkLch(bg, !isLight);
+  const surface = deriveSurfaceColor(bg, !isLight, surfaceHue);
   return { isLight, surface, accent };
 }
 
-export const THEMES: ThemePalette[] = _rawPalettes.map(t => ({
+export const THEMES: ThemePalette[] = _rawPalettes.map(({ surfaceHue, ...t }) => ({
   ...t,
   variants: {
-    A: computeVariant(t.colorA, t.colorB),
-    B: computeVariant(t.colorB, t.colorA),
+    A: computeVariant(t.colorA, t.colorB, surfaceHue),
+    B: computeVariant(t.colorB, t.colorA, surfaceHue),
   },
 }));
 
 // ——— Preview style for theme picker ———
 export function previewStyle(palette: ThemePalette, variant: 'A' | 'B'): string {
   const bg = variant === 'A' ? palette.colorA : palette.colorB;
-  const accent = palette.variants[variant].accent;
+  const rawAccent = variant === 'A' ? palette.colorB : palette.colorA;
+  const accent = ensureAccentContrast(rawAccent, bg);
   const isLight = palette.variants[variant].isLight;
 
   const text = deriveTextColor(bg, accent);
@@ -333,16 +402,27 @@ export function getDarkVariant(themeId: string): 'A' | 'B' {
   return la < lb ? 'A' : 'B';
 }
 
+/** Return human-readable name for a theme variant */
+export function getVariantName(themeId: string, variant: 'A' | 'B'): string {
+  const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
+  const isLight = theme.variants[variant].isLight;
+  // Only append suffix when variant's lightness differs from theme's "natural" mode
+  // This keeps names clean for most themes while disambiguating light/dark variants
+  const suffix = isLight ? '' : ' Dark';
+  return `${theme.name}${suffix}`;
+}
+
 export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
   const bg = variant === 'A' ? theme.colorA : theme.colorB;
-  const accent = variant === 'A' ? theme.colorB : theme.colorA;
+  const rawAccent = variant === 'A' ? theme.colorB : theme.colorA;
+  const accent = ensureAccentContrast(rawAccent, bg);
   const dark = needsLightText(bg); // bg is visually dark → dark mode
 
   // Derive colors in OKLCH
   const textHex = deriveTextColor(bg, accent);
-  const surface = computeSurfaceOkLch(bg, dark);
-  const surfaceEmphasis = computeSurfaceEmphasis(bg, dark);
+  const surface = deriveSurfaceColor(bg, dark, theme.surfaceHue);
+  const surfaceEmphasis = deriveSurfaceEmphasis(bg, dark, theme.surfaceHue);
   const textOnAccent = deriveTextOnAccent(accent);
 
   // Parse derived text color for rgba opacity variants (borders, secondary text)

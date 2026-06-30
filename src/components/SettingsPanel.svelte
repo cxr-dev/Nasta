@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { THEMES, previewStyle } from '../themes';
+  import { THEMES, previewStyle, getVariantName } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
@@ -485,7 +485,7 @@
                 class:active={isActiveA}
                 style={previewStyle(palette, 'A')}
                 onclick={() => setTheme(palette.id, 'A')}
-                aria-label={`${palette.name}, A`}
+                aria-label={getVariantName(palette.id, 'A')}
                 aria-pressed={isActiveA}
               >
                 <span class="ph-accent-bar"></span>
@@ -496,7 +496,7 @@
                   </span>
                   <span class="ph-preview-row2">
                     <span class="ph-preview-dest">→ Skansen</span>
-                    <span class="ph-preview-name">{palette.name}</span>
+                    <span class="ph-preview-name">{getVariantName(palette.id, 'A')}</span>
                     {#if isActiveA}
                       <span class="ph-preview-check">✓</span>
                     {/if}
@@ -508,7 +508,7 @@
                 class:active={isActiveB}
                 style={previewStyle(palette, 'B')}
                 onclick={() => setTheme(palette.id, 'B')}
-                aria-label={`${palette.name}, B`}
+                aria-label={getVariantName(palette.id, 'B')}
                 aria-pressed={isActiveB}
               >
                 <span class="ph-accent-bar"></span>
@@ -519,7 +519,7 @@
                   </span>
                   <span class="ph-preview-row2">
                     <span class="ph-preview-dest">→ Skansen</span>
-                    <span class="ph-preview-name">{palette.name}</span>
+                    <span class="ph-preview-name">{getVariantName(palette.id, 'B')}</span>
                     {#if isActiveB}
                       <span class="ph-preview-check">✓</span>
                     {/if}

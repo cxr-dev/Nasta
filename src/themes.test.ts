@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsLightText, THEMES, applyTheme } from './themes';
+import { needsLightText, THEMES, applyTheme, wcagContrast, wcagLuminance, deriveTextColor, getVariantName, hexToOklch } from './themes';
 
 describe('needsLightText', () => {
   it('returns true for dark colors', () => {
@@ -56,5 +56,146 @@ describe('notificationDuration (inline)', () => {
   it('very long text capped at 6000ms', () => {
     const text = 'A'.repeat(200); // 200 * 60 = 12000 → clamped to 6000
     expect(notificationDuration(text)).toBe(6000);
+  });
+});
+
+describe('getVariantName', () => {
+  it('appends " Dark" suffix for dark-mode variants', () => {
+    // Default variant B (bg=#171717) is dark
+    expect(getVariantName('default', 'B')).toBe('Default Dark');
+  });
+
+  it('returns plain name for light-mode variants', () => {
+    expect(getVariantName('default', 'A')).toBe('Default');
+    // Wild Orchid variant A (bg=#E056FD, L≈0.299) is classified dark by needsLightText
+    // Use a definitively light variant instead
+    expect(getVariantName('solar-violet', 'B')).toBe('Solar Violet');
+  });
+
+  it('works for all 22 themes × 2 variants', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        const name = getVariantName(theme.id, variant);
+        expect(name).toBeTruthy();
+        // Dark variants must end with " Dark", light variants must not
+        if (theme.variants[variant].isLight) {
+          expect(name).not.toMatch(/ Dark$/);
+        } else {
+          expect(name).toMatch(/ Dark$/);
+        }
+      }
+    }
+  });
+});
+
+describe('surface color (OKLCH derivation)', () => {
+  it('light-mode surfaces have perceptible luminance (L ≥ 0.90)', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        if (!theme.variants[variant].isLight) continue;
+        applyTheme(theme.id, variant);
+        const raw = document.documentElement.style.getPropertyValue('--surface').trim();
+        const surfaceHex = raw.startsWith('#') ? raw : `#${raw}`;
+        const [sl] = hexToOklch(surfaceHex);
+        expect(sl, `${theme.id}[${variant}] surface L=${sl.toFixed(2)} < 0.90`).toBeGreaterThanOrEqual(0.90);
+      }
+    }
+  });
+
+  it('light-mode surfaces never fall back to pure white (#FFFFFF)', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        if (!theme.variants[variant].isLight) continue;
+        applyTheme(theme.id, variant);
+        const surface = document.documentElement.style.getPropertyValue('--surface').trim();
+        expect(surface.toUpperCase(), `${theme.id}[${variant}] surface is #FFFFFF`).not.toBe('#FFFFFF');
+      }
+    }
+  });
+
+  it('light-mode surface color is never identical to raw colorA or colorB', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        if (!theme.variants[variant].isLight) continue;
+        applyTheme(theme.id, variant);
+        const surface = document.documentElement.style.getPropertyValue('--surface').trim().toUpperCase();
+        expect(surface, `${theme.id}[${variant}] surface matches colorA`).not.toBe(theme.colorA.toUpperCase());
+        expect(surface, `${theme.id}[${variant}] surface matches colorB`).not.toBe(theme.colorB.toUpperCase());
+      }
+    }
+  });
+});
+
+describe('contrast validation', () => {
+  const MIN_TEXT_CONTRAST = 4.5;
+  const MIN_UI_CONTRAST = 3.0;
+
+  it('all theme text-on-bg meets 4.5:1 WCAG AA', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        const bg = variant === 'A' ? theme.colorA : theme.colorB;
+        const rawAccent = variant === 'A' ? theme.colorB : theme.colorA;
+        const text = deriveTextColor(bg, rawAccent);
+        const contrast = wcagContrast(bg, text);
+        expect(contrast,
+          `${theme.id} [${variant}] text-on-bg contrast ${contrast.toFixed(2)} < ${MIN_TEXT_CONTRAST}`
+        ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
+      }
+    }
+  });
+
+  it('all theme accent-on-bg meets 3:1 WCAG 1.4.11 non-text', () => {
+    // applyTheme uses ensureAccentContrast internally — verify via CSS custom property
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        const bg = variant === 'A' ? theme.colorA : theme.colorB;
+        // Simulate applyTheme's accent logic: ensureAccentContrast(rawAccent, bg)
+        // Cannot call ensureAccentContrast directly (not exported), so verify
+        // by applying theme and reading the computed --accent property
+        applyTheme(theme.id, variant);
+        const accent = document.documentElement.style.getPropertyValue('--accent').trim();
+        // applyTheme sets hex values without quotes, but getPropertyValue may vary
+        const accentHex = accent.startsWith('#') ? accent : `#${accent}`;
+        const contrast = wcagContrast(bg, accentHex);
+        expect(contrast,
+          `${theme.id} [${variant}] accent-on-bg contrast ${contrast.toFixed(2)} < ${MIN_UI_CONTRAST}`
+        ).toBeGreaterThanOrEqual(MIN_UI_CONTRAST);
+      }
+    }
+  });
+
+  it('all theme text-on-accent meets 4.5:1 WCAG AA', () => {
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        applyTheme(theme.id, variant);
+        const accent = document.documentElement.style.getPropertyValue('--accent').trim();
+        const textOnAccent = document.documentElement.style.getPropertyValue('--text-on-accent').trim();
+        const accentHex = accent.startsWith('#') ? accent : `#${accent}`;
+        const textHex = textOnAccent.startsWith('#') ? textOnAccent : `#${textOnAccent}`;
+        const contrast = wcagContrast(accentHex, textHex);
+        expect(contrast,
+          `${theme.id} [${variant}] text-on-accent contrast ${contrast.toFixed(2)} < ${MIN_TEXT_CONTRAST}`
+        ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
+      }
+    }
+  });
+
+  it('deriveTextColor never returns unchecked pure white/black fallback', () => {
+    // Regression: previously fell through to unchecked '#FFFFFF' for mid-luminance bgs
+    for (const theme of THEMES) {
+      for (const variant of ['A', 'B'] as const) {
+        const bg = variant === 'A' ? theme.colorA : theme.colorB;
+        const rawAccent = variant === 'A' ? theme.colorB : theme.colorA;
+        const text = deriveTextColor(bg, rawAccent);
+        const contrast = wcagContrast(bg, text);
+        // The returned color must actually beat both pure white and pure black
+        const whiteC = wcagContrast(bg, '#FFFFFF');
+        const blackC = wcagContrast(bg, '#171717');
+        const bestPure = Math.max(whiteC, blackC);
+        expect(contrast,
+          `${theme.id} [${variant}] contrast ${contrast.toFixed(2)} worse than best pure ${bestPure.toFixed(2)}`
+        ).toBeGreaterThanOrEqual(bestPure - 0.001); // floating point tolerance
+      }
+    }
   });
 });
