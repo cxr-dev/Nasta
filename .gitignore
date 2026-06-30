@@ -23,12 +23,9 @@ tsconfig.tsbuildinfo
 docs\superpowers\
 git-ref-recovery-20260423-215541.txt
 test-results/.last-run.json
-.tmp-playwright-debug.mjs
-.tmp-playwright-debug2.mjs
-.tmp-playwright-diagnose.mjs
-.pnpm-store/v11/index.db
-.pnpm-store/v11/.pnpm-needs-build-marker
+.tmp-*
 implementation_plan.md
+.pnpm-store/v11/index.db
 # Stale lockfile (use pnpm-lock.yaml instead)
 package-lock.json
 
@@ -46,7 +43,8 @@ public/apple-touch-icon.png
 vite-out.txt
 vite-err.txt
 
-# Scratch scripts
-_op.py
-_overpass_query.py
+# Debug / snapshot dumps (Playwright, plan files, etc.)
+*-snapshot.md
+_*.py
+
 .impeccable
