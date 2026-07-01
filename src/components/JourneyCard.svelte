@@ -3,6 +3,8 @@
   import TransportIcon from './TransportIcon.svelte';
   import TrainPosition from './TrainPosition.svelte';
   import { getT } from '../stores/localeStore.svelte';
+  import gsap from 'gsap';
+  import { tick } from 'svelte';
 
   let {
     journeyMeta,
@@ -48,10 +50,44 @@
     const m = min % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
+
+  let panelEl: HTMLDivElement | undefined = $state();
+  let collapsing = $state(false);
+
+  function handleToggle() {
+    if (isExpanded) {
+      const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (rm) { ontoggle?.(); return; }
+      collapsing = true;
+      tick().then(() => {
+        if (!panelEl) { collapsing = false; ontoggle?.(); return; }
+        gsap.to(panelEl, {
+          height: 0, opacity: 0,
+          duration: 0.2, ease: 'power2.in',
+          onComplete: () => {
+            collapsing = false;
+            ontoggle?.();
+          },
+        });
+      });
+    } else {
+      ontoggle?.();
+    }
+  }
+
+  $effect(() => {
+    if (!isExpanded || !panelEl) return;
+    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+    gsap.fromTo(panelEl,
+      { height: 0, opacity: 0 },
+      { height: 'auto', opacity: 1, duration: 0.28, ease: 'power2.out', clearProps: 'height,opacity' },
+    );
+  });
 </script>
 
 <article class="journey-card" class:expanded={isExpanded}>
-  <button class="card-main" onclick={() => ontoggle?.()}>
+  <button class="card-main" onclick={() => handleToggle()}>
     <span class="accent-bar"></span>
 
     <div class="card-body">
@@ -82,8 +118,8 @@
     </div>
   </button>
 
-  {#if isExpanded}
-    <div class="expanded-panel">
+  {#if isExpanded || collapsing}
+    <div class="expanded-panel" class:collapsing bind:this={panelEl}>
       <div class="timeline">
         {#each journeyMeta.legs as leg, i}
           <div class="leg-row">
@@ -203,6 +239,11 @@
   .expanded-panel {
     border-top: 1px solid var(--border);
     padding: 12px 14px 12px 18px;
+    overflow: hidden;
+  }
+
+  .expanded-panel.collapsing {
+    pointer-events: none;
   }
 
   .timeline {

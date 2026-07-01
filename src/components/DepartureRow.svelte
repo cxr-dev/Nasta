@@ -445,6 +445,18 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     flex-shrink: 0;
+    animation: weather-fade-in 0.15s ease;
+  }
+
+  @keyframes weather-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .weather-badge {
+      animation: none;
+    }
   }
 
   .time-col {

@@ -393,7 +393,7 @@
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
     hasAnimatedStagger = true;
     gsap.fromTo(
-      depListEl.querySelectorAll('.departure-card'),
+      depListEl.querySelectorAll('.departure-card, .journey-card'),
       { opacity: 0, y: 12 },
       { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.04, clearProps: 'transform,opacity' },
     );
