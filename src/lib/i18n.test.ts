@@ -62,10 +62,10 @@ describe("i18n", () => {
     });
 
     it("returns tomorrow label for next-day events", () => {
-      // Tomorrow in Stockholm
-      const tomorrow = new Date();
-      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-      tomorrow.setUTCHours(14, 0, 0, 0);
+      // Freeze time to avoid CI timezone edge cases (23:20 UTC = 01:20 Stockholm = next day)
+      vi.setSystemTime(new Date('2026-07-02T10:00:00Z')); // 12:00 Stockholm
+      // 2026-07-03 12:00 UTC = 14:00 Stockholm (next day)
+      const tomorrow = new Date('2026-07-03T12:00:00Z');
       const result = formatEventDateTime(tomorrow.toISOString(), "sv", sv);
       expect(result).toContain(sv.tomorrow);
     });
@@ -97,9 +97,10 @@ describe("i18n", () => {
     });
 
     it("returns tomorrow for next-day events", () => {
-      const tomorrow = new Date();
-      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-      tomorrow.setUTCHours(14, 0, 0, 0);
+      // Freeze time to avoid CI timezone edge cases (23:20 UTC = 01:20 Stockholm = next day)
+      vi.setSystemTime(new Date('2026-07-02T10:00:00Z')); // 12:00 Stockholm
+      // 2026-07-03 12:00 UTC = 14:00 Stockholm (next day)
+      const tomorrow = new Date('2026-07-03T12:00:00Z');
       const result = formatEventRelativeShort(tomorrow.toISOString(), "sv", sv);
       expect(result).toBe(sv.tomorrow);
     });
