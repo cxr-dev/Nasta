@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Page, Segment, TransportType } from '../types/page';
+  import type { Page, Segment } from '../types/page';
   import { removeSegment as storeRemoveSegment, reorderSegments } from '../stores/pageStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
   import { gripVertical } from '../icons/departureIcons';
@@ -8,11 +8,10 @@
 
   let t = $derived(getT());
 
-  let { page }: { page: Page } = $props();
+  let { page, onAddSegment }: { page: Page; onAddSegment?: () => void } = $props();
 
 let listEl = $state<HTMLDivElement>();
 
-  let expandedId = $state<string | null>(null);
   let draggingIndex = $state<number | null>(null);
   let dragOverIndex = $state<number | null>(null);
   let dropInsertIndex = $state<number | null>(null);
@@ -21,17 +20,145 @@ let listEl = $state<HTMLDivElement>();
   let dragStartX = 0;
   let longPressTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function toggleExpand(id: string) {
-    expandedId = expandedId === id ? null : id;
+  // ── Swipe-to-delete state ─────────────────────────────────────────────────
+  const SWIPE_THRESHOLD = 8;
+  const REVEAL_THRESHOLD = 60;
+  const COMMIT_THRESHOLD = 120;
+  const DELETE_ACTION_WIDTH = 80;
+
+  let swipingSegmentId = $state<string | null>(null);
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let swipeCurrentDx = 0;
+  let swipeIntent = $state(false);
+  let revealedSegmentId = $state<string | null>(null);
+
+  function handleSegmentTouchStart(e: TouchEvent, segmentId: string) {
+    // Ignore if drag-handle was the target (stopPropagation already blocks, but be safe)
+    if ((e.target as HTMLElement).closest('.drag-handle')) return;
+    if (draggingIndex !== null) return;
+    if (e.touches.length !== 1) return;
+
+    // Dismiss previously revealed segment
+    if (revealedSegmentId && revealedSegmentId !== segmentId) {
+      const prevEl = document.querySelector(`[data-swipe-id="${revealedSegmentId}"]`) as HTMLElement | null;
+      if (prevEl) {
+        gsap.killTweensOf(prevEl);
+        gsap.to(prevEl, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+      }
+      revealedSegmentId = null;
+    }
+
+    swipingSegmentId = segmentId;
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+    swipeIntent = false;
   }
 
+  function handleSegmentTouchMove(e: TouchEvent, segmentId: string) {
+    if (swipingSegmentId !== segmentId) return;
+    if (e.touches.length !== 1) {
+      cancelSwipe();
+      return;
+    }
+
+    const dx = e.touches[0].clientX - swipeStartX;
+    const dy = e.touches[0].clientY - swipeStartY;
+
+    // Vertical takes priority → cancel swipe
+    if (!swipeIntent && Math.abs(dy) > Math.abs(dx)) {
+      cancelSwipe();
+      return;
+    }
+    // Horizontal deadzone
+    if (!swipeIntent && Math.abs(dx) < SWIPE_THRESHOLD) return;
+
+    swipeIntent = true;
+    e.preventDefault(); // prevent scroll while swiping
+
+    // Only allow swiping left (negative dx), clamp to -COMMIT_THRESHOLD
+    const clampedDx = Math.max(dx, -COMMIT_THRESHOLD);
+    swipeCurrentDx = clampedDx;
+    const el = document.querySelector(`[data-swipe-id="${segmentId}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.set(el, { x: clampedDx });
+    }
+  }
+
+  function handleSegmentTouchEnd(e: TouchEvent, segmentId: string) {
+    if (swipingSegmentId !== segmentId) return;
+
+    const dx = swipeCurrentDx;
+
+    const el = document.querySelector(`[data-swipe-id="${segmentId}"]`) as HTMLElement | null;
+
+    if (!swipeIntent || dx > -REVEAL_THRESHOLD) {
+      // Not enough movement — snap back
+      if (el) {
+        gsap.killTweensOf(el);
+        gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+      }
+      revealedSegmentId = null;
+    } else if (dx <= -COMMIT_THRESHOLD) {
+      // Full swipe → delete
+      navigator.vibrate?.(10);
+      if (el) {
+        gsap.killTweensOf(el);
+        gsap.to(el, {
+          x: -el.offsetWidth,
+          opacity: 0,
+          duration: 0.25,
+          ease: 'power2.in',
+          onComplete: () => removeSegment(segmentId),
+        });
+      } else {
+        removeSegment(segmentId);
+      }
+      revealedSegmentId = null;
+    } else {
+      // Partial swipe → reveal delete action
+      if (el) {
+        gsap.killTweensOf(el);
+        gsap.to(el, { x: -DELETE_ACTION_WIDTH, duration: 0.2, ease: 'power2.out' });
+      }
+      revealedSegmentId = segmentId;
+    }
+
+    swipingSegmentId = null;
+    swipeStartX = 0;
+    swipeStartY = 0;
+    swipeCurrentDx = 0;
+    swipeIntent = false;
+  }
+
+  function cancelSwipe() {
+    const el = swipingSegmentId
+      ? (document.querySelector(`[data-swipe-id="${swipingSegmentId}"]`) as HTMLElement | null)
+      : null;
+    if (el) {
+      gsap.killTweensOf(el);
+      gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
+    }
+    swipingSegmentId = null;
+    swipeStartX = 0;
+    swipeStartY = 0;
+    swipeCurrentDx = 0;
+    swipeIntent = false;
+  }
+
+  // Reset revealed segment when page changes (via $effect tracking page.id)
+  $effect(() => {
+    revealedSegmentId = null;
+  });
+
   function removeSegment(segmentId: string) {
-    if (expandedId === segmentId) expandedId = null;
     storeRemoveSegment(page.id, segmentId);
   }
 
   // ── HTML5 Drag (desktop) ──────────────────────────────────────────────────
   function handleDragStart(e: DragEvent, index: number) {
+    // Dismiss any revealed segment before initiating drag
+    dismissRevealed();
     draggingIndex = index;
     dropInsertIndex = null;
     if (e.dataTransfer) {
@@ -70,6 +197,8 @@ let listEl = $state<HTMLDivElement>();
   function handleHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation(); // prevent the card's expand click from firing
     if (e.touches.length !== 1) return;
+    // Dismiss any revealed segment before dragging
+    dismissRevealed();
     draggingIndex = index;
     dropInsertIndex = null;
     dragStartX = e.touches[0].clientX;
@@ -148,12 +277,14 @@ let listEl = $state<HTMLDivElement>();
     return () => el.removeEventListener('touchmove', handleTouchMove);
   });
 
-  function getLineBadge(transportType: TransportType, line: string): string {
-    switch (transportType) {
-      case 'metro': return `T${line}`;
-      case 'train': return `J${line}`;
-      default: return '';
+  function dismissRevealed() {
+    if (!revealedSegmentId) return;
+    const el = document.querySelector(`[data-swipe-id="${revealedSegmentId}"]`) as HTMLElement | null;
+    if (el) {
+      gsap.killTweensOf(el);
+      gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
     }
+    revealedSegmentId = null;
   }
 
   function primaryLineText(segment: Segment): string {
@@ -162,11 +293,6 @@ let listEl = $state<HTMLDivElement>();
     return segment.lineName;
   }
 
-  function showLineBadge(segment: Segment): boolean {
-    const badge = getLineBadge(segment.transportType, segment.line);
-    if (!badge) return false;
-    return !primaryLineText(segment).includes(badge);
-  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -177,10 +303,23 @@ let listEl = $state<HTMLDivElement>();
   ontouchend={handleTouchEnd}
 >
   {#if !page.segments || page.segments.length === 0}
-    <p class="empty">{t.addSegmentHint}</p>
+    {#if onAddSegment}
+      <button
+        class="empty-cta"
+        onclick={onAddSegment}
+        aria-label={t.addSegmentHint}
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>{t.addSegmentHint}</span>
+      </button>
+    {:else}
+      <p class="empty">{t.addSegmentHint}</p>
+    {/if}
   {:else}
     {#each page.segments as segment, index (segment.id)}
-      {@const isExpanded = expandedId === segment.id}
+      {@const isSwiping = swipingSegmentId === segment.id}
       {@const isDropHere = draggingIndex !== null && dropInsertIndex === index && dropInsertIndex !== draggingIndex}
       {#if isDropHere}
         <div class="drop-indicator" role="presentation">
@@ -193,78 +332,82 @@ let listEl = $state<HTMLDivElement>();
           </div>
         </div>
       {/if}
-      <div
-        class="segment"
-        class:expanded={isExpanded}
-        class:dragging={draggingIndex === index}
-        class:drag-over={dragOverIndex === index && draggingIndex !== index}
-        data-drag-index={index}
-        draggable="true"
-        role="listitem"
-        ondragstart={(e) => handleDragStart(e, index)}
-        ondragover={(e) => handleDragOver(e, index)}
-        ondrop={(e) => handleDrop(e, index)}
-        ondragend={handleDragEnd}
-      >
+      <!-- Swipe container -->
+      <div class="segment-swipe-container">
+        <!-- Delete action behind -->
+        <div
+          class="segment-delete-action"
+          class:visible={revealedSegmentId === segment.id || (isSwiping && swipeIntent)}
+          aria-hidden={revealedSegmentId !== segment.id}
+          onclick={() => {
+            navigator.vibrate?.(10);
+            removeSegment(segment.id);
+          }}
+          role="button"
+          tabindex={revealedSegmentId === segment.id ? 0 : -1}
+        >
+          <span>{t.remove}</span>
+        </div>
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="segment-body"
-          onclick={() => { if (draggingIndex === null) toggleExpand(segment.id); }}
-          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(segment.id); }}
-          role="button"
-          tabindex="0"
-          aria-expanded={isExpanded}
-          aria-label={`${primaryLineText(segment)} ${segment.fromStop.name} → ${segment.toStop.name}`}
+          class="segment"
+          class:dragging={draggingIndex === index}
+          class:drag-over={dragOverIndex === index && draggingIndex !== index}
+          data-drag-index={index}
+          data-swipe-id={segment.id}
+          draggable="true"
+          role="listitem"
+          ondragstart={(e) => handleDragStart(e, index)}
+          ondragover={(e) => handleDragOver(e, index)}
+          ondrop={(e) => handleDrop(e, index)}
+          ondragend={handleDragEnd}
+          ontouchstart={(e) => handleSegmentTouchStart(e, segment.id)}
+          ontouchmove={(e) => handleSegmentTouchMove(e, segment.id)}
+          ontouchend={(e) => handleSegmentTouchEnd(e, segment.id)}
         >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="drag-handle no-scale"
-            class:long-pressing={isLongPressing}
-            aria-hidden="true"
-            ontouchstart={(e) => handleHandleTouchStart(e, index)}
+            class="segment-body"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-              {@html gripVertical}
-            </svg>
-          </div>
-          <div class="segment-icon">
-            <TransportIcon type={segment.transportType} size={18} />
-          </div>
-          <div class="segment-meta">
-            <div class="segment-line">
-              <span class="line-name">{primaryLineText(segment)}</span>
-              {#if !isExpanded}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="drag-handle no-scale"
+              class:long-pressing={isLongPressing}
+              aria-hidden="true"
+              ontouchstart={(e) => handleHandleTouchStart(e, index)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                {@html gripVertical}
+              </svg>
+            </div>
+            <div class="segment-icon">
+              <TransportIcon type={segment.transportType} size={18} />
+            </div>
+            <div class="segment-meta">
+              <div class="segment-line">
+                <span class="line-name">{primaryLineText(segment)}</span>
                 <span class="seg-dest">
                   {segment.fromStop.name} → {segment.direction?.destination ?? segment.toStop.name}
                 </span>
-              {:else if showLineBadge(segment)}
-                <span class="seg-badge">{getLineBadge(segment.transportType, segment.line)}</span>
-              {/if}
-            </div>
-            {#if isExpanded}
-              <div class="segment-route">
-                {segment.fromStop.name} → {segment.toStop.name}
               </div>
               <div class="segment-dir">{segment.direction?.destination}</div>
+            </div>
+            <div class="segment-right">
               <button
                 type="button"
-                class="remove-btn"
-                onclick={() => removeSegment(segment.id)}
+                class="segment-delete-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  navigator.vibrate?.(10);
+                  removeSegment(segment.id);
+                }}
                 aria-label={t.remove}
               >
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                   <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" fill="none"/>
                 </svg>
-                {t.remove}
               </button>
-            {/if}
-          </div>
-          <div class="segment-right">
-            <span class="expand-chevron" class:open={isExpanded}>
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-              </svg>
-            </span>
+            </div>
           </div>
         </div>
       </div>
@@ -297,6 +440,67 @@ let listEl = $state<HTMLDivElement>();
     padding: 20px;
   }
 
+  .empty-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 16px;
+    border-radius: var(--radius-md);
+    border: 2px dashed var(--border);
+    background: transparent;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .empty-cta:hover,
+  .empty-cta:active {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+  }
+
+  /* ── Swipe container ─────────────────────────────────────────────── */
+  .segment-swipe-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+  }
+
+  .segment-delete-action {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-error);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+    border: none;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
+  .segment-delete-action.visible {
+    opacity: 1;
+  }
+
+  .segment-delete-action:active {
+    opacity: 0.8;
+  }
+
   .segment {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
@@ -304,6 +508,8 @@ let listEl = $state<HTMLDivElement>();
     overflow: hidden;
     transition: border-color 0.2s, box-shadow 0.2s;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
+    z-index: 1;
   }
 
   .segment.dragging {
@@ -333,10 +539,6 @@ let listEl = $state<HTMLDivElement>();
 
   .segment-body:hover {
     background: var(--accent-subtle);
-  }
-
-  .segment.expanded .segment-body {
-    align-items: flex-start;
   }
 
   .segment-icon {
@@ -371,25 +573,6 @@ let listEl = $state<HTMLDivElement>();
     text-overflow: ellipsis;
   }
 
-  .seg-badge {
-    font-size: 10px;
-    font-weight: 700;
-    border-radius: 5px;
-    padding: 2px 6px;
-    background: var(--accent-subtle);
-    color: var(--accent);
-    flex-shrink: 0;
-  }
-
-  .segment-route {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   .segment-dir {
     font-size: 12px;
     color: var(--text-muted);
@@ -400,20 +583,6 @@ let listEl = $state<HTMLDivElement>();
     display: flex;
     align-items: center;
     flex-shrink: 0;
-  }
-
-  .expand-chevron {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    color: var(--text-muted);
-    transition: transform 0.2s ease;
-  }
-
-  .expand-chevron.open {
-    transform: rotate(180deg);
   }
 
   .seg-dest {
@@ -444,26 +613,25 @@ let listEl = $state<HTMLDivElement>();
     cursor: grabbing;
   }
 
-  .remove-btn {
-    display: inline-flex;
+  .segment-delete-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    margin-top: 10px;
-    border: 1px solid var(--border);
+    justify-content: center;
+    border: none;
     background: transparent;
     color: var(--text-muted);
-    border-radius: var(--radius-sm);
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
+    border-radius: 6px;
     cursor: pointer;
-    font-family: inherit;
+    flex-shrink: 0;
+    transition: color 150ms, background 150ms;
     -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
   }
 
-  .remove-btn:hover {
+  .segment-delete-btn:hover {
     color: var(--color-error);
-    border-color: var(--color-error);
     background: color-mix(in oklch, var(--color-error) 10%, transparent);
   }
 
@@ -533,10 +701,10 @@ let listEl = $state<HTMLDivElement>();
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .expand-chevron {
+    .segment {
       transition: none;
     }
-    .segment {
+    .segment-delete-action {
       transition: none;
     }
     .drop-ghost {

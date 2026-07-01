@@ -21,7 +21,86 @@
   let pageIsLongPressing = $state(false);
   let pageLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // ── Page swipe-to-delete ──────────────────────────────────────────────────
+  const PAGE_SWIPE_THRESHOLD = 8;
+  const PAGE_REVEAL_THRESHOLD = 60;
+  const PAGE_COMMIT_THRESHOLD = 120;
+  const PAGE_DELETE_WIDTH = 76;
+
+  let swipingPageId = $state<string | null>(null);
+  let pageSwipeStartX = 0;
+  let pageSwipeStartY = 0;
+  let pageSwipeCurrentDx = 0;
+  let pageSwipeIntent = $state(false);
+  let revealedPageId = $state<string | null>(null);
+
+  function handlePageSwipeTouchStart(e: TouchEvent, pageId: string) {
+    if ((e.target as HTMLElement).closest('.page-drag-handle')) return;
+    if (pageDraggingIndex !== null) return;
+    if (e.touches.length !== 1) return;
+    if (revealedPageId && revealedPageId !== pageId) {
+      const prevEl = document.querySelector(`[data-page-swipe-id="${revealedPageId}"]`) as HTMLElement | null;
+      if (prevEl) { gsap.killTweensOf(prevEl); gsap.to(prevEl, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' }); }
+      revealedPageId = null;
+    }
+    swipingPageId = pageId;
+    pageSwipeStartX = e.touches[0].clientX;
+    pageSwipeStartY = e.touches[0].clientY;
+    pageSwipeIntent = false;
+  }
+
+  function handlePageSwipeTouchMove(e: TouchEvent, pageId: string) {
+    if (swipingPageId !== pageId) return;
+    if (e.touches.length !== 1) { cancelPageSwipe(); return; }
+    const dx = e.touches[0].clientX - pageSwipeStartX;
+    const dy = e.touches[0].clientY - pageSwipeStartY;
+    if (!pageSwipeIntent && Math.abs(dy) > Math.abs(dx)) { cancelPageSwipe(); return; }
+    if (!pageSwipeIntent && Math.abs(dx) < PAGE_SWIPE_THRESHOLD) return;
+    pageSwipeIntent = true;
+    e.preventDefault();
+    const clampedDx = Math.max(dx, -PAGE_COMMIT_THRESHOLD);
+    pageSwipeCurrentDx = clampedDx;
+    const el = document.querySelector(`[data-page-swipe-id="${pageId}"]`) as HTMLElement | null;
+    if (el) gsap.set(el, { x: clampedDx });
+  }
+
+  function handlePageSwipeTouchEnd(e: TouchEvent, pageId: string) {
+    if (swipingPageId !== pageId) return;
+    if (pages.length <= 1) { cancelPageSwipe(); return; }
+    const el = document.querySelector(`[data-page-swipe-id="${pageId}"]`) as HTMLElement | null;
+    const currentX = pageSwipeCurrentDx;
+    if (!pageSwipeIntent || currentX > -PAGE_REVEAL_THRESHOLD) {
+      if (el) { gsap.killTweensOf(el); gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' }); }
+      revealedPageId = null;
+    } else if (currentX <= -PAGE_COMMIT_THRESHOLD) {
+      navigator.vibrate?.(10);
+      if (el) {
+        gsap.killTweensOf(el);
+        gsap.to(el, { x: -el.offsetWidth, opacity: 0, height: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0, duration: 0.25, ease: 'power2.in', onComplete: () => handleDeletePage(pageId) });
+      } else { handleDeletePage(pageId); }
+      revealedPageId = null;
+    } else {
+      if (el) { gsap.killTweensOf(el); gsap.to(el, { x: -PAGE_DELETE_WIDTH, duration: 0.2, ease: 'power2.out' }); }
+      revealedPageId = pageId;
+    }
+    swipingPageId = null; pageSwipeStartX = 0; pageSwipeStartY = 0; pageSwipeCurrentDx = 0; pageSwipeIntent = false;
+  }
+
+  function cancelPageSwipe() {
+    const el = swipingPageId ? (document.querySelector(`[data-page-swipe-id="${swipingPageId}"]`) as HTMLElement | null) : null;
+    if (el) { gsap.killTweensOf(el); gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' }); }
+    swipingPageId = null; pageSwipeStartX = 0; pageSwipeStartY = 0; pageSwipeCurrentDx = 0; pageSwipeIntent = false;
+  }
+
+  function dismissPageRevealed() {
+    if (!revealedPageId) return;
+    const el = document.querySelector(`[data-page-swipe-id="${revealedPageId}"]`) as HTMLElement | null;
+    if (el) { gsap.killTweensOf(el); gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' }); }
+    revealedPageId = null;
+  }
+
   function handlePageDragStart(e: DragEvent, index: number) {
+    dismissPageRevealed();
     pageDraggingIndex = index;
     pageDropInsertIndex = null;
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
@@ -57,6 +136,7 @@
   function handlePageHandleTouchStart(e: TouchEvent, index: number) {
     e.stopPropagation();
     if (e.touches.length !== 1) return;
+    dismissPageRevealed();
     pageDraggingIndex = index;
     pageDropInsertIndex = null;
     pageDragStartX = e.touches[0].clientX;
@@ -231,7 +311,9 @@
       target.closest('.drag-handle') ||
       target.closest('.hour-selector') ||
       target.closest('.info-overlay') ||
-      target.closest('.segmented-control')
+      target.closest('.segmented-control') ||
+      target.closest('[data-swipe-id]') ||
+      target.closest('[data-page-swipe-id]')
     ) {
       return;
     }
@@ -374,18 +456,35 @@
                 </div>
               </div>
             {/if}
-            <div
-              class="page-item"
-              class:active={page.id === activePageId}
-              class:page-dragging={pageDraggingIndex === index}
-              class:page-drag-over={pageDragOverIndex === index && pageDraggingIndex !== index}
-              data-page-drag-index={index}
-              draggable="true"
-              ondragstart={(e) => handlePageDragStart(e, index)}
-              ondragover={(e) => handlePageDragOver(e, index)}
-              ondrop={(e) => handlePageDrop(e, index)}
-              ondragend={handlePageDragEnd}
-            >
+            <div class="page-swipe-container">
+              {#if pages.length > 1}
+                <div
+                  class="page-delete-action"
+                  class:page-delete-visible={revealedPageId === page.id || (swipingPageId === page.id && pageSwipeIntent)}
+                  aria-hidden={revealedPageId !== page.id}
+                  onclick={() => { navigator.vibrate?.(10); handleDeletePage(page.id); }}
+                  role="button"
+                  tabindex={revealedPageId === page.id ? 0 : -1}
+                >
+                  <span>{t.remove}</span>
+                </div>
+              {/if}
+              <div
+                class="page-item"
+                class:active={page.id === activePageId}
+                class:page-dragging={pageDraggingIndex === index}
+                class:page-drag-over={pageDragOverIndex === index && pageDraggingIndex !== index}
+                data-page-drag-index={index}
+                data-page-swipe-id={page.id}
+                draggable="true"
+                ondragstart={(e) => handlePageDragStart(e, index)}
+                ondragover={(e) => handlePageDragOver(e, index)}
+                ondrop={(e) => handlePageDrop(e, index)}
+                ondragend={handlePageDragEnd}
+                ontouchstart={(e) => handlePageSwipeTouchStart(e, page.id)}
+                ontouchmove={(e) => handlePageSwipeTouchMove(e, page.id)}
+                ontouchend={(e) => handlePageSwipeTouchEnd(e, page.id)}
+              >
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="page-drag-handle no-scale"
@@ -453,6 +552,7 @@
                 {/if}
               </div>
             </div>
+          </div>
           {/each}
         </div>
       </div>
@@ -485,7 +585,7 @@
               >
                 {t.addSegment}
               </button>
-              <SegmentList page={page} />
+              <SegmentList page={page} onAddSegment={() => { showSearch = true; }} />
             </div>
           {/if}
         {/if}
@@ -723,6 +823,43 @@
 
   .page-drag-handle.long-pressing {
     color: var(--accent);
+  }
+
+  /* Page swipe-to-delete */
+  .page-swipe-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+
+  .page-delete-action {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-error);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+    border: none;
+    border-radius: 0 10px 10px 0;
+  }
+
+  .page-delete-action.page-delete-visible {
+    opacity: 1;
+  }
+
+  .page-delete-action:active {
+    opacity: 0.8;
   }
 
   .drop-indicator {
@@ -1130,6 +1267,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .page-item {
+      transition: none;
+    }
+    .page-delete-action {
       transition: none;
     }
     .drop-ghost {

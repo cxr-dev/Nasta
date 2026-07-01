@@ -78,16 +78,6 @@ describe('SegmentList touch drag', () => {
       expect(container.querySelectorAll('[data-drag-index]')).toHaveLength(3);
     });
 
-    it('expands segment on body click', async () => {
-      const page = makePage(3);
-      const { container } = render(SegmentList, { props: { page } });
-      const body = container.querySelector('.segment-body') as HTMLElement;
-
-      await fireEvent.click(body);
-      await tick();
-
-      expect(body.getAttribute('aria-expanded')).toBe('true');
-    });
   });
 
   describe('HTML5 drag reorder', () => {
@@ -208,26 +198,6 @@ describe('SegmentList touch drag', () => {
       await tick();
 
       expect(reorderSegments).not.toHaveBeenCalled();
-    });
-
-    it('does not toggle expand during active touch drag', async () => {
-      const page = makePage(3);
-      const { container } = render(SegmentList, { props: { page } });
-      await tick();
-
-      const items = container.querySelectorAll('[data-drag-index]');
-      const dragHandle = items[0].querySelector('.drag-handle')!;
-
-      // Start touch drag
-      await fireEvent(dragHandle, makeTouchEvent('touchstart', 100, 200));
-      await tick();
-
-      // Click body while drag is active — guard prevents toggle
-      const body = items[0].querySelector('.segment-body') as HTMLElement;
-      await fireEvent.click(body);
-      await tick();
-
-      expect(body.getAttribute('aria-expanded')).toBe('false');
     });
 
     describe('long-press haptic', () => {
