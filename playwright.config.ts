@@ -6,10 +6,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 2,
+  outputDir: "test-results",
   reporter: "html",
   use: {
     baseURL: "http://localhost:5173/Nasta/",
-    trace: process.env.CI ? "retain-on-failure" : "off",
+    trace: process.env.CI ? "on-first-retry" : "off",
+    video: "off",
     screenshot: "only-on-failure",
     // Block service workers so Playwright's page.route() mocks work correctly.
     // The VitePWA service worker (active in preview builds) would otherwise intercept
