@@ -13,6 +13,7 @@
   import gsap from 'gsap';
 
   import DepartureRow from "./DepartureRow.svelte";
+  import JourneyCard from "./JourneyCard.svelte";
   import { getSettings } from "../stores/settingsStore.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
@@ -566,28 +567,36 @@
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
-          <DepartureRow
-            segment={item.segment}
-            {departure}
-            {subsequent}
-            {hasDeparture}
-            {primaryDepartureText}
-            siteDevs={displayDevs}
-            {isExpanded}
-            {isExpandable}
-            {topDevMessage}
-            {topDevType}
-            {userLocation}
-            locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
-            walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
-            {openFeatureSheet}
-            {t}
-            {severity}
-            isSleeping={sleepInfo.isSleeping}
-            nextDepartureTime={sleepInfo.nextTime}
-            ontoggle={() => toggleExpanded(item.segment.id)}
-            onprefetch={() => prefetchForSegment(item.segment)}
-          />
+          {#if item.segment.journeyMeta}
+            <JourneyCard
+              journeyMeta={item.segment.journeyMeta}
+              isExpanded={isExpanded}
+              ontoggle={() => toggleExpanded(item.segment.id)}
+            />
+          {:else}
+            <DepartureRow
+              segment={item.segment}
+              {departure}
+              {subsequent}
+              {hasDeparture}
+              {primaryDepartureText}
+              siteDevs={displayDevs}
+              {isExpanded}
+              {isExpandable}
+              {topDevMessage}
+              {topDevType}
+              {userLocation}
+              locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
+              walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
+              {openFeatureSheet}
+              {t}
+              {severity}
+              isSleeping={sleepInfo.isSleeping}
+              nextDepartureTime={sleepInfo.nextTime}
+              ontoggle={() => toggleExpanded(item.segment.id)}
+              onprefetch={() => prefetchForSegment(item.segment)}
+            />
+          {/if}
         {/each}
       {/each}
 
