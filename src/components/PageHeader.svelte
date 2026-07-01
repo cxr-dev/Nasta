@@ -3,8 +3,6 @@
   import { getSettings } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
-  import { cloudRain, cloudSnow, cloudLightning } from '../icons/departureIcons';
-  import { getDailySummary, type DailySummary } from '../services/weatherCache';
 
   let t = $derived(getT());
 
@@ -24,22 +22,6 @@
   let hasPrev = $derived(currentIndex > 0);
   let hasNext = $derived(currentIndex < pages.length - 1);
   let showSwipeHint = $derived(!settings.hasSwipedRoutes && pages.length >= 2);
-
-  let dailyWeather = $state<DailySummary>({ symbol: null, tempMin: null, tempMax: null });
-
-  $effect(() => {
-    // Stockholm center coordinates
-    getDailySummary(59.329, 18.068).then((s) => {
-      dailyWeather = s;
-    });
-  });
-
-  let weatherIcon = $derived(
-    dailyWeather.symbol === 'rain' ? cloudRain :
-    dailyWeather.symbol === 'snow' ? cloudSnow :
-    dailyWeather.symbol === 'thunder' ? cloudLightning :
-    null
-  );
 
   let titleEl: HTMLHeadingElement | undefined = $state();
   let prevBtnEl: HTMLButtonElement | undefined = $state();
@@ -98,17 +80,6 @@
     <p class="swipe-hint">
       {t.swipeHint}
     </p>
-  {/if}
-
-  {#if weatherIcon}
-    <div class="weather-bar">
-      <svg viewBox="0 0 24 24" fill="none" class="weather-icon" aria-label={dailyWeather.symbol ?? 'Weather'}>
-        <g>{@html weatherIcon}</g>
-      </svg>
-      {#if dailyWeather.tempMax !== null}
-        <span class="weather-temp">{Math.round(dailyWeather.tempMax)}°</span>
-      {/if}
-    </div>
   {/if}
 
   <div class="header-rule"></div>
@@ -183,32 +154,6 @@
     padding-bottom: 10px;
     padding-left: 1px;
     text-align: center;
-  }
-
-  .weather-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding-bottom: 8px;
-  }
-
-  .weather-icon {
-    width: 14px;
-    height: 14px;
-    color: var(--accent-subtle);
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    flex-shrink: 0;
-  }
-
-  .weather-temp {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    line-height: 1;
   }
 
   .header-rule {

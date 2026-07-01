@@ -2,12 +2,14 @@
  * Open-Meteo weather forecast cache.
  * Free API, no key required. CORS-friendly. 15 min in-memory cache.
  * Returns weather symbol for current conditions + daily summary.
+ * Coordinates rounded to 2dp (~1km) for cross-segment deduplication.
  */
 
 type WeatherSymbol = 'rain' | 'snow' | 'thunder' | null;
 
 interface CachedEntry {
-  symbol: WeatherSymbol;
+  currentSymbol: WeatherSymbol;
+  dailySymbol: WeatherSymbol;
   temp: number | null;
   tempMin: number | null;
   tempMax: number | null;
@@ -23,7 +25,8 @@ export function clearWeatherCache(): void {
 }
 
 function cacheKey(lat: number, lon: number): string {
-  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  // 2dp = ~1km precision — multiple stops share same cache entry
+  return `${lat.toFixed(2)},${lon.toFixed(2)}`;
 }
 
 /** Map WMO weather code to our precipitation symbol. Returns null for non-precipitation. */
@@ -55,7 +58,7 @@ async function fetchOpenMeteo(lat: number, lon: number): Promise<CachedEntry> {
   if (!res.ok) throw new Error(`Open-Meteo API error: ${res.status}`);
   const json: OpenMeteoResponse = await res.json();
 
-  const symbol = json.current ? classifyWmo(json.current.weather_code) : null;
+  const currentSymbol = json.current ? classifyWmo(json.current.weather_code) : null;
   const temp = json.current?.temperature_2m ?? null;
 
   const dailyCode = json.daily?.weather_code?.[0];
@@ -63,9 +66,7 @@ async function fetchOpenMeteo(lat: number, lon: number): Promise<CachedEntry> {
   const tempMin = json.daily?.temperature_2m_min?.[0] ?? null;
   const tempMax = json.daily?.temperature_2m_max?.[0] ?? null;
 
-  // Daily weather_code is the most severe for the day; use it for summary.
-  // For current, use current weather_code. For daily summary, use daily code.
-  return { symbol: dailySymbol, temp, tempMin, tempMax, timestamp: Date.now() };
+  return { currentSymbol, dailySymbol, temp, tempMin, tempMax, timestamp: Date.now() };
 }
 
 async function getCached(lat: number, lon: number): Promise<CachedEntry> {
@@ -89,9 +90,8 @@ export async function getWeatherForStation(
 ): Promise<WeatherSymbol> {
   try {
     const entry = await getCached(lat, lon);
-    // For per-station display, prefer current conditions
-    // fall back to daily symbol if current data is missing
-    return entry.symbol;
+    // Per-station: return current precipitation only
+    return entry.currentSymbol;
   } catch {
     return null;
   }
@@ -114,7 +114,7 @@ export async function getDailySummary(
   try {
     const entry = await getCached(lat, lon);
     return {
-      symbol: entry.symbol,
+      symbol: entry.dailySymbol,
       tempMin: entry.tempMin,
       tempMax: entry.tempMax,
     };

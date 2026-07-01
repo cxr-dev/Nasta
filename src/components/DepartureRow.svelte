@@ -203,19 +203,9 @@
           <span class="route-pill">{segment.line}</span>
           <span class="dest-text"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
         </div>
-        {#if weatherIconSvg}
-          <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
-            <g>{@html weatherIconSvg}</g>
-          </svg>
-        {/if}
       {:else}
         <span class="route-number" data-testid="segment-line">{segment.line}</span>
         <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
-        {#if weatherIconSvg}
-          <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
-            <g>{@html weatherIconSvg}</g>
-          </svg>
-        {/if}
         <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
       {/if}
     </div>
@@ -235,6 +225,11 @@
         {/if}
       {:else}
         <span class="em-dash">—</span>
+      {/if}
+      {#if weatherIconSvg && groupingMode !== 'station'}
+        <svg viewBox="0 0 24 24" fill="none" class="weather-indicator" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+          <g>{@html weatherIconSvg}</g>
+        </svg>
       {/if}
     </div>
   </button>
@@ -263,8 +258,13 @@
                 ? (t.showLess ?? 'Show less')
                 : (t.showNMore ?? '+{n} more').replace('{n}', String(siteDevs.length - 3))}
             </button>
-          {/if}
-        </div>
+      {/if}
+      {#if weatherIconSvg && groupingMode !== 'station'}
+        <svg viewBox="0 0 24 24" fill="none" class="weather-indicator" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+          <g>{@html weatherIconSvg}</g>
+        </svg>
+      {/if}
+    </div>
       {:else}
         <span class="disrupt-msg">{topDevMessage}</span>
       {/if}
@@ -433,13 +433,13 @@
     font-weight: 700;
     margin-right: 2px;
   }
-  .weather-badge {
+  .weather-indicator {
     display: inline-flex;
-    width: 14px;
-    height: 14px;
-    margin-left: 4px;
-    vertical-align: middle;
-    color: var(--accent-subtle);
+    width: 12px;
+    height: 12px;
+    margin-top: 3px;
+    align-self: flex-end;
+    color: var(--text-muted);
     stroke: currentColor;
     stroke-width: 1.5;
     stroke-linecap: round;
@@ -454,7 +454,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .weather-badge {
+    .weather-indicator {
       animation: none;
     }
   }

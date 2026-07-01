@@ -105,7 +105,7 @@ test.describe("Weather badge in departure cards", () => {
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
 
     // Weather badge should appear (rain icon)
-    const weatherBadge = page.locator("svg.weather-badge");
+    const weatherBadge = page.locator("svg.weather-indicator");
     await expect(weatherBadge).toBeVisible({ timeout: 10000 });
     await expect(weatherBadge).toHaveAttribute("aria-label", "Rain");
   });
@@ -158,7 +158,60 @@ test.describe("Weather badge in departure cards", () => {
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
 
     // Weather badge should NOT appear
-    const weatherBadge = page.locator("svg.weather-badge");
+    const weatherBadge = page.locator("svg.weather-indicator");
+    await expect(weatherBadge).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test("no weather badge when current is clear but daily forecast shows rain", async ({ page }) => {
+    // Regression: daily forecast shows rain, but current conditions are clear.
+    // getWeatherForStation should use current (WMO 0), not daily (WMO 61).
+    await page.route("**/api.open-meteo.com/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          current: { weather_code: 0, temperature_2m: 18 },
+          daily: {
+            weather_code: [61],
+            temperature_2m_max: [22],
+            temperature_2m_min: [14],
+          },
+        }),
+      });
+    });
+
+    await page.route("**/*.integration.sl.se/**", mockSlApi);
+
+    const defaultRoutes = [
+      {
+        id: "w3",
+        name: "Test",
+        segments: [
+          {
+            id: "ws3",
+            line: "14",
+            lineName: "14",
+            direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+            fromStop: { id: "f1", name: "T-Centralen", siteId: "100", coord: [59.33, 18.06] },
+            toStop: { id: "t1", name: "Mörby centrum", siteId: "456" },
+            transportType: "metro",
+          },
+        ],
+      },
+    ];
+
+    await page.addInitScript((data) => {
+      localStorage.setItem("nasta_routes", JSON.stringify(data));
+    }, defaultRoutes);
+
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await disableAnimations(page);
+
+    const segmentRow = page.getByTestId("segment-row");
+    await expect(segmentRow).toBeVisible({ timeout: 15000 });
+
+    // Weather badge should NOT appear (current conditions are clear)
+    const weatherBadge = page.locator("svg.weather-indicator");
     await expect(weatherBadge).not.toBeVisible({ timeout: 5000 });
   });
 });

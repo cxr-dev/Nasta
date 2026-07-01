@@ -27,22 +27,29 @@ beforeEach(() => {
 });
 
 describe('getWeatherForStation', () => {
-  it('returns rain when daily code is rain (61)', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(61, 15, 61, 12, 18));
+  it('returns rain when current code is rain (61)', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(61, 15, 0, 12, 18));
     const result = await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON);
     expect(result).toBe('rain');
   });
 
-  it('returns snow when daily code is snow (71)', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(71, -2, 71, -5, 0));
+  it('returns snow when current code is snow (71)', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(71, -2, 0, -5, 0));
     const result = await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON);
     expect(result).toBe('snow');
   });
 
-  it('returns thunder when daily code is thunder (95)', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(95, 22, 95, 18, 26));
+  it('returns thunder when current code is thunder (95)', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(95, 22, 0, 18, 26));
     const result = await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON);
     expect(result).toBe('thunder');
+  });
+
+  it('returns null when current is clear but daily shows rain', async () => {
+    // Current: clear (0). Daily worst: rain (61). Should return null (not rain).
+    mockFetch.mockResolvedValueOnce(mockResponse(0, 15, 61, 12, 18));
+    const result = await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON);
+    expect(result).toBeNull();
   });
 
   it('returns null for clear weather (code=0)', async () => {

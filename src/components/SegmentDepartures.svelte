@@ -18,7 +18,7 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, chevronDown } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, chevronDown, cloudRain, cloudSnow, cloudLightning } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
   import { getLocale } from "../stores/localeStore.svelte";
@@ -26,6 +26,7 @@
   import type { StationAlert } from "../types/deviation";
   import StationNoticeBar from "./StationNoticeBar.svelte";
   import { dismissedStore } from "../stores/dismissedStore.svelte";
+  import { getWeatherForStation } from "../services/weatherCache";
 
   let {
     page,
@@ -72,6 +73,30 @@
   let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
+
+  // Weather per station (for station grouping header)
+  let stationWeather = $state<Map<string, string | null>>(new Map());
+
+  $effect(() => {
+    // Only fetch when grouping by station
+    if (settings.groupingMode !== 'station') return;
+    for (const seg of page.segments ?? []) {
+      const station = seg.fromStop.name;
+      if (stationWeather.has(station)) continue;
+      const coord = seg.fromStop.coord;
+      if (!coord) continue;
+      getWeatherForStation(coord[0], coord[1]).then((s) => {
+        stationWeather.set(station, s);
+      });
+    }
+  });
+
+  function weatherIconForSymbol(symbol: string | null): string | null {
+    if (symbol === 'rain') return cloudRain;
+    if (symbol === 'snow') return cloudSnow;
+    if (symbol === 'thunder') return cloudLightning;
+    return null;
+  }
 
 
 
@@ -547,7 +572,18 @@
     {:else}
       {#each segmentGroups.groups as group}
         {#if group.label}
-          <div class="section-label">{group.label}</div>
+          <div class="section-label">
+            {group.label}
+            {#if settings.groupingMode === 'station'}
+              {@const ws = stationWeather.get(group.label) ?? null}
+              {@const wi = weatherIconForSymbol(ws)}
+              {#if wi}
+                <svg viewBox="0 0 24 24" fill="none" class="section-weather" aria-label={ws === 'rain' ? 'Rain' : ws === 'snow' ? 'Snow' : 'Thunder'}>
+                  <g>{@html wi}</g>
+                </svg>
+              {/if}
+            {/if}
+          </div>
         {/if}
         {#each group.items as item (item.segment.id)}
           {@const deps = segmentDeps.get(item.segment.id) ?? []}
@@ -676,6 +712,19 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-muted);
+  }
+  .section-weather {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    margin-left: 6px;
+    vertical-align: middle;
+    color: var(--text-secondary);
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
   }
 
   .page-title {
