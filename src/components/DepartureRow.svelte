@@ -6,6 +6,7 @@
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
   import { dismissedStore } from "../stores/dismissedStore.svelte";
+  import { getWeatherForStation } from "../services/weatherCache";
 
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import TransportIcon from "./TransportIcon.svelte";
@@ -54,6 +55,17 @@
     onprefetch?: () => void;
   } = $props();
 
+  let weatherSymbol = $state<string | null>(null);
+
+  $effect(() => {
+    const coord = segment.fromStop.coord;
+    if (!coord) return;
+    const [lat, lon] = coord;
+    getWeatherForStation(lat, lon).then((s) => {
+      weatherSymbol = s;
+    });
+  });
+
   function pillLabel(type: string, severity: string): string {
     if (severity === 'critical') {
       return t.disruptionCriticalShort ?? 'Kritisk';
@@ -77,6 +89,13 @@
     if (type === 'general') return alertTriangle;
     return infoCircle;
   }
+
+  let weatherIconSvg = $derived(
+    weatherSymbol === 'rain' ? cloudRain :
+    weatherSymbol === 'snow' ? cloudSnow :
+    weatherSymbol === 'thunder' ? cloudLightning :
+    null
+  );
 
   let panelEl: HTMLDivElement | undefined = $state();
   let collapsing = $state(false);
@@ -179,6 +198,11 @@
     <div class="meta-col">
       <span class="route-number" data-testid="segment-line">{segment.line}</span>
       <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
+      {#if weatherIconSvg}
+        <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+          <g>{@html weatherIconSvg}</g>
+        </svg>
+      {/if}
       <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
     </div>
 
@@ -356,6 +380,19 @@
   .route-arrow {
     color: var(--accent);
     font-weight: 700;
+  }
+  .weather-badge {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    vertical-align: middle;
+    color: var(--accent-subtle);
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
   }
 
   .time-col {
