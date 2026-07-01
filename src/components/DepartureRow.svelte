@@ -32,6 +32,7 @@
     nextDepartureTime = null,
     ontoggle,
     onprefetch,
+    groupingMode,
   }: {
     segment: Segment;
     departure: Departure | undefined;
@@ -53,6 +54,7 @@
     nextDepartureTime?: string | null;
     ontoggle?: () => void;
     onprefetch?: () => void;
+    groupingMode?: string;
   } = $props();
 
   let weatherSymbol = $state<string | null>(null);
@@ -196,14 +198,26 @@
     </div>
 
     <div class="meta-col">
-      <span class="route-number" data-testid="segment-line">{segment.line}</span>
-      <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
-      {#if weatherIconSvg}
-        <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
-          <g>{@html weatherIconSvg}</g>
-        </svg>
+      {#if groupingMode === 'station'}
+        <div class="route-dest-combo">
+          <span class="route-pill">{segment.line}</span>
+          <span class="dest-text"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
+        </div>
+        {#if weatherIconSvg}
+          <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+            <g>{@html weatherIconSvg}</g>
+          </svg>
+        {/if}
+      {:else}
+        <span class="route-number" data-testid="segment-line">{segment.line}</span>
+        <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
+        {#if weatherIconSvg}
+          <svg viewBox="0 0 24 24" fill="none" class="weather-badge" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+            <g>{@html weatherIconSvg}</g>
+          </svg>
+        {/if}
+        <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
       {/if}
-      <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
     </div>
 
     <div class="time-col">
@@ -380,6 +394,44 @@
   .route-arrow {
     color: var(--accent);
     font-weight: 700;
+  }
+  .route-dest-combo {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .route-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    padding: 0 6px;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 900;
+    font-family: 'Neue Machina', sans-serif;
+    border-radius: 4px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .dest-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dest-text .route-arrow {
+    color: var(--accent);
+    font-weight: 700;
+    margin-right: 2px;
   }
   .weather-badge {
     display: inline-flex;

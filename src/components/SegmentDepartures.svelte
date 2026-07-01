@@ -595,6 +595,7 @@
               nextDepartureTime={sleepInfo.nextTime}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
+              groupingMode={settings.groupingMode}
             />
           {/if}
         {/each}
