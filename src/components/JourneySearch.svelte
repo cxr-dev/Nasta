@@ -5,6 +5,7 @@
   import { getT } from '../stores/localeStore.svelte';
   import TransportIcon from './TransportIcon.svelte';
   import TrainPosition from './TrainPosition.svelte';
+  import gsap from 'gsap';
 
   let {
     onSelect,
@@ -40,6 +41,17 @@
   let originAbort: AbortController | null = null;
   let destAbort: AbortController | null = null;
   let resultsAbort: AbortController | null = null;
+
+  // Step progress
+  let journeyStep = $derived(
+    results.length > 0 ? 'results' : originCoord ? 'destination' : 'origin'
+  );
+  let journeyStepIndex = $derived(
+    journeyStep === 'origin' ? 0 : journeyStep === 'destination' ? 1 : 2
+  );
+  let journeyStepLabels = $derived([t.journeyStepOrigin, t.journeyStepDestination, t.journeyStepChoose]);
+  let progressEl = $state<HTMLDivElement | undefined>();
+  let contentEl = $state<HTMLDivElement | undefined>();
 
   function formatDuration(min: number): string {
     if (min < 60) return `${min}m`;
@@ -215,9 +227,55 @@
   function selectJourney(journey: Journey) {
     onSelect?.(journey);
   }
+
+  // GSAP animations for step progress
+  $effect(() => {
+    const idx = journeyStepIndex;
+    if (!progressEl) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    const dot = progressEl.querySelector(`[data-step="${idx}"]`) as HTMLElement | null;
+    if (dot) {
+      gsap.fromTo(dot, { scale: 0.85 }, { scale: 1, duration: 0.3, ease: 'back.out(1.7)' });
+    }
+    if (idx > 0) {
+      const fill = progressEl.querySelector(`[data-connector="${idx - 1}"] .step-connector-fill`) as HTMLElement | null;
+      if (fill) {
+        gsap.to(fill, { scaleX: 1, duration: 0.25, ease: 'power2.out', transformOrigin: 'left center' });
+      }
+    }
+  });
+
+  $effect(() => {
+    if (!contentEl) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    const s = journeyStep;
+    gsap.fromTo(contentEl, { opacity: 0, y: 3 }, { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out' });
+  });
 </script>
 
 <div class="journey-search">
+  <div class="step-progress" bind:this={progressEl}>
+    {#each journeyStepLabels as label, i}
+      <div class="step-node" class:active={journeyStepIndex >= i} class:completed={journeyStepIndex > i}>
+        <div class="step-dot" data-step={i}>
+          {#if journeyStepIndex > i}
+            <svg viewBox="0 0 12 12" width="8" height="8" fill="none"><path d="M3 6l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {/if}
+        </div>
+        <span class="step-label">{label}</span>
+      </div>
+      {#if i < 2}
+        <div class="step-connector-wrap">
+          <div class="step-connector" data-connector={i}>
+            <div class="step-connector-fill"></div>
+          </div>
+        </div>
+      {/if}
+    {/each}
+  </div>
+  <div class="step-content" bind:this={contentEl}>
   <div class="search-fields">
     <!-- Origin field -->
     <div class="field-wrap">
@@ -412,6 +470,7 @@
       {/each}
     </div>
   {/if}
+  </div>
 </div>
 
 <style>
@@ -667,5 +726,92 @@
   .transfer-note {
     font-size: 11px;
     color: var(--text-muted);
+  }
+
+  /* Step progress */
+  .step-progress {
+    display: flex;
+    align-items: flex-start;
+    padding: 0 0 12px 0;
+    width: 100%;
+  }
+
+  .step-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, border-color 0.2s ease, width 0.2s ease, height 0.2s ease;
+  }
+
+  .step-node.active .step-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .step-node.completed .step-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .step-connector-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding-top: 4px;
+    margin: 0 5px;
+  }
+
+  .step-connector {
+    height: 2px;
+    width: 100%;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .step-connector-fill {
+    height: 100%;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  /* CSS fallback: fill connector instantly when adjacent step is completed. */
+  .step-node.completed + .step-connector-wrap .step-connector-fill {
+    transform: scaleX(1);
+  }
+
+  .step-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .step-node.active .step-label {
+    color: var(--text-secondary);
+  }
+
+  .step-node.completed .step-label {
+    color: var(--accent);
   }
 </style>

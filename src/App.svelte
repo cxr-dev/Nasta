@@ -787,12 +787,12 @@ function closeSettingsPanel() {
               class="quick-add-tab"
               class:active={quickAddTab === 'stop'}
               onclick={() => quickAddTab = 'stop'}
-            >Stop</button>
+            >{t.tabStop}</button>
             <button
               class="quick-add-tab"
               class:active={quickAddTab === 'route'}
               onclick={() => quickAddTab = 'route'}
-            >Route</button>
+            >{t.tabRoute}</button>
           </div>
           <IconButton onclick={() => showQuickAdd = false} ariaLabel={t.closePanel}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

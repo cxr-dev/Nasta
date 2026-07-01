@@ -293,6 +293,15 @@ const sv = {
   stepLine: "Linje",
   stepDirection: "Riktning",
 
+  // Journey step progress
+  journeyStepOrigin: "Från",
+  journeyStepDestination: "Till",
+  journeyStepChoose: "Välj resa",
+
+  // Segment search sub-tabs
+  tabStop: "Hållplats",
+  tabRoute: "Resa",
+
   // Quirky moment
   showCelebration: "Visa firande",
 
@@ -614,6 +623,15 @@ const en: typeof sv = {
   stepStop: "Stop",
   stepLine: "Line",
   stepDirection: "Direction",
+
+  // Journey step progress
+  journeyStepOrigin: "From",
+  journeyStepDestination: "To",
+  journeyStepChoose: "Choose route",
+
+  // Segment search sub-tabs
+  tabStop: "Stop",
+  tabRoute: "Route",
 
   showCelebration: "Show celebration",
 

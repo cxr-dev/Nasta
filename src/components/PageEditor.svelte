@@ -1,13 +1,16 @@
 <script lang="ts">
   import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
+  import type { Journey } from '../types/journey';
   import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage } from '../stores/pageStore.svelte';
+  import { getActivePage } from '../stores/pageStore.svelte';
 
   import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
   import SegmentSearch from './SegmentSearch.svelte';
+  import JourneySearch from './JourneySearch.svelte';
   import IconButton from './IconButton.svelte';
   import SegmentList from './SegmentList.svelte';
   import { gripVertical } from '../icons/departureIcons';
@@ -233,6 +236,7 @@
 
   let page = $derived(pages.find(p => p.id === activePageId));
   let showSearch = $state(false);
+  let segmentSearchTab = $state<'stop' | 'route'>('stop');
   let hasManuallyClosedSearch = $state(false);
   let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
 
@@ -254,6 +258,45 @@
   ) {
     if (!page) return;
     storeAddSegment(page.id, { line, lineName, direction, fromStop, toStop, transportType });
+    showSearch = false;
+    hasManuallyClosedSearch = true;
+  }
+
+  function handleJourneySelect(journey: Journey) {
+    if (!page) return;
+    const firstLeg = journey.legs[0];
+    if (!firstLeg) return;
+
+    storeAddSegment(page.id, {
+      line: firstLeg.line,
+      lineName: firstLeg.lineName,
+      direction: {
+        code: firstLeg.directionCode,
+        destination: journey.destLabel,
+        stopPointId: '',
+      },
+      fromStop: {
+        id: '',
+        name: journey.originLabel,
+        siteId: firstLeg.originSiteId ?? '',
+      },
+      toStop: {
+        id: '',
+        name: journey.destLabel,
+        siteId: firstLeg.destSiteId ?? '',
+      },
+      transportType: firstLeg.transportType,
+      travelTimeMinutes: journey.totalDurationMin,
+      journeyMeta: {
+        journeyId: journey.id,
+        originLabel: journey.originLabel,
+        destLabel: journey.destLabel,
+        totalDurationMin: journey.totalDurationMin,
+        transfers: journey.transfers,
+        updatedAt: Date.now(),
+        legs: journey.legs,
+      },
+    });
     showSearch = false;
     hasManuallyClosedSearch = true;
   }
@@ -571,7 +614,27 @@
           </div>
           {#if showSearch || autoSearch}
             <div class="search-container">
-              <SegmentSearch onSelect={addSegment} />
+              <div class="segment-search-tabs">
+                <button
+                  class="segment-search-tab"
+                  class:active={segmentSearchTab === 'stop'}
+                  onclick={() => segmentSearchTab = 'stop'}
+                >
+                  {t.tabStop}
+                </button>
+                <button
+                  class="segment-search-tab"
+                  class:active={segmentSearchTab === 'route'}
+                  onclick={() => segmentSearchTab = 'route'}
+                >
+                  {t.tabRoute}
+                </button>
+              </div>
+              {#if segmentSearchTab === 'stop'}
+                <SegmentSearch onSelect={addSegment} />
+              {:else}
+                <JourneySearch onSelect={handleJourneySelect} />
+              {/if}
               <button class="cancel-search-btn" onclick={() => { showSearch = false; hasManuallyClosedSearch = true; }}>
                 {t.cancel}
               </button>
@@ -1083,6 +1146,37 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .segment-search-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .segment-search-tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .segment-search-tab:hover {
+    background: var(--border);
+  }
+
+  .segment-search-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
   }
 
   .cancel-search-btn {
