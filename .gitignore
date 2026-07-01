@@ -46,6 +46,7 @@ vite-err.txt
 # Debug / snapshot dumps (Playwright, plan files, etc.)
 *-snapshot.md
 page-*.png
+*.diff
 _*.py
 
 # IDE / AI tool local configs
