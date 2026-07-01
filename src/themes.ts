@@ -240,17 +240,15 @@ function deriveTextOnAccent(accentHex: string): string {
   return whiteContrast >= darkContrast ? '#FFFFFF' : '#0A0A0A';
 }
 
-function deriveSurfaceColor(bgHex: string, isDark: boolean, hueOverride?: number): string {
+function deriveSurfaceColor(bgHex: string, isDark: boolean, hueOverride?: number, accentHue?: number): string {
   const [l, c, h] = hexToOklch(bgHex);
   if (isDark) {
     const surfaceL = Math.max(0, Math.min(1, l + 0.04));
     return oklchToHex(surfaceL, c * 0.55, h);
   }
-  // Light mode: consistent very-light tinted neutral, carrying theme hue
-  // Hue defaults to bg's own hue; achromatic bgs (<0.005 chroma) default to warm-neutral 85
-  // surfaceHue override allows hand-tuning for edge cases
-  const hue = hueOverride ?? (c < 0.005 ? 85 : h);
-  return oklchToHex(0.94, 0.018, hue);
+  // Light mode: tint surface toward accent hue for achromatic bgs, bg hue otherwise
+  const hue = hueOverride ?? (c < 0.005 ? (accentHue ?? h) : h);
+  return oklchToHex(0.94, c < 0.005 ? 0.006 : 0.018, hue);
 }
 
 function deriveSurfaceEmphasis(bgHex: string, isDark: boolean, hueOverride?: number): string {
@@ -339,7 +337,8 @@ function ensureAccentContrast(accentHex: string, bgHex: string): string {
 // ——— Variant computation ———
 function computeVariant(bg: string, accent: string, surfaceHue?: number) {
   const isLight = !needsLightText(bg);
-  const surface = deriveSurfaceColor(bg, !isLight, surfaceHue);
+  const [, , accentH] = hexToOklch(accent);
+  const surface = deriveSurfaceColor(bg, !isLight, surfaceHue, accentH);
   return { isLight, surface, accent };
 }
 
@@ -392,7 +391,6 @@ export function previewStyle(palette: ThemePalette, variant: 'A' | 'B'): string 
     `--preview-border:${border}`,
   ].join(';') + ';';
 }
-
 // ——— Main theme application ———
 /** Return variant ('A'|'B') with the darker background for a theme */
 export function getDarkVariant(themeId: string): 'A' | 'B' {
@@ -421,7 +419,8 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
 
   // Derive colors in OKLCH
   const textHex = deriveTextColor(bg, accent);
-  const surface = deriveSurfaceColor(bg, dark, theme.surfaceHue);
+  const [, accentC, accentH] = hexToOklch(accent);
+  const surface = deriveSurfaceColor(bg, dark, theme.surfaceHue, accentH);
   const surfaceEmphasis = deriveSurfaceEmphasis(bg, dark, theme.surfaceHue);
   const textOnAccent = deriveTextOnAccent(accent);
 

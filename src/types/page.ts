@@ -29,6 +29,30 @@ export interface Segment {
   toStop: Stop;
   transportType: TransportType;
   travelTimeMinutes?: number;
+  /** Journey metadata — present when segment represents a saved multi-leg journey. */
+  journeyMeta?: {
+    journeyId: string;
+    originLabel: string;
+    destLabel: string;
+    totalDurationMin: number;
+    transfers: number;
+    updatedAt: number;
+    legs: Array<{
+      originName: string;
+      originSiteId?: string;
+      destName: string;
+      destSiteId?: string;
+      transportType: TransportType;
+      line: string;
+      lineName: string;
+      directionCode: number;
+      directionName: string;
+      departureTime: number;
+      arrivalTime: number;
+      durationMin: number;
+      platformPosition: 'front' | 'middle' | 'back';
+    }>;
+  };
 }
 
 export interface Page {

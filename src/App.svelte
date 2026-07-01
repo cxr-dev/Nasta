@@ -24,6 +24,8 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
   import SegmentSearch from './components/SegmentSearch.svelte';
+  import JourneySearch from './components/JourneySearch.svelte';
+  import type { Journey } from './types/journey';
   import IconButton from './components/IconButton.svelte';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
@@ -33,6 +35,7 @@
   let editing = $state(false);
   let showSettings = $state(false);
   let showQuickAdd = $state(false);
+  let quickAddTab = $state<'stop' | 'route'>('stop');
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
   let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
   let quickAddHandleDragging = $state(false);
@@ -107,13 +110,15 @@
   };
 
   function buildDepartureInputs(segments: Segment[]): DepartureSegmentInput[] {
-    return segments.map((segment) => ({
-      siteId: segment.fromStop.siteId || segment.toStop.siteId || '',
-      stopName: segment.fromStop.name || segment.toStop.name || '',
-      line: segment.line,
-      direction_code: segment.direction?.code ?? 0,
-      destId: segment.toStop.siteId || undefined
-    }));
+    return segments
+      .filter((s) => !s.journeyMeta)
+      .map((segment) => ({
+        siteId: segment.fromStop.siteId || segment.toStop.siteId || '',
+        stopName: segment.fromStop.name || segment.toStop.name || '',
+        line: segment.line,
+        direction_code: segment.direction?.code ?? 0,
+        destId: segment.toStop.siteId || undefined
+      }));
   }
 
   function toDepartureStoreArgs(inputs: DepartureSegmentInput[]) {
@@ -249,6 +254,46 @@
     storeAddSegment(p.id, { line, lineName, direction, fromStop, toStop, transportType });
     showQuickAdd = false;
     void loadDepartures(true);
+  }
+
+  function handleJourneySelect(journey: Journey) {
+    const p = getActivePage();
+    if (!p) return;
+
+    const firstLeg = journey.legs[0];
+    if (!firstLeg) return;
+
+    storeAddSegment(p.id, {
+      line: firstLeg.line,
+      lineName: firstLeg.lineName,
+      direction: {
+        code: firstLeg.directionCode,
+        destination: journey.destLabel,
+        stopPointId: '',
+      },
+      fromStop: {
+        id: '',
+        name: journey.originLabel,
+        siteId: firstLeg.originSiteId ?? '',
+      },
+      toStop: {
+        id: '',
+        name: journey.destLabel,
+        siteId: firstLeg.destSiteId ?? '',
+      },
+      transportType: firstLeg.transportType,
+      travelTimeMinutes: journey.totalDurationMin,
+      journeyMeta: {
+        journeyId: journey.id,
+        originLabel: journey.originLabel,
+        destLabel: journey.destLabel,
+        totalDurationMin: journey.totalDurationMin,
+        transfers: journey.transfers,
+        updatedAt: Date.now(),
+        legs: journey.legs,
+      },
+    });
+    showQuickAdd = false;
   }
 
   async function handlePageSwitch(pageId: string) {
@@ -737,18 +782,17 @@ function closeSettingsPanel() {
         onkeydown={(e) => { if (e.key === 'Escape') showQuickAdd = false; }}
       >
         <div class="quick-add-header">
-          <div class="quick-add-spacer"></div>
-          <div class="quick-add-handle-wrap">
-            <div
-              class="quick-add-handle"
-              role="button"
-              aria-label={t.closePanel}
-              tabindex="0"
-              ontouchstart={(e) => { quickAddHandleDragging = true; quickAddHandleStartY = e.touches[0].clientY; }}
-              ontouchmove={(e) => { if (!quickAddHandleDragging) return; const dy = e.touches[0].clientY - quickAddHandleStartY; quickAddDragOffset = Math.max(0, dy); if (quickAddDrawerEl) gsap.set(quickAddDrawerEl, { y: quickAddDragOffset }); if (quickAddBackdropEl) gsap.set(quickAddBackdropEl, { opacity: 1 - Math.min(quickAddDragOffset / 200, 1) * 0.6 }); }}
-              ontouchend={() => { quickAddHandleDragging = false; if (!quickAddDrawerEl || !quickAddBackdropEl) return; if (quickAddDragOffset > 80) { gsap.to(quickAddDrawerEl, { y: quickAddDrawerEl.offsetHeight, opacity: 0, duration: 0.25, ease: 'power2.in', onComplete: () => { showQuickAdd = false; quickAddDragOffset = 0; } }); gsap.to(quickAddBackdropEl, { opacity: 0, duration: 0.25 }); } else { gsap.to(quickAddDrawerEl, { y: 0, duration: 0.25, ease: 'power2.out' }); gsap.to(quickAddBackdropEl, { opacity: 1, duration: 0.25 }); quickAddDragOffset = 0; } }}
-              ontouchcancel={() => { quickAddHandleDragging = false; if (quickAddDrawerEl) gsap.to(quickAddDrawerEl, { y: 0, duration: 0.2, ease: 'power2.out' }); if (quickAddBackdropEl) gsap.to(quickAddBackdropEl, { opacity: 1, duration: 0.2 }); quickAddDragOffset = 0; }}
-            ></div>
+          <div class="quick-add-tabs">
+            <button
+              class="quick-add-tab"
+              class:active={quickAddTab === 'stop'}
+              onclick={() => quickAddTab = 'stop'}
+            >Stop</button>
+            <button
+              class="quick-add-tab"
+              class:active={quickAddTab === 'route'}
+              onclick={() => quickAddTab = 'route'}
+            >Route</button>
           </div>
           <IconButton onclick={() => showQuickAdd = false} ariaLabel={t.closePanel}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -756,7 +800,11 @@ function closeSettingsPanel() {
             </svg>
           </IconButton>
         </div>
-        <SegmentSearch onSelect={handleQuickAdd} />
+        {#if quickAddTab === 'stop'}
+          <SegmentSearch onSelect={handleQuickAdd} />
+        {:else}
+          <JourneySearch onSelect={handleJourneySelect} />
+        {/if}
       </div>
     {/if}
 
@@ -1225,31 +1273,32 @@ function closeSettingsPanel() {
     align-items: center;
     padding: 16px 8px 8px;
     min-height: 52px;
+    gap: 8px;
   }
 
-  .quick-add-spacer {
-    width: 36px;
-    flex-shrink: 0;
-  }
-
-  .quick-add-handle-wrap {
-    flex: 1;
+  .quick-add-tabs {
     display: flex;
-    justify-content: center;
+    flex: 1;
+    gap: 4px;
   }
 
-  .quick-add-handle {
-    width: 40px;
-    height: 5px;
-    background: var(--border-subtle);
-    border-radius: 3px;
-    cursor: grab;
+  .quick-add-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: var(--radius-full, 999px);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }
 
-  .quick-add-handle:active {
-    cursor: grabbing;
+  .quick-add-tab.active {
+    background: var(--accent-subtle);
+    color: var(--accent);
   }
-
 
   /* ── Tablet breakpoint ── */
   @media (min-width: 768px) {

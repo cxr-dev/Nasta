@@ -191,6 +191,19 @@ const sv = {
 
   from: "från",
 
+  // Journey planner
+  journeyTo: "Till",
+  journeyAddressPlaceholder: "Adress eller hållplats",
+  journeyFindRoute: "Hitta resa",
+  journeySearching: "Söker...",
+  journeyNoRoutes: "Inga resor hittades för denna resa.",
+  journeySearchFailed: "Sökningen misslyckades. Försök igen.",
+  journeyDirect: "Direkt",
+  journeyTransfers: "{n} byte{nPlural}",
+  journeyPlatformMiddle: "Mitten",
+  journeyPlatformFront: "Främre",
+  journeyPlatformBack: "Bakre",
+
   // No departures
   noDeparturesAvailable: "Inga avgångar hittades",
   sleeping: "Sover",
@@ -506,6 +519,19 @@ const en: typeof sv = {
   confirm: "Confirm",
 
   from: "from",
+
+  // Journey planner
+  journeyTo: "To",
+  journeyAddressPlaceholder: "Address or stop",
+  journeyFindRoute: "Find route",
+  journeySearching: "Searching...",
+  journeyNoRoutes: "No routes found for this journey.",
+  journeySearchFailed: "Search failed. Try again.",
+  journeyDirect: "Direct",
+  journeyTransfers: "{n} transfer{nPlural}",
+  journeyPlatformMiddle: "Middle",
+  journeyPlatformFront: "Front",
+  journeyPlatformBack: "Back",
 
   // No departures
   noDeparturesAvailable: "No departures found",
