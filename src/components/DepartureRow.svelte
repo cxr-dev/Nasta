@@ -193,22 +193,26 @@
   >
     <div class="accent-bar" class:imminent={isImminent} class:soon={isSoon} style="background: {accentColor}"></div>
 
-    <div class="icon-badge" style="background: {badgeBgIntensity}">
-      <TransportIcon type={segment.transportType} size={18} />
-    </div>
-
-    <div class="meta-col">
-      {#if groupingMode === 'station'}
-        <div class="route-dest-combo">
-          <span class="route-pill">{segment.line}</span>
-          <span class="dest-text"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
+    {#if groupingMode === 'station'}
+      <div class="start-stack">
+        <div class="icon-badge" style="background: {badgeBgIntensity}">
+          <TransportIcon type={segment.transportType} size={18} />
         </div>
-      {:else}
+        <span class="stacked-pill">{segment.line}</span>
+      </div>
+      <div class="meta-col">
+        <span class="dest-text-full">{stopLabel(segment.direction?.destination)}</span>
+      </div>
+    {:else}
+      <div class="icon-badge" style="background: {badgeBgIntensity}">
+        <TransportIcon type={segment.transportType} size={18} />
+      </div>
+      <div class="meta-col">
         <span class="route-number" data-testid="segment-line">{segment.line}</span>
         <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
         <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
-      {/if}
-    </div>
+      </div>
+    {/if}
 
     <div class="time-col">
       {#if isSleeping}
@@ -395,43 +399,39 @@
     color: var(--accent);
     font-weight: 700;
   }
-  .route-dest-combo {
+  /* ── Station mode: icon+pil stacked left ── */
+  .start-stack {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    width: 32px;
   }
-  .route-pill {
+  .stacked-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 28px;
-    height: 24px;
-    padding: 0 6px;
+    width: 32px;
+    height: 32px;
     background: var(--accent-subtle);
     color: var(--accent);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
     font-family: 'Neue Machina', sans-serif;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     line-height: 1;
-    flex-shrink: 0;
   }
-  .dest-text {
+  .dest-text-full {
     font-size: 16px;
     font-weight: 600;
     color: var(--text);
     line-height: 1.3;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dest-text .route-arrow {
-    color: var(--accent);
-    font-weight: 700;
-    margin-right: 2px;
+    text-wrap: pretty;
   }
   .weather-indicator {
     display: inline-flex;
