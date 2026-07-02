@@ -46,13 +46,13 @@
     clip-path: polygon(0% 50%, 100% 0%, 100% 100%);
     width: 8px;
     height: 8px;
-    transform: rotate(0deg);
+    transform: rotate(180deg);
   }
 
   .train-pos[data-pos='back']::before {
     clip-path: polygon(0% 50%, 100% 0%, 100% 100%);
     width: 8px;
     height: 8px;
-    transform: rotate(180deg);
+    transform: rotate(0deg);
   }
 </style>

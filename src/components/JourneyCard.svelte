@@ -187,7 +187,7 @@
   .card-top {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     margin-bottom: 4px;
   }
 
@@ -201,11 +201,15 @@
   }
 
   .duration {
-    font-size: 13px;
-    font-weight: 600;
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: clamp(-1.8px, -0.04em, -1.2px);
+    font-variant-numeric: tabular-nums;
     color: var(--accent);
     flex-shrink: 0;
     margin-left: 8px;
+    line-height: 1;
   }
 
   .card-meta {
@@ -319,5 +323,11 @@
     gap: 6px;
     color: var(--text-muted);
     font-size: 11px;
+  }
+
+  @media (min-width: 768px) {
+    .duration {
+      font-size: clamp(28px, 4vw, 38px);
+    }
   }
 </style>

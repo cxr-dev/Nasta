@@ -252,7 +252,7 @@
     const p = getActivePage();
     if (!p) return;
     storeAddSegment(p.id, { line, lineName, direction, fromStop, toStop, transportType });
-    showQuickAdd = false;
+    closeQuickAdd();
     void loadDepartures(true);
   }
 
@@ -293,7 +293,7 @@
         legs: journey.legs,
       },
     });
-    showQuickAdd = false;
+    closeQuickAdd();
   }
 
   async function handlePageSwitch(pageId: string) {
@@ -379,7 +379,21 @@
   }
 
   function closeFeatureSheet() {
-    activeFeatureContext = null;
+    if (!backdropEl || !drawerEl) { activeFeatureContext = null; return; }
+    gsap.to(backdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
+    gsap.to(drawerEl, {
+      y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
+      onComplete: () => { activeFeatureContext = null; }
+    });
+  }
+
+  function closeQuickAdd() {
+    if (!quickAddBackdropEl || !quickAddDrawerEl) { showQuickAdd = false; return; }
+    gsap.to(quickAddBackdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
+    gsap.to(quickAddDrawerEl, {
+      y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
+      onComplete: () => { showQuickAdd = false; }
+    });
   }
 
   function dismissWarning() {
@@ -400,11 +414,12 @@
     if (activeFeatureContext && backdropEl && drawerEl) {
       gsap.fromTo(backdropEl,
         { opacity: 0 },
-        { opacity: 1, duration: 0.2, ease: 'power2.out' }
+        { opacity: 1, duration: 0.18, ease: 'power2.out' }
       );
+      gsap.set(drawerEl, { y: '100%', opacity: 0 });
       gsap.fromTo(drawerEl,
-        { opacity: 0, y: 16 },
-        { opacity: 1, y: 0, duration: 0.28, ease: 'back.out(1.7)' }
+        { opacity: 0, y: '100%' },
+        { opacity: 1, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
       );
     }
   });
@@ -413,11 +428,11 @@
     if (showQuickAdd && quickAddBackdropEl && quickAddDrawerEl) {
       gsap.fromTo(quickAddBackdropEl,
         { opacity: 0 },
-        { opacity: 1, duration: 0.2, ease: 'power2.out' }
+        { opacity: 1, duration: 0.18, ease: 'power2.out' }
       );
       gsap.fromTo(quickAddDrawerEl,
-        { opacity: 0, y: 24 },
-        { opacity: 1, y: 0, duration: 0.3, ease: 'back.out(1.7)' }
+        { opacity: 0, y: '100%' },
+        { opacity: 1, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
       );
     }
   });
@@ -769,7 +784,7 @@ function closeSettingsPanel() {
         type="button"
         class="quick-add-backdrop"
         aria-label={t.closePanel}
-        onclick={() => showQuickAdd = false}
+        onclick={closeQuickAdd}
         bind:this={quickAddBackdropEl}
       ></button>
       <div
@@ -779,7 +794,7 @@ function closeSettingsPanel() {
         aria-modal="true"
         aria-label={t.addSegment}
         tabindex="0"
-        onkeydown={(e) => { if (e.key === 'Escape') showQuickAdd = false; }}
+        onkeydown={(e) => { if (e.key === 'Escape') closeQuickAdd(); }}
       >
         <div class="quick-add-header">
           <div class="quick-add-tabs">
@@ -794,7 +809,7 @@ function closeSettingsPanel() {
               onclick={() => quickAddTab = 'route'}
             >{t.tabRoute}</button>
           </div>
-          <IconButton onclick={() => showQuickAdd = false} ariaLabel={t.closePanel}>
+          <IconButton onclick={closeQuickAdd} ariaLabel={t.closePanel}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M6 6l12 12M18 6 6 18"/>
             </svg>
@@ -1254,7 +1269,6 @@ function closeSettingsPanel() {
 
   .quick-add-drawer {
     position: fixed;
-    bottom: 0;
     left: 0;
     right: 0;
     z-index: var(--z-dialog);
@@ -1262,7 +1276,8 @@ function closeSettingsPanel() {
     border-top-left-radius: var(--radius-lg);
     border-top-right-radius: var(--radius-lg);
     padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    max-height: 70vh;
+    max-height: 70dvh;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
@@ -1309,9 +1324,11 @@ function closeSettingsPanel() {
     .quick-add-drawer {
       left: 50%;
       right: auto;
-      transform: translateX(-50%);
+    transform: translateX(-50%);
       max-width: var(--layout-max-width, 480px);
       width: 100%;
+      max-height: 85dvh;
+      bottom: calc(76px + env(safe-area-inset-bottom));
     }
   }
 

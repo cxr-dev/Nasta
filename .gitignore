@@ -68,3 +68,4 @@ scripts/test-*
 coverage/
 
 .impeccable
+*.log
