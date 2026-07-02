@@ -1,9 +1,8 @@
 <script lang="ts">
   import { THEMES, previewStyle, getVariantName } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
-  import gsap from 'gsap';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
-  import IconButton from './IconButton.svelte';
+  import Sheet from './Sheet.svelte';
   import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
 
@@ -48,103 +47,19 @@
     groupingSettingsOptions.find(o => o.mode === settings.groupingMode)?.label ?? ''
   );
 
-  let swipeStartY = 0;
-
-  function isReducedMotion(): boolean {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
-
-  function handleClose() {
-    if (isReducedMotion()) {
-      onClose();
-      return;
-    }
-    gsap.to('.settings-sheet', {
-      y: '100%',
-      duration: 0.3,
-      ease: 'power2.in',
-      onComplete: () => {
-        gsap.set('.settings-overlay', { opacity: 0, visibility: 'hidden' });
-        onClose();
-      }
-    });
-  }
-
-  function handleOverlayClick(e: MouseEvent) {
-    const target = e.target as HTMLElement;
-    if (target.closest('.settings-sheet')) return;
-    handleClose();
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') handleClose();
-  }
-
-  function handleSheetHandleTouchStart(e: TouchEvent) {
-    swipeStartY = e.touches[0].clientY;
-  }
-
-  function handleSheetHandleTouchMove(e: TouchEvent) {
-    if (swipeStartY === 0) return;
-    const dy = e.touches[0].clientY - swipeStartY;
-    if (dy < 0) return;
-    gsap.set('.settings-sheet', { y: `${dy}px`, overwrite: 'auto' });
-  }
-
-  function handleSheetHandleTouchEnd(e: TouchEvent) {
-    if (swipeStartY === 0) return;
-    const dy = e.changedTouches[0].clientY - swipeStartY;
-    swipeStartY = 0;
-    if (dy > 48) {
-      handleClose();
-    } else {
-      gsap.to('.settings-sheet', { y: '0%', duration: 0.25, ease: 'power2.out' });
-    }
-  }
-
   $effect(() => {
-    if (isOpen) {
-      activeEditorTab = 'features';
-      if (isReducedMotion()) {
-        gsap.set('.settings-overlay', { opacity: 1, visibility: 'visible' });
-        gsap.set('.settings-sheet', { y: '0%' });
-        return;
-      }
-      gsap.set('.settings-overlay', { opacity: 0, visibility: 'visible' });
-      gsap.to('.settings-overlay', { opacity: 1, duration: 0.18, ease: 'power2.out' });
-      gsap.fromTo('.settings-sheet', { y: '100%' }, { y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' });
-    }
+    if (isOpen) activeEditorTab = 'features';
   });
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="settings-overlay" class:open={isOpen} aria-hidden={!isOpen} aria-modal="true" onclick={handleOverlayClick} onkeydown={handleKeydown} role="dialog" tabindex="-1">
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="settings-sheet"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => { if (e.key === 'Escape') handleClose(); }}
-  >
-    <div
-      class="sheet-handle"
-      aria-hidden="true"
-      ontouchstart={handleSheetHandleTouchStart}
-      ontouchmove={handleSheetHandleTouchMove}
-      ontouchend={handleSheetHandleTouchEnd}
-    ></div>
-    <div class="sheet-header">
-      <IconButton onclick={handleClose} ariaLabel={t.closePanel}>
-        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M6 6l12 12M18 6 6 18"/>
-        </svg>
-      </IconButton>
-      <span class="sheet-title">{t.settings}</span>
-    </div>
-
+<Sheet
+  isOpen={isOpen}
+  onClose={onClose}
+  title={t.settings}
+  closeAriaLabel={t.closePanel}
+  overlayClass="settings-overlay"
+  sheetClass="settings-sheet"
+>
     <div class="tab-bar" role="tablist" aria-label={t.settings}>
       <button type="button" role="tab" class="tab" class:active={activeEditorTab === 'features'} aria-selected={activeEditorTab === 'features'} onclick={() => activeEditorTab = 'features'}>{t.tabFeatures}</button>
       <button type="button" role="tab" class="tab" class:active={activeEditorTab === 'theme'} aria-selected={activeEditorTab === 'theme'} onclick={() => activeEditorTab = 'theme'}>{t.tabTheme}</button>
@@ -531,77 +446,9 @@
         </div>
       </div>
     {/if}
-  </div>
-</div>
+</Sheet>
 
 <style>
-  .settings-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-dialog);
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-  }
-
-  .settings-overlay.open {
-    pointer-events: auto;
-  }
-
-  .settings-sheet {
-    position: absolute;
-    inset: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--bg);
-    transform: translateY(100%);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .settings-sheet::-webkit-scrollbar { display: none; }
-
-  .sheet-handle {
-    width: 40px;
-    height: 8px;
-    border-radius: 3px;
-    background: var(--border-subtle);
-    margin: 8px auto 6px;
-    flex-shrink: 0;
-    cursor: grab;
-    touch-action: manipulation;
-  }
-
-  .settings-overlay.open .settings-sheet {
-    transform: translateY(0);
-  }
-
-  .sheet-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 16px 12px;
-    padding-top: calc(16px + env(safe-area-inset-top));
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-  }
-
-  .desktop-close-icon {
-    display: none;
-  }
-
-  .sheet-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   /* Tab Bar */
   .tab-bar {
     display: flex;
@@ -1246,74 +1093,8 @@
     color: var(--text-ghost);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .settings-overlay {
-      transition: none;
-    }
-    .settings-overlay.open {
-      transition: none;
-    }
-    .settings-sheet {
-      transition: none;
-    }
-    .settings-overlay.open .settings-sheet {
-      transition: none;
-    }
-  }
-
   /* ── Tablet/desktop: fixed inspector overlay ── */
   @media (min-width: 768px) {
-    .settings-overlay {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-
-    .settings-overlay.open {
-      background: rgba(0, 0, 0, 0.16);
-    }
-
-    .settings-sheet {
-      position: relative;
-      inset: auto;
-      width: min(760px, calc(100vw - 48px));
-      height: min(780px, calc(100dvh - 48px));
-      max-width: none;
-      max-height: none;
-      margin: 0;
-      border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, var(--bg) 28%);
-      border-radius: 28px;
-      box-shadow:
-        0 24px 80px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.32);
-      transform: translateY(20px) scale(0.985);
-      opacity: 0;
-    }
-
-    .sheet-handle {
-      width: 44px;
-      margin-top: 10px;
-      background: color-mix(in oklch, var(--border-subtle) 70%, var(--bg) 30%);
-    }
-
-    .settings-overlay.open .settings-sheet {
-      transform: translateY(0) scale(1);
-      opacity: 1;
-    }
-
-    .sheet-header {
-      padding-top: 16px;
-    }
-
-    .mobile-close-icon {
-      display: none;
-    }
-
-    .desktop-close-icon {
-      display: block;
-    }
-
     .tab-bar {
       padding: 0 16px;
     }

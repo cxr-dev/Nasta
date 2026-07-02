@@ -54,7 +54,7 @@ vi.mock('../stores/settingsStore.svelte', () => ({
 }));
 
 vi.mock('gsap', () => ({
-  default: { to: vi.fn(), fromTo: vi.fn() },
+  default: { set: vi.fn(), to: vi.fn(), fromTo: vi.fn(), killTweensOf: vi.fn() },
 }));
 
 // ── Fixture factory ───────────────────────────────────────────────────

@@ -11,7 +11,7 @@
   let t = $derived(getT());
   import SegmentSearch from './SegmentSearch.svelte';
   import JourneySearch from './JourneySearch.svelte';
-  import IconButton from './IconButton.svelte';
+  import Sheet from './Sheet.svelte';
   import SegmentList from './SegmentList.svelte';
   import { gripVertical } from '../icons/departureIcons';
 
@@ -244,8 +244,6 @@
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
   let addBtnEl = $state<HTMLButtonElement | undefined>();
-
-  let handleSwipeStartY = 0;
   let pagesTabEl = $state<HTMLDivElement>();
 
   function getPageLabel(p: Page): string {
@@ -393,67 +391,19 @@
     }
   }
 
-  function handleSheetHandleTouchStart(e: TouchEvent) {
-    handleSwipeStartY = e.touches[0].clientY;
-  }
 
-  function handleSheetHandleTouchMove(e: TouchEvent) {
-    if (handleSwipeStartY === 0) return;
-    const dy = e.touches[0].clientY - handleSwipeStartY;
-    if (dy > 0) {
-      gsap.set('.editor-sheet', { y: dy });
-    }
-  }
-
-  function handleSheetHandleTouchEnd(e: TouchEvent) {
-    if (handleSwipeStartY === 0) return;
-    const dy = e.changedTouches[0].clientY - handleSwipeStartY;
-    handleSwipeStartY = 0;
-
-    if (dy > 48) {
-      gsap.to('.editor-sheet', {
-        y: '100%',
-        duration: 0.25,
-        ease: 'power2.in',
-        onComplete: onClose
-      });
-    } else {
-      gsap.to('.editor-sheet', { y: 0, duration: 0.2, ease: 'power2.out' });
-    }
-  }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="editor-overlay" class:open={isOpen} aria-hidden={!isOpen} aria-modal="true" onclick={onClose} onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} role="dialog" tabindex="-1">
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div 
-    class="editor-sheet"
-    ontouchstart={handleTouchStart}
-    ontouchend={handleTouchEnd}
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
-  >
-    <div
-      class="sheet-handle"
-      aria-hidden="true"
-      ontouchstart={handleSheetHandleTouchStart}
-      ontouchmove={handleSheetHandleTouchMove}
-      ontouchend={handleSheetHandleTouchEnd}
-    ></div>
-    <div class="sheet-header">
-      <IconButton onclick={onClose} ariaLabel={t.closeEditor}>
-        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M6 6l12 12M18 6 6 18"/>
-        </svg>
-      </IconButton>
-      <span class="sheet-title">
-        {t.editingPage}: {page ? getPageLabel(page) : ''}
-      </span>
-    </div>
-
+<Sheet
+  isOpen={isOpen}
+  onClose={onClose}
+  title={`${t.editingPage}: ${page ? getPageLabel(page) : ''}`}
+  closeAriaLabel={t.closeEditor}
+  overlayClass="editor-overlay"
+  sheetClass="editor-sheet"
+  onSheetTouchStart={handleTouchStart}
+  onSheetTouchEnd={handleTouchEnd}
+>
     <div class="tab-bar" role="tablist" aria-label={t.settings}>
       <button
         type="button"
@@ -686,81 +636,9 @@
 
 
     {/if}
-  </div>
-</div>
+</Sheet>
 
 <style>
-  .editor-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-dialog);
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 180ms ease, background 180ms ease, visibility 0s linear 180ms;
-  }
-
-  .editor-overlay.open {
-    pointer-events: auto;
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 180ms ease, background 180ms ease, visibility 0s linear 0s;
-  }
-
-  .editor-sheet {
-    position: absolute;
-    inset: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--bg);
-    transform: translateY(100%);
-    transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .editor-sheet::-webkit-scrollbar { display: none; }
-
-  .sheet-handle {
-    width: 40px;
-    height: 5px;
-    border-radius: 3px;
-    background: var(--border-subtle);
-    margin: 8px auto 6px;
-    flex-shrink: 0;
-    cursor: grab;
-  }
-
-  .editor-overlay.open .editor-sheet {
-    transform: translateY(0);
-  }
-
-  .sheet-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 16px 12px;
-    padding-top: calc(16px + env(safe-area-inset-top));
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-  }
-
-  .desktop-close-icon {
-    display: none;
-  }
-
-  .sheet-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   /* Tab Bar */
   .tab-bar {
     display: flex;
@@ -1373,57 +1251,6 @@
 
   /* ── Tablet/desktop: fixed inspector overlay ── */
   @media (min-width: 768px) {
-    .editor-overlay {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-
-    .editor-overlay.open {
-      background: rgba(0, 0, 0, 0.16);
-    }
-
-    .editor-sheet {
-      position: relative;
-      inset: auto;
-      width: min(760px, calc(100vw - 48px));
-      height: min(780px, calc(100dvh - 48px));
-      max-width: none;
-      max-height: none;
-      margin: 0;
-      border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, var(--bg) 28%);
-      border-radius: 28px;
-      box-shadow:
-        0 24px 80px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.32);
-      transform: translateY(20px) scale(0.985);
-      opacity: 0;
-    }
-
-    .sheet-handle {
-      width: 40px;
-      margin-top: 8px;
-      background: color-mix(in oklch, var(--border-subtle) 70%, var(--bg) 30%);
-    }
-
-    .editor-overlay.open .editor-sheet {
-      transform: translateY(0) scale(1);
-      opacity: 1;
-    }
-
-    .sheet-header {
-      padding-top: 16px;
-    }
-
-    .mobile-close-icon {
-      display: none;
-    }
-
-    .desktop-close-icon {
-      display: block;
-    }
-
     .tab-bar {
       padding: 0 16px;
     }
