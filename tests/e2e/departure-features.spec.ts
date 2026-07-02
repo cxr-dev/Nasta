@@ -350,7 +350,7 @@ test.describe("JourneyCard for multi-leg journeys", () => {
 // 3. STATION GROUPING PILL LAYOUT
 // ─────────────────────────────────────────────
 test.describe("Station grouping pill layout", () => {
-  test("shows route-pill and dest-text when grouping by station", async ({ page }) => {
+  test("shows stacked-pill and dest-text-full when grouping by station", async ({ page }) => {
     await page.route("**/*.integration.sl.se/**", mockSlApi);
 
     // Seed routes with multiple segments from the same station
@@ -400,17 +400,17 @@ test.describe("Station grouping pill layout", () => {
     await expect(sectionLabel).toBeVisible({ timeout: 5000 });
     await expect(sectionLabel).toContainText("T-Centralen");
 
-    // Route pill should be visible (station mode)
-    const routePill = page.locator(".route-pill");
-    await expect(routePill).toHaveCount(2, { timeout: 10000 });
-    await expect(routePill.first()).toContainText("14");
-    await expect(routePill.nth(1)).toContainText("17");
+    // Stacked pill should be visible (station mode)
+    const stackedPill = page.locator(".stacked-pill");
+    await expect(stackedPill).toHaveCount(2, { timeout: 10000 });
+    await expect(stackedPill.first()).toContainText("14");
+    await expect(stackedPill.nth(1)).toContainText("17");
 
     // Destination text should be visible with bigger font
-    const destText = page.locator(".dest-text");
-    await expect(destText).toHaveCount(2, { timeout: 5000 });
-    await expect(destText.first()).toContainText("Mörby centrum");
-    await expect(destText.nth(1)).toContainText("Skarpnäck");
+    const destTextFull = page.locator(".dest-text-full");
+    await expect(destTextFull).toHaveCount(2, { timeout: 5000 });
+    await expect(destTextFull.first()).toContainText("Mörby centrum");
+    await expect(destTextFull.nth(1)).toContainText("Skarpnäck");
 
     // from-stop should NOT be visible (hidden in station mode)
     const fromStop = page.locator(".from-stop");
@@ -456,13 +456,13 @@ test.describe("Station grouping pill layout", () => {
     await expect(fromStop).toBeVisible({ timeout: 5000 });
     await expect(fromStop).toContainText("T-Centralen");
 
-    // route-pill should NOT be visible
-    const routePill = page.locator(".route-pill");
-    await expect(routePill).not.toBeVisible({ timeout: 5000 });
+    // stacked-pill should NOT be visible (station-only class)
+    const stackedPill = page.locator(".stacked-pill");
+    await expect(stackedPill).not.toBeVisible({ timeout: 5000 });
 
-    // dest-text should NOT be visible (normal to-dest instead)
-    const destText = page.locator(".dest-text");
-    await expect(destText).not.toBeVisible({ timeout: 5000 });
+    // dest-text-full should NOT be visible (station-only class)
+    const destTextFull = page.locator(".dest-text-full");
+    await expect(destTextFull).not.toBeVisible({ timeout: 5000 });
 
     // to-dest should be visible
     const toDest = page.locator(".to-dest");
