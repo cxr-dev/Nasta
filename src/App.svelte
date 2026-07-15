@@ -930,20 +930,40 @@ function closeSettingsPanel() {
   /* Default theme tokens — overridden at runtime by applyTheme() on :root */
   :global(:root) {
     --bg:              #FAFAF9;
-    --surface:         #FFFFFF;
-    --border:          rgba(0,0,0,0.08);
-    --border-subtle:   rgba(0,0,0,0.14);
+    --surface:         #e9ebef;
+    --surface-emphasis:#ded7c7;
+    --surface-elevated:#fffffc;
+    --surface-hover:   #fefefa;
+    --surface-pressed:  #fcfcf8;
+    --border:          #D6D5D2;
+    --border-strong:   #B8B6B2;
+    --border-subtle:   #D6D5D2;
     --text:            #171717;
-    --text-secondary:  rgba(0,0,0,0.55);
-    --text-muted:      rgba(0,0,0,0.35);
-    --text-ghost:      rgba(0,0,0,0.13);
+    --text-secondary:  #525252;
+    --text-muted:      #8A8A8A;
+    --text-ghost:      #C4C4C4;
     --accent:          #171717;
     --accent-subtle:   rgba(23,23,23,0.10);
-    --page-work:      #2563EB;
-    --page-home:      #059669;
-    --color-success:  #27ae60;
-    --color-error:    #dc2626;
-    --color-warning:  #e8950a;
+    --primary-hover:   #2A2A2A;
+    --primary-active:  #0D0D0D;
+    --secondary-accent:#6B5BCE;
+    --tertiary-accent: #B44AA0;
+    --text-on-accent:  #FFFFFF;
+    --shadow-tint:     rgba(5,5,5,0.10);
+    --page-work:       #2563EB;
+    --page-home:       #059669;
+    --color-success:   #27ae60;
+    --color-success-subtle: rgba(39,174,96,0.15);
+    --color-success-bg: rgba(39,174,96,0.08);
+    --color-error:     #dc2626;
+    --color-error-subtle: rgba(220,38,38,0.15);
+    --color-error-bg:  rgba(220,38,38,0.08);
+    --color-warning:   #e8950a;
+    --color-warning-subtle: rgba(232,149,10,0.15);
+    --color-warning-bg: rgba(232,149,10,0.08);
+    --color-info:      #3B82F6;
+    --color-info-subtle: rgba(59,130,246,0.15);
+    --color-info-bg:   rgba(59,130,246,0.08);
     --layout-max-width: 480px;
 
     /* Border-radius scale */

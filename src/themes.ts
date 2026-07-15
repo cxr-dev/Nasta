@@ -144,8 +144,10 @@ export function oklchToHex(l: number, c: number, h: number): string {
 
 // ——— Mode detection ———
 export function needsLightText(hex: string): boolean {
-  // WCAG luminance threshold: 0.4 separates visibly-dark from visibly-light backgrounds
-  return wcagLuminance(hex) < 0.4;
+  // OKLCH perceptual lightness: L < 0.5 = dark bg (needs light text)
+  // Replaces WCAG luminance which misclassifies saturated mid-tones
+  // (e.g., #EF5777 pink has WCAG lum=0.265 → "dark" but OKLCH L=0.666 → visually light)
+  return hexToOklch(hex)[0] < 0.5;
 }
 
 // ——— Theme color derivation in OKLCH ———
@@ -240,10 +242,121 @@ function deriveTextOnAccent(accentHex: string): string {
   return whiteContrast >= darkContrast ? '#FFFFFF' : '#0A0A0A';
 }
 
+// ——— Contrast-solved text color ———
+export type SolvedTextColor = { color: string; usedFallback: boolean };
+
+/** Find lightness that hits target contrast against bg, tinted toward theme hue. */
+export function solveTextColor(bgHex: string, themeHue: number, targetContrast: number, chromaScale: number, dark: boolean): SolvedTextColor {
+  const [bgL] = hexToOklch(bgHex);
+  const step = 0.005;
+  const clampedHue = ((themeHue % 360) + 360) % 360;
+
+  // Bidirectional search with chroma fallback: find the closest OKLCH lightness
+  // to bgL that meets contrast. If chromatic search fails, halve chromaScale
+  // and retry — gracefully degrades toward achromatic rather than falling back
+  // to pure black/white. Handles saturated mid-tone bgs where WCAG luminance
+  // disagrees with perceptual (OKLCH) lightness.
+  let currentChroma = chromaScale;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let upResult: string | null = null;
+    let downResult: string | null = null;
+
+    for (let l = bgL + step; l <= 0.995; l += step) {
+      const hex = oklchToHex(l, currentChroma, clampedHue);
+      if (wcagContrast(bgHex, hex) >= targetContrast) { upResult = hex; break; }
+    }
+    for (let l = bgL - step; l >= 0.01; l -= step) {
+      const hex = oklchToHex(l, currentChroma, clampedHue);
+      if (wcagContrast(bgHex, hex) >= targetContrast) { downResult = hex; break; }
+    }
+
+    if (upResult || downResult) {
+      if (upResult && downResult) {
+        const [upL] = hexToOklch(upResult);
+        const [downL] = hexToOklch(downResult);
+        return { color: (upL - bgL) <= (bgL - downL) ? upResult : downResult, usedFallback: false };
+      }
+      return { color: (upResult ?? downResult)!, usedFallback: false };
+    }
+    currentChroma *= 0.5; // halve chroma each attempt
+  }
+
+  return { color: dark ? '#FFFFFF' : '#0A0A0A', usedFallback: true };
+}
+
+// ——— Accent generation (hover, active, secondary, tertiary) ———
+export interface AccentTokens {
+  primaryHover: string;
+  primaryActive: string;
+  secondaryAccent: string;
+  tertiaryAccent: string;
+}
+
+export function computeAccents(primaryHex: string, dark: boolean): AccentTokens {
+  const [pL, pC, pH] = hexToOklch(primaryHex);
+  const safeC = Math.max(pC, 0.005);
+
+  // Hover: move away from bg lightness (lighter on dark, darker on light)
+  const hoverL = dark ? Math.min(0.95, pL + 0.05) : Math.max(0.05, pL - 0.05);
+  // Active: move toward bg lightness (opposite direction, smaller magnitude)
+  const activeL = dark ? Math.max(0.05, pL - 0.03) : Math.min(0.95, pL + 0.03);
+
+  return {
+    primaryHover: oklchToHex(hoverL, pC, pH),
+    primaryActive: oklchToHex(activeL, pC, pH),
+    secondaryAccent: oklchToHex(pL, safeC * 0.70, (pH + 35) % 360),
+    tertiaryAccent: oklchToHex(pL, safeC * 0.50, (pH + 310) % 360),
+  };
+}
+
+// ——— Surface generation (elevated, hover, pressed) ———
+export interface SurfaceTokens {
+  surfaceElevated: string;
+  surfaceHover: string;
+  surfacePressed: string;
+}
+
+export function computeSurfaces(bgHex: string, dark: boolean): SurfaceTokens {
+  const [bgL, bgC, bgH] = hexToOklch(bgHex);
+  const safeC = Math.max(bgC, 0.005);
+  const clampedHue = ((bgH % 360) + 360) % 360;
+  const MIN_SEP = 0.02;
+
+  // Both modes: surfaces go lighter than bg (lift semantics).
+  // Use fixed MIN_SEP spacing — no cap, since surfaces above 0.95 are valid
+  // (near-white is fine for elevated cards). Hex rounding at extreme dark end
+  // (bgL < 0.03) may collapse values — unavoidable 8-bit sRGB limitation.
+  const pressedL = bgL + MIN_SEP;
+  const hoverL = pressedL + MIN_SEP;
+  const elevatedL = hoverL + MIN_SEP;
+
+  // Chroma: uniform across all three tokens. Using different multipliers at high
+  // chroma causes sRGB gamut distortion that can invert lightness order (e.g.,
+  // sky-pulse[B] where prC=1.4 made pressed land above elevated in hex).
+  const chromaScale = dark ? 1.0 : 0.85;
+
+  return {
+    surfaceElevated: oklchToHex(elevatedL, safeC * chromaScale, clampedHue),
+    surfaceHover: oklchToHex(hoverL, safeC * chromaScale, clampedHue),
+    surfacePressed: oklchToHex(pressedL, safeC * chromaScale, clampedHue),
+  };
+}
+
+// ——— Shadow tint (near-black with theme hue) ———
+export function computeShadowTint(accentHex: string, dark: boolean): string {
+  const [, , accentH] = hexToOklch(accentHex);
+  // Both modes: near-black with hue tint. Alpha handles fading.
+  // Dark mode: stronger alpha (darker bg needs more shadow). Light mode: subtler.
+  return dark
+    ? oklchRgba(0.08, 0.015, accentH, 0.25)
+    : oklchRgba(0.05, 0.01, accentH, 0.10);
+}
+
 function deriveSurfaceColor(bgHex: string, isDark: boolean, hueOverride?: number, accentHue?: number): string {
   const [l, c, h] = hexToOklch(bgHex);
   if (isDark) {
-    const surfaceL = Math.max(0, Math.min(1, l + 0.04));
+    // Dark mode: surface sits just above bg, below computeSurfaces pressed (bgL+0.02)
+    const surfaceL = Math.max(0, Math.min(1, l + 0.01));
     return oklchToHex(surfaceL, c * 0.55, h);
   }
   // Light mode: tint surface toward accent hue for achromatic bgs, bg hue otherwise
@@ -266,37 +379,41 @@ function computeStatusColors(accentHex: string, bgHex: string, dark: boolean) {
   const [, ac, ah] = hexToOklch(accentHex);
   const isDarkBg = dark;
 
+  // Minimum chroma floor + hue fallback for achromatic accents (e.g. default #171717)
+  const safeC = Math.max(ac, 0.10);
+  const safeH = ac < 0.01 ? 0 : ah;
+
   // Base lightness for status colors depends on bg darkness
   const statusL = isDarkBg ? 0.72 : 0.35;
   const subtleL = isDarkBg ? 0.25 : 0.88;
   const bgL = isDarkBg ? 0.15 : 0.94;
 
   // Error: warm/red shift from accent hue
-  const errH = (ah + 15) % 360;
+  const errH = (safeH + 15) % 360;
   // Success: green shift
-  const sucH = (ah + 130) % 360;
+  const sucH = (safeH + 130) % 360;
   // Warning: amber shift
-  const warnH = (ah + 40) % 360;
+  const warnH = (safeH + 40) % 360;
   // Info: blue shift
-  const infoH = (ah + 220) % 360;
+  const infoH = (safeH + 220) % 360;
   // Critical: near accent hue but stronger
-  const critH = (ah + 5) % 360;
+  const critH = (safeH + 5) % 360;
 
   return {
-    success:       oklchToHex(isDarkBg ? 0.68 : 0.38, ac * 0.6, sucH),
-    'success-subtle': oklchRgba(isDarkBg ? 0.28 : 0.87, ac * 0.2, sucH, isDarkBg ? 0.20 : 0.12),
-    'success-bg':  oklchRgba(isDarkBg ? 0.16 : 0.94, ac * 0.12, sucH, isDarkBg ? 0.09 : 0.04),
-    error:         oklchToHex(isDarkBg ? 0.65 : 0.40, ac * 0.7, errH),
-    'error-subtle': oklchRgba(isDarkBg ? 0.30 : 0.86, ac * 0.25, errH, isDarkBg ? 0.22 : 0.12),
-    'error-bg':    oklchToHex(isDarkBg ? 0.16 : 0.94, ac * 0.15, errH),
-    critical:      oklchToHex(isDarkBg ? 0.60 : 0.42, ac * 0.8, critH),
-    'critical-subtle': oklchRgba(isDarkBg ? 0.35 : 0.85, ac * 0.3, critH, isDarkBg ? 0.25 : 0.12),
-    'critical-bg': oklchRgba(isDarkBg ? 0.18 : 0.88, ac * 0.15, critH, isDarkBg ? 0.10 : 0.12),
-    warning:       oklchToHex(isDarkBg ? 0.70 : 0.40, ac * 0.6, warnH),
-    'warning-subtle': oklchRgba(isDarkBg ? 0.30 : 0.86, ac * 0.25, warnH, isDarkBg ? 0.22 : 0.12),
-    'warning-bg':  oklchRgba(isDarkBg ? 0.16 : 0.90, ac * 0.12, warnH, isDarkBg ? 0.09 : 0.10),
-    info:          oklchToHex(isDarkBg ? 0.72 : 0.38, ac * 0.5, infoH),
-    'info-subtle': oklchRgba(isDarkBg ? 0.28 : 0.87, ac * 0.2, infoH, isDarkBg ? 0.20 : 0.12),
+    success:       oklchToHex(isDarkBg ? 0.68 : 0.38, safeC * 0.6, sucH),
+    'success-subtle': oklchRgba(isDarkBg ? 0.28 : 0.87, safeC * 0.2, sucH, isDarkBg ? 0.20 : 0.12),
+    'success-bg':  oklchRgba(isDarkBg ? 0.16 : 0.94, safeC * 0.12, sucH, isDarkBg ? 0.09 : 0.04),
+    error:         oklchToHex(isDarkBg ? 0.65 : 0.40, safeC * 0.7, errH),
+    'error-subtle': oklchRgba(isDarkBg ? 0.30 : 0.86, safeC * 0.25, errH, isDarkBg ? 0.22 : 0.12),
+    'error-bg':    oklchToHex(isDarkBg ? 0.16 : 0.94, safeC * 0.15, errH),
+    critical:      oklchToHex(isDarkBg ? 0.60 : 0.42, safeC * 0.8, critH),
+    'critical-subtle': oklchRgba(isDarkBg ? 0.35 : 0.85, safeC * 0.3, critH, isDarkBg ? 0.25 : 0.12),
+    'critical-bg': oklchRgba(isDarkBg ? 0.18 : 0.88, safeC * 0.15, critH, isDarkBg ? 0.10 : 0.12),
+    warning:       oklchToHex(isDarkBg ? 0.70 : 0.40, safeC * 0.6, warnH),
+    'warning-subtle': oklchRgba(isDarkBg ? 0.30 : 0.86, safeC * 0.25, warnH, isDarkBg ? 0.22 : 0.12),
+    'warning-bg':  oklchRgba(isDarkBg ? 0.16 : 0.90, safeC * 0.12, warnH, isDarkBg ? 0.09 : 0.10),
+    info:          oklchToHex(isDarkBg ? 0.72 : 0.38, safeC * 0.5, infoH),
+    'info-subtle': oklchRgba(isDarkBg ? 0.28 : 0.87, safeC * 0.2, infoH, isDarkBg ? 0.20 : 0.12),
   };
 }
 
@@ -344,6 +461,7 @@ function computeVariant(bg: string, accent: string, surfaceHue?: number) {
 
 export const THEMES: ThemePalette[] = _rawPalettes.map(({ surfaceHue, ...t }) => ({
   ...t,
+  surfaceHue,
   variants: {
     A: computeVariant(t.colorA, t.colorB, surfaceHue),
     B: computeVariant(t.colorB, t.colorA, surfaceHue),
@@ -355,30 +473,21 @@ export function previewStyle(palette: ThemePalette, variant: 'A' | 'B'): string 
   const bg = variant === 'A' ? palette.colorA : palette.colorB;
   const rawAccent = variant === 'A' ? palette.colorB : palette.colorA;
   const accent = ensureAccentContrast(rawAccent, bg);
-  const isLight = palette.variants[variant].isLight;
+  const dark = !palette.variants[variant].isLight;
+  const [, accentC, accentH] = hexToOklch(accent);
 
-  const text = deriveTextColor(bg, accent);
-  const textHex = text; // may not be pure white/black
+  const textHex = deriveTextColor(bg, accent);
 
-  // Parse text color for rgba opacity variants
-  const tr = parseInt(textHex.slice(1, 3), 16);
-  const tg = parseInt(textHex.slice(3, 5), 16);
-  const tb = parseInt(textHex.slice(5, 7), 16);
-
-  const textSecondary = isLight
-    ? `rgba(${tr},${tg},${tb},0.55)`
-    : `rgba(${tr},${tg},${tb},0.65)`;
-  const textMuted = isLight
-    ? `rgba(${tr},${tg},${tb},0.35)`
-    : `rgba(${tr},${tg},${tb},0.40)`;
+  // Use same OKLCH contrast-solver as applyTheme() (not rgba opacity)
+  const secChroma = accentC * 0.40;
+  const mutChroma = accentC * 0.15;
+  const textSecondary = solveTextColor(bg, accentH, 3.5, secChroma, dark).color;
+  const textMuted = solveTextColor(bg, accentH, 2.5, mutChroma, dark).color;
+  const border = solveBorderColor(bg, accentH, dark).color;
 
   const ar = parseInt(accent.slice(1, 3), 16);
   const ag = parseInt(accent.slice(3, 5), 16);
   const ab = parseInt(accent.slice(5, 7), 16);
-
-  const border = isLight
-    ? `rgba(${tr},${tg},${tb},0.08)`
-    : `rgba(${tr},${tg},${tb},0.12)`;
 
   return [
     `--preview-bg:${bg}`,
@@ -395,8 +504,8 @@ export function previewStyle(palette: ThemePalette, variant: 'A' | 'B'): string 
 /** Return variant ('A'|'B') with the darker background for a theme */
 export function getDarkVariant(themeId: string): 'A' | 'B' {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
-  const la = wcagLuminance(theme.colorA);
-  const lb = wcagLuminance(theme.colorB);
+  const la = hexToOklch(theme.colorA)[0];
+  const lb = hexToOklch(theme.colorB)[0];
   return la < lb ? 'A' : 'B';
 }
 
@@ -410,48 +519,55 @@ export function getVariantName(themeId: string, variant: 'A' | 'B'): string {
   return `${theme.name}${suffix}`;
 }
 
+// ——— Border color derivation ———
+export function solveBorderColor(bgHex: string, themeHue: number, dark: boolean, strong = false): SolvedTextColor {
+  const contrastTarget = strong ? 1.35 : 1.20;
+  const chroma = strong ? 0.015 : 0.008;
+  return solveTextColor(bgHex, themeHue, contrastTarget, chroma, dark);
+}
+
 export function applyTheme(themeId: string, variant: 'A' | 'B') {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
   const bg = variant === 'A' ? theme.colorA : theme.colorB;
   const rawAccent = variant === 'A' ? theme.colorB : theme.colorA;
   const accent = ensureAccentContrast(rawAccent, bg);
-  const dark = needsLightText(bg); // bg is visually dark → dark mode
-
-  // Derive colors in OKLCH
-  const textHex = deriveTextColor(bg, accent);
+  const dark = needsLightText(bg);
   const [, accentC, accentH] = hexToOklch(accent);
+
+  // Core derivations
+  const textHex = deriveTextColor(bg, accent);
   const surface = deriveSurfaceColor(bg, dark, theme.surfaceHue, accentH);
   const surfaceEmphasis = deriveSurfaceEmphasis(bg, dark, theme.surfaceHue);
   const textOnAccent = deriveTextOnAccent(accent);
 
-  // Parse derived text color for rgba opacity variants (borders, secondary text)
-  const tr = parseInt(textHex.slice(1, 3), 16);
-  const tg = parseInt(textHex.slice(3, 5), 16);
-  const tb = parseInt(textHex.slice(5, 7), 16);
+  // Contrast-solved text hierarchy (OKLCH-tinted, not rgba opacity)
+  const secChroma = accentC * 0.40;
+  const mutChroma = accentC * 0.15;
+  const ghostChroma = accentC * 0.08;
+  const textSecondary = solveTextColor(bg, accentH, 3.5, secChroma, dark);
+  const textMuted = solveTextColor(bg, accentH, 2.5, mutChroma, dark);
+  const textGhost = solveTextColor(bg, accentH, 1.5, ghostChroma, dark);
 
-  const textSecondary = dark
-    ? `rgba(${tr},${tg},${tb},0.65)`
-    : `rgba(${tr},${tg},${tb},0.55)`;
-  const textMuted = dark
-    ? `rgba(${tr},${tg},${tb},0.40)`
-    : `rgba(${tr},${tg},${tb},0.35)`;
-  const textGhost = dark
-    ? `rgba(${tr},${tg},${tb},0.18)`
-    : `rgba(${tr},${tg},${tb},0.13)`;
-  const border = dark
-    ? `rgba(${tr},${tg},${tb},0.12)`
-    : `rgba(${tr},${tg},${tb},0.08)`;
-  const borderSubtle = dark
-    ? `rgba(${tr},${tg},${tb},0.20)`
-    : `rgba(${tr},${tg},${tb},0.14)`;
+  // Border: OKLCH-derived, near-neutral, low contrast against bg
+  const border = solveBorderColor(bg, accentH, dark);
+  const borderStrong = solveBorderColor(bg, accentH, dark, true);
 
-  // Accent subtle (for hover states, etc.)
+  // Accent generation
+  const accents = computeAccents(accent, dark);
+
+  // Surface generation
+  const surfaces = computeSurfaces(bg, dark);
+
+  // Shadow tint
+  const shadowTint = computeShadowTint(accent, dark);
+
+  // Accent subtle
   const ar = parseInt(accent.slice(1, 3), 16);
   const ag = parseInt(accent.slice(3, 5), 16);
   const ab = parseInt(accent.slice(5, 7), 16);
   const accentSubtle = `rgba(${ar},${ag},${ab},0.15)`;
 
-  // Status colors derived from theme accent
+  // Status colors
   const status = computeStatusColors(accent, bg, dark);
 
   const root = document.documentElement;
@@ -460,15 +576,24 @@ export function applyTheme(themeId: string, variant: 'A' | 'B') {
   root.style.setProperty('--bg', bg);
   root.style.setProperty('--surface', surface);
   root.style.setProperty('--surface-emphasis', surfaceEmphasis);
+  root.style.setProperty('--surface-elevated', surfaces.surfaceElevated);
+  root.style.setProperty('--surface-hover', surfaces.surfaceHover);
+  root.style.setProperty('--surface-pressed', surfaces.surfacePressed);
   root.style.setProperty('--accent', accent);
   root.style.setProperty('--accent-subtle', accentSubtle);
+  root.style.setProperty('--primary-hover', accents.primaryHover);
+  root.style.setProperty('--primary-active', accents.primaryActive);
+  root.style.setProperty('--secondary-accent', accents.secondaryAccent);
+  root.style.setProperty('--tertiary-accent', accents.tertiaryAccent);
   root.style.setProperty('--text-on-accent', textOnAccent);
   root.style.setProperty('--text', textHex);
-  root.style.setProperty('--text-secondary', textSecondary);
-  root.style.setProperty('--text-muted', textMuted);
-  root.style.setProperty('--text-ghost', textGhost);
-  root.style.setProperty('--border', border);
-  root.style.setProperty('--border-subtle', borderSubtle);
+  root.style.setProperty('--text-secondary', textSecondary.color);
+  root.style.setProperty('--text-muted', textMuted.color);
+  root.style.setProperty('--text-ghost', textGhost.color);
+  root.style.setProperty('--border', border.color);
+  root.style.setProperty('--border-strong', borderStrong.color);
+  root.style.setProperty('--border-subtle', border.color);
+  root.style.setProperty('--shadow-tint', shadowTint);
 
   // Status tokens
   for (const [key, value] of Object.entries(status)) {
