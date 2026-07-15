@@ -382,7 +382,7 @@
     if (!backdropEl || !drawerEl) { activeFeatureContext = null; return; }
     gsap.to(backdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
     gsap.to(drawerEl, {
-      y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
+      xPercent: -50, y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
       onComplete: () => { activeFeatureContext = null; }
     });
   }
@@ -416,10 +416,10 @@
         { opacity: 0 },
         { opacity: 1, duration: 0.18, ease: 'power2.out' }
       );
-      gsap.set(drawerEl, { y: '100%', opacity: 0 });
+      gsap.set(drawerEl, { xPercent: -50, y: '100%', opacity: 0 });
       gsap.fromTo(drawerEl,
-        { opacity: 0, y: '100%' },
-        { opacity: 1, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
+        { opacity: 0, xPercent: -50, y: '100%' },
+        { opacity: 1, xPercent: -50, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
       );
     }
   });
