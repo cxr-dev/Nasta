@@ -200,15 +200,17 @@ test.describe("feature discovery sheet", () => {
     await page.addStyleTag({
       content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
-
-
   });
 
-  test("opens the feature discovery sheet when nearby button is clicked", async ({ page }) => {
+  test("opens the feature discovery sheet when nearby button is clicked", async ({
+    page,
+  }) => {
     // Expand segment to reveal the "Discover nearby" button
     const segmentRow = page.getByTestId("segment-row").first();
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({ timeout: 15000 });
+    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({
+      timeout: 15000,
+    });
     await segmentRow.click({ force: true });
 
     // Click "Discover nearby" button
@@ -219,19 +221,25 @@ test.describe("feature discovery sheet", () => {
     // Verify sheet is visible and contains venue data
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
-    
+
     // Verify tabs are rendered
     await expect(page.getByRole("tab", { name: /Beer|Öl/ })).toBeVisible();
-    
+
     // Verify venue content loads (Beer tab active by default)
-    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test("displays different tabs in feature discovery sheet", async ({ page }) => {
+  test("displays different tabs in feature discovery sheet", async ({
+    page,
+  }) => {
     // Setup: open the sheet
     const segmentRow = page.getByTestId("segment-row").first();
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({ timeout: 15000 });
+    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({
+      timeout: 15000,
+    });
     await segmentRow.click({ force: true });
 
     const nearbyButton = page.getByRole("button", { name: /Discover nearby/i });
@@ -242,7 +250,9 @@ test.describe("feature discovery sheet", () => {
     await expect(sheet).toBeVisible({ timeout: 10000 });
 
     // Verify Beer tab content (default)
-    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Note: Tab switching involves GSAP animations which cause layout shifts.
     // This is a known limitation of animating content-heavy sheets with Playwright.
