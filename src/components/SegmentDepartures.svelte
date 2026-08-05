@@ -48,7 +48,6 @@
     onJourneyCancel,
     onSavedCardAction,
     onMoveSegment,
-    onOpenManualOrder,
     lastRefreshTime,
   }: {
     page: Page;
@@ -68,7 +67,6 @@
     onJourneyCancel?: (segmentId: string) => void;
     onSavedCardAction?: (segment: Segment, action: SavedCardActionId) => void;
     onMoveSegment?: (segment: Segment, pageId: string) => void;
-    onOpenManualOrder?: () => void;
     lastRefreshTime?: number;
   } = $props();
 
@@ -316,7 +314,7 @@
 
   let sortedSegments = $derived.by(() => {
     const segs = [...(page.segments ?? [])];
-    const mode: SortMode = settings.sortMode ?? 'manual';
+    const mode: SortMode = settings.sortMode ?? 'time';
     switch (mode) {
       case 'time': return sortByNextDeparture(segs);
       case 'station': return segs.sort((a, b) => a.fromStop.name.localeCompare(b.fromStop.name, 'sv'));
@@ -586,11 +584,6 @@
           {@html editPencil}
         </svg>
       </button>
-      {/if}
-      {#if onOpenManualOrder && settings.sortMode === 'manual' && page.segments.length > 1}
-        <button class="header-icon-btn" onclick={onOpenManualOrder} aria-label={t.reorderCards ?? 'Reorder cards'}>
-          <span aria-hidden="true">↕</span>
-        </button>
       {/if}
       {#if onOpenSettings}
       <button class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>

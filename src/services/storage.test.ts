@@ -101,7 +101,7 @@ describe("storage service", () => {
         afterworkTypes: [],
         eventsEnabled: false,
         groupDisruptedSegments: false,
-        sortMode: "manual" as const,
+        sortMode: "time" as const,
         groupingMode: "none" as const,
         groupSleeping: false,
       });
@@ -114,6 +114,18 @@ describe("storage service", () => {
       );
       const settings = loadSettings();
       expect(settings.locationServicesEnabled).toBe(true);
+    });
+
+    it("migrates the retired manual sort preference to time", () => {
+      localStorage.setItem(
+        "nasta_settings",
+        JSON.stringify({ sortMode: "manual" }),
+      );
+
+      expect(loadSettings().sortMode).toBe("time");
+      expect(JSON.parse(localStorage.getItem("nasta_settings") ?? "{}")).toMatchObject({
+        sortMode: "time",
+      });
     });
 
     it("migrates legacy darkMode settings", () => {
@@ -154,7 +166,7 @@ describe("storage service", () => {
         afterworkTypes: [],
         eventsEnabled: false,
         groupDisruptedSegments: false,
-        sortMode: "manual" as const,
+        sortMode: "time" as const,
         groupingMode: "none" as const,
         groupSleeping: false,
       };

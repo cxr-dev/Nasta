@@ -2,7 +2,7 @@
   import { previewStyle } from '../themes';
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
-  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
+  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon } from '../icons/departureIcons';
   import Sheet from './Sheet.svelte';
   import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
@@ -31,7 +31,6 @@
   ];
 
   let sortSettingsOptions = $derived([
-    { mode: 'manual' as SortMode, icon: gripIcon, label: t.sortManual },
     { mode: 'time' as SortMode, icon: clockIcon, label: t.sortTime },
     { mode: 'station' as SortMode, icon: sortAlphaIcon, label: t.sortStation },
     { mode: 'line' as SortMode, icon: sortNumericIcon, label: t.sortLine },

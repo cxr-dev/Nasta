@@ -19,7 +19,7 @@ const defaults: Settings = {
   afterworkTypes: [] as Array<"beer" | "wine" | "cocktail">,
   eventsEnabled: false,
   groupDisruptedSegments: false,
-  sortMode: "manual" as const,
+  sortMode: "time" as const,
   groupingMode: "none" as const,
   groupSleeping: false,
 };
@@ -57,7 +57,7 @@ describe("settingsStore", () => {
     it("getSettings returns default settings", () => {
       const settings = settingsModule.getSettings();
       expect(settings.refreshInterval).toBe(30000);
-      expect(settings.sortMode).toBe("manual");
+      expect(settings.sortMode).toBe("time");
       expect(settings.groupingMode).toBe("none");
       expect(settings.afterworkStartHour).toBe(15);
       expect(settings.language).toBe("auto");

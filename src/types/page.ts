@@ -1,6 +1,6 @@
 import type { JourneyMeta } from './journey';
 export type TransportType = "bus" | "train" | "metro" | "boat" | "tram";
-export type SortMode = 'manual' | 'time' | 'station' | 'transport' | 'line' | 'distance';
+export type SortMode = 'time' | 'station' | 'transport' | 'line' | 'distance';
 export type GroupingMode = 'none' | 'disrupted' | 'station' | 'transport';
 
 export interface Stop {

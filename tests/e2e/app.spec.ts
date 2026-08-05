@@ -114,6 +114,17 @@ test.describe("Nästa App", () => {
     await expect(routeHeader).toContainText(/Arbete/i);
   });
 
+  test("should keep sorting in Settings without a main-page reorder control", async ({ page }) => {
+    await expect(page.locator('button[aria-label="Reorder cards"]')).toHaveCount(0);
+
+    await page.locator('button[aria-label="Settings"]').click();
+    const settings = page.locator(".settings-overlay.open");
+    await expect(settings).toBeVisible();
+    await settings.getByRole("button", { name: "Sort by" }).click();
+    await expect(settings.getByRole("option", { name: "Departure time" })).toBeVisible();
+    await expect(settings.getByRole("option", { name: "Manual" })).toHaveCount(0);
+  });
+
   test("should toggle edit mode", async ({ page }) => {
     const editBtn = page.locator('button[aria-label="Manage pages"]');
     await editBtn.waitFor({ state: "visible", timeout: 10000 });

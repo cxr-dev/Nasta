@@ -24,7 +24,6 @@
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
   import AddExperience from './components/AddExperience.svelte';
-  import ManualOrderSheet from './components/ManualOrderSheet.svelte';
   import Snackbar from './components/Snackbar.svelte';
   import type { SavedCardActionId } from './lib/savedCardActions';
   import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, selectNextJourney } from './services/journeyService';
@@ -39,7 +38,6 @@
   let showQuickAdd = $state(false);
   let editingSegment = $state<Segment | null>(null);
   let editingSegmentPageId = $state<string | null>(null);
-  let showManualOrder = $state(false);
   let snackbar = $state<{ message: string; snapshot?: RemovedSegmentSnapshot } | null>(null);
   let snackbarTimer: ReturnType<typeof setTimeout> | null = null;
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
@@ -1029,7 +1027,6 @@ function closeSettingsPanel() {
               onJourneyCancel={handleJourneyCancel}
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
-              onOpenManualOrder={() => showManualOrder = true}
               {lastRefreshTime}
             />
           {/if}
@@ -1063,11 +1060,6 @@ function closeSettingsPanel() {
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchPage={handlePageSwitch}
-      />
-      <ManualOrderSheet
-        isOpen={showManualOrder}
-        page={page}
-        onClose={() => showManualOrder = false}
       />
     {/if}
 

@@ -45,7 +45,7 @@ const defaultSettings: Settings = {
   afterworkTypes: [],
   eventsEnabled: false,
   groupDisruptedSegments: false,
-  sortMode: 'manual',
+  sortMode: 'time',
   groupingMode: 'none',
   groupSleeping: false,
 };
@@ -124,6 +124,13 @@ export function loadSettings(): Settings {
     const parsed: Record<string, unknown> = data ? JSON.parse(data) : {};
     const merged = { ...defaultSettings, ...parsed } as Settings;
 
+    // Manual ordering is no longer a supported presentation mode. Preserve
+    // the saved pages and normalize only the retired preference.
+    const retiredManualSort = parsed.sortMode === 'manual';
+    if (retiredManualSort) {
+      merged.sortMode = 'time';
+    }
+
     // Theme migration is intentionally resolved after spreading defaults so
     // malformed legacy values cannot leak into the new public settings shape.
     if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system') {
@@ -150,6 +157,7 @@ export function loadSettings(): Settings {
         merged.locationServicesEnabled = true;
       }
     }
+    if (retiredManualSort) saveSettings(merged);
     return merged;
   } catch {
     return defaultSettings;
