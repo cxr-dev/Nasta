@@ -2,7 +2,7 @@
   import { transitService } from '../providers/init';
   import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
 import type { TransitStopSearchResult, TransitDeparture } from '../providers/types';
-import type { TransportType, Stop, SegmentDirection } from '../types/page';
+import type { TransportType, Stop, SegmentDirection, Segment } from '../types/page';
 import { getT } from '../stores/localeStore.svelte';
 import TransportIcon from './TransportIcon.svelte';
 
@@ -21,12 +21,17 @@ type TransportFilterOption = 'all' | TransportType;
 const TRANSPORT_FILTER_OPTIONS: TransportFilterOption[] = ['all', ...ALL_TRANSPORT_TYPES];
 
 let { 
-  onSelect = (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => {}
+  onSelect = (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => {},
+  instanceId = 'stop',
+  initialSegment,
 }: { 
-  onSelect?: (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => void
+  onSelect?: (line: string, lineName: string, direction: SegmentDirection, fromStop: Stop, toStop: Stop, transportType: TransportType) => boolean | void;
+  instanceId?: string;
+  initialSegment?: Segment;
 } = $props();
 
 let settings = $derived(getSettings());
+let searchInputId = $derived(`${instanceId}-search`);
   
 interface StopInterface {
   id: string;
@@ -180,6 +185,33 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   let abortController: AbortController | null = null;
   let directionStopSequences = $state<Record<number, string[]>>({});
   let stopSequenceAbortController: AbortController | null = null;
+  let initialisedSegmentId = $state<string | null>(null);
+
+  $effect(() => {
+    if (!initialSegment || initialisedSegmentId === initialSegment.id) return;
+    initialisedSegmentId = initialSegment.id;
+    query = initialSegment.fromStop.name;
+    selectedStation = {
+      id: initialSegment.fromStop.siteId,
+      name: initialSegment.fromStop.name,
+      coord: initialSegment.fromStop.coord,
+      relevance: 1,
+    } as TransitStopSearchResult;
+    selectedLine = {
+      id: `${initialSegment.fromStop.siteId}|${initialSegment.line}`,
+      stopId: initialSegment.fromStop.siteId,
+      line: initialSegment.line,
+      lineName: initialSegment.lineName,
+      destination: initialSegment.direction.destination,
+      directionCode: initialSegment.direction.code,
+      transportMode: initialSegment.transportType,
+      minutes: -1,
+      scheduledTime: '',
+      dataSource: 'scheduled',
+    };
+    allDepartures = [selectedLine];
+    step = 'direction';
+  });
 
   async function handleInput() {
     clearTimeout(debounceTimer);
@@ -303,7 +335,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   
   function handleDirectionSelect(direction: SegmentDirection) {
     if (!selectedLine || !selectedStation) return;
-    onSelect(
+    const result = onSelect(
       selectedLine.line,
       selectedLine.lineName,
       direction,
@@ -317,7 +349,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
       { id: crypto.randomUUID(), name: direction.destination, siteId: '' },
       selectedLine.transportMode as unknown as TransportType
     );
-    reset();
+    if (result !== false) reset();
   }
   
   async function fetchDirectionStopSequences() {
@@ -526,9 +558,9 @@ function filterIconType(type: TransportFilterOption): TransportType {
   <div class="step-content" bind:this={contentEl}>
     {#key step}
       {#if step === 'search'}
-<label class="search-label" for="stop-search">{t.searchStops ?? 'Search stops'}</label>
+<label class="search-label" for={searchInputId}>{t.searchStops ?? 'Search stops'}</label>
 <input
-        id="stop-search"
+        id={searchInputId}
         type="text"
         bind:value={query}
         oninput={handleInput}

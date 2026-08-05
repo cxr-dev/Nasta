@@ -115,11 +115,24 @@ test.describe("Nästa App", () => {
   });
 
   test("should toggle edit mode", async ({ page }) => {
-    const editBtn = page.locator('button[aria-label="Departures"]');
+    const editBtn = page.locator('button[aria-label="Manage pages"]');
     await editBtn.waitFor({ state: "visible", timeout: 10000 });
     await editBtn.click();
 
     await expect(page.locator(".editor-overlay.open")).toBeVisible();
+  });
+
+  test("should keep the page editor scoped to pages", async ({ page }) => {
+    await page.locator('button[aria-label="Manage pages"]').click();
+    const editor = page.locator(".editor-overlay.open");
+    await expect(editor.locator(".pages-tab")).toBeVisible();
+    await expect(editor.locator(".tab-bar")).toHaveCount(0);
+    await expect(editor.locator('[data-testid="add-experience"]')).toHaveCount(0);
+
+    await page.setViewportSize({ width: 900, height: 800 });
+    const editorSheet = editor.locator(".editor-sheet");
+    const overflow = await editorSheet.evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(overflow).toBe(false);
   });
 
   test("should load from GitHub Pages subpath and survive hard refresh", async ({

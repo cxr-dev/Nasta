@@ -6,6 +6,7 @@
   import gsap from 'gsap';
   import { tick } from 'svelte';
   import type { JourneyMeta } from '../types/journey';
+  import { longPress } from '../lib/longPress';
 
   let {
     journeyMeta,
@@ -17,6 +18,9 @@
     onStartMissed,
     onComplete,
     onCancel,
+    onLongPress,
+    onMoreActions,
+    moreActionsLabel,
   }: {
     journeyMeta: JourneyMeta;
     isExpanded?: boolean;
@@ -27,6 +31,9 @@
     onStartMissed?: () => void;
     onComplete?: () => void;
     onCancel?: () => void;
+    onLongPress?: (trigger?: HTMLElement) => void;
+    onMoreActions?: (trigger: HTMLElement) => void;
+    moreActionsLabel?: string;
   } = $props();
 
   let t = $derived(getT());
@@ -112,7 +119,27 @@
   });
 </script>
 
-<article class="journey-card" class:expanded={isExpanded} class:active={journeyMeta.status === 'active'}>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<article
+  class="journey-card"
+  class:expanded={isExpanded}
+  class:active={journeyMeta.status === 'active'}
+  role="group"
+  use:longPress={{ onLongPress: (event) => {
+    if (!isExpanded) {
+      const card = event.target instanceof HTMLElement ? event.target.closest('.journey-card') : null;
+      const target = card?.querySelector<HTMLElement>('.card-main') ?? null;
+      onLongPress?.(target ?? undefined);
+    }
+  } }}
+  oncontextmenu={(event) => { event.preventDefault(); onMoreActions?.(event.currentTarget as HTMLElement); }}
+  onkeydown={(event) => {
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault();
+      onMoreActions?.(event.currentTarget as HTMLElement);
+    }
+  }}
+>
   <button class="card-main" onclick={() => handleToggle()}>
     <div class="card-body">
       <div class="card-top">
@@ -165,6 +192,14 @@
           <span class="detail-arrow" aria-hidden="true">→</span>
           <strong>{journeyMeta.destLabel}</strong>
         </div>
+        <button
+          type="button"
+          class="more-actions-button"
+          aria-label={moreActionsLabel ?? `More actions for journey to ${journeyMeta.destLabel}`}
+          onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
+        >
+          <span aria-hidden="true">•••</span>
+        </button>
         {#if journeyMeta.status === 'active'}
           <span class="active-now">{t.journeyCurrentLeg ?? 'Nuvarande del'}</span>
         {/if}
@@ -516,6 +551,31 @@
     margin-bottom: 12px;
     color: var(--text);
     font-size: 13px;
+  }
+
+  .more-actions-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+
+  .more-actions-button:hover,
+  .more-actions-button:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
 
   .detail-kicker {

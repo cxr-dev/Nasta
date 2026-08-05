@@ -187,7 +187,7 @@ test.describe("Segment search", () => {
 
     await page.locator(".empty-cta").click();
     const addDialog = page.getByRole("dialog", { name: /Lägg till/ });
-    const titleRow = page.locator(".quick-add-title-row");
+    const titleRow = addDialog.locator(".add-experience-title-row");
     const stopTab = page.getByRole("tab", { name: "Hållplats" });
     const routeTab = page.getByRole("tab", { name: "Resa" });
     await expect(addDialog).toBeVisible();
@@ -213,12 +213,13 @@ test.describe("Segment search", () => {
     await routeTab.click();
     await expect(page.locator("#quick-add-route-panel")).toBeVisible();
 
-    const swapButton = page.getByRole("button", { name: "Byt riktning" });
-    const fromInput = page.getByRole("textbox", { name: "från" });
-    const toInput = page.getByRole("textbox", { name: "Till" });
-    await expect(page.locator(".location-fields")).toBeVisible();
-    await expect(page.locator(".swap-connector")).toBeVisible();
-    await expect(page.locator(".connector-line")).toHaveCount(0);
+    const routePanel = addDialog.locator("#quick-add-route-panel");
+    const swapButton = routePanel.getByRole("button", { name: "Byt riktning" });
+    const fromInput = routePanel.locator("#quick-add-journey-origin");
+    const toInput = routePanel.locator("#quick-add-journey-dest");
+    await expect(routePanel.locator(".location-fields")).toBeVisible();
+    await expect(routePanel.locator(".swap-connector")).toBeVisible();
+    await expect(routePanel.locator(".connector-line")).toHaveCount(0);
     const fromBox = await fromInput.boundingBox();
     const toBox = await toInput.boundingBox();
     const swapBox = await swapButton.boundingBox();
@@ -228,25 +229,24 @@ test.describe("Segment search", () => {
     await expect(swapButton.locator("svg")).toHaveAttribute("width", "24");
     await expect(swapButton.locator('path[d="m3 16 4 4 4-4"]')).toHaveCount(1);
 
-    const advancedToggle = page.getByRole("button", { name: /Avancerat/ });
+    const advancedToggle = routePanel.getByRole("button", { name: /Avancerat/ });
     await advancedToggle.click();
-    const advancedPanel = page.locator("#journey-advanced-options");
+    const advancedPanel = routePanel.locator("#quick-add-journey-advanced-options");
     await expect(advancedPanel).toBeVisible();
     await expect(advancedPanel.locator('input[type="checkbox"]')).toHaveCount(5);
     await expect(advancedPanel.locator('input[type="radio"]')).toHaveCount(7);
 
-    const journeyDialog = page.getByRole("dialog", { name: /Lägg till/ });
-    await journeyDialog.getByLabel("från").fill("Odenplan");
-    await journeyDialog.getByRole("textbox", { name: "Till" }).fill("Slussen");
-    await journeyDialog.getByRole("button", { name: "Hitta resa" }).click();
+    await fromInput.fill("Odenplan");
+    await toInput.fill("Slussen");
+    await routePanel.getByRole("button", { name: "Hitta resa" }).click();
 
-    const resultCards = page.locator(".result-card");
+    const resultCards = routePanel.locator(".result-card");
     await expect(resultCards).toHaveCount(2);
     await expect(resultCards.first().locator(".result-duration")).toHaveText("12m");
 
     await page.setViewportSize({ width: 900, height: 800 });
     await expect(advancedPanel).toBeVisible();
-    const hasHorizontalOverflow = await page.locator(".journey-search").evaluate((element) => element.scrollWidth > element.clientWidth);
+    const hasHorizontalOverflow = await routePanel.locator(".journey-search").evaluate((element) => element.scrollWidth > element.clientWidth);
     expect(hasHorizontalOverflow).toBe(false);
 
     await addDialog.focus();
@@ -254,7 +254,7 @@ test.describe("Segment search", () => {
     await expect(addDialog).toBeHidden();
     await page.locator(".empty-cta").click();
     await expect(addDialog).toBeVisible();
-    await addDialog.locator(".quick-add-title-row").getByRole("button", { name: "Stäng panel" }).click();
+    await addDialog.locator(".add-experience-title-row").getByRole("button", { name: "Stäng panel" }).click();
     await expect(addDialog).toBeHidden();
     await page.locator(".empty-cta").click();
     await expect(addDialog).toBeVisible();

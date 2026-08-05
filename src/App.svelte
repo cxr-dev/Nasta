@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import gsap from 'gsap';
   import { initialize } from './stores/pageStore.svelte';
-  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment } from './stores/pageStore.svelte';
+  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment, moveSegment, removeSegmentWithSnapshot, restoreSegment, type RemovedSegmentSnapshot } from './stores/pageStore.svelte';
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
@@ -23,12 +23,12 @@
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
-  import SegmentSearch from './components/SegmentSearch.svelte';
-  import JourneySearch from './components/JourneySearch.svelte';
+  import AddExperience from './components/AddExperience.svelte';
+  import ManualOrderSheet from './components/ManualOrderSheet.svelte';
+  import Snackbar from './components/Snackbar.svelte';
+  import type { SavedCardActionId } from './lib/savedCardActions';
   import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, selectNextJourney } from './services/journeyService';
-  import { mapPinIcon, routeIcon } from './icons/departureIcons';
   import type { Journey, JourneyMeta, SavedJourneyStatus } from './types/journey';
-  import IconButton from './components/IconButton.svelte';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
 
@@ -37,7 +37,11 @@
   let editing = $state(false);
   let showSettings = $state(false);
   let showQuickAdd = $state(false);
-  let quickAddTab = $state<'stop' | 'route'>('stop');
+  let editingSegment = $state<Segment | null>(null);
+  let editingSegmentPageId = $state<string | null>(null);
+  let showManualOrder = $state(false);
+  let snackbar = $state<{ message: string; snapshot?: RemovedSegmentSnapshot } | null>(null);
+  let snackbarTimer: ReturnType<typeof setTimeout> | null = null;
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
   let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
   let quickAddHandleDragging = $state(false);
@@ -272,9 +276,28 @@
   ) {
     const p = getActivePage();
     if (!p) return;
+    if (editingSegment && editingSegmentPageId) {
+      const sameDirection = editingSegment.direction.code === direction.code && editingSegment.line === line;
+      const ok = updateSegment(editingSegmentPageId, editingSegment.id, {
+        line,
+        lineName,
+        direction: sameDirection ? { ...editingSegment.direction, destination: direction.destination } : direction,
+        fromStop,
+        toStop: sameDirection ? editingSegment.toStop : toStop,
+        transportType,
+      });
+      if (!ok) {
+        showSnackbar(t.actionFailed ?? 'The change could not be saved. Try again.');
+        return false;
+      }
+      closeQuickAdd();
+      void loadDepartures(true);
+      return true;
+    }
     storeAddSegment(p.id, { line, lineName, direction, fromStop, toStop, transportType });
     closeQuickAdd();
     void loadDepartures(true);
+    return true;
   }
 
   function handleJourneySelect(journey: Journey) {
@@ -284,7 +307,7 @@
     const firstLeg = journey.legs[0];
     if (!firstLeg) return;
 
-    storeAddSegment(p.id, {
+    const nextSegment = {
       line: firstLeg.line,
       lineName: firstLeg.lineName,
       direction: {
@@ -313,14 +336,91 @@
           destination: journey.destLabel,
           routeType: DEFAULT_JOURNEY_ROUTE_TYPE,
         },
-        status: 'planned',
+        status: editingSegment?.journeyMeta?.status ?? 'planned',
         totalDurationMin: journey.totalDurationMin,
         transfers: journey.transfers,
         updatedAt: Date.now(),
         legs: journey.legs,
       },
-    });
+    };
+    if (editingSegment && editingSegmentPageId) {
+      const existingMeta = editingSegment.journeyMeta;
+      const ok = updateSegment(editingSegmentPageId, editingSegment.id, {
+        ...nextSegment,
+        journeyMeta: existingMeta ? { ...nextSegment.journeyMeta, status: existingMeta.status, activeSnapshot: existingMeta.activeSnapshot, lastMissedAt: existingMeta.lastMissedAt, lastMissedJourney: existingMeta.lastMissedJourney } : nextSegment.journeyMeta,
+      });
+      if (!ok) {
+        showSnackbar(t.actionFailed ?? 'The change could not be saved. Try again.');
+        return false;
+      }
+      closeQuickAdd();
+      return true;
+    }
+    storeAddSegment(p.id, nextSegment);
     closeQuickAdd();
+    return true;
+  }
+
+  function showSnackbar(message: string, snapshot?: RemovedSegmentSnapshot) {
+    if (snackbarTimer) clearTimeout(snackbarTimer);
+    snackbar = { message, snapshot };
+    snackbarTimer = setTimeout(() => snackbar = null, 5000);
+  }
+
+  function openEditSegment(segment: Segment) {
+    editingSegment = segment;
+    editingSegmentPageId = pages.find((candidate) => candidate.segments.some((item) => item.id === segment.id))?.id ?? activePageId;
+    showQuickAdd = true;
+    departureStore.stopAutoRefresh();
+    deviationStore.stopAutoRefresh();
+  }
+
+  function handleSavedCardAction(segment: Segment, action: SavedCardActionId) {
+    if (action === 'edit') {
+      openEditSegment(segment);
+      return;
+    }
+    if (action === 'remove') {
+      const pageId = pages.find((candidate) => candidate.segments.some((item) => item.id === segment.id))?.id;
+      if (!pageId) return;
+      const snapshot = removeSegmentWithSnapshot(pageId, segment.id);
+      if (!snapshot) {
+        showSnackbar(t.actionFailed ?? 'The change could not be saved. Try again.');
+        return;
+      }
+      const message = segment.journeyMeta ? (t.journeyRemovedUndo ?? 'Journey removed — Undo') : (t.departureRemovedUndo ?? 'Departure removed — Undo');
+      showSnackbar(message, snapshot);
+      void loadDepartures(true);
+    }
+  }
+
+  function handleMoveSegment(segment: Segment, toPageId: string) {
+    const fromPageId = pages.find((candidate) => candidate.segments.some((item) => item.id === segment.id))?.id;
+    if (!fromPageId) return;
+    const result = moveSegment(fromPageId, segment.id, toPageId);
+    if (!result) {
+      showSnackbar(t.actionFailed ?? 'The change could not be saved. Try again.');
+      return;
+    }
+    const destination = pages.find((candidate) => candidate.id === toPageId)?.name ?? '';
+    showSnackbar((t.movedToPage ?? 'Moved to {page}').replace('{page}', destination));
+  }
+
+  function undoRemoval() {
+    const pending = snackbar?.snapshot;
+    if (!pending) return;
+    if (restoreSegment(pending)) {
+      snackbar = null;
+      if (snackbarTimer) clearTimeout(snackbarTimer);
+      void loadDepartures(true);
+    } else {
+      showSnackbar(t.restoreFailed ?? 'The item could not be restored.');
+    }
+  }
+
+  function closeSnackbar() {
+    snackbar = null;
+    if (snackbarTimer) clearTimeout(snackbarTimer);
   }
 
   async function refreshSavedJourneys(page = getActivePage(), force = false): Promise<void> {
@@ -556,11 +656,16 @@
   }
 
   function closeQuickAdd() {
-    if (!quickAddBackdropEl || !quickAddDrawerEl) { showQuickAdd = false; return; }
+    const finish = () => {
+      showQuickAdd = false;
+      editingSegment = null;
+      editingSegmentPageId = null;
+    };
+    if (!quickAddBackdropEl || !quickAddDrawerEl) { finish(); return; }
     gsap.to(quickAddBackdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
     gsap.to(quickAddDrawerEl, {
       y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
-      onComplete: () => { showQuickAdd = false; }
+      onComplete: finish
     });
   }
 
@@ -922,6 +1027,9 @@ function closeSettingsPanel() {
               onJourneyStartMissed={handleJourneyStartMissed}
               onJourneyComplete={handleJourneyComplete}
               onJourneyCancel={handleJourneyCancel}
+              onSavedCardAction={handleSavedCardAction}
+              onMoveSegment={handleMoveSegment}
+              onOpenManualOrder={() => showManualOrder = true}
               {lastRefreshTime}
             />
           {/if}
@@ -956,6 +1064,11 @@ function closeSettingsPanel() {
         onClose={toggleEdit}
         onSwitchPage={handlePageSwitch}
       />
+      <ManualOrderSheet
+        isOpen={showManualOrder}
+        page={page}
+        onClose={() => showManualOrder = false}
+      />
     {/if}
 
     {#if showQuickAdd && page}
@@ -975,58 +1088,27 @@ function closeSettingsPanel() {
         tabindex="0"
         onkeydown={(e) => { if (e.key === 'Escape') closeQuickAdd(); }}
       >
-          <div class="quick-add-header">
-            <div class="quick-add-title-row">
-              <h2 class="quick-add-title">{t.addSegment}</h2>
-              <IconButton class="quick-add-close" onclick={closeQuickAdd} ariaLabel={t.closePanel}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6 6 18"/>
-                </svg>
-              </IconButton>
-            </div>
-            <div class="quick-add-tabs" role="tablist" aria-label={t.addSegment}>
-              <button
-                class="quick-add-tab"
-                class:active={quickAddTab === 'stop'}
-                role="tab"
-                aria-label={t.tabStop}
-                aria-selected={quickAddTab === 'stop'}
-                aria-controls="quick-add-stop-panel"
-                onclick={() => quickAddTab = 'stop'}
-              >
-                <span class="quick-add-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html mapPinIcon}</svg></span>
-                <span class="quick-add-tab-copy">
-                  <span class="quick-add-tab-title">{t.tabStop}</span>
-                  <span class="quick-add-tab-description">{t.tabStopDesc}</span>
-                </span>
-              </button>
-              <button
-                class="quick-add-tab"
-                class:active={quickAddTab === 'route'}
-                role="tab"
-                aria-label={t.tabRoute}
-                aria-selected={quickAddTab === 'route'}
-                aria-controls="quick-add-route-panel"
-                onclick={() => quickAddTab = 'route'}
-              >
-                <span class="quick-add-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html routeIcon}</svg></span>
-                <span class="quick-add-tab-copy">
-                  <span class="quick-add-tab-title">{t.tabRoute}</span>
-                  <span class="quick-add-tab-description">{t.tabRouteDesc}</span>
-                </span>
-              </button>
-            </div>
-          </div>
-          {#if quickAddTab === 'stop'}
-            <div id="quick-add-stop-panel" role="tabpanel" aria-label={t.tabStop}>
-              <SegmentSearch onSelect={handleQuickAdd} />
-            </div>
-          {:else}
-            <div id="quick-add-route-panel" role="tabpanel" aria-label={t.tabRoute}>
-              <JourneySearch onSelect={handleJourneySelect} />
-            </div>
-          {/if}
+          <AddExperience
+            idPrefix="quick-add"
+            variant="drawer"
+            closeAriaLabel={t.closePanel}
+            onClose={closeQuickAdd}
+            mode={editingSegment ? 'edit' : 'add'}
+            editSegment={editingSegment ?? undefined}
+            editKind={editingSegment?.journeyMeta ? 'journey' : 'departure'}
+            onStopSelect={handleQuickAdd}
+            onJourneySelect={handleJourneySelect}
+          />
       </div>
+    {/if}
+
+    {#if snackbar}
+      <Snackbar
+        message={snackbar.message}
+        actionLabel={snackbar.snapshot ? (t.undo ?? 'Undo') : undefined}
+        onAction={snackbar.snapshot ? undoRemoval : undefined}
+        onClose={closeSnackbar}
+      />
     {/if}
 
     {#if activeFeatureContext}
@@ -1504,121 +1586,6 @@ function closeSettingsPanel() {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-  }
-
-  .quick-add-header {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 14px 8px 10px;
-    gap: 10px;
-  }
-
-  .quick-add-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 44px;
-    gap: 12px;
-  }
-
-  .quick-add-title {
-    margin: 0;
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  :global(.icon-btn.quick-add-close) {
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
-  }
-
-  .quick-add-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .quick-add-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    min-height: 56px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 8px);
-    background: var(--surface-emphasis);
-    color: var(--text-secondary);
-    font-family: inherit;
-    cursor: pointer;
-    text-align: left;
-    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
-  }
-
-  .quick-add-tab.active {
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-    color: var(--text);
-  }
-
-  .quick-add-tab:hover,
-  .quick-add-tab:focus-visible {
-    border-color: var(--accent);
-    outline: none;
-  }
-
-  .quick-add-tab-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    flex: 0 0 auto;
-    border-radius: 7px;
-    background: var(--surface);
-    color: var(--text-muted);
-  }
-
-  .quick-add-tab-icon svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .quick-add-tab.active .quick-add-tab-icon {
-    background: var(--accent);
-    color: var(--text-on-accent);
-  }
-
-  .quick-add-tab-copy {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    gap: 2px;
-  }
-
-  .quick-add-tab-title {
-    color: inherit;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  .quick-add-tab-description {
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 1.25;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .quick-add-tab.active .quick-add-tab-description {
-    color: var(--text-secondary);
   }
 
   /* ── Tablet breakpoint ── */

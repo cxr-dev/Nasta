@@ -24,7 +24,9 @@
   import { getLocale } from "../stores/localeStore.svelte";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
+  import type { SavedCardActionId } from "../lib/savedCardActions";
   import StationNoticeBar from "./StationNoticeBar.svelte";
+  import SavedCardActionsSheet from './SavedCardActionsSheet.svelte';
   import { dismissedStore } from "../stores/dismissedStore.svelte";
   import { getWeatherForStation } from "../services/weatherCache";
 
@@ -44,6 +46,9 @@
     onJourneyStartMissed,
     onJourneyComplete,
     onJourneyCancel,
+    onSavedCardAction,
+    onMoveSegment,
+    onOpenManualOrder,
     lastRefreshTime,
   }: {
     page: Page;
@@ -61,6 +66,9 @@
     onJourneyStartMissed?: (segmentId: string) => void;
     onJourneyComplete?: (segmentId: string) => void;
     onJourneyCancel?: (segmentId: string) => void;
+    onSavedCardAction?: (segment: Segment, action: SavedCardActionId) => void;
+    onMoveSegment?: (segment: Segment, pageId: string) => void;
+    onOpenManualOrder?: () => void;
     lastRefreshTime?: number;
   } = $props();
 
@@ -83,6 +91,8 @@
   let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
+  let activeActionSegment = $state<Segment | null>(null);
+  let actionTrigger = $state<HTMLElement | null>(null);
 
   // Weather per station (for station grouping header)
   let stationWeather = $state<Map<string, string | null>>(new Map());
@@ -167,6 +177,30 @@
 
   function toggleExpanded(segmentId: string) {
     expandedSegmentId = expandedSegmentId === segmentId ? null : segmentId;
+  }
+
+  function openSavedCardActions(segment: Segment, trigger?: HTMLElement) {
+    activeActionSegment = segment;
+    actionTrigger = trigger ?? null;
+  }
+
+  function closeSavedCardActions() {
+    activeActionSegment = null;
+    actionTrigger = null;
+  }
+
+  function handleSavedCardAction(action: SavedCardActionId) {
+    if (!activeActionSegment) return;
+    const segment = activeActionSegment;
+    closeSavedCardActions();
+    onSavedCardAction?.(segment, action);
+  }
+
+  function handleMoveSegment(pageId: string) {
+    if (!activeActionSegment) return;
+    const segment = activeActionSegment;
+    closeSavedCardActions();
+    onMoveSegment?.(segment, pageId);
   }
 
   const PREFETCH_SEGMENT_COUNT = 2;
@@ -547,11 +581,16 @@
         </svg>
       </button>
       {#if onEditToggle}
-      <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.tabSegments}>
+      <button class="header-icon-btn" onclick={onEditToggle} aria-label={t.managePages ?? 'Manage pages'}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html editPencil}
         </svg>
       </button>
+      {/if}
+      {#if onOpenManualOrder && settings.sortMode === 'manual' && page.segments.length > 1}
+        <button class="header-icon-btn" onclick={onOpenManualOrder} aria-label={t.reorderCards ?? 'Reorder cards'}>
+          <span aria-hidden="true">↕</span>
+        </button>
       {/if}
       {#if onOpenSettings}
       <button class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>
@@ -680,6 +719,9 @@
               onStartMissed={() => onJourneyStartMissed?.(item.segment.id)}
               onComplete={() => onJourneyComplete?.(item.segment.id)}
               onCancel={() => onJourneyCancel?.(item.segment.id)}
+              onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
+              onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
+              moreActionsLabel={t.moreActionsForJourney?.replace('{destination}', item.segment.journeyMeta.destLabel) ?? `More actions for journey to ${item.segment.journeyMeta.destLabel}`}
             />
           {:else}
             <DepartureRow
@@ -706,6 +748,11 @@
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
               groupingMode={settings.groupingMode}
+              onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
+              onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
+              moreActionsLabel={(t.moreActionsForDeparture ?? 'More actions for departure {line} from {stop}')
+                .replace('{line}', item.segment.line)
+                .replace('{stop}', item.segment.fromStop.name)}
             />
           {/if}
         {/each}
@@ -728,6 +775,17 @@
     {/if}
   </div>
   {/if}
+
+  <SavedCardActionsSheet
+    isOpen={Boolean(activeActionSegment)}
+    segment={activeActionSegment}
+    {pages}
+    currentPageId={activePageId}
+    trigger={actionTrigger}
+    onClose={closeSavedCardActions}
+    onAction={handleSavedCardAction}
+    onMove={handleMoveSegment}
+  />
 
 
 </div>

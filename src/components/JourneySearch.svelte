@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Journey, JourneyRouteType, JourneyTimeMode } from '../types/journey';
+  import type { Journey, JourneyQuery, JourneyRouteType, JourneyTimeMode } from '../types/journey';
   import type { LocationSuggestion } from '../services/journeyService';
   import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, searchLocations } from '../services/journeyService';
   import { getT } from '../stores/localeStore.svelte';
@@ -11,11 +11,18 @@
 
   let {
     onSelect,
+    instanceId = 'journey',
+    initialQuery,
   }: {
-    onSelect?: (journey: Journey) => void;
+    onSelect?: (journey: Journey) => boolean | void;
+    instanceId?: string;
+    initialQuery?: JourneyQuery;
   } = $props();
 
   let t = $derived(getT());
+  let originId = $derived(`${instanceId}-origin`);
+  let destinationId = $derived(`${instanceId}-dest`);
+  let advancedOptionsId = $derived(`${instanceId}-advanced-options`);
 
   let origin = $state('');
   let dest = $state('');
@@ -36,6 +43,25 @@
   let maxChanges = $state(3);
   let routeType = $state<JourneyRouteType>('leasttime');
   const journeyTransportModes = ['bus', 'metro', 'train', 'tram', 'boat'] as const;
+  let initialisedQuery = $state(false);
+
+  $effect(() => {
+    if (!initialQuery || initialisedQuery) return;
+    initialisedQuery = true;
+    origin = initialQuery.origin;
+    dest = initialQuery.destination;
+    originCoord = initialQuery.originCoord;
+    destCoord = initialQuery.destinationCoord;
+    originType = initialQuery.originCoord ? 'address' : null;
+    destType = initialQuery.destinationCoord ? 'address' : null;
+    timeMode = initialQuery.timeMode ?? 'now';
+    travelDate = initialQuery.date ?? '';
+    travelTime = initialQuery.time ?? '';
+    transportModes = initialQuery.transportModes ? [...initialQuery.transportModes] : [...journeyTransportModes];
+    maxChanges = initialQuery.maxChanges ?? 3;
+    routeType = initialQuery.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE;
+    advancedOpen = true;
+  });
 
   let advancedSummary = $derived.by(() => {
     const modeSummary = transportModes.length === 0 || transportModes.length === journeyTransportModes.length
@@ -361,7 +387,7 @@
     <div class="location-fields">
     <!-- Origin field -->
     <div class="field-wrap">
-      <label class="field-label" for="journey-origin">{t.from}</label>
+      <label class="field-label" for={originId}>{t.from}</label>
       <div class="autocomplete-wrap">
         <div class="field-input-wrap">
           {#if originType && !originFocused}
@@ -380,7 +406,7 @@
             </span>
           {/if}
           <input
-            id="journey-origin"
+            id={originId}
             type="text"
             class="field-input"
             class:has-icon={!!originType}
@@ -431,7 +457,7 @@
 
     <!-- Destination field -->
     <div class="field-wrap">
-      <label class="field-label" for="journey-dest">{t.journeyTo}</label>
+      <label class="field-label" for={destinationId}>{t.journeyTo}</label>
       <div class="autocomplete-wrap">
         <div class="field-input-wrap">
           {#if destType && !destFocused}
@@ -450,7 +476,7 @@
             </span>
           {/if}
           <input
-            id="journey-dest"
+            id={destinationId}
             type="text"
             class="field-input"
             class:has-icon={!!destType}
@@ -550,7 +576,7 @@
     </svg>
   </button>
   {#if advancedOpen}
-    <div id="journey-advanced-options" class="advanced-options">
+    <div id={advancedOptionsId} class="advanced-options">
       <fieldset class="filter-group">
         <legend>{t.journeyModes ?? 'Färdsätt'}</legend>
         <div class="mode-options" role="group" aria-label={t.journeyModes ?? 'Färdsätt'}>

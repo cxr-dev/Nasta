@@ -38,10 +38,25 @@ export const arrowDownUp = `<path d="m3 16 4 4 4-4" stroke="currentColor" stroke
 
 export const clockIcon = `<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-export const mapPinIcon = `<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>`;
+const mapPinPath = 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z';
+
+export const mapPinIconPaths = {
+  pin: mapPinPath,
+  center: { cx: 12, cy: 10, r: 3 },
+} as const;
+
+export const mapPinIcon = `<path d="${mapPinPath}"/><circle cx="12" cy="10" r="3"/>`;
 
 /** Lucide Route, used for adding a journey from A to B. */
-export const routeIcon = `<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>`;
+const routePath = 'M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15';
+
+export const routeIconPaths = {
+  start: { cx: 6, cy: 19, r: 3 },
+  route: routePath,
+  end: { cx: 18, cy: 5, r: 3 },
+} as const;
+
+export const routeIcon = `<circle cx="6" cy="19" r="3"/><path d="${routePath}"/><circle cx="18" cy="5" r="3"/>`;
 
 export const busFrontIcon = `<path d="M4 6 2 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 6h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect width="16" height="16" x="4" y="3" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 11h16" stroke="currentColor" stroke-width="1.5"/><path d="M8 15h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M16 15h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 19v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 19v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 

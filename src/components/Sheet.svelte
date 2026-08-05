@@ -10,6 +10,8 @@
     closeAriaLabel: string;
     overlayClass?: string;
     sheetClass?: string;
+    mode?: 'sheet' | 'popover';
+    anchor?: HTMLElement | null;
     onSheetTouchStart?: (e: TouchEvent) => void;
     onSheetTouchEnd?: (e: TouchEvent) => void;
     children: Snippet;
@@ -22,6 +24,8 @@
     closeAriaLabel,
     overlayClass = '',
     sheetClass = '',
+    mode = 'sheet',
+    anchor = null,
     onSheetTouchStart,
     onSheetTouchEnd,
     children,
@@ -31,8 +35,31 @@
   let sheetEl = $state<HTMLDivElement | undefined>();
   let dragging = $state(false);
   let dragStartY = $state(0);
+  let popoverStyle = $state('');
 
   const SWIPE_THRESHOLD = 48;
+
+  function updatePopoverPosition() {
+    if (mode !== 'popover' || !anchor || typeof window === 'undefined') return;
+    const rect = anchor.getBoundingClientRect();
+    const width = 320;
+    const margin = 12;
+    const left = Math.max(margin, Math.min(rect.right - width, window.innerWidth - width - margin));
+    const top = Math.max(margin, Math.min(rect.bottom + 8, window.innerHeight - 360 - margin));
+    popoverStyle = `left:${left}px;top:${top}px;`;
+  }
+
+  $effect(() => {
+    if (!isOpen || mode !== 'popover') return;
+    updatePopoverPosition();
+    const handleResize = () => updatePopoverPosition();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleResize, true);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleResize, true);
+    };
+  });
 
   function handleOverlayClick(e: MouseEvent) {
     if (!overlayEl) return;
@@ -131,6 +158,8 @@
   <div
     bind:this={sheetEl}
     class="sheet {sheetClass}"
+    class:popover={mode === 'popover'}
+    style={mode === 'popover' ? popoverStyle : undefined}
     class:dragging
     onclick={(e) => e.stopPropagation()}
     onkeydown={handleKeydown}

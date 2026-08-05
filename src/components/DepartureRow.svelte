@@ -12,6 +12,7 @@
 
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import TransportIcon from "./TransportIcon.svelte";
+  import { longPress } from '../lib/longPress';
 
   let {
     segment,
@@ -37,6 +38,9 @@
     ontoggle,
     onprefetch,
     groupingMode,
+    onLongPress,
+    onMoreActions,
+    moreActionsLabel,
   }: {
     segment: Segment;
     departure: Departure | undefined;
@@ -61,6 +65,9 @@
     ontoggle?: () => void;
     onprefetch?: () => void;
     groupingMode?: string;
+    onLongPress?: (trigger?: HTMLElement) => void;
+    onMoreActions?: (trigger: HTMLElement) => void;
+    moreActionsLabel?: string;
   } = $props();
 
   let weatherSymbol = $state<string | null>(null);
@@ -216,15 +223,37 @@
       }
     };
   }
+
+  function handleContextMenu(event: MouseEvent) {
+    event.preventDefault();
+    onMoreActions?.(event.currentTarget as HTMLElement);
+  }
+
+  function handleContextKey(event: KeyboardEvent) {
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault();
+      onMoreActions?.(event.currentTarget as HTMLElement);
+    }
+  }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="departure-card"
   class:expanded={isExpanded}
   class:has-disruption={siteDevs.length > 0}
   style="background: {cardBg}"
   data-testid="segment-row"
-  aria-expanded={isExpanded}
+  role="group"
+  use:longPress={{ onLongPress: (event) => {
+    if (!isExpanded) {
+      const card = event.target instanceof HTMLElement ? event.target.closest('.departure-card') : null;
+      const target = card?.querySelector<HTMLElement>('.card-main') ?? null;
+      onLongPress?.(target ?? undefined);
+    }
+  } }}
+  oncontextmenu={handleContextMenu}
+  onkeydown={handleContextKey}
 >
   <button
     class="card-main"
@@ -378,7 +407,20 @@
     </div>
   {/if}
 
-  {#if (isExpanded || collapsing) && hasDeparture}
+  {#if isExpanded || collapsing}
+    <div class="card-secondary-actions">
+      <button
+        type="button"
+        class="more-actions-button"
+        aria-label={moreActionsLabel ?? `${t.moreActions ?? 'More actions'} for ${segment.line}`}
+        onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
+      >
+        <span aria-hidden="true">•••</span>
+      </button>
+    </div>
+  {/if}
+
+  {#if isExpanded || collapsing}
     <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
       <div class="expanded-actions">
         <RouteStopsPreview {segment} />
@@ -799,11 +841,40 @@
   }
 
   .expanded-panel {
-    border-top: 1px solid var(--border);
     overflow: hidden;
   }
   .expanded-panel.collapsing {
     pointer-events: none;
+  }
+  .card-secondary-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 48px;
+    padding: 2px 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .more-actions-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+  .more-actions-button:hover,
+  .more-actions-button:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   .expanded-panel > .expanded-actions {
     padding: 0 14px 14px;

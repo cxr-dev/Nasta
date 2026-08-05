@@ -1,7 +1,6 @@
 <script lang="ts">
-  import type { Page, TransportType, Stop, SegmentDirection } from '../types/page';
-  import type { Journey } from '../types/journey';
-  import { addSegment as storeAddSegment, renamePage, reorderPages } from '../stores/pageStore.svelte';
+  import type { Page } from '../types/page';
+  import { renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage } from '../stores/pageStore.svelte';
   import { getActivePage } from '../stores/pageStore.svelte';
 
@@ -9,10 +8,7 @@
   import { getT } from '../stores/localeStore.svelte';
 
   let t = $derived(getT());
-  import SegmentSearch from './SegmentSearch.svelte';
-  import JourneySearch from './JourneySearch.svelte';
   import Sheet from './Sheet.svelte';
-  import SegmentList from './SegmentList.svelte';
   import { gripVertical } from '../icons/departureIcons';
 
   // Page drag-and-drop state
@@ -232,83 +228,19 @@
     onSwitchPage: (pageId: string) => void;
   } = $props();
 
-  let activeEditorTab = $state<'pages' | 'segment'>('segment');
-
   let page = $derived(pages.find(p => p.id === activePageId));
-  let showSearch = $state(false);
-  let segmentSearchTab = $state<'stop' | 'route'>('stop');
-  let hasManuallyClosedSearch = $state(false);
-  let autoSearch = $derived(!hasManuallyClosedSearch && (!page || page.segments.length === 0));
-
-  let showPagePicker = $state(false);
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
-  let addBtnEl = $state<HTMLButtonElement | undefined>();
   let pagesTabEl = $state<HTMLDivElement>();
 
   function getPageLabel(p: Page): string {
     return p.name;
   }
 
-  function addSegment(
-    line: string, lineName: string, direction: SegmentDirection,
-    fromStop: Stop, toStop: Stop, transportType: TransportType
-  ) {
-    if (!page) return;
-    storeAddSegment(page.id, { line, lineName, direction, fromStop, toStop, transportType });
-    showSearch = false;
-    hasManuallyClosedSearch = true;
-  }
-
-  function handleJourneySelect(journey: Journey) {
-    if (!page) return;
-    const firstLeg = journey.legs[0];
-    if (!firstLeg) return;
-
-    storeAddSegment(page.id, {
-      line: firstLeg.line,
-      lineName: firstLeg.lineName,
-      direction: {
-        code: firstLeg.directionCode,
-        destination: journey.destLabel,
-        stopPointId: '',
-      },
-      fromStop: {
-        id: '',
-        name: journey.originLabel,
-        siteId: firstLeg.originSiteId ?? '',
-      },
-      toStop: {
-        id: '',
-        name: journey.destLabel,
-        siteId: firstLeg.destSiteId ?? '',
-      },
-      transportType: firstLeg.transportType,
-      travelTimeMinutes: journey.totalDurationMin,
-      journeyMeta: {
-        journeyId: journey.id,
-        originLabel: journey.originLabel,
-        destLabel: journey.destLabel,
-        query: journey.query ?? {
-          origin: journey.originLabel,
-          destination: journey.destLabel,
-        },
-        status: 'planned',
-        totalDurationMin: journey.totalDurationMin,
-        transfers: journey.transfers,
-        updatedAt: Date.now(),
-        legs: journey.legs,
-      },
-    });
-    showSearch = false;
-    hasManuallyClosedSearch = true;
-  }
-
   function handleCreatePage() {
     const newId = createPage(t.defaultPageName);
     setActivePage(newId);
     onSwitchPage(newId);
-    activeEditorTab = 'pages';
   }
 
   function handleDeletePage(id: string) {
@@ -341,98 +273,16 @@
     onSwitchPage(id);
   }
 
-  function handlePickerSelect(id: string) {
-    handlePageSwitch(id);
-    showPagePicker = false;
-  }
-
-  const TABS = ['pages', 'segment'] as const;
-  let swipeStartX = 0;
-  let swipeStartY = 0;
-
-  function handleTouchStart(e: TouchEvent) {
-    const target = e.target as HTMLElement;
-    if (
-      target.closest('input') ||
-      target.closest('.drag-handle') ||
-      target.closest('.hour-selector') ||
-      target.closest('.info-overlay') ||
-      target.closest('.segmented-control') ||
-      target.closest('[data-swipe-id]') ||
-      target.closest('[data-page-swipe-id]')
-    ) {
-      return;
-    }
-    swipeStartX = e.touches[0].clientX;
-    swipeStartY = e.touches[0].clientY;
-  }
-
-  function handleTouchEnd(e: TouchEvent) {
-    if (swipeStartX === 0 && swipeStartY === 0) return;
-
-    const dx = e.changedTouches[0].clientX - swipeStartX;
-    const dy = e.changedTouches[0].clientY - swipeStartY;
-
-    // Reset coordinates
-    swipeStartX = 0;
-    swipeStartY = 0;
-
-    // Must be horizontal gesture
-    if (Math.abs(dy) > Math.abs(dx)) return;
-    if (Math.abs(dx) < 50) return;
-
-    const currentIdx = TABS.indexOf(activeEditorTab);
-
-    if (dx < 0) {
-      // Swipe left -> next tab
-      if (currentIdx < TABS.length - 1) {
-        activeEditorTab = TABS[currentIdx + 1];
-      }
-    } else {
-      // Swipe right -> previous tab
-      if (currentIdx > 0) {
-        activeEditorTab = TABS[currentIdx - 1];
-      }
-    }
-  }
-
-
 </script>
 
 <Sheet
   isOpen={isOpen}
   onClose={onClose}
-  title={`${t.editingPage}: ${page ? getPageLabel(page) : ''}`}
+  title={`${t.managePages ?? t.editingPage}: ${page ? getPageLabel(page) : ''}`}
   closeAriaLabel={t.closeEditor}
   overlayClass="editor-overlay"
   sheetClass="editor-sheet"
-  onSheetTouchStart={handleTouchStart}
-  onSheetTouchEnd={handleTouchEnd}
 >
-    <div class="tab-bar" role="tablist" aria-label={t.settings}>
-      <button
-        type="button"
-        role="tab"
-        class="tab"
-        class:active={activeEditorTab === 'pages'}
-        aria-selected={activeEditorTab === 'pages'}
-        onclick={() => activeEditorTab = 'pages'}
-      >
-        {t.tabPages}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="tab"
-        class:active={activeEditorTab === 'segment'}
-        aria-selected={activeEditorTab === 'segment'}
-        onclick={() => activeEditorTab = 'segment'}
-      >
-        {t.tabSegments}
-      </button>
-    </div>
-
-    {#if activeEditorTab === 'pages'}
       <div
         class="tab-content pages-tab"
         bind:this={pagesTabEl}
@@ -526,9 +376,6 @@
                   <div class="page-seg-count">
                     {#if page.segments.length === 0}
                       <span class="seg-count-zero">{t.segmentsCountZero}</span>
-                      <button class="add-seg-cta" onclick={() => { activeEditorTab = 'segment'; handlePageSwitch(page.id); }}>
-                        {t.addSegmentsCta} →
-                      </button>
                     {:else}
                       <span class="seg-count">{t.segmentsCount.replace('{n}', String(page.segments.length))}</span>
                     {/if}
@@ -539,7 +386,7 @@
                 <button
                   class="page-action-btn"
                   onclick={() => startRename(page.id, page.name)}
-                  aria-label={t.settings}
+                  aria-label={t.renamePage ?? 'Rename page'}
                 >
                   <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                     <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61z"/>
@@ -563,140 +410,9 @@
         </div>
       </div>
 
-    {:else if activeEditorTab === 'segment'}
-      <div class="tab-content segment-tab">
-        {#if page}
-          <div class="segment-page-indicator">
-            <span class="spi-label">{t.pageNoun}:</span>
-            <button class="spi-pill" onclick={() => showPagePicker = true}>
-              {page.name}
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" class="spi-chevron">
-                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          {#if showSearch || autoSearch}
-            <div class="search-container">
-              <div class="segment-search-tabs">
-                <button
-                  class="segment-search-tab"
-                  class:active={segmentSearchTab === 'stop'}
-                  onclick={() => segmentSearchTab = 'stop'}
-                >
-                  {t.tabStop}
-                </button>
-                <button
-                  class="segment-search-tab"
-                  class:active={segmentSearchTab === 'route'}
-                  onclick={() => segmentSearchTab = 'route'}
-                >
-                  {t.tabRoute}
-                </button>
-              </div>
-              {#if segmentSearchTab === 'stop'}
-                <SegmentSearch onSelect={addSegment} />
-              {:else}
-                <JourneySearch onSelect={handleJourneySelect} />
-              {/if}
-              <button class="cancel-search-btn" onclick={() => { showSearch = false; hasManuallyClosedSearch = true; }}>
-                {t.cancel}
-              </button>
-            </div>
-          {:else}
-            <div class="segment-area">
-              <button
-                bind:this={addBtnEl}
-                class="add-btn"
-                onclick={() => showSearch = true}
-              >
-                {t.addSegment}
-              </button>
-              <SegmentList page={page} onAddSegment={() => { showSearch = true; }} />
-            </div>
-          {/if}
-        {/if}
-
-          {#if showPagePicker}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <div class="page-picker-overlay" onclick={() => showPagePicker = false} onkeydown={(e) => e.key === 'Escape' && (showPagePicker = false)} role="dialog" aria-label={t.selectAPage} tabindex="-1">
-              <div class="page-picker-sheet" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (showPagePicker = false)} role="document" tabindex="-1">
-                <h4 class="page-picker-title">{t.selectAPage}</h4>
-                <div class="page-picker-list">
-                  {#each pages as p (p.id)}
-                    <button
-                      class="page-picker-item"
-                      class:active={p.id === activePageId}
-                      onclick={() => handlePickerSelect(p.id)}
-                    >
-                      <span class="ppi-name">{p.name}</span>
-                      <span class="ppi-count">
-                        {#if p.segments.length === 0}
-                          {t.segmentsCountZero}
-                        {:else}
-                          {t.segmentsCount.replace('{n}', String(p.segments.length))}
-                        {/if}
-                      </span>
-                    </button>
-                  {/each}
-                </div>
-                <button class="page-picker-cancel" onclick={() => showPagePicker = false}>
-                  {t.cancel}
-                </button>
-              </div>
-            </div>
-          {/if}
-      </div>
-
-
-    {/if}
 </Sheet>
 
 <style>
-  /* Tab Bar */
-  .tab-bar {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    padding: 0 12px;
-  }
-
-  .tab {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    color: var(--text-muted);
-    padding: 12px 8px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    position: relative;
-    -webkit-tap-highlight-color: transparent;
-    transition: color 0.15s;
-  }
-
-  .tab::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 8px;
-    right: 8px;
-    height: 2.5px;
-    border-radius: 2px 2px 0 0;
-    background: var(--accent);
-    transform: scaleX(0);
-    transition: transform 0.2s ease;
-  }
-
-  .tab.active {
-    color: var(--accent);
-  }
-
-  .tab.active::after {
-    transform: scaleX(1);
-  }
-
   /* Tab content */
   .tab-content {
     flex: 1;
@@ -935,23 +651,6 @@
     color: var(--accent);
   }
 
-  .add-seg-cta {
-    border: none;
-    background: transparent;
-    color: var(--accent);
-    cursor: pointer;
-    padding: 0;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: inherit;
-    transition: opacity 150ms;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .add-seg-cta:hover {
-    opacity: 0.7;
-  }
-
   .seg-count,
   .seg-count-zero {
     font-size: 11px;
@@ -1004,14 +703,6 @@
     background: color-mix(in oklch, var(--color-error) 10%, transparent);
   }
 
-  /* Segment tab */
-  .segment-area {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
   .add-btn {
     position: relative;
     width: 100%;
@@ -1032,223 +723,6 @@
     background: color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
-  .search-container {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .segment-search-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 4px;
-  }
-
-  .segment-search-tab {
-    flex: 1;
-    padding: 8px 12px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  }
-
-  .segment-search-tab:hover {
-    background: var(--border);
-  }
-
-  .segment-search-tab.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--text-on-accent);
-  }
-
-  .cancel-search-btn {
-    width: 100%;
-    padding: 10px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-muted);
-    font-size: 14px;
-    cursor: pointer;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .cancel-search-btn:hover {
-    background: var(--border);
-  }
-
-  .segment-tab {
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  }
-
-  .segment-page-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 16px 4px;
-  }
-
-  .spi-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-  }
-
-  .spi-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    padding: 4px 10px;
-    transition: border-color 150ms, background 150ms;
-  }
-
-  .spi-pill:hover {
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  .spi-chevron {
-    color: var(--text-muted);
-    transition: transform 0.2s ease;
-  }
-
-  .page-picker-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    z-index: var(--z-toast);
-  }
-
-  .page-picker-sheet {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px 16px 0 0;
-    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
-    max-width: 480px;
-    width: 100%;
-    max-height: 70vh;
-    overflow-y: auto;
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
-    animation: picker-slide-up 0.25s ease-out;
-  }
-
-  @keyframes picker-slide-up {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .page-picker-sheet {
-      animation: none;
-    }
-  }
-
-  .page-picker-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    margin: 0 0 12px 0;
-    text-align: center;
-  }
-
-  .page-picker-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 12px;
-  }
-
-  .page-picker-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg);
-    cursor: pointer;
-    font-family: inherit;
-    text-align: left;
-    -webkit-tap-highlight-color: transparent;
-    transition: border-color 150ms, background 150ms;
-    width: 100%;
-  }
-
-  .page-picker-item:hover {
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  .page-picker-item.active {
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-  }
-
-  .ppi-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-  }
-
-  .ppi-count {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-  }
-
-  .page-picker-item.active .ppi-name {
-    color: var(--accent);
-  }
-
-  .page-picker-cancel {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 150ms;
-  }
-
-  .page-picker-cancel:hover {
-    background: var(--border);
-  }
-
-
-
-
-
-
 
   @media (prefers-reduced-motion: reduce) {
     .page-item {
@@ -1262,10 +736,4 @@
     }
   }
 
-  /* ── Tablet/desktop: fixed inspector overlay ── */
-  @media (min-width: 768px) {
-    .tab-bar {
-      padding: 0 16px;
-    }
-  }
 </style>

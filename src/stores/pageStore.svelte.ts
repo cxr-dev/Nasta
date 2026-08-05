@@ -3,11 +3,38 @@ import { loadPages, savePages } from "../services/storage";
 
 let _pages = $state<Page[]>(loadPages());
 
+export interface RemovedSegmentSnapshot {
+  segment: Segment;
+  pageId: string;
+  index: number;
+}
+
+export interface MoveSegmentResult {
+  segment: Segment;
+  fromPageId: string;
+  fromIndex: number;
+  toPageId: string;
+  toIndex: number;
+}
+
 type Subscriber = (pages: Page[]) => void;
 let _subscribers: Subscriber[] = [];
 
 function notify() {
   for (const fn of _subscribers) fn(_pages);
+}
+
+function commitPages(nextPages: Page[]): boolean {
+  try {
+    savePages(nextPages);
+  } catch (error) {
+    console.error('[PageStore] Failed to persist page change:', error);
+    return false;
+  }
+
+  _pages = nextPages;
+  notify();
+  return true;
 }
 
 export function subscribe(fn: Subscriber): () => void {
@@ -26,63 +53,105 @@ export function addPage(name: string): string {
     name,
     segments: [],
   };
-  _pages = [..._pages, newPage];
-  savePages(_pages);
-  notify();
+  commitPages([..._pages, newPage]);
   return newPage.id;
 }
 
 export function removePage(id: string): void {
-  _pages = _pages.filter(p => p.id !== id);
-  savePages(_pages);
-  notify();
+  commitPages(_pages.filter(p => p.id !== id));
 }
 
 export function addSegment(pageId: string, segment: Omit<Segment, "id">): void {
   const newSegment: Segment = { ...segment, id: crypto.randomUUID() };
-  _pages = _pages.map(page =>
+  commitPages(_pages.map(page =>
     page.id === pageId
       ? { ...page, segments: [...page.segments, newSegment] }
       : page,
-  );
-  savePages(_pages);
-  notify();
+  ));
 }
 
 export function removeSegment(pageId: string, segmentId: string): void {
-  _pages = _pages.map(p =>
+  removeSegmentWithSnapshot(pageId, segmentId);
+}
+
+export function removeSegmentWithSnapshot(pageId: string, segmentId: string): RemovedSegmentSnapshot | null {
+  const page = _pages.find((candidate) => candidate.id === pageId);
+  const index = page?.segments.findIndex((segment) => segment.id === segmentId) ?? -1;
+  if (!page || index < 0) return null;
+
+  const segment = page.segments[index];
+  const nextPages = _pages.map(p =>
     p.id === pageId
       ? { ...p, segments: p.segments.filter(s => s.id !== segmentId) }
       : p,
   );
-  savePages(_pages);
-  notify();
+
+  return commitPages(nextPages) ? { segment, pageId, index } : null;
 }
 
-export function updateSegment(pageId: string, segmentId: string, patch: Partial<Segment>): void {
-  _pages = _pages.map((page) =>
-    page.id === pageId
+export function restoreSegment(snapshot: RemovedSegmentSnapshot): boolean {
+  if (_pages.some((page) => page.segments.some((segment) => segment.id === snapshot.segment.id))) {
+    return false;
+  }
+
+  const targetPage = _pages.find((page) => page.id === snapshot.pageId);
+  if (!targetPage) return false;
+
+  const insertAt = Math.max(0, Math.min(snapshot.index, targetPage.segments.length));
+  const nextPages = _pages.map((page) => {
+    if (page.id !== snapshot.pageId) return page;
+    const segments = [...page.segments];
+    segments.splice(insertAt, 0, snapshot.segment);
+    return { ...page, segments };
+  });
+
+  return commitPages(nextPages);
+}
+
+export function moveSegment(fromPageId: string, segmentId: string, toPageId: string): MoveSegmentResult | null {
+  if (fromPageId === toPageId) return null;
+
+  const sourcePage = _pages.find((page) => page.id === fromPageId);
+  const targetPage = _pages.find((page) => page.id === toPageId);
+  const fromIndex = sourcePage?.segments.findIndex((segment) => segment.id === segmentId) ?? -1;
+  if (!sourcePage || !targetPage || fromIndex < 0) return null;
+
+  const segment = sourcePage.segments[fromIndex];
+  const toIndex = targetPage.segments.length;
+  const nextPages = _pages.map((page) => {
+    if (page.id === fromPageId) {
+      return { ...page, segments: page.segments.filter((candidate) => candidate.id !== segmentId) };
+    }
+    if (page.id === toPageId) {
+      return { ...page, segments: [...page.segments, segment] };
+    }
+    return page;
+  });
+
+  return commitPages(nextPages)
+    ? { segment, fromPageId, fromIndex, toPageId, toIndex }
+    : null;
+}
+
+export function updateSegment(pageId: string, segmentId: string, patch: Partial<Segment>): boolean {
+  const updated = _pages.map((page) =>
+      page.id === pageId
       ? { ...page, segments: page.segments.map((segment) => segment.id === segmentId ? { ...segment, ...patch } : segment) }
       : page,
   );
-  savePages(_pages);
-  notify();
+  return commitPages(updated);
 }
 
 
 export function renamePage(id: string, name: string): void {
-  _pages = _pages.map(p => (p.id === id ? { ...p, name } : p));
-  savePages(_pages);
-  notify();
+  commitPages(_pages.map(p => (p.id === id ? { ...p, name } : p)));
 }
 
 export function reorderPages(fromIndex: number, toIndex: number): void {
   const updated = [..._pages];
   const [moved] = updated.splice(fromIndex, 1);
   updated.splice(toIndex, 0, moved);
-  _pages = updated;
-  savePages(_pages);
-  notify();
+  commitPages(updated);
 }
 
 export function reorderSegments(pageId: string, fromIndex: number, toIndex: number): void {
@@ -91,9 +160,7 @@ export function reorderSegments(pageId: string, fromIndex: number, toIndex: numb
   const segments = [...page.segments];
   const [moved] = segments.splice(fromIndex, 1);
   segments.splice(toIndex, 0, moved);
-  _pages = _pages.map(p => (p.id === pageId ? { ...p, segments } : p));
-  savePages(_pages);
-  notify();
+  commitPages(_pages.map(p => (p.id === pageId ? { ...p, segments } : p)));
 }
 
 export function initialize(): void {
@@ -134,5 +201,4 @@ export function deletePage(id: string): void {
 export function setActivePage(id: string): void {
   _activePageId = id;
 }
-
 
