@@ -110,6 +110,10 @@
     severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--accent)'
   );
 
+  let countdownColor = $derived(
+    severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--text)'
+  );
+
   let pillTextColor = $derived('var(--text-on-accent)');
 
   let badgeBgIntensity = $derived(
@@ -223,7 +227,7 @@
           <span class="sleep-next">{nextDepartureTime}</span>
         {/if}
       {:else if hasDeparture}
-        <span class="countdown" style="color: {accentColor}" data-testid="countdown-minutes">{primaryDepartureText}</span>
+        <span class="countdown" style="color: {countdownColor}" data-testid="countdown-minutes">{primaryDepartureText}</span>
         {#if subsequent}
           <span class="clock-times">{subsequent}</span>
         {/if}
@@ -341,7 +345,7 @@
   }
 
   .accent-bar {
-    width: 4px;
+    width: 2px;
     min-height: 58px;
     border-radius: 0 2px 2px 0;
     flex-shrink: 0;
@@ -428,6 +432,7 @@
     color: var(--text);
     line-height: 1.3;
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
@@ -586,18 +591,6 @@
   }
   .show-all-btn:hover {
     opacity: 1;
-  }
-
-  .accent-bar.imminent {
-    animation: pulse-glow 1.2s ease-in-out infinite;
-  }
-  .accent-bar.soon {
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.65; filter: brightness(1.3); }
   }
 
   .expanded-panel {

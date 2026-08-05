@@ -39,12 +39,12 @@ Nästa helps commuters track real-time departures from configured stops, calcula
 4. **No AI slop** — No gradient text, no side-stripe borders, no glassmorphism, no decorative reflexes.
 5. **Mobile-optimized** — Touch-friendly targets, works in sunlight, one-handed, safe-area aware.
 6. **Offline resilience** — Core functionality works without network; disruptions and ferry schedules cached.
-7. **Thematic personality** — 16 bold palettes with contrast-aware adaptation; dark/light auto-switching. Not a single gray-on-gray design.
+7. **Thematic personality** — One restrained identity with handcrafted light, dark, and system preferences. Personality comes from hierarchy and purposeful status color, not a palette marketplace.
 
 ## Accessibility & Inclusion
 
 - WCAG 2.1 AA compliant
-- Contrast-aware theme system: text, surface, and accent colors auto-adapt to background luminance
+- Handcrafted light/dark tokens with WCAG contrast tests for text, surfaces, controls, and status states
 - Reduced motion support via `prefers-reduced-motion` — all animations have non-animated fallbacks
 - Bilingual UI (Swedish + English) with auto-detection
 - Touch-friendly minimum tap targets

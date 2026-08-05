@@ -2,11 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Settings } from "../services/storage";
 
 const defaults: Settings = {
-  darkMode: false,
   refreshInterval: 30000,
   hasSwipedRoutes: false,
-  theme: "default",
-  themeVariant: "A" as const,
+  theme: "system",
   language: "auto" as const,
   disruptionAlertsEnabled: true,
   disruptionSeverityThreshold: "warning" as const,
@@ -37,23 +35,18 @@ vi.mock("../services/storage", () => ({
   saveSettings: (s: Settings) => saveSettingsMock(s),
 }));
 
-vi.mock("../themes", () => ({
-  getDarkVariant: vi.fn((_theme: string) => "A"),
-}));
-
 const settingsModule = await import("../stores/settingsStore.svelte");
 
 beforeEach(() => {
   vi.clearAllMocks();
   currentSettings = { ...defaults };
   // Reset module-level $state by calling a setter with defaults
-  settingsModule.setDarkMode(defaults.darkMode);
   settingsModule.setLanguage(defaults.language);
   settingsModule.setSortMode(defaults.sortMode);
   settingsModule.setGroupingMode(defaults.groupingMode);
   settingsModule.setRefreshInterval(defaults.refreshInterval);
   settingsModule.setAfterworkStartHour(defaults.afterworkStartHour);
-  settingsModule.setTheme(defaults.theme, defaults.themeVariant);
+  settingsModule.setTheme(defaults.theme);
   settingsModule.setDisruptionSeverityThreshold(defaults.disruptionSeverityThreshold);
   settingsModule.setActiveTransportType(defaults.activeTransportType);
   vi.clearAllMocks();
@@ -63,13 +56,12 @@ describe("settingsStore", () => {
   describe("defaults", () => {
     it("getSettings returns default settings", () => {
       const settings = settingsModule.getSettings();
-      expect(settings.darkMode).toBe(false);
       expect(settings.refreshInterval).toBe(30000);
       expect(settings.sortMode).toBe("manual");
       expect(settings.groupingMode).toBe("none");
       expect(settings.afterworkStartHour).toBe(15);
       expect(settings.language).toBe("auto");
-      expect(settings.theme).toBe("default");
+      expect(settings.theme).toBe("system");
     });
   });
 
@@ -89,36 +81,22 @@ describe("settingsStore", () => {
       settingsModule.setSortMode("time");
       const settings = settingsModule.getSettings();
       expect(settings.sortMode).toBe("time");
-      expect(settings.darkMode).toBe(false);
+      expect(settings.theme).toBe("system");
       expect(settings.language).toBe("auto");
     });
   });
 
-  describe("dark mode / theme sync", () => {
-    it("setDarkMode updates darkMode and themeVariant", () => {
-      settingsModule.setDarkMode(true);
-      expect(settingsModule.getSettings().darkMode).toBe(true);
-      expect(saveSettingsMock).toHaveBeenCalled();
+  describe("theme preference", () => {
+    it("sets and toggles the explicit theme", () => {
+      settingsModule.setTheme("dark");
+      expect(settingsModule.getSettings().theme).toBe("dark");
+      settingsModule.toggleTheme();
+      expect(settingsModule.getSettings().theme).toBe("light");
     });
 
-    it("toggleDarkMode flips darkMode", () => {
-      settingsModule.setDarkMode(false);
-      settingsModule.toggleDarkMode();
-      expect(settingsModule.getSettings().darkMode).toBe(true);
-    });
-
-    it("toggleDarkMode updates themeVariant as well", () => {
-      settingsModule.setDarkMode(false);
-      saveSettingsMock.mockClear();
-      settingsModule.toggleDarkMode();
-      expect(saveSettingsMock.mock.calls[0]?.[0]).toHaveProperty("darkMode", true);
-      expect(saveSettingsMock.mock.calls[0]?.[0]).toHaveProperty("themeVariant");
-    });
-
-    it("setTheme updates theme and themeVariant", () => {
-      settingsModule.setTheme("sunset", "B");
-      expect(settingsModule.getSettings().theme).toBe("sunset");
-      expect(settingsModule.getSettings().themeVariant).toBe("B");
+    it("supports System as a persisted preference", () => {
+      settingsModule.setTheme("system");
+      expect(settingsModule.getSettings().theme).toBe("system");
     });
   });
 

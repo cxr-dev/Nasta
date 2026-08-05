@@ -7,7 +7,7 @@
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
   import { start as timeOfDayStart, stop as timeOfDayStop, getTimeOfDay } from './lib/stores/timeOfDay.svelte';
-  import { applyTheme } from './themes';
+  import { applyTheme, resolveTheme } from './themes';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { getT, getLocale, resolveLocale, setLocale } from './stores/localeStore.svelte';
 
@@ -200,7 +200,17 @@
 
   $effect(() => {
     const s = getSettings();
-    applyTheme(s.theme ?? 'default', s.themeVariant ?? 'A');
+    const preference = s.theme ?? 'system';
+    const media = typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+    const updateTheme = () => applyTheme(resolveTheme(preference, media?.matches ?? false));
+
+    updateTheme();
+    if (media && preference === 'system') {
+      media.addEventListener('change', updateTheme);
+      return () => media.removeEventListener('change', updateTheme);
+    }
   });
 
   $effect(() => {
@@ -927,43 +937,40 @@ function closeSettingsPanel() {
     cursor: not-allowed;
   }
 
-  /* Default theme tokens — overridden at runtime by applyTheme() on :root */
+  /* Light fallback tokens; applyTheme() replaces these at runtime. */
   :global(:root) {
-    --bg:              #FAFAF9;
-    --surface:         #e9ebef;
-    --surface-emphasis:#ded7c7;
-    --surface-elevated:#fffffc;
-    --surface-hover:   #fefefa;
-    --surface-pressed:  #fcfcf8;
-    --border:          #D6D5D2;
-    --border-strong:   #B8B6B2;
-    --border-subtle:   #D6D5D2;
+    --bg:              #F7F7F5;
+    --surface:         #FFFFFF;
+    --surface-emphasis:#F0F0ED;
+    --surface-elevated:#FFFFFF;
+    --surface-hover:   #F3F3F0;
+    --surface-pressed: #EDEDE9;
+    --border:          #D8D8D3;
+    --border-strong:   #B9B9B2;
+    --border-subtle:   #D8D8D3;
     --text:            #171717;
-    --text-secondary:  #525252;
-    --text-muted:      #8A8A8A;
-    --text-ghost:      #C4C4C4;
+    --text-secondary:  #4F4F4B;
+    --text-muted:      #6B6B66;
+    --text-ghost:      #8A8A84;
+    --text-decorative: #8A8A84;
     --accent:          #171717;
-    --accent-subtle:   rgba(23,23,23,0.10);
-    --primary-hover:   #2A2A2A;
-    --primary-active:  #0D0D0D;
-    --secondary-accent:#6B5BCE;
-    --tertiary-accent: #B44AA0;
+    --accent-subtle:   rgba(23,23,23,0.08);
     --text-on-accent:  #FFFFFF;
-    --shadow-tint:     rgba(5,5,5,0.10);
+    --shadow-tint:     rgba(23,23,23,0.10);
     --page-work:       #2563EB;
     --page-home:       #059669;
-    --color-success:   #27ae60;
-    --color-success-subtle: rgba(39,174,96,0.15);
-    --color-success-bg: rgba(39,174,96,0.08);
-    --color-error:     #dc2626;
-    --color-error-subtle: rgba(220,38,38,0.15);
-    --color-error-bg:  rgba(220,38,38,0.08);
-    --color-warning:   #e8950a;
-    --color-warning-subtle: rgba(232,149,10,0.15);
-    --color-warning-bg: rgba(232,149,10,0.08);
-    --color-info:      #3B82F6;
-    --color-info-subtle: rgba(59,130,246,0.15);
-    --color-info-bg:   rgba(59,130,246,0.08);
+    --color-success:   #171717;
+    --color-success-subtle: transparent;
+    --color-success-bg: transparent;
+    --color-error:     #A94848;
+    --color-error-subtle: #FFF0EF;
+    --color-error-bg:  #FFF0EF;
+    --color-warning:   #956B12;
+    --color-warning-subtle: #FFF7E2;
+    --color-warning-bg: #FFF7E2;
+    --color-info:      #356A86;
+    --color-info-subtle: #EEF7FA;
+    --color-info-bg:   #EEF7FA;
     --layout-max-width: 480px;
 
     /* Border-radius scale */

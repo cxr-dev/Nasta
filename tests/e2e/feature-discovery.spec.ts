@@ -30,13 +30,11 @@ test.describe("feature discovery sheet", () => {
       localStorage.setItem(
         "nasta_settings",
         JSON.stringify({
-          darkMode: true,
           refreshInterval: 30000,
           funMode: false,
           hasSwipedRoutes: false,
           showNotifications: false,
-          theme: "default",
-          themeVariant: "A",
+          theme: "system",
           language: "en",
           disruptionAlertsEnabled: true,
           disruptionSeverityThreshold: "warning",

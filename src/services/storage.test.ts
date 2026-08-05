@@ -84,11 +84,9 @@ describe("storage service", () => {
   describe("settings", () => {
     it("returns default settings when none stored", () => {
       expect(loadSettings()).toEqual({
-        darkMode: true,
         refreshInterval: 30000,
         hasSwipedRoutes: false,
-        theme: "default",
-        themeVariant: "A",
+        theme: "system",
         language: "auto",
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: "warning",
@@ -118,23 +116,30 @@ describe("storage service", () => {
       expect(settings.locationServicesEnabled).toBe(true);
     });
 
-    it("returns stored settings", () => {
+    it("migrates legacy darkMode settings", () => {
       localStorage.setItem(
         "nasta_settings",
-        JSON.stringify({ darkMode: false }),
+        JSON.stringify({ darkMode: true }),
       );
       const settings = loadSettings();
-      expect(settings.darkMode).toBe(false);
+      expect(settings.theme).toBe("dark");
+      expect(settings).not.toHaveProperty("darkMode");
       expect(settings.refreshInterval).toBe(30000);
+    });
+
+    it("migrates legacy palette variants to their effective mode", () => {
+      localStorage.setItem(
+        "nasta_settings",
+        JSON.stringify({ theme: "electric-pulse", themeVariant: "B" }),
+      );
+      expect(loadSettings().theme).toBe("dark");
     });
 
     it("saves settings to localStorage", () => {
       const settings: Settings = {
-        darkMode: false,
         refreshInterval: 60000,
         hasSwipedRoutes: true,
-        theme: "electric-pulse",
-        themeVariant: "B" as const,
+        theme: "light",
         language: "en" as const,
         disruptionAlertsEnabled: true,
         disruptionSeverityThreshold: "critical" as const,

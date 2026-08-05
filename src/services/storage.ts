@@ -1,14 +1,13 @@
 import type { Page, TransportType, SortMode, GroupingMode } from '../types/page';
+import type { ThemePreference } from '../themes';
 
 const ROUTES_KEY = 'nasta_routes';
 const SETTINGS_KEY = 'nasta_settings';
 
 export interface Settings {
-  darkMode: boolean;
   refreshInterval: number;
   hasSwipedRoutes: boolean;
-  theme: string;
-  themeVariant: 'A' | 'B';
+  theme: ThemePreference;
   language: 'auto' | 'sv' | 'en';
   disruptionAlertsEnabled: boolean;
   disruptionSeverityThreshold: 'info' | 'warning' | 'critical';
@@ -29,11 +28,9 @@ export interface Settings {
 }
 
 const defaultSettings: Settings = {
-  darkMode: true,
   refreshInterval: 30000,
   hasSwipedRoutes: false,
-  theme: 'default',
-  themeVariant: 'A',
+  theme: 'system',
   language: 'auto',
   disruptionAlertsEnabled: true,
   disruptionSeverityThreshold: 'warning',
@@ -107,8 +104,26 @@ export function savePages(pages: Page[]): void {
 export function loadSettings(): Settings {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
-    const parsed = data ? JSON.parse(data) : {};
-    const merged = { ...defaultSettings, ...parsed };
+    const parsed: Record<string, unknown> = data ? JSON.parse(data) : {};
+    const merged = { ...defaultSettings, ...parsed } as Settings;
+
+    // Theme migration is intentionally resolved after spreading defaults so
+    // malformed legacy values cannot leak into the new public settings shape.
+    if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system') {
+      merged.theme = parsed.theme;
+    } else if (typeof parsed.darkMode === 'boolean') {
+      merged.theme = parsed.darkMode ? 'dark' : 'light';
+    } else if (parsed.themeVariant === 'A' || parsed.themeVariant === 'B') {
+      // Legacy variants represented the light/dark choice for the old palette
+      // model. The old B variant was the dark choice for the palettes users
+      // most commonly had selected; palette identity itself is discarded.
+      merged.theme = parsed.themeVariant === 'B' ? 'dark' : 'light';
+    } else {
+      merged.theme = 'system';
+    }
+
+    delete (merged as Partial<Settings> & { darkMode?: unknown }).darkMode;
+    delete (merged as Partial<Settings> & { themeVariant?: unknown }).themeVariant;
     if (parsed.groupDisruptedSegments === true && !parsed.groupingMode) {
       merged.groupingMode = 'disrupted';
     }

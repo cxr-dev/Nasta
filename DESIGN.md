@@ -153,61 +153,51 @@ The system is opinionatedly flat: no gradient text, no glassmorphism, no numbere
 - No gradient text. No side-stripe borders. No glassmorphism.
 - Mobile-first: 480px max-width, single-column, one-handed thumb zone.
 - Bold display typography: the countdown number (34px 900 weight) is always the largest element on screen.
-- Dynamic color: 16+ theme palettes with contrast-aware light/dark adaptation. Not a gray-on-gray default.
+- Handcrafted color: one restrained identity with light, dark, and system preferences. Status colors are purposeful and calm.
 - Flat by default: borders draw hierarchy, not shadows. Shadows reserved for floating elements only.
 
 ## 2. Colors
 
-The color system is dynamic by design. Sixteen theme palettes (each with two variants) drive the same semantic token set. The default theme below anchors the system; all other palettes supply their own `colorA` (bg) and `colorB` (accent), from which all other tokens are computed via luminance-based contrast logic.
+The color system is intentionally small. Two hand-authored palettes drive one semantic token set; System resolves to the operating system's light or dark preference. Production colors are static and are validated with WCAG tests rather than generated at runtime.
 
-### Default Palette (Neutral Anchor)
-- **Neutral Paper** (`#FAFAF9`): Body background. Warm off-white, the lightest surface.
-- **White Surface** (`#FFFFFF`): Card, container, and control background.
-- **Ink** (`#171717`): Primary text. Also serves as the default accent color.
+### Handcrafted palettes
+- **Light** (`#F7F7F5`): Restrained neutral background with white surfaces and ink text.
+- **Dark** (`#111211`): Soft near-black background with subtly lifted neutral surfaces and near-white text.
 
 ### Semantic Tokens
-- **`--bg`**: Root background. Each palette supplies its own base.
-- **`--surface`**: Computed in OKLCH — shifted +0.04L (dark) or -0.03L (light) from bg, chroma reduced to 55%.
-- **`--surface-emphasis`**: Used for selected/hover container states. Shifted +0.08L (dark) or -0.06L (light), chroma at 65%.
+- **`--bg`**: Root background for the resolved Light or Dark palette.
+- **`--surface`**: The primary near-white or lifted near-black content surface.
+- **`--surface-emphasis`**: A stronger tonal step for selected and emphasized containers.
 - **`--accent`**: The theme's identifying color. Used for the header rule, page dots, primary CTAs, accent bars on departure cards, countdown numbers, and disruption pill tags.
 - **`--accent-subtle`**: 15% opacity version of accent. Used for nav arrow backgrounds, action bar backgrounds, icon badge tinting.
-- **`--text`**: Derived via OKLCH for minimum 4.5:1 contrast against bg. Prefers neutral white/dark; falls back to palette-derived color when neutral fails.
+- **`--text`**: Hand-authored primary text color, verified at 4.5:1 or better against its rendering surface.
 - **`--text-on-accent`**: Contrast-optimized for the accent background (page dots active, badge pills).
-- **`--text-secondary`**: At 65% (dark) / 55% (light) opacity. Secondary labels, stop names, destination text, notice bars.
-- **`--text-muted`**: At 40% / 35% opacity. Clock times, disruption type tags, freshness labels, attribution footer.
-- **`--text-ghost`**: At 18% / 13% opacity. Empty state illustrations, disabled indicators, page dots resting state.
-- **`--border`**: At 12% / 8% opacity. Card outlines, notice bar outlines, section dividers.
-- **`--border-subtle`**: At 20% / 14% opacity. Scrollbar tracks, less prominent dividers.
+- **`--text-secondary`**: Hand-authored secondary text for stop names, destinations, and notices.
+- **`--text-muted`**: Hand-authored low-emphasis text for clock times, labels, and freshness indicators.
+- **`--text-ghost`**: Hand-authored quiet text for disabled indicators and resting states.
+- **`--border`**: Visible tonal separation for cards, notices, and section dividers.
+- **`--border-strong`**: Stronger separation for focused or emphasized boundaries.
 - **`--page-work`** (`#2563EB`): Work route indicator.
 - **`--page-home`** (`#059669`): Home route indicator.
 
-### The Dynamic Contrast Rule
-All text, surface, and border tokens are computed from the background color's luminance — never hardcoded per theme. A dark background produces light text at fixed opacity ratios; a light background produces dark text. This guarantees WCAG 2.1 AA contrast without manual tuning per palette.
+### The Contrast Rule
+Text, surface, status, and border tokens are authored separately for Light and Dark and verified with WCAG contrast tests. No production token is generated at runtime.
 
-### Status Colors (OKLCH-Derived)
-Status colors are derived dynamically from each theme's accent hue via OKLCH shifts. Not static hex values. `computeStatusColors()` generates:
-- **`--color-success`**: Accent hue +130°, moderate chroma. Green.
-- **`--color-success-subtle`**: Low-opacity success at background luminance.
-- **`--color-success-bg`**: Subtle success container fill.
-- **`--color-error`**: Accent hue +15°. Red.
-- **`--color-error-subtle`**: Low-opacity error.
-- **`--color-error-bg`**: Subtle error container.
-- **`--color-critical`**: Accent hue +5°, full chroma. Strong red.
-- **`--color-critical-subtle`**: Low-opacity critical.
-- **`--color-critical-bg`**: Subtle critical container.
-- **`--color-warning`**: Accent hue +40°. Amber.
-- **`--color-warning-subtle`**: Low-opacity warning.
-- **`--color-warning-bg`**: Subtle warning container.
-- **`--color-info`**: Accent hue +220°. Blue.
-- **`--color-info-subtle`**: Low-opacity info.
+### Status Colors (Handcrafted)
+Status colors are static semantic tokens, tuned separately for Light and Dark. Normal departures remain neutral; only delayed, cancelled, and informational states receive color:
+- **On time**: neutral ink/accent; no green countdown.
+- **Delayed**: muted ochre/amber with a restrained tinted background.
+- **Cancelled**: muted brick red with a restrained tinted background.
+- **Information**: desaturated blue for supporting information.
 
 ### Static System States
-- **Freshness Green** (`#27ae60`): Data is recent (hardcoded).
-- **Disruption Critical** (`#e74c3c`): Critical delays or cancellations (hardcoded).
-- **Disruption Affected** (`#e8950a`): Moderate disruptions (hardcoded).
+- **On time**: Neutral ink/accent; normality does not need a success color.
+- **Delayed**: Muted ochre/amber, applied only to affected metadata or labels.
+- **Cancelled**: Muted brick red with a stronger text label and subdued tint.
+- **Information**: Desaturated blue for supporting notices.
 
 ### Named Rules
-**The Dynamic Contrast Rule.** All text, surface, and border tokens are computed from the background color's luminance — never hardcoded per theme.
+**The Static Token Rule.** Every production token belongs to the small Light/Dark palette tables and has a concrete use in the app.
 
 ## 3. Typography
 
@@ -219,7 +209,7 @@ Status colors are derived dynamically from each theme's accent hue via OKLCH shi
 
 ### Hierarchy
 - **Display** (800 weight, `clamp(38px, 10vw, 52px)`, 0.9 line-height, `-0.035em` letter-spacing): Page route names. Caps the headline space. `text-wrap: balance`. Color: `--accent`.
-- **Countdown** (900 weight, 34px, 1 line-height, `-1.5px` letter-spacing, tabular-nums): The departure minutes. Always the largest numeric element on screen. Uses `font-variant-numeric: tabular-nums` for stable width as digits change. Color: `--accent` (default), `#e8950a` (affected), `#e74c3c` (critical).
+- **Countdown** (900 weight, 34px, 1 line-height, `-1.5px` letter-spacing, tabular-nums): The departure minutes. Always the largest numeric element on screen. Uses `font-variant-numeric: tabular-nums` for stable width as digits change. Color: neutral text by default, with muted delayed or cancelled color only when the departure is affected.
 - **Headline** (700 weight, 22px, 1.1 line-height, `-0.02em` letter-spacing): Empty-state headings and section headers. `text-wrap: balance`.
 - **Route Number** (900 weight, 19px, 1.2 line-height): Bus/train line identifier in departure cards.
 - **Body** (400 weight, 15px, 1.4 line-height, `text-wrap: pretty`): Descriptions, empty-state copy, station notices. Cap body width at 240px where constrained (empty states).
@@ -393,7 +383,7 @@ Nästa uses a **flat-by-default** elevation model. Depth is conveyed through ton
 - **Shape:** `--radius-lg` top corners. `--surface` bg.
 - **Layout:** Single-column list. Row: icon + label + control. Divider: `--border`.
 - **Typography:** Row label 15px, `--text`. Row description 12px, `--text-secondary`.
-- **Theme picker:** Grid of theme preview swatches (24px × 24px circles).
+- **Theme picker:** Three accessible choices: System, Light, and Dark, each with a compact departure-row preview.
 - **Close:** IconButton (X icon).
 
 ### Page Editor (PageEditor)
@@ -412,14 +402,14 @@ Nästa uses a **flat-by-default** elevation model. Depth is conveyed through ton
 
 ### Do:
 - **Do** use the departure countdown (34px, 900 weight) as the dominant visual element on each card.
-- **Do** let the dynamic theme system determine accent and text colors — never hardcode a color value for a themed surface.
+- **Do** use the hand-authored semantic Light/Dark tokens and validate their contrast in tests.
 - **Do** keep the interface at 480px max-width, single-column, with the main scroll area as the primary interaction.
 - **Do** use border strokes (1px `--border`) for card separation; surfaces rest flat.
 - **Do** animate with GSAP using `power2.out` / `power3.out` easing; use `back.out(1.7)` only for spring entrances of modals and first-run elements.
 - **Do** respect `prefers-reduced-motion`: collapse all animations to instant state changes.
 - **Do** show a freshness indicator (dot + label) so the user always knows data recency.
 - **Do** use `--z-*` scale for stacking; never use arbitrary z-index values.
-- **Do** use OKLCH-derived status colors (`--color-*`) for theme-compatible state rendering instead of hardcoded amber/red.
+- **Do** use static semantic status tokens for calm delayed, cancelled, and information states.
 
 ### Don't:
 - **Don't** use gradient text (`background-clip: text` + gradient). Single solid color only.

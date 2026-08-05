@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { THEMES, previewStyle, getVariantName } from '../themes';
+  import { previewStyle } from '../themes';
+  import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
   import Sheet from './Sheet.svelte';
@@ -21,6 +22,13 @@
   let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
+  let activeTheme = $derived(settings.theme ?? 'system');
+
+  const themeChoices: Array<{ id: ThemePreference; label: keyof typeof t; preview: ResolvedTheme; description?: keyof typeof t }> = [
+    { id: 'system', label: 'themeSystem', preview: 'light', description: 'themeSystemDesc' },
+    { id: 'light', label: 'themeLight', preview: 'light' },
+    { id: 'dark', label: 'themeDark', preview: 'dark' },
+  ];
 
   let sortSettingsOptions = $derived([
     { mode: 'manual' as SortMode, icon: gripIcon, label: t.sortManual },
@@ -405,61 +413,32 @@
     {:else if activeEditorTab === 'theme'}
       <div class="tab-content theme-tab">
         <h3 class="section-title">{t.appSettings}</h3>
-        <h3 class="section-title">{t.theme}</h3>
-        <div class="theme-list">
-          {#each THEMES as palette (palette.id)}
-            {@const activeTheme = settings.theme ?? 'default'}
-            {@const activeVariant = settings.themeVariant ?? 'A'}
-            {@const isActiveA = activeTheme === palette.id && activeVariant === 'A'}
-            {@const isActiveB = activeTheme === palette.id && activeVariant === 'B'}
-            <div class="palette-card">
-              <button
-                class="palette-half"
-                class:active={isActiveA}
-                style={previewStyle(palette, 'A')}
-                onclick={() => setTheme(palette.id, 'A')}
-                aria-label={getVariantName(palette.id, 'A')}
-                aria-pressed={isActiveA}
-              >
-                <span class="ph-accent-bar"></span>
-                <span class="ph-preview-content">
-                  <span class="ph-preview-row">
-                    <span class="ph-preview-route">67</span>
-                    <span class="ph-preview-countdown">4 min</span>
-                  </span>
-                  <span class="ph-preview-row2">
-                    <span class="ph-preview-dest">→ Skansen</span>
-                    <span class="ph-preview-name">{getVariantName(palette.id, 'A')}</span>
-                    {#if isActiveA}
-                      <span class="ph-preview-check">✓</span>
-                    {/if}
-                  </span>
+        <p class="theme-description">{t.themeSystemDesc}</p>
+        <div class="theme-list" role="group" aria-label={t.theme}>
+          {#each themeChoices as choice (choice.id)}
+            {@const isActive = activeTheme === choice.id}
+            <button
+              class="theme-choice"
+              class:active={isActive}
+              style={previewStyle(choice.preview)}
+              onclick={() => setTheme(choice.id)}
+              aria-pressed={isActive}
+            >
+              <span class="theme-preview" aria-hidden="true">
+                <span class="theme-preview-header">
+                  <span class="theme-preview-route">67</span>
+                  <span class="theme-preview-countdown">4 min</span>
                 </span>
-              </button>
-              <button
-                class="palette-half"
-                class:active={isActiveB}
-                style={previewStyle(palette, 'B')}
-                onclick={() => setTheme(palette.id, 'B')}
-                aria-label={getVariantName(palette.id, 'B')}
-                aria-pressed={isActiveB}
-              >
-                <span class="ph-accent-bar"></span>
-                <span class="ph-preview-content">
-                  <span class="ph-preview-row">
-                    <span class="ph-preview-route">67</span>
-                    <span class="ph-preview-countdown">4 min</span>
-                  </span>
-                  <span class="ph-preview-row2">
-                    <span class="ph-preview-dest">→ Skansen</span>
-                    <span class="ph-preview-name">{getVariantName(palette.id, 'B')}</span>
-                    {#if isActiveB}
-                      <span class="ph-preview-check">✓</span>
-                    {/if}
-                  </span>
-                </span>
-              </button>
-            </div>
+                <span class="theme-preview-detail">→ Skansen</span>
+              </span>
+              <span class="theme-choice-copy">
+                <span class="theme-choice-label">{t[choice.label]}</span>
+                {#if choice.description}
+                  <span class="theme-choice-description">{t[choice.description]}</span>
+                {/if}
+              </span>
+              {#if isActive}<span class="theme-check" aria-hidden="true">✓</span>{/if}
+            </button>
           {/each}
         </div>
       </div>
@@ -866,126 +845,116 @@
     gap: 6px;
   }
 
-  .palette-card {
-    display: flex;
-    border-radius: 12px;
-    overflow: hidden;
-    height: 72px;
-    border: 1px solid var(--border);
+  .theme-description {
+    margin: -8px 0 14px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
   }
 
-  .palette-half {
-    flex: 1;
+  .theme-choice {
     display: flex;
     align-items: stretch;
-    padding: 0;
-    gap: 0;
-    border: none;
+    gap: 12px;
+    width: 100%;
+    min-height: 82px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
-    position: relative;
-    transition: transform 180ms ease, filter 80ms ease, background-color 180ms ease;
-    text-align: left;
     font-family: inherit;
-    background-color: var(--preview-bg);
+    text-align: left;
+    transition: border-color 150ms ease, background-color 150ms ease, transform 120ms ease;
   }
 
-  .palette-half:hover {
-    transform: scale(1.03);
-    z-index: 1;
+  .theme-choice:hover {
+    background: var(--surface-hover);
   }
 
-  .palette-half:active {
-    transform: scale(0.97);
-    filter: brightness(0.9);
+  .theme-choice:active {
+    transform: scale(0.99);
   }
 
-  .palette-half.active {
-    background-color: color-mix(in oklch, var(--preview-accent) 15%, var(--preview-bg));
-    z-index: 1;
+  .theme-choice.active {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
   }
 
-  .palette-half.active .ph-accent-bar {
-    width: 6px;
-    background: var(--preview-text);
-  }
-
-  .ph-accent-bar {
-    width: 3px;
-    flex-shrink: 0;
-    background: var(--preview-border);
-    border-radius: 0 2px 2px 0;
-    transition: width 150ms ease, background-color 150ms ease;
-  }
-
-  .ph-preview-content {
+  .theme-preview {
     display: flex;
+    flex: 0 0 142px;
     flex-direction: column;
     justify-content: center;
-    flex: 1;
-    min-width: 0;
-    padding: 6px 8px 6px 5px;
-    gap: 3px;
+    gap: 5px;
+    padding: 9px 10px;
+    border: 1px solid var(--preview-border);
+    border-radius: 7px;
+    background: var(--preview-bg);
+    color: var(--preview-text);
   }
 
-  .ph-preview-row,
-  .ph-preview-row2 {
+  .theme-preview-header {
     display: flex;
     align-items: baseline;
+    justify-content: space-between;
     gap: 6px;
   }
 
-  .ph-preview-row {
-    justify-content: space-between;
-  }
-
-  .ph-preview-route {
+  .theme-preview-route {
     font-size: 14px;
-    font-weight: 900;
-    line-height: 1.2;
-    color: var(--preview-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 800;
   }
 
-  .ph-preview-countdown {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 18px;
-    font-weight: 900;
-    line-height: 1;
+  .theme-preview-countdown {
     color: var(--preview-accent);
-    letter-spacing: -0.04em;
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
   }
 
-  .ph-preview-dest {
-    font-size: 9px;
-    line-height: 1.3;
+  .theme-preview-detail {
     color: var(--preview-text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 10px;
+  }
+
+  .theme-choice-copy {
+    display: flex;
     flex: 1;
     min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
   }
 
-  .ph-preview-name {
-    font-size: 8px;
+  .theme-choice-label {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .theme-choice-description {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .theme-check {
+    align-self: center;
+    color: var(--accent);
+    font-size: 16px;
     font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--preview-text-muted);
-    white-space: nowrap;
-    flex-shrink: 0;
+    padding: 0 4px;
   }
 
-  .ph-preview-check {
-    font-size: 10px;
-    font-weight: 900;
-    color: var(--preview-accent);
-    flex-shrink: 0;
-    margin-left: 2px;
+  @media (max-width: 360px) {
+    .theme-preview {
+      flex-basis: 124px;
+      padding-inline: 8px;
+    }
   }
 
   .info-overlay {

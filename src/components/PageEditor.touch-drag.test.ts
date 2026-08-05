@@ -21,11 +21,9 @@ vi.mock('../stores/pageStore.svelte', () => ({
 
 vi.mock('../stores/settingsStore.svelte', () => ({
   getSettings: vi.fn(() => ({
-    darkMode: false,
     refreshInterval: 30,
     hasSwipedRoutes: true,
-    theme: 'default',
-    themeVariant: 'A',
+    theme: 'system',
     language: 'en',
     disruptionAlertsEnabled: false,
     disruptionSeverityThreshold: 'warning',
