@@ -33,6 +33,8 @@ export interface JourneyLeg {
   arrivalTime: number;
   /** Duration in minutes */
   durationMin: number;
+  /** Ordered intermediate stops when supplied by the planner. */
+  stops?: string[];
   /** Where to stand on the platform for optimal exit */
   platformPosition: PlatformPosition;
 }
@@ -55,6 +57,7 @@ export interface Journey {
   arrivalTime: number;
   /** Number of transfers (0 = direct) */
   transfers: number;
+  query?: JourneyQuery;
 }
 
 /** Search request payload. */
@@ -71,6 +74,24 @@ export interface JourneySearchRequest {
   signal?: AbortSignal;
 }
 
+export type SavedJourneyStatus = 'planned' | 'active' | 'completed' | 'missed';
+
+export interface JourneyQuery {
+  origin: string;
+  destination: string;
+  originCoord?: [number, number];
+  destinationCoord?: [number, number];
+}
+
+export interface ActiveJourneySnapshot {
+  journeyId: string;
+  selectedAt: number;
+  startedAt?: number;
+  plannedDepartureTime: number;
+  plannedArrivalTime: number;
+  legs: JourneyLeg[];
+}
+
 /** Metadata attached to a segment when it represents a saved journey. */
 export interface JourneyMeta {
   /** Original journey ID */
@@ -85,6 +106,12 @@ export interface JourneyMeta {
   totalDurationMin: number;
   /** Transfers count */
   transfers: number;
+  query: JourneyQuery;
+  status: SavedJourneyStatus;
+  lastMissedAt?: number;
+  /** Just-expired itinerary that can be explicitly confirmed as boarded. */
+  lastMissedJourney?: ActiveJourneySnapshot;
+  activeSnapshot?: ActiveJourneySnapshot;
   /** When this journey was last updated */
   updatedAt: number;
 }

@@ -108,10 +108,11 @@ export async function searchStopSuggestions(
 }
 
 /** Search addresses via Nominatim for autocomplete suggestions (up to 5). */
-export async function searchAddressSuggestions(query: string): Promise<LocationSuggestion[]> {
+export async function searchAddressSuggestions(query: string, signal?: AbortSignal): Promise<LocationSuggestion[]> {
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', Stockholms län')}&format=json&limit=5`;
     const res = await fetch(url, {
+      signal,
       headers: { 'User-Agent': 'Nasta-PWA/1.0' },
     });
     if (!res.ok) return [];
@@ -121,7 +122,7 @@ export async function searchAddressSuggestions(query: string): Promise<LocationS
       lat: string;
       lon: string;
     }>;
-    return data.map((item) => {
+    const suggestions: LocationSuggestion[] = data.map((item) => {
       const parts = item.display_name.split(',').map(p => p.trim());
       // Nominatim display_name format: "73, Östhammarsgatan, Ladugårdsgärdet, Norra ..., Stockholm, Stockholm Municipality, Stockholm County, ..."
       // Part 0 = house number if numeric, otherwise street
@@ -149,6 +150,13 @@ export async function searchAddressSuggestions(query: string): Promise<LocationS
         coord: [parseFloat(item.lat), parseFloat(item.lon)],
       };
     });
+    const seen = new Set<string>();
+    return suggestions.filter((suggestion) => {
+      const key = `${suggestion.name.toLowerCase().replace(/\s+/g, ' ').trim()}|${suggestion.coord?.map((value) => value.toFixed(4)).join(',') ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   } catch {
     return [];
   }
@@ -161,14 +169,15 @@ export async function searchLocations(
 ): Promise<LocationSuggestion[]> {
   const [stops, addresses] = await Promise.all([
     searchStopSuggestions(query, signal),
-    searchAddressSuggestions(query),
+    searchAddressSuggestions(query, signal),
   ]);
   // Deduplicate: address names that overlap with stop names get lower priority
   const stopNames = new Set(stops.map((s) => s.name.toLowerCase()));
   const filteredAddresses = addresses.filter(
     (a) => !stopNames.has(a.name.toLowerCase()),
   );
-  return [...stops, ...filteredAddresses].slice(0, 8);
+  const hasHouseNumber = /\b\d+[A-Za-z]?\b/.test(query);
+  return [...(hasHouseNumber ? filteredAddresses : stops), ...(hasHouseNumber ? stops : filteredAddresses)].slice(0, 8);
 }
 
 // --- Trip API ---
@@ -180,6 +189,34 @@ interface TripLegStop {
   type: string;
   departureTimePlanned?: string;
   arrivalTimePlanned?: string;
+}
+
+/**
+ * The trip planner exposes both a human-facing stop name and an internal
+ * disassembled value. The latter can be a numeric platform/sequence value,
+ * so it must never be used as the primary label in the UI.
+ */
+export function normalizeJourneyStopNames(
+  stops: Array<Pick<TripLegStop, 'name' | 'disassembledName'>>,
+): string[] {
+  const names: string[] = [];
+
+  for (const stop of stops) {
+    const candidates = [stop.name, stop.disassembledName];
+    const name = candidates
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .find((value) => value.length > 0 && !/^\d+(?:[.,-]\d+)?$/.test(value));
+
+    if (!name || names.at(-1) === name) continue;
+    names.push(name);
+  }
+
+  return names;
+}
+
+function stopDisplayName(stop: TripLegStop | undefined, fallback: string): string {
+  if (!stop) return fallback;
+  return normalizeJourneyStopNames([stop])[0] ?? fallback;
 }
 
 interface TripLeg {
@@ -347,12 +384,8 @@ export async function searchJourneys(
         rawLeg.directionName || rawLeg.destination?.name || '';
       const directionCode = parseDirectionCode(rawLeg, directionName);
 
-      const originName =
-        rawLeg.origin?.disassembledName || rawLeg.origin?.name || origin;
-      const destName =
-        rawLeg.destination?.disassembledName ||
-        rawLeg.destination?.name ||
-        dest;
+      const originName = stopDisplayName(rawLeg.origin, origin);
+      const destName = stopDisplayName(rawLeg.destination, dest);
 
       const rawDuration = rawLeg.duration ?? 0;
       const durationMin = Math.max(1, Math.round(rawDuration / 60));
@@ -364,6 +397,14 @@ export async function searchJourneys(
       const arrTime = rawLeg.destination?.arrivalTimePlanned
         ? parseSlTime(rawLeg.destination.arrivalTimePlanned)
         : depTime + durationMin * 60_000;
+      const sequenceStops = Array.isArray(rawLeg.stopSequence)
+        ? normalizeJourneyStopNames(rawLeg.stopSequence)
+        : [];
+      const stops = sequenceStops.filter(
+        (stop, index) =>
+          !(index === 0 && stop === originName) &&
+          !(index === sequenceStops.length - 1 && stop === destName),
+      );
 
       // Platform position — use origin/destination coordinates
       let platformPos: PlatformPosition = 'middle';
@@ -388,6 +429,7 @@ export async function searchJourneys(
         departureTime: depTime,
         arrivalTime: arrTime,
         durationMin,
+        stops,
         platformPosition: platformPos,
       });
 
@@ -408,6 +450,12 @@ export async function searchJourneys(
         firstDeparture !== Infinity ? firstDeparture : Date.now(),
       arrivalTime: lastArrival || Date.now() + totalDuration * 60_000,
       transfers,
+      query: {
+        origin,
+        destination: dest,
+        originCoord: oCoord,
+        destinationCoord: dCoord,
+      },
     });
   }
 

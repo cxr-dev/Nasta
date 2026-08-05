@@ -176,16 +176,16 @@
   {@const stopLon = segment.fromStop.coord[1]}
   <section class="journey-card">
     <div class="journey-map-shell">
-      {#if walkingEtaEnabled}
-        <div class="journey-map-label">
-          <span>{t.walkToStop}</span>
+      <div class="journey-map-label">
+        <span>{t.stopLocation ?? 'Stop location'}</span>
+        {#if walkingEtaEnabled}
           {#if dist !== null}
-            <span>{formatDistance(dist)} · {getWalkingTime(dist)} min</span>
+            <span>{t.walkToStop} · {formatDistance(dist)} · {getWalkingTime(dist)} min</span>
           {:else if locationRequestInFlight}
             <span class="hint">{t.waitingForLocation}</span>
           {/if}
-        </div>
-      {/if}
+        {/if}
+      </div>
 
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
@@ -243,7 +243,7 @@
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
-        {t.openInMaps}
+        {t.navigateToStop ?? t.openInMaps}
       </button>
     </div>
   </section>

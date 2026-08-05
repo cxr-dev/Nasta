@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { Journey } from '../types/journey';
   import type { LocationSuggestion } from '../services/journeyService';
-  import { searchJourneys, searchStopSuggestions, searchAddressSuggestions } from '../services/journeyService';
+  import { searchJourneys, searchLocations } from '../services/journeyService';
   import { getT } from '../stores/localeStore.svelte';
   import TransportIcon from './TransportIcon.svelte';
   import TrainPosition from './TrainPosition.svelte';
+  import JourneyCard from './JourneyCard.svelte';
   import gsap from 'gsap';
 
   let {
@@ -22,6 +23,7 @@
   let originType = $state<'stop' | 'address' | null>(null);
   let destType = $state<'stop' | 'address' | null>(null);
   let results = $state<Journey[]>([]);
+  let previewJourneyId = $state<string | null>(null);
   let searching = $state(false);
   let noResults = $state(false);
   let searchAttempted = $state(false);
@@ -84,16 +86,9 @@
       originAbort = new AbortController();
       originLoading = true;
       try {
-        const [stops, addresses] = await Promise.all([
-          searchStopSuggestions(q, originAbort.signal),
-          searchAddressSuggestions(q),
-        ]);
+        const suggestions = await searchLocations(q, originAbort.signal);
         if (originAbort.signal.aborted) return;
-        const stopNames = new Set(stops.map((s: LocationSuggestion) => s.name.toLowerCase()));
-        const filteredAddresses = addresses.filter(
-          (a: LocationSuggestion) => !stopNames.has(a.name.toLowerCase()),
-        );
-        originSuggestions = [...stops, ...filteredAddresses].slice(0, 8);
+        originSuggestions = suggestions;
       } catch {
         // aborted, ignore
       } finally {
@@ -118,16 +113,9 @@
       destAbort = new AbortController();
       destLoading = true;
       try {
-        const [stops, addresses] = await Promise.all([
-          searchStopSuggestions(q, destAbort.signal),
-          searchAddressSuggestions(q),
-        ]);
+        const suggestions = await searchLocations(q, destAbort.signal);
         if (destAbort.signal.aborted) return;
-        const stopNames = new Set(stops.map((s: LocationSuggestion) => s.name.toLowerCase()));
-        const filteredAddresses = addresses.filter(
-          (a: LocationSuggestion) => !stopNames.has(a.name.toLowerCase()),
-        );
-        destSuggestions = [...stops, ...filteredAddresses].slice(0, 8);
+        destSuggestions = suggestions;
       } catch {
         // aborted
       } finally {
@@ -200,6 +188,7 @@
     noResults = false;
     searchAttempted = true;
     results = [];
+    previewJourneyId = null;
 
     try {
       const journeys = await searchJourneys({
@@ -225,7 +214,28 @@
   }
 
   function selectJourney(journey: Journey) {
+    previewJourneyId = previewJourneyId === journey.id ? null : journey.id;
+  }
+
+  function addPreviewedJourney(journey: Journey) {
     onSelect?.(journey);
+  }
+
+  function journeyMetaForPreview(journey: Journey) {
+    return {
+      journeyId: journey.id,
+      originLabel: journey.originLabel,
+      destLabel: journey.destLabel,
+      query: journey.query ?? {
+        origin: journey.originLabel,
+        destination: journey.destLabel,
+      },
+      status: 'planned' as const,
+      totalDurationMin: journey.totalDurationMin,
+      transfers: journey.transfers,
+      updatedAt: Date.now(),
+      legs: journey.legs,
+    };
   }
 
   // GSAP animations for step progress
@@ -439,7 +449,7 @@
   {#if results.length > 0}
     <div class="results-list">
       {#each results as journey}
-        <button class="result-card" onclick={() => selectJourney(journey)}>
+        <button class="result-card" class:selected={previewJourneyId === journey.id} onclick={() => selectJourney(journey)} aria-expanded={previewJourneyId === journey.id}>
           <div class="result-header">
             <span class="result-dest">{journey.destLabel}</span>
             <span class="result-duration">{formatDuration(journey.totalDurationMin)}</span>
@@ -467,6 +477,18 @@
             {/if}
           </div>
         </button>
+        {#if previewJourneyId === journey.id}
+          <div class="journey-preview">
+            <JourneyCard
+              journeyMeta={journeyMetaForPreview(journey)}
+              isExpanded={true}
+              ontoggle={() => (previewJourneyId = null)}
+            />
+            <button class="add-journey-btn" type="button" onclick={() => addPreviewedJourney(journey)}>
+              {t.addJourney ?? 'Lägg till resa'}
+            </button>
+          </div>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -665,6 +687,30 @@
   .result-card:focus-visible {
     border-color: var(--accent);
     outline: none;
+  }
+
+  .result-card.selected {
+    background: var(--accent-subtle);
+  }
+
+  .journey-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: -4px 0 4px;
+  }
+
+  .add-journey-btn {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 750;
+    cursor: pointer;
   }
 
   .result-header {

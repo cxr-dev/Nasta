@@ -42,6 +42,7 @@ describe("eventService", () => {
                 lat: 59.33,
                 lon: 18.06,
               },
+              image: { url: "https://images.example.test/jazz.jpg" },
             },
           ]),
           { status: 200 },
@@ -54,6 +55,8 @@ describe("eventService", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0].name).toBe("Jazz Night");
+    expect(events[0].imageUrl).toBe("https://images.example.test/jazz.jpg");
+    expect(events[0].imageCredit).toBe("Visit Stockholm");
   });
 
   it("parses wrapped event payloads", async () => {

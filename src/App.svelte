@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import gsap from 'gsap';
   import { initialize } from './stores/pageStore.svelte';
-  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment } from './stores/pageStore.svelte';
+  import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment } from './stores/pageStore.svelte';
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
@@ -25,7 +25,8 @@
   import UpdateBanner from './components/UpdateBanner.svelte';
   import SegmentSearch from './components/SegmentSearch.svelte';
   import JourneySearch from './components/JourneySearch.svelte';
-  import type { Journey } from './types/journey';
+  import { searchJourneys } from './services/journeyService';
+  import type { Journey, JourneyMeta, SavedJourneyStatus } from './types/journey';
   import IconButton from './components/IconButton.svelte';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
@@ -43,6 +44,9 @@
   let quickAddDragOffset = $state(0);
   let lastRefreshTime = $state(Date.now());
   let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let journeyRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let journeyRefreshInFlight = false;
+  let journeyRefreshPageId: string | null = null;
 
 
   let siteLookupError = $state<string | null>(null);
@@ -222,20 +226,26 @@
     }
   });
 
-  // Watch for page changes and load departures
+  // Start the data pipeline only when the active page changes. Reading the
+  // whole page here would make every segment/journey persistence update look
+  // like a navigation and clear the visible departures mid-refresh.
   $effect(() => {
+    const pageId = getActivePageId();
+    if (!pageId || pageId === previousPageId) return;
     const currentPage = getActivePage();
     if (!currentPage) return;
     
     // Only generate new request ID if page ACTUALLY changed
     // This prevents rejecting in-flight responses from settings/other reactive updates
-    if (currentPage.id !== previousPageId) {
-      previousPageId = currentPage.id;
-      const newRequestId = `page-${currentPage.id}-${Date.now()}`;
-      currentRequestId = newRequestId;
-      if (import.meta.env.DEV) console.log(`[App] Page switched to ${currentPage.id}, requestId: ${newRequestId}`);
-    }
+    previousPageId = pageId;
+    const newRequestId = `page-${pageId}-${Date.now()}`;
+    currentRequestId = newRequestId;
+    if (import.meta.env.DEV) console.log(`[App] Page switched to ${pageId}, requestId: ${newRequestId}`);
     
+    if (journeyRefreshPageId !== pageId) {
+      journeyRefreshPageId = pageId;
+      void refreshSavedJourneys(currentPage, true);
+    }
     void startDeparturesForPage(currentPage.segments, true, currentRequestId);
   });
 
@@ -297,6 +307,11 @@
         journeyId: journey.id,
         originLabel: journey.originLabel,
         destLabel: journey.destLabel,
+        query: journey.query ?? {
+          origin: journey.originLabel,
+          destination: journey.destLabel,
+        },
+        status: 'planned',
         totalDurationMin: journey.totalDurationMin,
         transfers: journey.transfers,
         updatedAt: Date.now(),
@@ -304,6 +319,137 @@
       },
     });
     closeQuickAdd();
+  }
+
+  async function refreshSavedJourneys(page = getActivePage(), force = false): Promise<void> {
+    if (!page || journeyRefreshInFlight) return;
+    const refreshBefore = Date.now() + 60_000;
+    const candidates = page.segments.filter((segment) => {
+      const meta = segment.journeyMeta;
+      if (!meta || meta.status === 'active') return false;
+      if (force || meta.status !== 'planned') return true;
+      return !meta.legs[0]?.departureTime || meta.legs[0].departureTime <= refreshBefore;
+    });
+    if (candidates.length === 0) return;
+    journeyRefreshInFlight = true;
+    try {
+      await Promise.all(candidates.map(async (segment) => {
+        const meta = segment.journeyMeta;
+        if (!meta) return;
+        const next = await searchJourneys({
+          origin: meta.query.origin,
+          dest: meta.query.destination,
+          originCoord: meta.query.originCoord,
+          destCoord: meta.query.destinationCoord,
+        });
+        const selected = next.find((journey) => journey.departureTime > Date.now()) ?? next[0];
+        if (!selected) return;
+        const now = Date.now();
+        const missed = meta.status === 'planned' && meta.legs[0]?.departureTime > 0 && meta.legs[0].departureTime <= now;
+        const lastMissedJourney = missed && meta.legs[0]
+          ? {
+              journeyId: meta.journeyId,
+              selectedAt: meta.updatedAt,
+              plannedDepartureTime: meta.legs[0].departureTime,
+              plannedArrivalTime: meta.legs.at(-1)?.arrivalTime ?? meta.legs[0].arrivalTime,
+              legs: meta.legs,
+            }
+          : undefined;
+        const nextMeta: JourneyMeta = {
+          ...meta,
+          journeyId: selected.id,
+          legs: selected.legs,
+          totalDurationMin: selected.totalDurationMin,
+          transfers: selected.transfers,
+          updatedAt: Date.now(),
+          status: 'planned',
+          query: selected.query ?? meta.query,
+          lastMissedAt: missed ? Date.now() : undefined,
+          lastMissedJourney,
+        };
+        updateSegment(page.id, segment.id, {
+          journeyMeta: nextMeta,
+          line: selected.legs[0]?.line ?? segment.line,
+          lineName: selected.legs[0]?.lineName ?? segment.lineName,
+          direction: { ...segment.direction, destination: selected.destLabel },
+        });
+      }));
+    } finally {
+      journeyRefreshInFlight = false;
+    }
+  }
+
+  function handleJourneyStart(segmentId: string): void {
+    const page = getActivePage();
+    const segment = page?.segments.find((item) => item.id === segmentId);
+    const meta = segment?.journeyMeta;
+    if (!page || !segment || !meta || meta.status === 'active') return;
+    if (meta.legs[0]?.departureTime && meta.legs[0].departureTime <= Date.now()) {
+      void refreshSavedJourneys(page, true);
+      return;
+    }
+    startJourneySnapshot(page.id, segmentId, meta);
+  }
+
+  function startJourneySnapshot(pageId: string, segmentId: string, meta: JourneyMeta): void {
+    updateSegment(pageId, segmentId, {
+      journeyMeta: {
+        ...meta,
+        status: 'active',
+        activeSnapshot: {
+          journeyId: meta.journeyId,
+          selectedAt: Date.now(),
+          startedAt: Date.now(),
+          plannedDepartureTime: meta.legs[0]?.departureTime ?? Date.now(),
+          plannedArrivalTime: meta.legs.at(-1)?.arrivalTime ?? Date.now(),
+          legs: meta.legs,
+        },
+        updatedAt: Date.now(),
+      },
+    });
+  }
+
+  function handleJourneyStartLate(segmentId: string): void {
+    const page = getActivePage();
+    const segment = page?.segments.find((item) => item.id === segmentId);
+    const meta = segment?.journeyMeta;
+    if (!page || !segment || !meta || meta.status === 'active') return;
+    startJourneySnapshot(page.id, segmentId, meta);
+  }
+
+  function handleJourneyStartMissed(segmentId: string): void {
+    const page = getActivePage();
+    const segment = page?.segments.find((item) => item.id === segmentId);
+    const meta = segment?.journeyMeta;
+    const snapshot = meta?.lastMissedJourney;
+    if (!page || !segment || !meta || !snapshot || meta.status === 'active') return;
+    updateSegment(page.id, segmentId, {
+      journeyMeta: {
+        ...meta,
+        status: 'active',
+        activeSnapshot: snapshot,
+        lastMissedJourney: undefined,
+        updatedAt: Date.now(),
+      },
+    });
+  }
+
+  function handleJourneyComplete(segmentId: string): void {
+    const page = getActivePage();
+    const segment = page?.segments.find((item) => item.id === segmentId);
+    const meta = segment?.journeyMeta;
+    if (!page || !segment || !meta) return;
+    updateSegment(page.id, segmentId, { journeyMeta: { ...meta, status: 'completed', activeSnapshot: undefined, updatedAt: Date.now() } });
+    void refreshSavedJourneys(page, true);
+  }
+
+  function handleJourneyCancel(segmentId: string): void {
+    const page = getActivePage();
+    const segment = page?.segments.find((item) => item.id === segmentId);
+    const meta = segment?.journeyMeta;
+    if (!page || !segment || !meta) return;
+    updateSegment(page.id, segmentId, { journeyMeta: { ...meta, status: 'planned', activeSnapshot: undefined, updatedAt: Date.now() } });
+    void refreshSavedJourneys(page, true);
   }
 
   async function handlePageSwitch(pageId: string) {
@@ -599,8 +745,9 @@ function closeSettingsPanel() {
     initializeCacheLifecycle();
     // pageStore.syncFromRoutes() is called automatically on creation
 
-    // pageStore handles active page initialization
-    loadDepartures();
+    // pageStore handles active page initialization; the page-id effect starts
+    // the first departure load after initialization and avoids a duplicate
+    // clear/reload cycle here.
 
     const unsub = departureStore.subscribe(data => { departures = data; });
     const unsubDeviations = deviationStore.subscribe(state => {
@@ -615,6 +762,10 @@ function closeSettingsPanel() {
         lastRefreshTime = Date.now();
       }
     }, 1000);
+
+    journeyRefreshInterval = setInterval(() => {
+      if (!document.hidden) void refreshSavedJourneys(getActivePage());
+    }, 15000);
 
     const onVisibility = () => {
       const currentPage = getActivePage();
@@ -647,6 +798,7 @@ function closeSettingsPanel() {
       unsub();
       unsubDeviations();
       document.removeEventListener('visibilitychange', onVisibility);
+      if (journeyRefreshInterval) clearInterval(journeyRefreshInterval);
     };
   });
 
@@ -753,6 +905,11 @@ function closeSettingsPanel() {
               onEditToggle={toggleEdit}
               onOpenSettings={openSettingsPanel}
               onQuickAdd={() => showQuickAdd = true}
+              onJourneyStart={handleJourneyStart}
+              onJourneyStartLate={handleJourneyStartLate}
+              onJourneyStartMissed={handleJourneyStartMissed}
+              onJourneyComplete={handleJourneyComplete}
+              onJourneyCancel={handleJourneyCancel}
               {lastRefreshTime}
             />
           {/if}

@@ -10,7 +10,16 @@ export type EventItem = {
   lat?: number;
   lon?: number;
   categories?: EventItemCategory[];
+  imageUrl?: string;
+  imageCredit?: string;
+  imageSource?: string;
+  imageResolvedAt?: number;
 };
+
+function toHttpsImage(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.startsWith('https://')) return undefined;
+  return value;
+}
 
 import { distanceMeters } from "./geo";
 import { persistentCache } from "./persistentCache";
@@ -43,6 +52,23 @@ function normalizeText(value: any) {
     );
   }
   return "";
+}
+
+function eventImageUrl(event: any): string | undefined {
+  return toHttpsImage(
+    event.image_url ??
+      event.imageUrl ??
+      event.image?.url ??
+      event.image?.image_url ??
+      event.image?.src ??
+      event.images?.[0]?.url ??
+      event.images?.[0]?.image_url ??
+      event.media?.[0]?.url ??
+      event.media?.[0]?.image_url ??
+      event.media?.image?.url ??
+      event.media?.image?.image_url ??
+      event.renditions?.[0]?.url,
+  );
 }
 
 export async function fetchNearbyEvents(
@@ -157,6 +183,10 @@ export async function fetchNearbyEvents(
               e.url ??
               undefined,
             description: normalizeText(e.description ?? e.summary ?? undefined),
+            imageUrl: eventImageUrl(e),
+            imageCredit: eventImageUrl(e) ? 'Visit Stockholm' : undefined,
+            imageSource: eventImageUrl(e) ? 'Visit Stockholm' : undefined,
+            imageResolvedAt: eventImageUrl(e) ? Date.now() : undefined,
             lat: typeof eventLat === "number" ? eventLat : undefined,
             lon: typeof eventLon === "number" ? eventLon : undefined,
             categories: Array.isArray(e.categories)

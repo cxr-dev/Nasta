@@ -289,6 +289,11 @@
         journeyId: journey.id,
         originLabel: journey.originLabel,
         destLabel: journey.destLabel,
+        query: journey.query ?? {
+          origin: journey.originLabel,
+          destination: journey.destLabel,
+        },
+        status: 'planned',
         totalDurationMin: journey.totalDurationMin,
         transfers: journey.transfers,
         updatedAt: Date.now(),
@@ -428,12 +433,18 @@
     </div>
 
     {#if activeEditorTab === 'pages'}
-      <div class="tab-content pages-tab" bind:this={pagesTabEl} ontouchend={handlePageTouchEnd}>
+      <div
+        class="tab-content pages-tab"
+        bind:this={pagesTabEl}
+        ontouchend={handlePageTouchEnd}
+        role="region"
+        aria-label={t.pages}
+      >
         <h3 class="section-title">{t.pages}</h3>
         <button class="add-btn" onclick={handleCreatePage}>
           + {t.add}
         </button>
-        <div class="page-list">
+        <div class="page-list" role="list">
           {#each pages as page, index (page.id)}
             {@const isDropHere = pageDraggingIndex !== null && pageDropInsertIndex === index && pageDropInsertIndex !== pageDraggingIndex}
             {#if isDropHere}
@@ -464,6 +475,8 @@
               {/if}
               <div
                 class="page-item"
+                role="listitem"
+                aria-label={page.name}
                 class:active={page.id === activePageId}
                 class:page-dragging={pageDraggingIndex === index}
                 class:page-drag-over={pageDragOverIndex === index && pageDraggingIndex !== index}

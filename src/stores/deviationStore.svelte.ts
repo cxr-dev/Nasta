@@ -31,6 +31,7 @@ let _state = $state<DeviationStoreState>({
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastRequestSignature = "";
 let lastRequestStartedAt = 0;
+let refreshGeneration = 0;
 let inFlightRequest:
   | {
       signature: string;
@@ -211,6 +212,7 @@ export async function refresh(
   options: RefreshOptions = {},
 ) {
   if (!segments.length) {
+    refreshGeneration++;
     _state = {
       bySegmentId: new Map(),
       stationAlerts: [],
@@ -235,6 +237,8 @@ export async function refresh(
       return;
     }
   }
+
+  const generation = ++refreshGeneration;
 
   _state = { ..._state, isLoading: true };
   notify();
@@ -306,6 +310,7 @@ export async function refresh(
       }
     });
 
+    if (generation !== refreshGeneration) return;
     _state = {
       bySegmentId,
       stationAlerts: [...allStationAlerts.values()],

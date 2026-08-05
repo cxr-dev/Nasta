@@ -34,6 +34,29 @@ describe("departureStore cache key wiring", () => {
     );
     expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "14", 1, undefined);
   });
+
+  it("publishes cached departures during a refresh", async () => {
+    const cached = [{
+      id: "cached-1",
+      siteId: "1001",
+      line: "14",
+      direction_code: 1,
+      time: "12:05",
+    }] as any;
+    vi.mocked(getCachedSchedule).mockResolvedValueOnce(cached);
+    const snapshots: Map<string, any[]>[] = [];
+    const unsubscribe = departureStore.subscribe((data) => snapshots.push(new Map(data)));
+    await departureStore.refresh(
+      ["1001"],
+      new Map([["1001", "Centralen"]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      true,
+      "cache-first-refresh",
+    );
+
+    expect(snapshots.some((snapshot) => snapshot.get("1001|14|1") === cached)).toBe(true);
+    unsubscribe();
+  });
 });
 
 describe("departureStore - request identity and stale response filtering", () => {

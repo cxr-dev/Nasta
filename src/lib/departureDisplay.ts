@@ -9,6 +9,13 @@ function getNowText(): string {
 }
 
 const MINUTES_TO_CLOCK_THRESHOLD = 60;
+const NOW_THRESHOLD_MS = 45_000;
+const IMMINENT_THRESHOLD_MS = 2 * 60_000;
+const SOON_THRESHOLD_MS = 5 * 60_000;
+
+export type DepartureUrgency = 'now' | 'imminent' | 'soon' | 'later';
+
+export type EffectiveDisruption = 'normal' | 'affected' | 'critical';
 
 function formatClockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString("sv-SE", {
@@ -29,6 +36,34 @@ export function getLiveMinutes(dep: Departure, now: number): number {
     return Math.max(0, Math.floor((dep.expectedAt - now) / 60000));
   }
   return dep.minutes;
+}
+
+/**
+ * Classify time proximity independently from service health.
+ * The result is deliberately numeric so locale/display copy can never alter
+ * the visual state of a departure.
+ */
+export function getDepartureUrgency(dep: Departure, now: number): DepartureUrgency {
+  if (dep.expectedAt !== undefined) {
+    const remainingMs = dep.expectedAt - now;
+    if (remainingMs <= NOW_THRESHOLD_MS) return 'now';
+    if (remainingMs <= IMMINENT_THRESHOLD_MS) return 'imminent';
+    if (remainingMs <= SOON_THRESHOLD_MS) return 'soon';
+    return 'later';
+  }
+
+  if (dep.minutes <= 0) return 'now';
+  if (dep.minutes <= 2) return 'imminent';
+  if (dep.minutes <= 5) return 'soon';
+  return 'later';
+}
+
+/** A dismissed/hidden disruption must not continue to color a departure. */
+export function getEffectiveDisruption(
+  severity: EffectiveDisruption,
+  visibleMessageCount: number,
+): EffectiveDisruption {
+  return visibleMessageCount > 0 ? severity : 'normal';
 }
 
 export function formatDepartureTime(dep: Departure, now: number): string {

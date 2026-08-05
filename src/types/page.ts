@@ -1,3 +1,4 @@
+import type { JourneyMeta } from './journey';
 export type TransportType = "bus" | "train" | "metro" | "boat" | "tram";
 export type SortMode = 'manual' | 'time' | 'station' | 'transport' | 'line' | 'distance';
 export type GroupingMode = 'none' | 'disrupted' | 'station' | 'transport';
@@ -30,29 +31,7 @@ export interface Segment {
   transportType: TransportType;
   travelTimeMinutes?: number;
   /** Journey metadata — present when segment represents a saved multi-leg journey. */
-  journeyMeta?: {
-    journeyId: string;
-    originLabel: string;
-    destLabel: string;
-    totalDurationMin: number;
-    transfers: number;
-    updatedAt: number;
-    legs: Array<{
-      originName: string;
-      originSiteId?: string;
-      destName: string;
-      destSiteId?: string;
-      transportType: TransportType;
-      line: string;
-      lineName: string;
-      directionCode: number;
-      directionName: string;
-      departureTime: number;
-      arrivalTime: number;
-      durationMin: number;
-      platformPosition: 'front' | 'middle' | 'back';
-    }>;
-  };
+  journeyMeta?: JourneyMeta;
 }
 
 export interface Page {

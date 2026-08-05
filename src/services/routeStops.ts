@@ -68,9 +68,11 @@ async function resolveDestinationToGlobalId(
 async function fetchStopSequenceFromTrip(
   originGlobalId: string,
   destGlobalId: string,
+  line: string,
+  directionCode: number,
   signal?: AbortSignal,
 ): Promise<string[] | null> {
-  const url = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${originGlobalId}&name_destination=${destGlobalId}&calc_number_of_trips=1`;
+  const url = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${originGlobalId}&name_destination=${destGlobalId}&calc_number_of_trips=1&line=${encodeURIComponent(line)}&direction=${directionCode}`;
   try {
     const response = await fetch(url, { signal });
     if (!response.ok) return null;
@@ -129,7 +131,7 @@ export async function resolveStopSequence(
   if (!destGlobalId) return null;
 
   const originGlobalId = `9091001000${originSiteId}`;
-  const stops = await fetchStopSequenceFromTrip(originGlobalId, destGlobalId, signal);
+  const stops = await fetchStopSequenceFromTrip(originGlobalId, destGlobalId, line, directionCode, signal);
 
   if (stops && stops.length > 0) {
     await setCache(cacheKey, stops);

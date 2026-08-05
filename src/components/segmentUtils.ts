@@ -23,6 +23,8 @@ export interface SiteDev {
 export interface DisruptionDisplay {
   messages: SiteDev[];
   severity: "critical" | "affected" | "normal";
+  /** Whether the message is attached to this exact departure or the service/line. */
+  scope: "departure" | "service" | null;
 }
 
 export function getDisruptionDisplay(
@@ -46,6 +48,7 @@ export function getDisruptionDisplay(
       return {
         messages: [{ message: msgText }],
         severity: health.state === "critical" ? "critical" : "affected",
+        scope: "service",
       };
     }
   }
@@ -55,6 +58,7 @@ export function getDisruptionDisplay(
     return {
       messages: [{ message: health.reason }],
       severity: health.state === "critical" ? "critical" : "affected",
+      scope: "service",
     };
   }
 
@@ -75,6 +79,7 @@ export function getDisruptionDisplay(
       return {
         messages: matching,
         severity: topSeverity === "critical" ? "critical" : "affected",
+        scope: "departure",
       };
     }
   }
@@ -113,11 +118,12 @@ export function getDisruptionDisplay(
       return {
         messages: matching,
         severity: topSeverity === "critical" ? "critical" : "affected",
+        scope: "service",
       };
     }
   }
 
-  return { messages: [], severity: "normal" };
+  return { messages: [], severity: "normal", scope: null };
 }
 
 

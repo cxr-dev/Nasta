@@ -221,9 +221,9 @@ test.describe("feature discovery sheet", () => {
     await expect(sheet).toBeVisible({ timeout: 10000 });
 
     // Verify tabs are rendered
-    await expect(page.getByRole("tab", { name: /Beer|Öl/ })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Afterwork|Efter jobbet/i })).toBeVisible();
 
-    // Verify venue content loads (Beer tab active by default)
+    // Verify venue content loads (Afterwork tab active by default)
     await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
       timeout: 10000,
     });
@@ -247,7 +247,7 @@ test.describe("feature discovery sheet", () => {
     const sheet = page.locator(".sheet-shell");
     await expect(sheet).toBeVisible({ timeout: 10000 });
 
-    // Verify Beer tab content (default)
+    // Verify Afterwork tab content (default)
     await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
       timeout: 10000,
     });

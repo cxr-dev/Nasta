@@ -79,6 +79,23 @@ export function loadPages(): Page[] {
           };
         }
 
+        if (seg.journeyMeta) {
+          const journey = seg.journeyMeta;
+          const query = journey.query ?? {
+            origin: journey.originLabel ?? seg.fromStop?.name ?? '',
+            destination: journey.destLabel ?? seg.toStop?.name ?? '',
+          };
+          if (!journey.query || !journey.status) migrated = true;
+          seg = {
+            ...seg,
+            journeyMeta: {
+              ...journey,
+              query,
+              status: journey.status ?? 'planned',
+            },
+          };
+        }
+
         return seg;
       });
       

@@ -34,9 +34,22 @@ function makeCompositeKey(siteId: string, line: string, direction_code: number):
 
 type Subscriber = (data: Map<string, Departure[]>) => void;
 let _dataSubscribers: Subscriber[] = [];
+let _stopDeviationSubscribers: Array<(data: Map<string, any[]>) => void> = [];
+let _loadingSubscribers: Array<(value: boolean) => void> = [];
+let _updatingSubscribers: Array<(value: boolean) => void> = [];
+let _errorSubscribers: Array<(value: string | null) => void> = [];
+let _successSubscribers: Array<(value: number) => void> = [];
 
 function notifyData() {
   for (const fn of _dataSubscribers) fn(_data);
+}
+
+function notifyMeta() {
+  for (const fn of _stopDeviationSubscribers) fn(_stopDeviations);
+  for (const fn of _loadingSubscribers) fn(_isLoading);
+  for (const fn of _updatingSubscribers) fn(_isUpdating);
+  for (const fn of _errorSubscribers) fn(_lastError);
+  for (const fn of _successSubscribers) fn(_lastSuccessfulFetch);
 }
 
 function subscribe(fn: Subscriber): () => void {
@@ -73,6 +86,8 @@ const fetchAllHybrid = async (
     currentAbortController?.abort();
     currentAbortController = new AbortController();
     currentRequestId = requestId;
+    _stopDeviations = new Map();
+    notifyMeta();
     if (import.meta.env.DEV)
       console.log(`[departureStore] Request ID set to ${requestId}`);
   }
@@ -93,6 +108,7 @@ const fetchAllHybrid = async (
     _isUpdating = true;
   }
   _lastError = null;
+  notifyMeta();
 
   const results = clearFirst
     ? new Map<string, Departure[]>()
@@ -126,10 +142,12 @@ const fetchAllHybrid = async (
       }
     }
 
-    if (clearFirst) {
-      _data = results;
-      notifyData();
-    }
+    // Publish the cache snapshot before network requests finish. This keeps
+    // the list populated during refresh and gives the API response a stable
+    // snapshot to replace, instead of rendering an empty intermediate state.
+    _data = results;
+    notifyData();
+    notifyMeta();
 
     if (siteIdsNeedingApi.length > 0) {
       await Promise.all(
@@ -189,16 +207,19 @@ const fetchAllHybrid = async (
 
       _data = new Map(results);
       notifyData();
+      notifyMeta();
     }
   } catch (error) {
     if (import.meta.env.DEV)
       console.error("[departureStore] Overall fetch error:", error);
     _lastError = "Failed to fetch departures";
+    notifyMeta();
   } finally {
     activeFetchCount = Math.max(0, activeFetchCount - 1);
     if (activeFetchCount === 0) {
       _isLoading = false;
       _isUpdating = false;
+      notifyMeta();
     }
   }
 };
@@ -253,31 +274,36 @@ export const departureStore = {
   stopDeviations: {
     subscribe: (fn: (data: Map<string, any[]>) => void): (() => void) => {
       fn(_stopDeviations);
-      return () => {};
+      _stopDeviationSubscribers.push(fn);
+      return () => { _stopDeviationSubscribers = _stopDeviationSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
   isLoading: {
     subscribe: (fn: (val: boolean) => void): (() => void) => {
       fn(_isLoading);
-      return () => {};
+      _loadingSubscribers.push(fn);
+      return () => { _loadingSubscribers = _loadingSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
   isUpdating: {
     subscribe: (fn: (val: boolean) => void): (() => void) => {
       fn(_isUpdating);
-      return () => {};
+      _updatingSubscribers.push(fn);
+      return () => { _updatingSubscribers = _updatingSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
   lastError: {
     subscribe: (fn: (val: string | null) => void): (() => void) => {
       fn(_lastError);
-      return () => {};
+      _errorSubscribers.push(fn);
+      return () => { _errorSubscribers = _errorSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
   lastSuccessfulFetch: {
     subscribe: (fn: (val: number) => void): (() => void) => {
       fn(_lastSuccessfulFetch);
-      return () => {};
+      _successSubscribers.push(fn);
+      return () => { _successSubscribers = _successSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
   getCurrentRequestId: () => currentRequestId,
@@ -301,7 +327,9 @@ export const departureStore = {
   },
   clear: () => {
     _data = new Map();
+    _stopDeviations = new Map();
     notifyData();
+    notifyMeta();
   },
   startAutoRefresh,
   stopAutoRefresh,

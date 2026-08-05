@@ -5,39 +5,53 @@
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
   import { tick } from 'svelte';
+  import type { JourneyMeta } from '../types/journey';
 
   let {
     journeyMeta,
     isExpanded = false,
+    now = Date.now(),
     ontoggle,
+    onStart,
+    onStartLate,
+    onStartMissed,
+    onComplete,
+    onCancel,
   }: {
-    journeyMeta: {
-      originLabel: string;
-      destLabel: string;
-      totalDurationMin: number;
-      transfers: number;
-      legs: Array<{
-        originName: string;
-        destName: string;
-        transportType: TransportType;
-        line: string;
-        lineName: string;
-        directionName: string;
-        departureTime: number;
-        arrivalTime: number;
-        platformPosition: 'front' | 'middle' | 'back';
-      }>;
-    };
+    journeyMeta: JourneyMeta;
     isExpanded?: boolean;
+    now?: number;
     ontoggle?: () => void;
+    onStart?: () => void;
+    onStartLate?: () => void;
+    onStartMissed?: () => void;
+    onComplete?: () => void;
+    onCancel?: () => void;
   } = $props();
 
   let t = $derived(getT());
 
-  let depTime = $derived(journeyMeta.legs[0]?.departureTime ?? 0);
-  let arrTime = $derived(journeyMeta.legs.length > 0
-    ? journeyMeta.legs[journeyMeta.legs.length - 1].arrivalTime
+  let displayLegs = $derived(journeyMeta.status === 'active' && journeyMeta.activeSnapshot
+    ? journeyMeta.activeSnapshot.legs
+    : journeyMeta.legs);
+  let depTime = $derived(displayLegs[0]?.departureTime ?? 0);
+  let arrTime = $derived(displayLegs.length > 0
+    ? displayLegs[displayLegs.length - 1].arrivalTime
     : 0);
+  let departureMinutes = $derived(Math.max(0, Math.ceil((depTime - now) / 60000)));
+  let departureCountdown = $derived(depTime <= now + 45000 ? 'Nu' : `${departureMinutes} min`);
+  let isPlannedExpired = $derived(journeyMeta.status === 'planned' && depTime > 0 && depTime <= now);
+  let activeLegIndex = $derived.by(() => {
+    if (journeyMeta.status !== 'active') return -1;
+    const index = displayLegs.findIndex((leg) => now < leg.arrivalTime);
+    return index === -1 ? Math.max(0, displayLegs.length - 1) : index;
+  });
+  let isMissedNoticeVisible = $derived(Boolean(journeyMeta.lastMissedAt && now - journeyMeta.lastMissedAt < 120000));
+  let statusLabel = $derived(
+    journeyMeta.status === 'active'
+      ? (t.journeyActive ?? 'Pågående resa')
+      : (t.journeyNext ?? 'Nästa resa')
+  );
 
   function formatTime(ms: number): string {
     const d = new Date(ms);
@@ -49,6 +63,18 @@
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function hasTrainPosition(transportType: TransportType): boolean {
+    return transportType === 'metro' || transportType === 'train' || transportType === 'tram';
+  }
+
+  function legOriginName(index: number, name: string): string {
+    return index === 0 ? journeyMeta.originLabel : name;
+  }
+
+  function legDestName(index: number, name: string): string {
+    return index === displayLegs.length - 1 ? journeyMeta.destLabel : name;
   }
 
   let panelEl: HTMLDivElement | undefined = $state();
@@ -86,33 +112,46 @@
   });
 </script>
 
-<article class="journey-card" class:expanded={isExpanded}>
+<article class="journey-card" class:expanded={isExpanded} class:active={journeyMeta.status === 'active'}>
   <button class="card-main" onclick={() => handleToggle()}>
-    <span class="accent-bar"></span>
-
     <div class="card-body">
       <div class="card-top">
-        <span class="dest-label">→ {journeyMeta.destLabel}</span>
-        <span class="duration">{formatDuration(journeyMeta.totalDurationMin)}</span>
+        <span class="card-kicker">{statusLabel}</span>
+      </div>
+
+      <div class="journey-endpoints">
+        <span>{journeyMeta.originLabel}</span>
+        <span class="endpoint-arrow" aria-hidden="true">→</span>
+        <span class="dest-label">{journeyMeta.destLabel}</span>
       </div>
 
       <div class="card-meta">
-        <span class="transfers">
-          {journeyMeta.transfers === 0
-            ? 'Direct'
-            : `${journeyMeta.transfers} transfer${journeyMeta.transfers > 1 ? 's' : ''}`}
-        </span>
+        <span class="countdown">{departureCountdown}</span>
         <span class="time-range">
           {formatTime(depTime)} – {formatTime(arrTime)}
         </span>
+        <span class="duration">{formatDuration(journeyMeta.totalDurationMin)}</span>
+        <span class="transfers">
+          {journeyMeta.transfers === 0
+            ? (t.direct ?? 'Direct')
+            : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}
+        </span>
       </div>
 
-      {#if journeyMeta.legs[0]}
+      {#if isMissedNoticeVisible && journeyMeta.status === 'planned'}
+        <div class="missed-notice" role="status">
+          {t.journeyMissedNext ?? 'Förra resan gick — visar nästa resa'}
+        </div>
+      {/if}
+
+      {#if displayLegs[0]}
         <div class="primary-leg">
-          <TransportIcon type={journeyMeta.legs[0].transportType} size={14} />
-          <span class="leg-line">{journeyMeta.legs[0].lineName}</span>
-          <span class="leg-direction">{journeyMeta.legs[0].directionName}</span>
-          <TrainPosition position={journeyMeta.legs[0].platformPosition} />
+          <TransportIcon type={displayLegs[0].transportType} size={14} />
+          <span class="leg-line">{displayLegs[0].lineName}</span>
+          <span class="leg-direction">{displayLegs[0].directionName}</span>
+          {#if hasTrainPosition(displayLegs[0].transportType)}
+            <TrainPosition position={displayLegs[0].platformPosition} />
+          {/if}
         </div>
       {/if}
     </div>
@@ -120,9 +159,19 @@
 
   {#if isExpanded || collapsing}
     <div class="expanded-panel" class:collapsing bind:this={panelEl}>
+      <div class="journey-detail-header">
+        <div>
+          <span class="detail-kicker">{journeyMeta.originLabel}</span>
+          <span class="detail-arrow" aria-hidden="true">→</span>
+          <strong>{journeyMeta.destLabel}</strong>
+        </div>
+        {#if journeyMeta.status === 'active'}
+          <span class="active-now">{t.journeyCurrentLeg ?? 'Nuvarande del'}</span>
+        {/if}
+      </div>
       <div class="timeline">
-        {#each journeyMeta.legs as leg, i}
-          <div class="leg-row">
+        {#each displayLegs as leg, i}
+          <div class="leg-row" class:current={i === activeLegIndex}>
             <span class="leg-dot"></span>
             <div class="leg-info">
               <div class="leg-header">
@@ -133,14 +182,55 @@
                 </span>
               </div>
               <div class="leg-route">
-                {leg.originName} → {leg.destName}
+                <span class="route-from">{legOriginName(i, leg.originName)}</span>
+                <span class="route-arrow" aria-hidden="true">→</span>
+                <span>{legDestName(i, leg.destName)}</span>
               </div>
-              <div class="leg-position">
-                Platform: <TrainPosition position={leg.platformPosition} />
-              </div>
+              {#if leg.stops && leg.stops.length > 0}
+                <div class="stop-preview">
+                  <span class="stop-preview-label">{t.journeyViaStops ?? 'Via'}</span>
+                  <span class="stop-preview-names">{leg.stops.slice(0, 3).join(' → ')}</span>
+                  {#if leg.stops.length > 3}
+                    <span class="stop-preview-more">+{leg.stops.length - 3} {t.journeyMoreStops ?? 'hållplatser'}</span>
+                  {/if}
+                </div>
+              {/if}
+              {#if hasTrainPosition(leg.transportType)}
+                <div class="leg-position">
+                  <span>{t.journeyBestPosition ?? 'Best place on the train'}</span>
+                  <TrainPosition position={leg.platformPosition} />
+                </div>
+              {/if}
             </div>
           </div>
         {/each}
+      </div>
+      <div class="journey-actions">
+        {#if journeyMeta.status === 'active'}
+          <p class="next-action">{t.journeyNextAction ?? 'Följ nästa del av resan'}</p>
+          <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onComplete?.(); }}>
+            {t.journeyComplete ?? 'Resan klar'}
+          </button>
+          <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onCancel?.(); }}>
+            {t.journeyCancel ?? 'Avsluta resa'}
+          </button>
+        {:else}
+          {#if isPlannedExpired}
+            <p class="next-action">{t.journeyUpdating ?? 'Uppdaterar nästa avgång…'}</p>
+            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onStartLate?.(); }}>
+              {t.journeyStartMissed ?? 'Jag hann med den resan'}
+            </button>
+          {:else}
+            <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onStart?.(); }}>
+              {t.journeyStart ?? 'Starta resa'}
+            </button>
+          {/if}
+          {#if isMissedNoticeVisible && journeyMeta.lastMissedJourney}
+            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onStartMissed?.(); }}>
+              {t.journeyStartMissed ?? 'Jag hann med den resan'}
+            </button>
+          {/if}
+        {/if}
       </div>
     </div>
   {/if}
@@ -148,7 +238,7 @@
 
 <style>
   .journey-card {
-     background: var(--surface);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 12px);
     overflow: hidden;
@@ -158,6 +248,11 @@
 
   .journey-card:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .journey-card.active {
+    border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+    background: color-mix(in oklch, var(--accent-subtle) 28%, var(--surface));
   }
 
   .card-main {
@@ -170,12 +265,6 @@
     text-align: left;
     color: inherit;
     font: inherit;
-  }
-
-  .accent-bar {
-    width: 4px;
-    flex-shrink: 0;
-    background: var(--accent);
   }
 
   .card-body {
@@ -191,33 +280,75 @@
     margin-bottom: 4px;
   }
 
-  .dest-label {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
+  .card-kicker {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .journey-endpoints {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .journey-endpoints span:first-child,
+  .journey-endpoints span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .endpoint-arrow,
+  .detail-arrow {
+    color: var(--accent);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
   .duration {
     font-family: 'Neue Machina', sans-serif;
-    font-size: 28px;
+    font-size: 14px;
     font-weight: 900;
-    letter-spacing: clamp(-1.8px, -0.04em, -1.2px);
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
-    color: var(--accent);
+    color: var(--text-secondary);
     flex-shrink: 0;
-    margin-left: 8px;
     line-height: 1;
   }
 
   .card-meta {
     display: flex;
-    gap: 12px;
+    align-items: baseline;
+    gap: 8px;
     font-size: 12px;
     color: var(--text-muted);
     margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .time-range {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .countdown {
+    color: var(--accent);
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 19px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
   }
 
   .primary-leg {
@@ -226,6 +357,18 @@
     gap: 6px;
     font-size: 12px;
     color: var(--text-secondary);
+    min-width: 0;
+  }
+
+  .missed-notice {
+    color: var(--text-secondary);
+    background: var(--surface-emphasis);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 9px;
+    margin: 0 0 8px;
+    font-size: 11px;
+    line-height: 1.3;
   }
 
   .leg-line {
@@ -260,6 +403,15 @@
     display: flex;
     gap: 10px;
     position: relative;
+  }
+
+  .leg-row.current .leg-dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-subtle);
+  }
+
+  .leg-row.current .leg-info {
+    color: var(--text);
   }
 
   .leg-row:not(:last-child)::after {
@@ -311,6 +463,9 @@
   }
 
   .leg-route {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
@@ -325,9 +480,98 @@
     font-size: 11px;
   }
 
+  .stop-preview {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.3;
+    min-width: 0;
+  }
+
+  .stop-preview-label {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  .stop-preview-names {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stop-preview-more {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .journey-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .detail-kicker {
+    color: var(--text-secondary);
+  }
+
+  .active-now {
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .journey-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .next-action {
+    flex: 1 1 100%;
+    margin: 0 0 2px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .journey-action {
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .journey-action.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .route-arrow {
+    color: var(--accent);
+    font-weight: 800;
+  }
+
   @media (min-width: 768px) {
     .duration {
-      font-size: clamp(28px, 4vw, 38px);
+      font-size: 15px;
     }
   }
 </style>

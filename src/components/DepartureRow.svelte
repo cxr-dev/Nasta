@@ -5,8 +5,10 @@
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
+  import RouteStopsPreview from "./RouteStopsPreview.svelte";
   import { dismissedStore } from "../stores/dismissedStore.svelte";
   import { getWeatherForStation } from "../services/weatherCache";
+  import { getDepartureUrgency, getEffectiveDisruption, getLiveMinutes } from "../lib/departureDisplay";
 
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import TransportIcon from "./TransportIcon.svelte";
@@ -28,8 +30,10 @@
     openFeatureSheet,
     t,
     severity = 'normal',
+    disruptionScope = null,
     isSleeping = false,
     nextDepartureTime = null,
+    now = Date.now(),
     ontoggle,
     onprefetch,
     groupingMode,
@@ -50,8 +54,10 @@
     openFeatureSheet?: ((segment: Segment) => void) | null;
     t: Record<string, string>;
     severity?: 'normal' | 'affected' | 'critical';
+    disruptionScope?: 'departure' | 'service' | null;
     isSleeping?: boolean;
     nextDepartureTime?: string | null;
+    now?: number;
     ontoggle?: () => void;
     onprefetch?: () => void;
     groupingMode?: string;
@@ -103,26 +109,55 @@
   let collapsing = $state(false);
   let showAllMessages = $state(false);
 
-  let isImminent = $derived(primaryDepartureText === 'Nu' || primaryDepartureText === 'Now');
-  let isSoon = $derived(primaryDepartureText === '1 min');
+  let urgency = $derived(departure ? getDepartureUrgency(departure, now) : 'later');
+  let effectiveDisruption = $derived(getEffectiveDisruption(severity, siteDevs.length));
+  // Do not add “Snart” when the compact formatter has already rounded the
+  // same departure to “Nu” (the final 45–60 seconds).
+  let urgencyLabel = $derived(
+    urgency === 'imminent' && departure && getLiveMinutes(departure, now) > 0
+      ? (t.departureSoon ?? 'Snart')
+      : ''
+  );
+  let disruptionLabel = $derived(
+    effectiveDisruption === 'critical' && disruptionScope === 'departure'
+      ? (t.cancelledDeparture ?? 'Inställd avgång')
+      : effectiveDisruption === 'critical'
+        ? (t.disruptionCriticalShort ?? 'Kritisk störning')
+      : effectiveDisruption === 'affected'
+        ? (t.disruptionAffectedShort ?? 'Påverkad trafik')
+        : ''
+  );
+  let disruptionScopeLabel = $derived(
+    disruptionScope === 'departure'
+      ? (t.disruptionDepartureScope ?? 'Den här avgången')
+      : disruptionScope === 'service'
+        ? (t.disruptionServiceScope ?? 'Linjen')
+        : ''
+  );
 
   let accentColor = $derived(
-    severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--accent)'
+    effectiveDisruption === 'critical' ? 'var(--color-critical)' : effectiveDisruption === 'affected' ? 'var(--color-warning)' : 'var(--accent)'
   );
 
   let countdownColor = $derived(
-    severity === 'critical' ? 'var(--color-critical)' : severity === 'affected' ? 'var(--color-warning)' : 'var(--text)'
+    effectiveDisruption === 'critical'
+      ? 'var(--color-critical)'
+      : effectiveDisruption === 'affected'
+        ? 'var(--color-warning)'
+        : urgency === 'later'
+          ? 'var(--text)'
+          : 'var(--accent)'
   );
 
   let pillTextColor = $derived('var(--text-on-accent)');
 
   let badgeBgIntensity = $derived(
-    severity === 'critical' ? 'var(--color-critical-subtle)' : severity === 'affected' ? 'var(--color-warning-subtle)' : 'var(--accent-subtle)'
+    effectiveDisruption === 'critical' ? 'var(--color-critical-subtle)' : effectiveDisruption === 'affected' ? 'var(--color-warning-subtle)' : 'var(--accent-subtle)'
   );
 
   let cardBg = $derived(
     siteDevs.length > 0
-      ? severity === 'critical' ? 'var(--color-critical-bg)' : severity === 'affected' ? 'var(--color-warning-bg)' : 'var(--surface)'
+      ? effectiveDisruption === 'critical' ? 'var(--color-critical-bg)' : effectiveDisruption === 'affected' ? 'var(--color-warning-bg)' : 'var(--surface)'
       : ''
   );
 
@@ -195,8 +230,6 @@
     aria-controls={isExpandable ? segment.id : undefined}
     onclick={() => { if (isExpandable) handleToggle(); }}
   >
-    <div class="accent-bar" class:imminent={isImminent} class:soon={isSoon} style="background: {accentColor}"></div>
-
     {#if groupingMode === 'station'}
       <div class="start-stack">
         <div class="icon-badge" style="background: {badgeBgIntensity}">
@@ -206,6 +239,12 @@
       </div>
       <div class="meta-col">
         <span class="dest-text-full">{stopLabel(segment.direction?.destination)}</span>
+        {#if disruptionLabel}
+          <span class="disruption-summary" class:critical={effectiveDisruption === 'critical'}>
+            <span class="status-dot" aria-hidden="true"></span>
+            {disruptionLabel}
+          </span>
+        {/if}
       </div>
     {:else}
       <div class="icon-badge" style="background: {badgeBgIntensity}">
@@ -215,6 +254,12 @@
         <span class="route-number" data-testid="segment-line">{segment.line}</span>
         <span class="from-stop">{stopLabel(segment.fromStop.name)}</span>
         <span class="to-dest"><span class="route-arrow">→</span> {stopLabel(segment.direction?.destination)}</span>
+        {#if disruptionLabel}
+          <span class="disruption-summary" class:critical={effectiveDisruption === 'critical'}>
+            <span class="status-dot" aria-hidden="true"></span>
+            {disruptionLabel}
+          </span>
+        {/if}
       </div>
     {/if}
 
@@ -227,7 +272,12 @@
           <span class="sleep-next">{nextDepartureTime}</span>
         {/if}
       {:else if hasDeparture}
-        <span class="countdown" style="color: {countdownColor}" data-testid="countdown-minutes">{primaryDepartureText}</span>
+        {#if urgencyLabel}
+          <span class="urgency-label">{urgencyLabel}</span>
+        {/if}
+        <span class="countdown" class:arriving-now={urgency === 'now'} style="color: {countdownColor}" data-testid="countdown-minutes">
+          {primaryDepartureText}
+        </span>
         {#if subsequent}
           <span class="clock-times">{subsequent}</span>
         {/if}
@@ -276,6 +326,9 @@
       {:else}
         <span class="disrupt-msg">{topDevMessage}</span>
       {/if}
+      {#if disruptionScopeLabel}
+        <span class="disrupt-scope">{disruptionScopeLabel}</span>
+      {/if}
       <span class="disrupt-pill">{pillLabel(topDevType, severity)}</span>
       {#if !isExpanded}
         <span class="disrupt-count">{siteDevs.length}</span>
@@ -296,6 +349,7 @@
   {#if (isExpanded || collapsing) && hasDeparture}
     <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
       <div class="expanded-actions">
+        <RouteStopsPreview {segment} />
         <MapPreview
           {segment}
           {userLocation}
@@ -330,7 +384,7 @@
     align-items: center;
     min-height: 58px;
     width: 100%;
-    padding: 10px 14px 10px 0;
+    padding: 10px 14px;
     gap: 10px;
     background: transparent;
     border: none;
@@ -342,14 +396,6 @@
   }
   .card-main:active {
     opacity: 0.95;
-  }
-
-  .accent-bar {
-    width: 2px;
-    min-height: 58px;
-    border-radius: 0 2px 2px 0;
-    flex-shrink: 0;
-    align-self: stretch;
   }
 
   .icon-badge {
@@ -398,6 +444,29 @@
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
+  }
+  .disruption-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--color-warning);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .disruption-summary.critical {
+    color: var(--color-critical);
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
   }
   .route-arrow {
     color: var(--accent);
@@ -459,7 +528,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .weather-indicator {
+    .weather-indicator,
+    .countdown.arriving-now {
       animation: none;
     }
   }
@@ -474,6 +544,17 @@
     padding-left: 4px;
     position: relative;
   }
+  .urgency-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
   .countdown {
     font-family: 'Neue Machina', sans-serif;
     font-size: 34px;
@@ -481,6 +562,15 @@
     letter-spacing: clamp(-1.8px, -0.04em, -1.2px);
     font-variant-numeric: tabular-nums;
     line-height: 1;
+  }
+
+  .countdown.arriving-now {
+    animation: urgency-arrival 160ms ease-out;
+  }
+
+  @keyframes urgency-arrival {
+    from { opacity: 0.35; transform: translateY(2px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .clock-times {
     font-size: 11px;
@@ -536,6 +626,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .disrupt-scope {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
   }
   .disrupt-pill {
     font-size: 9px;
@@ -618,7 +715,7 @@
     }
 
     .card-main {
-      padding: 12px 16px 12px 0;
+      padding: 12px 16px;
       gap: 12px;
     }
   }

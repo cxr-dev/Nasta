@@ -3,6 +3,12 @@ import { fetchNearbyVenues } from "./venueService";
 import type { Segment } from "../types/page";
 import type { Settings } from "./storage";
 
+async function warmVenueImages(venues: unknown): Promise<void> {
+  if (!Array.isArray(venues)) return;
+  const module = await import("./venueService");
+  if (typeof module.enrichVenueImages === "function") await module.enrichVenueImages(venues);
+}
+
 // Prefetch orchestration: iterate segments and fetch venues/events with controlled concurrency
 export async function prefetchSegments(
   segments: Segment[],
@@ -29,10 +35,12 @@ export async function prefetchSegments(
               : ["beer"];
           // Prefetch individual groups separately to warm the exact cache keys that the UI tabs will query.
           if (types.includes("beer")) {
-            await fetchNearbyVenues(lat, lon, 1200, ["beer"]);
+            const venues = await fetchNearbyVenues(lat, lon, 1200, ["beer"]);
+            void warmVenueImages(venues).catch(() => {});
           }
           if (types.includes("wine") || types.includes("cocktail")) {
-            await fetchNearbyVenues(lat, lon, 1200, ["wine", "cocktail"]);
+            const venues = await fetchNearbyVenues(lat, lon, 1200, ["wine", "cocktail"]);
+            void warmVenueImages(venues).catch(() => {});
           }
         }
         if (settings.eventsEnabled) {

@@ -39,6 +39,11 @@
     onEditToggle,
     onOpenSettings,
     onQuickAdd,
+    onJourneyStart,
+    onJourneyStartLate,
+    onJourneyStartMissed,
+    onJourneyComplete,
+    onJourneyCancel,
     lastRefreshTime,
   }: {
     page: Page;
@@ -51,6 +56,11 @@
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
     onQuickAdd?: () => void;
+    onJourneyStart?: (segmentId: string) => void;
+    onJourneyStartLate?: (segmentId: string) => void;
+    onJourneyStartMissed?: (segmentId: string) => void;
+    onJourneyComplete?: (segmentId: string) => void;
+    onJourneyCancel?: (segmentId: string) => void;
     lastRefreshTime?: number;
   } = $props();
 
@@ -104,6 +114,7 @@
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   let depListEl: HTMLDivElement | undefined = $state();
   let hasAnimatedStagger = $state(false);
+  let segmentDepsGeneration = 0;
 
   let dataAge = $derived(lastRefreshTime ? Date.now() - lastRefreshTime : Infinity);
   let isStale = $derived(lastRefreshTime !== undefined && dataAge > 120000);
@@ -295,8 +306,7 @@
     return map[type] ?? type;
   }
 
-  let segmentGroups = $derived.by(() => {
-    const segs = sortedSegments;
+  function groupSegments(segs: Segment[]) {
     const mode: GroupingMode = settings.groupingMode ?? 'none';
 
     if (mode === 'none') {
@@ -351,7 +361,10 @@
 
     const items = segs.map((seg, i) => ({ segment: seg, originalIndex: i }));
     return { groups: [{ label: null as string | null, items }] };
-  });
+  }
+
+  let segmentGroups = $derived.by(() => groupSegments(sortedSegments.filter((segment) => !segment.journeyMeta)));
+  let journeyGroups = $derived.by(() => groupSegments(sortedSegments.filter((segment) => Boolean(segment.journeyMeta))));
 
   // Post-process: when groupSleeping enabled, split active/sleeping items
   let processedGroups = $derived.by(() => {
@@ -384,53 +397,59 @@
   });
 
   async function loadSegmentDeps() {
-    const segs = page.segments ?? [];
-    const deps = new Map<string, Departure[]>();
-    const sleeping = new Map<string, { isSleeping: boolean; nextTime: string | null }>();
-
-    for (const seg of segs) {
+    const generation = ++segmentDepsGeneration;
+    const segs = [...(page.segments ?? [])];
+    const results = await Promise.all(segs.map(async (seg) => {
       const segEntityId = toEntityId(seg.fromStop.siteId);
-      const predicted = (await transitService.getPredictedDepartures(
-        segEntityId,
-        seg.fromStop.name,
-        seg.line,
-        seg.direction?.code ?? 0,
-        5,
-      )).map(toLegacyDeparture);
+      let predicted: Departure[] = [];
+      try {
+        predicted = (await transitService.getPredictedDepartures(
+          segEntityId,
+          seg.fromStop.name,
+          seg.line,
+          seg.direction?.code ?? 0,
+          5,
+        )).map(toLegacyDeparture);
+      } catch {
+        // The live departure store remains the source of truth when the
+        // lightweight prediction request is unavailable.
+      }
 
       const compositeKey = `${seg.fromStop.siteId}|${seg.line}|${seg.direction?.code ?? 0}`;
       const live = departureData.get(compositeKey) ?? [];
-
-      let merged: Departure[];
-      if (live.length > 0) {
-        merged = deduplicateDeparturesByKey(seg.fromStop.siteId, mergeDeparturesWithPredictions(live, predicted, 5));
-      } else {
-        merged = deduplicateDeparturesByKey(seg.fromStop.siteId, predicted);
-      }
+      const merged = live.length > 0
+        ? deduplicateDeparturesByKey(seg.fromStop.siteId, mergeDeparturesWithPredictions(live, predicted, 5))
+        : deduplicateDeparturesByKey(seg.fromStop.siteId, predicted);
 
       if (merged.length > 0) {
-        deps.set(seg.id, merged);
-        sleeping.set(seg.id, { isSleeping: false, nextTime: null });
-      } else {
-        // No departures in the live/predicted window — look up next scheduled
-        // departure from the timetable cache (no time-horizon cap).
-        deps.set(seg.id, []);
-        try {
-          const nextTransit = await transitService.getNextScheduledDeparture(
-            toEntityId(seg.fromStop.siteId),
-            seg.fromStop.name,
-            seg.line,
-            seg.direction?.code ?? 0,
-          );
-          if (nextTransit) {
-            sleeping.set(seg.id, { isSleeping: true, nextTime: nextTransit.scheduledTime });
-          } else {
-            sleeping.set(seg.id, { isSleeping: false, nextTime: null });
-          }
-        } catch {
-          sleeping.set(seg.id, { isSleeping: false, nextTime: null });
-        }
+        return { id: seg.id, departures: merged, sleeping: { isSleeping: false, nextTime: null } };
       }
+
+      try {
+        const nextTransit = await transitService.getNextScheduledDeparture(
+          toEntityId(seg.fromStop.siteId),
+          seg.fromStop.name,
+          seg.line,
+          seg.direction?.code ?? 0,
+        );
+        return {
+          id: seg.id,
+          departures: [],
+          sleeping: { isSleeping: Boolean(nextTransit), nextTime: nextTransit?.scheduledTime ?? null },
+        };
+      } catch {
+        return { id: seg.id, departures: [], sleeping: { isSleeping: false, nextTime: null } };
+      }
+    }));
+
+    // A slower request started before the latest departure update must never
+    // replace the newer snapshot and make cards jump backwards.
+    if (generation !== segmentDepsGeneration) return;
+    const deps = new Map<string, Departure[]>();
+    const sleeping = new Map<string, { isSleeping: boolean; nextTime: string | null }>();
+    for (const result of results) {
+      deps.set(result.id, result.departures);
+      sleeping.set(result.id, result.sleeping);
     }
     segmentDeps = deps;
     segmentSleeping = sleeping;
@@ -522,7 +541,7 @@
   <header class="page-chrome">
     <h1 class="page-title">{page.name}</h1>
     <div class="header-actions">
-      <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.mapViewerLabel}>
+      <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.networkMap ?? t.mapViewerLabel}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html mapIcon}
         </svg>
@@ -562,11 +581,16 @@
       </button>
     </div>
   {:else}
-    <!-- Freshness indicator -->
-    <div class="freshness-row">
-      <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
-      <span class="fresh-label">{freshnessLabel()}</span>
-    </div>
+    <!-- Surface freshness only when it changes the user's decision. Healthy,
+         current data should feel trustworthy rather than self-reporting. -->
+    {#if isStale || deviationUsedCache || lastError}
+      <div class="freshness-row" class:cached={deviationUsedCache && !isStale}>
+        <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
+        <span class="fresh-label">
+          {#if deviationUsedCache && !isStale}{t.usingCachedDisruptions}{:else}{freshnessLabel()}{/if}
+        </span>
+      </div>
+    {/if}
 
     <!-- Station facility notices: collapsed ambient bar, expands inline -->
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
@@ -600,11 +624,25 @@
         {/each}
       </div>
     {:else}
-      {#each processedGroups.groups as group}
+      {@const sections = [
+        { key: 'departures', title: t.departuresSection ?? 'Avgångar', description: '', groups: processedGroups.groups },
+        { key: 'journeys', title: t.journeysSection ?? 'Resor', description: t.journeysSectionDesc ?? 'Visar nästa bästa resa till din destination.', groups: journeyGroups.groups },
+      ]}
+      {#each sections as section (section.key)}
+        {#if section.groups.length > 0}
+          <section class="content-section" class:journey-section={section.key === 'journeys'} aria-labelledby="section-{section.key}">
+            <header class="content-section-heading">
+              <div>
+                <h2 id="section-{section.key}">{section.title}</h2>
+                {#if section.description}<p>{section.description}</p>{/if}
+              </div>
+              <span class="section-count">{section.groups.reduce((count, group) => count + group.items.length, 0)}</span>
+            </header>
+      {#each section.groups as group}
         {#if group.label}
           <div class="section-label">
             {group.label}
-            {#if settings.groupingMode === 'station'}
+            {#if section.key === 'departures' && settings.groupingMode === 'station'}
               {@const ws = stationWeather.get(group.label) ?? null}
               {@const wi = weatherIconForSymbol(ws)}
               {#if wi}
@@ -626,6 +664,7 @@
           {@const rawSiteDevs = stopDeviationsMap.get(item.segment.fromStop.siteId) || []}
           {@const disruptionDisplay = getDisruptionDisplay(rawSiteDevs, health, settings.disruptionSeverityThreshold, getLocale(), item.segment.line, departure?.deviations, item.segment.fromStop.siteId)}
           {@const severity = disruptionDisplay.severity}
+          {@const disruptionScope = disruptionDisplay.scope}
           {@const displayDevs = disruptionDisplay.messages.filter((d) => !dismissedStore.isMessageDismissed(d.message))}
           {@const hasDisruption = displayDevs.length > 0}
           {@const isExpanded = expandedSegmentId === item.segment.id}
@@ -636,8 +675,14 @@
           {#if item.segment.journeyMeta}
             <JourneyCard
               journeyMeta={item.segment.journeyMeta}
+              now={now}
               isExpanded={isExpanded}
               ontoggle={() => toggleExpanded(item.segment.id)}
+              onStart={() => onJourneyStart?.(item.segment.id)}
+              onStartLate={() => onJourneyStartLate?.(item.segment.id)}
+              onStartMissed={() => onJourneyStartMissed?.(item.segment.id)}
+              onComplete={() => onJourneyComplete?.(item.segment.id)}
+              onCancel={() => onJourneyCancel?.(item.segment.id)}
             />
           {:else}
             <DepartureRow
@@ -657,14 +702,19 @@
               {openFeatureSheet}
               {t}
               {severity}
+              {disruptionScope}
               isSleeping={sleepInfo.isSleeping}
               nextDepartureTime={sleepInfo.nextTime}
+              {now}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
               groupingMode={settings.groupingMode}
             />
           {/if}
         {/each}
+      {/each}
+          </section>
+        {/if}
       {/each}
 
       {#if (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
@@ -802,6 +852,46 @@
     padding: 0 14px calc(24px + env(safe-area-inset-bottom, 0px));
     flex: 1;
     overflow-y: auto;
+  }
+
+  .content-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .content-section + .content-section {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .content-section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 2px 2px;
+  }
+
+  .content-section-heading h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .content-section-heading p {
+    margin: 3px 0 0;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .section-count {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
   }
 
   .quick-add-card {
@@ -1004,7 +1094,6 @@
       align-items: start;
     }
 
-    .card-list > .section-label,
     .card-list > .empty-state,
     .card-list > .error-bar,
     .card-list > .quick-add-card {

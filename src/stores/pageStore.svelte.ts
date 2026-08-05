@@ -59,6 +59,16 @@ export function removeSegment(pageId: string, segmentId: string): void {
   notify();
 }
 
+export function updateSegment(pageId: string, segmentId: string, patch: Partial<Segment>): void {
+  _pages = _pages.map((page) =>
+    page.id === pageId
+      ? { ...page, segments: page.segments.map((segment) => segment.id === segmentId ? { ...segment, ...patch } : segment) }
+      : page,
+  );
+  savePages(_pages);
+  notify();
+}
+
 
 export function renamePage(id: string, name: string): void {
   _pages = _pages.map(p => (p.id === id ? { ...p, name } : p));
@@ -124,6 +134,5 @@ export function deletePage(id: string): void {
 export function setActivePage(id: string): void {
   _activePageId = id;
 }
-
 
 

@@ -526,7 +526,9 @@ function filterIconType(type: TransportFilterOption): TransportType {
   <div class="step-content" bind:this={contentEl}>
     {#key step}
       {#if step === 'search'}
+<label class="search-label" for="stop-search">{t.searchStops ?? 'Search stops'}</label>
 <input
+        id="stop-search"
         type="text"
         bind:value={query}
         oninput={handleInput}
@@ -731,6 +733,14 @@ function filterIconType(type: TransportFilterOption): TransportType {
     color: var(--text);
     outline: none;
     touch-action: manipulation;
+  }
+
+  .search-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   .search-input:focus {

@@ -26,6 +26,7 @@
   }
 
   type TabKey = 'beer' | 'wineCocktail' | 'events';
+  type VenueFilter = 'all' | 'beer' | 'wineCocktail';
 
   let {
     lat,
@@ -46,6 +47,12 @@
   } = $props();
 
   let activeTab = $state<TabKey>('beer');
+  let activeVenueFilter = $state<VenueFilter>('all');
+
+  let discoveryModes = $derived<TabKey[]>([
+    ...(availableModes.some((mode) => mode === 'beer' || mode === 'wineCocktail') ? ['beer' as const] : []),
+    ...(availableModes.includes('events') ? ['events' as const] : []),
+  ]);
 
   type TabData<T> = {
     items: T[];
@@ -67,8 +74,8 @@
   let tabLoadCtrl: AbortController | null = null;
 
   $effect(() => {
-    if (!availableModes.includes(activeTab)) {
-      activeTab = availableModes[0] ?? 'beer';
+    if (activeTab === 'wineCocktail' || !discoveryModes.includes(activeTab)) {
+      activeTab = discoveryModes[0] ?? 'beer';
     }
   });
 
@@ -76,25 +83,31 @@
     // If the tab already has cached data, render it immediately and refresh
     // in background without aborting any in-flight request. The user sees
     // data instantly; freshness comes silently.
-    const tabData = activeTab === 'events' ? eventsTab : venuesByTab[activeTab];
+    const tabData = activeTab === 'events' ? eventsTab : venuesByTab.beer;
     if (tabData.items.length > 0) {
       if (!tabData.loading && tabData.loaded) return;
       // Has cached items but not fully loaded — background refresh (no abort)
-      if (activeTab !== 'events') loadVenues(activeTab);
+      if (activeTab !== 'events') {
+        loadVenues('beer');
+        if (activeVenueFilter === 'wineCocktail' || venuesByTab.wineCocktail.items.length > 0) loadVenues('wineCocktail');
+      }
       else loadEvents();
       return;
     }
 
     // Guard against re-entrance: if already loading or loaded (no items yet)
     if (activeTab === 'events' && (eventsTab.loading || eventsTab.loaded)) return;
-    if (activeTab !== 'events' && (venuesByTab[activeTab].loading || venuesByTab[activeTab].loaded)) return;
+    if (activeTab !== 'events' && (venuesByTab.beer.loading || venuesByTab.beer.loaded)) return;
 
     // Cancel any in-progress tab load when switching tabs.
     tabLoadCtrl?.abort();
     const ctrl = new AbortController();
     tabLoadCtrl = ctrl;
 
-    if (activeTab !== 'events') loadVenues(activeTab, ctrl.signal);
+    if (activeTab !== 'events') {
+      loadVenues('beer', ctrl.signal);
+      loadVenues('wineCocktail', ctrl.signal);
+    }
     if (activeTab === 'events') loadEvents(ctrl.signal);
     // No cleanup registered — onDestroy handles unmount abort. The cleanup
     // would otherwise fire on every reactive re-run and abort the first signal.
@@ -201,18 +214,36 @@
   let sortBy = $state<SortMode>('time');
   let activeCategory = $state<string | null>(null);
 
+  let venueItems = $derived(
+    dedupeById([...venuesByTab.beer.items, ...venuesByTab.wineCocktail.items])
+  );
+
   let currentItems = $derived<TabData<Venue | EventItem>>(
-    activeTab === 'events' ? eventsTab : venuesByTab[activeTab]
+    activeTab === 'events'
+      ? eventsTab
+      : {
+          items: venueItems,
+          loading: venuesByTab.beer.loading || venuesByTab.wineCocktail.loading,
+          loaded: venuesByTab.beer.loaded || venuesByTab.wineCocktail.loaded,
+          token: 0,
+          error: venuesByTab.beer.error ?? venuesByTab.wineCocktail.error,
+        }
   );
 
   let filteredVenues = $derived(
     activeTab !== 'events'
-      ? (currentItems as TabData<Venue>).items.filter((venue) => {
-          if (!venue.openingHours) return true;
-          const state = venueOpenState[venue.id];
-          if (!state || state.statusClass === 'unknown') return true;
-          return state.isOpenNow;
-        })
+      ? venueItems
+          .filter((venue) => {
+            if (activeVenueFilter === 'all') return true;
+            if (activeVenueFilter === 'beer') return venue._classified === 'beer' || venue.source?.startsWith('supabase');
+            return venue._classified === 'wine' || venue._classified === 'cocktail' || venue.isSpecificWine || venue.isSpecificCocktail;
+          })
+          .sort((a, b) => {
+            const aOpen = venueOpenState[a.id]?.isOpenNow === true ? 0 : 1;
+            const bOpen = venueOpenState[b.id]?.isOpenNow === true ? 0 : 1;
+            if (aOpen !== bOpen) return aOpen - bOpen;
+            return (a.distance ?? Infinity) - (b.distance ?? Infinity);
+          })
       : []
   );
 
@@ -227,7 +258,10 @@
         }
       }
     }
-    return [...cats].sort();
+    const available = [...cats].sort();
+    const preferred = ['Music', 'Musik', 'Exhibitions', 'Utställningar', 'Family', 'Familj', 'Sports', 'Sport'];
+    const common = preferred.filter((name) => available.includes(name));
+    return (common.length > 0 ? common : available).slice(0, 3);
   });
 
   let filteredEvents = $derived(
@@ -268,7 +302,7 @@
   let prevVenueKey = $state('');
   $effect(() => {
     locale;
-    const items = activeTab !== 'events' ? (currentItems as TabData<Venue>).items : [];
+    const items = activeTab !== 'events' ? venueItems : [];
     const key = items.map(v => v.id + '|' + (v as Venue).openingHours).join(',');
     if (key === prevVenueKey) return;
     prevVenueKey = key;
@@ -307,13 +341,16 @@
     if (tab === 'events') {
       eventsTab = { items: [], loading: false, loaded: false, token: 0, error: undefined };
     } else {
-      venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: false, token: 0, error: undefined } };
+      venuesByTab = {
+        ...venuesByTab,
+        beer: { items: [], loading: false, loaded: false, token: 0, error: undefined },
+        wineCocktail: { items: [], loading: false, loaded: false, token: 0, error: undefined },
+      };
     }
   }
 
   onMount(async () => {
-    activeTab = defaultMode;
-    if (!availableModes.includes(activeTab)) activeTab = availableModes[0] ?? 'beer';
+    activeTab = defaultMode === 'events' && discoveryModes.includes('events') ? 'events' : discoveryModes[0] ?? 'beer';
     try {
       const mod = await import('opening_hours');
       openingHoursParser = mod.default ?? mod;
@@ -334,7 +371,7 @@
   }
 
   let tabLabel = $derived<Record<TabKey, string>>({
-    beer: t.beer,
+    beer: t.afterwork,
     wineCocktail: t.wineCocktails,
     events: t.events,
   });
@@ -357,7 +394,7 @@
   </header>
 
   <div class="tabs" role="tablist" aria-label={t.featureMode}>
-    {#each availableModes as tab (tab)}
+    {#each discoveryModes as tab (tab)}
       <button
         type="button"
         role="tab"
@@ -371,6 +408,27 @@
       </button>
     {/each}
   </div>
+
+  {#if activeTab !== 'events'}
+    <div class="venue-filters" role="group" aria-label={t.venueFilter}>
+      {#each [
+        ['all', t.allVenues ?? 'All'],
+        ['beer', t.beer],
+        ['wineCocktail', t.wineCocktails],
+      ] as filter (filter[0])}
+        <button
+          type="button"
+          class="filter-chip"
+          class:active={activeVenueFilter === filter[0]}
+          aria-pressed={activeVenueFilter === filter[0]}
+          onclick={() => {
+            activeVenueFilter = filter[0] as VenueFilter;
+            if (activeVenueFilter === 'wineCocktail') loadVenues('wineCocktail');
+          }}
+        >{filter[1]}</button>
+      {/each}
+    </div>
+  {/if}
 
   {#if activeTab === 'events'}
     <div class="sort-bar">
@@ -435,6 +493,31 @@
           {@const openState = venueOpenState[venue.id]}
           {@const venSun = venue.lat !== undefined && venue.lon !== undefined ? getSunPosition(venue.lat, venue.lon) : null}
           <article class="card" style={`--index:${index}`}>
+            <div class="card-media venue-media" class:has-image={!!venue.imageUrl}>
+              {#if venue.imageUrl}
+                <img
+                  src={venue.imageUrl}
+                  alt={venue.name}
+                  loading={index < 2 ? 'eager' : 'lazy'}
+                  fetchpriority={index < 2 ? 'high' : 'auto'}
+                  decoding="async"
+                  onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              {:else}
+                <span aria-hidden="true">{activeTab === 'beer' ? '✦' : '◌'}</span>
+              {/if}
+              {#if venue.imageCredit}
+                <small class="image-credit">{venue.imageCredit}</small>
+              {/if}
+              <div class="media-overlay">
+                <span class="media-kicker">{t.afterwork}</span>
+                <h3 class="media-title">{venue.name}</h3>
+                <div class="media-meta">
+                  {#if openState?.statusText}<span>{openState.statusText}</span>{/if}
+                  {#if venue.distance !== undefined}<span>{venue.distance < 1000 ? `${Math.round(venue.distance)} m` : `${(venue.distance / 1000).toFixed(1)} km`}</span>{/if}
+                </div>
+              </div>
+            </div>
             <div class="card-top">
               <span class="card-distance">
                 {venue.distance !== undefined
@@ -449,8 +532,6 @@
                 </span>
               {/if}
             </div>
-
-            <h3 class="card-name">{venue.name}</h3>
 
             {#if venue.rawPrice !== undefined}
               <div class="card-price-row">
@@ -524,6 +605,34 @@
         {:else}
           {@const event = item as EventItem}
           <article class="card" style={`--index:${index}`}>
+            <div class="card-media event-media" class:has-image={!!event.imageUrl}>
+              {#if event.imageUrl}
+                <img
+                  src={event.imageUrl}
+                  alt={event.name}
+                  loading={index < 2 ? 'eager' : 'lazy'}
+                  fetchpriority={index < 2 ? 'high' : 'auto'}
+                  decoding="async"
+                  onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              {:else}
+                <span aria-hidden="true">◌</span>
+              {/if}
+              {#if event.imageCredit}
+                <small class="image-credit">{event.imageCredit}</small>
+              {/if}
+              <div class="media-overlay">
+                <span class="media-kicker">{t.events}</span>
+                <h3 class="media-title">{event.name}</h3>
+                <div class="media-meta">
+                  {#if event.startTime}<span>{formatEventDateTime(event.startTime, locale, t)}</span>{/if}
+                  {#if event.lat !== undefined && event.lon !== undefined}
+                    {@const mediaDist = distanceMeters(lat, lon, event.lat, event.lon)}
+                    <span>{mediaDist < 1000 ? `${Math.round(mediaDist)} m` : `${(mediaDist / 1000).toFixed(1)} km`}</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
             <div class="card-top">
               <span class="card-tag">{t.events}</span>
               {#if event.lat !== undefined && event.lon !== undefined}
@@ -534,7 +643,6 @@
               {/if}
               <span class="card-meta">{event.startTime ? formatEventDateTime(event.startTime, locale, t) : t.emDash}</span>
             </div>
-            <h3 class="card-name">{event.name}</h3>
             <div class="card-details">
               <span class="card-event-meta">{eventStats(event)}</span>
               {#if event.description}
@@ -643,6 +751,34 @@
     gap: 8px;
   }
 
+  .venue-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 2px;
+  }
+  .filter-chip {
+    flex: 0 0 auto;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 7px 11px;
+    border-radius: var(--radius-full);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .filter-chip.active {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    color: var(--accent);
+  }
+  .filter-chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .tab-btn {
     flex: 1;
     border: 0;
@@ -702,18 +838,11 @@
 
   .chip-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
-    overflow-x: auto;
-    overflow-y: clip;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
     padding: 4px 0 8px;
     flex-shrink: 0;
     min-height: 36px;
-  }
-
-  .chip-row::-webkit-scrollbar {
-    display: none;
   }
 
   .chip {
@@ -760,6 +889,84 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .card-media {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 112px;
+    margin: -16px -16px 4px;
+    overflow: hidden;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-size: 30px;
+  }
+  .card-media.venue-media {
+    background: color-mix(in oklch, var(--color-warning-bg) 70%, var(--surface));
+  }
+  .card-media.event-media {
+    background: color-mix(in oklch, var(--color-info-bg) 70%, var(--surface));
+  }
+  .card-media img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+  }
+  .card-media:not(.has-image) {
+    aspect-ratio: 16 / 9;
+  }
+
+  .media-overlay {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    background: color-mix(in oklch, #10110f 78%, transparent);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  }
+  .media-kicker {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .media-title {
+    margin: 0;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  .media-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .image-credit {
+    position: absolute;
+    right: 6px;
+    bottom: 5px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.58);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
   }
 
   .card-top {
