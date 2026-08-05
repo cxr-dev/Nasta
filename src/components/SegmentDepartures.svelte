@@ -1110,6 +1110,12 @@
       align-items: start;
     }
 
+    /* Error and quick-add rows are siblings, so only-of-type keeps a lone
+       visible section full width without changing the section data flow. */
+    .card-list > .content-section:only-of-type {
+      grid-column: 1 / -1;
+    }
+
     .card-list > .empty-state,
     .card-list > .error-bar,
     .card-list > .quick-add-card {

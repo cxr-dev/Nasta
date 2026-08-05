@@ -563,13 +563,14 @@
     grid-row: 1 / 3;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-end;
     justify-content: flex-end;
     gap: 4px;
     min-width: 0;
     min-height: 100%;
     box-sizing: border-box;
-    text-align: center;
+    justify-self: end;
+    text-align: right;
   }
   .station-time-rail .countdown {
     font-size: clamp(32px, 4vw, 40px);
@@ -578,7 +579,7 @@
   .station-countdown {
     display: inline-flex;
     align-items: baseline;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 5px;
   }
   .countdown-unit {
@@ -589,10 +590,11 @@
     line-height: 1;
   }
   .station-time-rail .urgency-label {
+    align-self: flex-end;
     color: var(--text-muted);
   }
   .station-time-rail .sleep-next {
-    text-align: center;
+    text-align: right;
   }
   .stacked-pill {
     display: inline-flex;

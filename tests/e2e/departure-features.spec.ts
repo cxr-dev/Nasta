@@ -583,11 +583,17 @@ test.describe("Station grouping C2 layout", () => {
     const identityBox = await firstCard.locator(".station-service-identity").boundingBox();
     const timesBox = await firstCard.locator(".station-clock-times").boundingBox();
     const metricBox = await firstCard.locator(".station-time-rail").boundingBox();
+    const countdownBox = await firstCard.locator(".station-time-rail .countdown").boundingBox();
+    const cardBox = await firstCard.boundingBox();
     expect(identityBox).not.toBeNull();
     expect(timesBox).not.toBeNull();
     expect(metricBox).not.toBeNull();
+    expect(countdownBox).not.toBeNull();
+    expect(cardBox).not.toBeNull();
     expect(timesBox!.x).toBeGreaterThan(identityBox!.x + identityBox!.width);
     expect(timesBox!.x + timesBox!.width).toBeLessThan(metricBox!.x + metricBox!.width);
+    expect(Math.abs((metricBox!.x + metricBox!.width) - (countdownBox!.x + countdownBox!.width))).toBeLessThan(1);
+    expect(Math.abs((cardBox!.x + cardBox!.width - 15) - (metricBox!.x + metricBox!.width))).toBeLessThan(2);
 
     // The station name belongs to the group header, not each card.
     await expect(stationCards.first()).not.toContainText("T-Centralen");
@@ -606,7 +612,110 @@ test.describe("Station grouping C2 layout", () => {
       await expect(page.locator(".station-card-main")).toHaveCount(2);
       await expect(page.locator(".station-time-rail").first()).toBeVisible();
       await expect(page.locator(".station-time-rail .countdown").first()).toHaveCSS("white-space", "nowrap");
+
+      if (viewport.width >= 768) {
+        const listBox = await page.locator(".card-list").boundingBox();
+        const sectionBox = await page.locator(".content-section").boundingBox();
+        const listContentWidth = await page.locator(".card-list").evaluate((element) => {
+          const styles = getComputedStyle(element);
+          return element.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+        });
+        expect(listBox).not.toBeNull();
+        expect(sectionBox).not.toBeNull();
+        expect(sectionBox!.width).toBeGreaterThan(listContentWidth - 1);
+      }
     }
+  });
+
+  test("splits tablet width when departures and journeys both exist", async ({ page }) => {
+    await page.route("**/*.integration.sl.se/**", mockSlApi);
+
+    const now = Date.now();
+    const routes = [{
+      id: "mixed-layout",
+      name: "Mixed Layout",
+      segments: [
+        {
+          id: "mixed-departure",
+          line: "14",
+          lineName: "14",
+          direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+          fromStop: { id: "f1", name: "T-Centralen", siteId: "100" },
+          toStop: { id: "t1", name: "Mörby centrum", siteId: "456" },
+          transportType: "metro",
+        },
+        {
+          id: "mixed-journey",
+          line: "17",
+          lineName: "17",
+          direction: { code: 1, destination: "Skarpnäck", stopPointId: "" },
+          fromStop: { id: "f2", name: "Odenplan", siteId: "200" },
+          toStop: { id: "t2", name: "Skarpnäck", siteId: "789" },
+          transportType: "metro",
+          journeyMeta: {
+            journeyId: "mixed-journey-1",
+            originLabel: "Odenplan",
+            destLabel: "Skarpnäck",
+            totalDurationMin: 24,
+            transfers: 1,
+            updatedAt: now,
+            status: "planned",
+            query: { origin: "Odenplan", destination: "Skarpnäck", routeType: "leasttime" },
+            legs: [{
+              originName: "Odenplan",
+              originSiteId: "200",
+              destName: "Skarpnäck",
+              destSiteId: "789",
+              transportType: "metro" as const,
+              line: "17",
+              lineName: "17",
+              directionCode: 1,
+              directionName: "Skarpnäck",
+              departureTime: now + 5 * 60000,
+              arrivalTime: now + 29 * 60000,
+              durationMin: 24,
+              platformPosition: "middle" as const,
+            }],
+          },
+        },
+      ],
+    }];
+
+    await page.addInitScript((data) => {
+      localStorage.setItem("nasta_routes", JSON.stringify(data));
+    }, routes);
+
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await disableAnimations(page);
+    await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 15000 });
+
+    const listBox = await page.locator(".card-list").boundingBox();
+    const listContentWidth = await page.locator(".card-list").evaluate((element) => {
+      const styles = getComputedStyle(element);
+      return element.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    });
+    const departureSection = await page.locator(".content-section").nth(0).boundingBox();
+    const journeySection = await page.locator(".content-section").nth(1).boundingBox();
+    expect(listBox).not.toBeNull();
+    expect(departureSection).not.toBeNull();
+    expect(journeySection).not.toBeNull();
+    expect(Math.abs(departureSection!.width - journeySection!.width)).toBeLessThan(24);
+    expect(departureSection!.x).toBeLessThan(journeySection!.x);
+    expect(journeySection!.x).toBeGreaterThan(departureSection!.x + departureSection!.width);
+    expect(journeySection!.x + journeySection!.width).toBeCloseTo(listBox!.x + listBox!.width - 14, 0);
+    expect(departureSection!.width + journeySection!.width).toBeCloseTo(listContentWidth - 12, 0);
+    await expect(page.locator(".content-section").nth(1)).toHaveCSS("border-left-width", "1px");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 10000 });
+    const mobileDeparture = await page.locator(".content-section").nth(0).boundingBox();
+    const mobileJourney = await page.locator(".content-section").nth(1).boundingBox();
+    expect(mobileDeparture).not.toBeNull();
+    expect(mobileJourney).not.toBeNull();
+    expect(Math.abs(mobileDeparture!.x - mobileJourney!.x)).toBeLessThan(1);
+    expect(mobileJourney!.y).toBeGreaterThan(mobileDeparture!.y + mobileDeparture!.height);
   });
 
   test("shows normal layout when grouping mode is not station", async ({ page }) => {
