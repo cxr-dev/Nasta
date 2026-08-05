@@ -353,6 +353,36 @@
     return { groups: [{ label: null as string | null, items }] };
   });
 
+  // Post-process: when groupSleeping enabled, split active/sleeping items
+  let processedGroups = $derived.by(() => {
+    const src = segmentGroups;
+    if (!settings.groupSleeping) return src;
+
+    const activeGroups: typeof src.groups = [];
+    const sleepingItems: typeof src.groups[number]['items'] = [];
+
+    for (const group of src.groups) {
+      const groupActive: typeof sleepingItems = [];
+      for (const item of group.items) {
+        const sleep = segmentSleeping.get(item.segment.id);
+        if (sleep?.isSleeping) {
+          sleepingItems.push(item);
+        } else {
+          groupActive.push(item);
+        }
+      }
+      if (groupActive.length > 0) {
+        activeGroups.push({ label: group.label, items: groupActive });
+      }
+    }
+
+    if (sleepingItems.length > 0) {
+      activeGroups.push({ label: t.sleeping, items: sleepingItems });
+    }
+
+    return { groups: activeGroups };
+  });
+
   async function loadSegmentDeps() {
     const segs = page.segments ?? [];
     const deps = new Map<string, Departure[]>();
@@ -570,7 +600,7 @@
         {/each}
       </div>
     {:else}
-      {#each segmentGroups.groups as group}
+      {#each processedGroups.groups as group}
         {#if group.label}
           <div class="section-label">
             {group.label}

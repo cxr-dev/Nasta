@@ -3,7 +3,7 @@
   import { getT } from '../stores/localeStore.svelte';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, gripIcon } from '../icons/departureIcons';
   import Sheet from './Sheet.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme } from '../stores/settingsStore.svelte';
+  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
 
   let t = $derived(getT());
@@ -302,6 +302,24 @@
               </div>
             {/if}
           </div>
+
+          <!-- Group sleeping toggle -->
+          <label class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-name">{t.groupSleeping}</span>
+              <span class="toggle-desc">{t.groupSleepingDesc}</span>
+            </div>
+            <button
+              class="toggle-btn no-scale"
+              class:on={settings.groupSleeping ?? false}
+              onclick={() => setGroupSleeping(!(settings.groupSleeping ?? false))}
+              aria-label={t.groupSleeping}
+              role="switch"
+              aria-checked={settings.groupSleeping ?? false}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </label>
         </div>
 
         <div class="feature-group">

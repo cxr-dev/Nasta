@@ -23,6 +23,7 @@ const defaults: Settings = {
   groupDisruptedSegments: false,
   sortMode: "manual" as const,
   groupingMode: "none" as const,
+  groupSleeping: false,
 };
 
 let currentSettings = { ...defaults };

@@ -98,3 +98,8 @@ export function setActiveTransportType(type: TransportType | null) {
   _settings = { ..._settings, activeTransportType: type };
   saveSettings(_settings);
 }
+
+export function setGroupSleeping(enabled: boolean) {
+  _settings = { ..._settings, groupSleeping: enabled };
+  saveSettings(_settings);
+}

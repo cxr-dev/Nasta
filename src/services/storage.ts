@@ -25,6 +25,7 @@ export interface Settings {
   groupDisruptedSegments: boolean;
   sortMode: SortMode;
   groupingMode: GroupingMode;
+  groupSleeping: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -49,6 +50,7 @@ const defaultSettings: Settings = {
   groupDisruptedSegments: false,
   sortMode: 'manual',
   groupingMode: 'none',
+  groupSleeping: false,
 };
 
 export function loadPages(): Page[] {
