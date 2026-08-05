@@ -25,7 +25,8 @@
   import UpdateBanner from './components/UpdateBanner.svelte';
   import SegmentSearch from './components/SegmentSearch.svelte';
   import JourneySearch from './components/JourneySearch.svelte';
-  import { searchJourneys } from './services/journeyService';
+  import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, selectNextJourney } from './services/journeyService';
+  import { mapPinIcon, routeIcon } from './icons/departureIcons';
   import type { Journey, JourneyMeta, SavedJourneyStatus } from './types/journey';
   import IconButton from './components/IconButton.svelte';
   import type { Departure } from './stores/departureStore.svelte';
@@ -310,6 +311,7 @@
         query: journey.query ?? {
           origin: journey.originLabel,
           destination: journey.destLabel,
+          routeType: DEFAULT_JOURNEY_ROUTE_TYPE,
         },
         status: 'planned',
         totalDurationMin: journey.totalDurationMin,
@@ -341,8 +343,18 @@
           dest: meta.query.destination,
           originCoord: meta.query.originCoord,
           destCoord: meta.query.destinationCoord,
+          timeMode: meta.query.timeMode,
+          date: meta.query.date,
+          time: meta.query.time,
+          transportModes: meta.query.transportModes,
+          maxChanges: meta.query.maxChanges,
+          routeType: meta.query.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE,
         });
-        const selected = next.find((journey) => journey.departureTime > Date.now()) ?? next[0];
+        const selected = selectNextJourney(
+          next,
+          Date.now(),
+          meta.query.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE,
+        );
         if (!selected) return;
         const now = Date.now();
         const missed = meta.status === 'planned' && meta.legs[0]?.departureTime > 0 && meta.legs[0].departureTime <= now;
@@ -963,30 +975,57 @@ function closeSettingsPanel() {
         tabindex="0"
         onkeydown={(e) => { if (e.key === 'Escape') closeQuickAdd(); }}
       >
-        <div class="quick-add-header">
-          <div class="quick-add-tabs">
-            <button
-              class="quick-add-tab"
-              class:active={quickAddTab === 'stop'}
-              onclick={() => quickAddTab = 'stop'}
-            >{t.tabStop}</button>
-            <button
-              class="quick-add-tab"
-              class:active={quickAddTab === 'route'}
-              onclick={() => quickAddTab = 'route'}
-            >{t.tabRoute}</button>
+          <div class="quick-add-header">
+            <div class="quick-add-title-row">
+              <h2 class="quick-add-title">{t.addSegment}</h2>
+              <IconButton class="quick-add-close" onclick={closeQuickAdd} ariaLabel={t.closePanel}>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18"/>
+                </svg>
+              </IconButton>
+            </div>
+            <div class="quick-add-tabs" role="tablist" aria-label={t.addSegment}>
+              <button
+                class="quick-add-tab"
+                class:active={quickAddTab === 'stop'}
+                role="tab"
+                aria-label={t.tabStop}
+                aria-selected={quickAddTab === 'stop'}
+                aria-controls="quick-add-stop-panel"
+                onclick={() => quickAddTab = 'stop'}
+              >
+                <span class="quick-add-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html mapPinIcon}</svg></span>
+                <span class="quick-add-tab-copy">
+                  <span class="quick-add-tab-title">{t.tabStop}</span>
+                  <span class="quick-add-tab-description">{t.tabStopDesc}</span>
+                </span>
+              </button>
+              <button
+                class="quick-add-tab"
+                class:active={quickAddTab === 'route'}
+                role="tab"
+                aria-label={t.tabRoute}
+                aria-selected={quickAddTab === 'route'}
+                aria-controls="quick-add-route-panel"
+                onclick={() => quickAddTab = 'route'}
+              >
+                <span class="quick-add-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html routeIcon}</svg></span>
+                <span class="quick-add-tab-copy">
+                  <span class="quick-add-tab-title">{t.tabRoute}</span>
+                  <span class="quick-add-tab-description">{t.tabRouteDesc}</span>
+                </span>
+              </button>
+            </div>
           </div>
-          <IconButton onclick={closeQuickAdd} ariaLabel={t.closePanel}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M6 6l12 12M18 6 6 18"/>
-            </svg>
-          </IconButton>
-        </div>
-        {#if quickAddTab === 'stop'}
-          <SegmentSearch onSelect={handleQuickAdd} />
-        {:else}
-          <JourneySearch onSelect={handleJourneySelect} />
-        {/if}
+          {#if quickAddTab === 'stop'}
+            <div id="quick-add-stop-panel" role="tabpanel" aria-label={t.tabStop}>
+              <SegmentSearch onSelect={handleQuickAdd} />
+            </div>
+          {:else}
+            <div id="quick-add-route-panel" role="tabpanel" aria-label={t.tabRoute}>
+              <JourneySearch onSelect={handleJourneySelect} />
+            </div>
+          {/if}
       </div>
     {/if}
 
@@ -1469,34 +1508,117 @@ function closeSettingsPanel() {
 
   .quick-add-header {
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 8px 10px;
+    gap: 10px;
+  }
+
+  .quick-add-title-row {
+    display: flex;
     align-items: center;
-    padding: 16px 8px 8px;
-    min-height: 52px;
-    gap: 8px;
+    justify-content: space-between;
+    min-height: 44px;
+    gap: 12px;
+  }
+
+  .quick-add-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  :global(.icon-btn.quick-add-close) {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
   }
 
   .quick-add-tabs {
-    display: flex;
-    flex: 1;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .quick-add-tab {
-    padding: 6px 14px;
-    border: none;
-    border-radius: var(--radius-full, 999px);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 56px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface-emphasis);
+    color: var(--text-secondary);
     font-family: inherit;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    text-align: left;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   }
 
   .quick-add-tab.active {
+    border-color: var(--accent);
     background: var(--accent-subtle);
-    color: var(--accent);
+    color: var(--text);
+  }
+
+  .quick-add-tab:hover,
+  .quick-add-tab:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .quick-add-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+
+  .quick-add-tab-icon svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .quick-add-tab.active .quick-add-tab-icon {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .quick-add-tab-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .quick-add-tab-title {
+    color: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .quick-add-tab-description {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .quick-add-tab.active .quick-add-tab-description {
+    color: var(--text-secondary);
   }
 
   /* ── Tablet breakpoint ── */

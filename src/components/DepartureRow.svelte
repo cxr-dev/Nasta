@@ -110,6 +110,10 @@
   let showAllMessages = $state(false);
 
   let urgency = $derived(departure ? getDepartureUrgency(departure, now) : 'later');
+  let countdownParts = $derived.by(() => {
+    const match = /^(\d+)\s+(min)$/i.exec(primaryDepartureText.trim());
+    return match ? { value: match[1], unit: match[2] } : null;
+  });
   let effectiveDisruption = $derived(getEffectiveDisruption(severity, siteDevs.length));
   // Do not add “Snart” when the compact formatter has already rounded the
   // same departure to “Nu” (the final 45–60 seconds).
@@ -224,6 +228,7 @@
 >
   <button
     class="card-main"
+    class:station-card-main={groupingMode === 'station'}
     use:prefetch
     type="button"
     aria-expanded={isExpanded}
@@ -231,19 +236,44 @@
     onclick={() => { if (isExpandable) handleToggle(); }}
   >
     {#if groupingMode === 'station'}
-      <div class="start-stack">
+      <span class="station-destination">{stopLabel(segment.direction?.destination)}</span>
+      <div class="station-service-identity">
         <div class="icon-badge" style="background: {badgeBgIntensity}">
           <TransportIcon type={segment.transportType} size={18} />
         </div>
         <span class="stacked-pill">{segment.line}</span>
       </div>
-      <div class="meta-col">
-        <span class="dest-text-full">{stopLabel(segment.direction?.destination)}</span>
-        {#if disruptionLabel}
-          <span class="disruption-summary" class:critical={effectiveDisruption === 'critical'}>
-            <span class="status-dot" aria-hidden="true"></span>
-            {disruptionLabel}
+      {#if subsequent}
+        <span class="clock-times station-clock-times">{subsequent}</span>
+      {/if}
+      {#if disruptionLabel}
+        <span class="disruption-summary station-disruption-summary" class:critical={effectiveDisruption === 'critical'}>
+          <span class="status-dot" aria-hidden="true"></span>
+          {disruptionLabel}
+        </span>
+      {/if}
+      <div class="station-time-rail">
+        {#if isSleeping}
+          <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
+            <g>{@html moonIcon}</g>
+          </svg>
+          {#if nextDepartureTime}
+            <span class="sleep-next">{nextDepartureTime}</span>
+          {/if}
+        {:else if hasDeparture}
+          {#if urgencyLabel}
+            <span class="urgency-label">{urgencyLabel}</span>
+          {/if}
+          <span class="countdown station-countdown" class:arriving-now={urgency === 'now'} style="color: {countdownColor}" data-testid="countdown-minutes">
+            {#if countdownParts}
+              <span class="countdown-value">{countdownParts.value}</span>
+              <span class="countdown-unit">{countdownParts.unit}</span>
+            {:else}
+              {primaryDepartureText}
+            {/if}
           </span>
+        {:else}
+          <span class="em-dash">—</span>
         {/if}
       </div>
     {:else}
@@ -263,33 +293,35 @@
       </div>
     {/if}
 
-    <div class="time-col">
-      {#if isSleeping}
-        <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
-          <g>{@html moonIcon}</g>
-        </svg>
-        {#if nextDepartureTime}
-          <span class="sleep-next">{nextDepartureTime}</span>
+    {#if groupingMode !== 'station'}
+      <div class="time-col">
+        {#if isSleeping}
+          <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
+            <g>{@html moonIcon}</g>
+          </svg>
+          {#if nextDepartureTime}
+            <span class="sleep-next">{nextDepartureTime}</span>
+          {/if}
+        {:else if hasDeparture}
+          {#if urgencyLabel}
+            <span class="urgency-label">{urgencyLabel}</span>
+          {/if}
+          <span class="countdown" class:arriving-now={urgency === 'now'} style="color: {countdownColor}" data-testid="countdown-minutes">
+            {primaryDepartureText}
+          </span>
+          {#if subsequent}
+            <span class="clock-times">{subsequent}</span>
+          {/if}
+        {:else}
+          <span class="em-dash">—</span>
         {/if}
-      {:else if hasDeparture}
-        {#if urgencyLabel}
-          <span class="urgency-label">{urgencyLabel}</span>
+        {#if weatherIconSvg}
+          <svg viewBox="0 0 24 24" fill="none" class="weather-indicator" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
+            <g>{@html weatherIconSvg}</g>
+          </svg>
         {/if}
-        <span class="countdown" class:arriving-now={urgency === 'now'} style="color: {countdownColor}" data-testid="countdown-minutes">
-          {primaryDepartureText}
-        </span>
-        {#if subsequent}
-          <span class="clock-times">{subsequent}</span>
-        {/if}
-      {:else}
-        <span class="em-dash">—</span>
-      {/if}
-      {#if weatherIconSvg && groupingMode !== 'station'}
-        <svg viewBox="0 0 24 24" fill="none" class="weather-indicator" aria-label={weatherSymbol === 'rain' ? 'Rain' : weatherSymbol === 'snow' ? 'Snow' : 'Thunder'}>
-          <g>{@html weatherIconSvg}</g>
-        </svg>
-      {/if}
-    </div>
+      </div>
+    {/if}
   </button>
 
   {#if siteDevs.length > 0}
@@ -380,7 +412,8 @@
   }
 
   .card-main {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     min-height: 58px;
     width: 100%;
@@ -440,9 +473,11 @@
     font-size: 12px;
     font-weight: 500;
     color: var(--text-secondary);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
     line-height: 1.3;
   }
   .disruption-summary {
@@ -472,14 +507,92 @@
     color: var(--accent);
     font-weight: 700;
   }
-  /* ── Station mode: icon+pil stacked left ── */
-  .start-stack {
+  /* ── Station mode: original C2 destination-first card ── */
+  .station-card-main {
+    grid-template-columns: auto minmax(0, 1fr) 110px;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    align-items: stretch;
+    min-height: 86px;
+    padding: 12px 14px;
+    column-gap: 10px;
+    row-gap: 8px;
+  }
+  .station-destination {
+    grid-column: 1 / 3;
+    grid-row: 1;
+    align-self: center;
+    min-width: 0;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.25;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-wrap: pretty;
+  }
+  .station-service-identity {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    align-self: end;
+  }
+  .station-clock-times {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    max-width: 100%;
+    justify-self: center;
+    align-self: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+  .station-disruption-summary {
+    grid-column: 1 / 3;
+    grid-row: 3;
+    justify-self: start;
+  }
+  .station-time-rail {
+    grid-column: 3;
+    grid-row: 1 / 3;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-end;
     gap: 4px;
-    flex-shrink: 0;
-    width: 32px;
+    min-width: 0;
+    min-height: 100%;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .station-time-rail .countdown {
+    font-size: clamp(32px, 4vw, 40px);
+    white-space: nowrap;
+  }
+  .station-countdown {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 5px;
+  }
+  .countdown-unit {
+    font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .station-time-rail .urgency-label {
+    color: var(--text-muted);
+  }
+  .station-time-rail .sleep-next {
+    text-align: center;
   }
   .stacked-pill {
     display: inline-flex;
@@ -495,17 +608,9 @@
     border-radius: var(--radius-sm);
     line-height: 1;
   }
-  .dest-text-full {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text);
-    line-height: 1.3;
-    display: -webkit-box;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-wrap: pretty;
+  .station-service-identity .icon-badge {
+    width: 32px;
+    height: 32px;
   }
   .weather-indicator {
     display: inline-flex;
@@ -541,6 +646,7 @@
     align-items: flex-end;
     gap: 2px;
     flex-shrink: 0;
+    min-width: 58px;
     padding-left: 4px;
     position: relative;
   }
@@ -717,6 +823,12 @@
     .card-main {
       padding: 12px 16px;
       gap: 12px;
+    }
+
+    .station-card-main {
+      grid-template-columns: auto minmax(0, 1fr) 118px;
+      column-gap: 12px;
+      row-gap: 8px;
     }
   }
 </style>

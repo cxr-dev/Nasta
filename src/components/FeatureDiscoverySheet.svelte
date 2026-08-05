@@ -312,22 +312,6 @@
   let railEl = $state<HTMLElement | undefined>();
 
   $effect(() => {
-    const isLoading = currentItems.loading;
-    if (!railEl || !isLoading) return;
-    const skels = railEl.querySelectorAll('.skeleton-element');
-    if (skels.length === 0) return;
-    const tweens = Array.from(skels).map((el) =>
-      gsap.to(el, {
-        backgroundPosition: '-200% 0',
-        duration: 1.5,
-        ease: 'sine.inOut',
-        repeat: -1,
-      })
-    );
-    return () => tweens.forEach((t) => t.kill());
-  });
-
-  $effect(() => {
     if (!railEl || displayItems.length === 0) return;
     const cards = railEl.querySelectorAll('.card');
     if (cards.length === 0) return;
@@ -1246,6 +1230,7 @@
   }
 
   .skeleton-card {
+    position: relative;
     border-radius: 14px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1253,12 +1238,31 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow: hidden;
+  }
+
+  .skeleton-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      110deg,
+      transparent 22%,
+      color-mix(in oklch, var(--surface) 68%, var(--text) 32%) 50%,
+      transparent 78%
+    );
+    transform: translateX(-100%);
+    animation: skeleton-shimmer 1.7s ease-in-out infinite;
   }
 
   .skeleton-element {
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 95%, #000 5%)) 50%, var(--border) 100%);
-    background-size: 200% 100%;
+    background: var(--border);
     border-radius: 4px;
+  }
+
+  @keyframes skeleton-shimmer {
+    to { transform: translateX(100%); }
   }
 
   .sk-top {
@@ -1292,8 +1296,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .skeleton-element {
-      opacity: 0.4;
-    }
+    .skeleton-card::after { display: none; }
   }
 </style>

@@ -1,6 +1,7 @@
 import type {
   Journey,
   JourneyLeg,
+  JourneyRouteType,
   JourneySearchRequest,
   PlatformPosition,
 } from '../types/journey';
@@ -11,6 +12,7 @@ import { getWalkingTime } from './geo';
 const JOURNEY_PLANNER_URL = 'https://journeyplanner.integration.sl.se/v2';
 const STOP_FINDER_URL = `${JOURNEY_PLANNER_URL}/stop-finder`;
 const TRIP_URL = `${JOURNEY_PLANNER_URL}/trips`;
+export const DEFAULT_JOURNEY_ROUTE_TYPE: JourneyRouteType = 'leasttime';
 
 const GEO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
@@ -313,9 +315,13 @@ export async function searchJourneys(
 
   // Build trip URL: coordinate-based or stop ID-based
   let tripUrl: string;
+  const params = new URLSearchParams();
   if (oCoord && dCoord) {
     // Coordinate-based: no stop-finder needed
-    tripUrl = `${TRIP_URL}?type_origin=coord&type_destination=coord&name_origin=${oCoord[1]}:${oCoord[0]}:WGS84[dd.ddddd]&name_destination=${dCoord[1]}:${dCoord[0]}:WGS84[dd.ddddd]&calc_number_of_trips=3`;
+    params.set('type_origin', 'coord');
+    params.set('type_destination', 'coord');
+    params.set('name_origin', `${oCoord[1]}:${oCoord[0]}:WGS84[dd.ddddd]`);
+    params.set('name_destination', `${dCoord[1]}:${dCoord[0]}:WGS84[dd.ddddd]`);
   } else {
     // Fall back to resolving via stop-finder for stop name queries
     const [originLoc, destLoc] = await Promise.all([
@@ -323,8 +329,15 @@ export async function searchJourneys(
       resolveLocation(dest, signal),
     ]);
     if (!originLoc || !destLoc) return [];
-    tripUrl = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${encodeURIComponent(originLoc.id)}&name_destination=${encodeURIComponent(destLoc.id)}&calc_number_of_trips=3`;
+    params.set('type_origin', 'any');
+    params.set('type_destination', 'any');
+    params.set('name_origin', originLoc.id);
+    params.set('name_destination', destLoc.id);
   }
+
+  params.set('calc_number_of_trips', '3');
+  appendJourneyOptions(params, req);
+  tripUrl = `${TRIP_URL}?${params.toString()}`;
 
   // Fetch trip options
   let tripData: TripData;
@@ -455,11 +468,91 @@ export async function searchJourneys(
         destination: dest,
         originCoord: oCoord,
         destinationCoord: dCoord,
+        timeMode: req.timeMode,
+        date: req.date,
+        time: req.time,
+        transportModes: req.transportModes,
+        maxChanges: req.maxChanges,
+        routeType: req.routeType,
       },
     });
   }
 
-  return results;
+  return prioritizeJourneys(results, req.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE);
+}
+
+function compareJourneyFallback(a: Journey, b: Journey): number {
+  return (a.arrivalTime - b.arrivalTime)
+    || (a.totalDurationMin - b.totalDurationMin)
+    || (a.departureTime - b.departureTime)
+    || a.id.localeCompare(b.id);
+}
+
+/**
+ * Apply the same deterministic priority to search results and saved-journey
+ * refreshes. The planner is still responsible for route-specific data such
+ * as walking distance; the client only applies fields available in Journey.
+ */
+export function prioritizeJourneys(
+  journeys: Journey[],
+  routeType: JourneyRouteType = DEFAULT_JOURNEY_ROUTE_TYPE,
+): Journey[] {
+  return journeys
+    .map((journey, index) => ({ journey, index }))
+    .sort((a, b) => {
+    if (routeType === 'leastwalking') {
+      // The planner owns walking-distance data that is not represented on
+      // Journey, so retain its response order for this preference.
+      return a.index - b.index;
+    }
+    const first = a.journey;
+    const second = b.journey;
+    if (routeType === 'leastinterchange' && first.transfers !== second.transfers) {
+      return first.transfers - second.transfers;
+    }
+    return compareJourneyFallback(first, second);
+  })
+    .map(({ journey }) => journey);
+}
+
+/** Select the highest-priority journey that has not departed yet. */
+export function selectNextJourney(
+  journeys: Journey[],
+  now = Date.now(),
+  routeType: JourneyRouteType = DEFAULT_JOURNEY_ROUTE_TYPE,
+): Journey | undefined {
+  const upcoming = journeys.filter((journey) => journey.departureTime > now);
+  return prioritizeJourneys(upcoming, routeType)[0];
+}
+
+export function appendJourneyOptions(
+  params: URLSearchParams,
+  req: JourneySearchRequest,
+): void {
+  if (req.timeMode && req.timeMode !== 'now' && req.date && req.time) {
+    params.set('itd_date', req.date.replaceAll('-', ''));
+    params.set('itd_time', req.time.replace(':', ''));
+    params.set('itd_trip_date_time_dep_arr', req.timeMode === 'arrival' ? 'arr' : 'dep');
+    if (req.timeMode === 'departure') params.set('calc_one_direction', 'true');
+  }
+
+  if (req.maxChanges !== undefined) {
+    params.set('max_changes', String(req.maxChanges));
+  }
+  params.set('route_type', req.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE);
+
+  const modeParams: Record<string, string> = {
+    train: 'incl_mot_0',
+    metro: 'incl_mot_2',
+    tram: 'incl_mot_4',
+    bus: 'incl_mot_5',
+    boat: 'incl_mot_9',
+  };
+  if (req.transportModes?.length) {
+    for (const [mode, param] of Object.entries(modeParams)) {
+      params.set(param, req.transportModes.includes(mode as TransportType) ? 'true' : 'false');
+    }
+  }
 }
 
 /**

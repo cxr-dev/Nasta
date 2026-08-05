@@ -10,7 +10,9 @@ function getNowText(): string {
 
 const MINUTES_TO_CLOCK_THRESHOLD = 60;
 const NOW_THRESHOLD_MS = 45_000;
-const IMMINENT_THRESHOLD_MS = 2 * 60_000;
+// “Snart” is useful for the short planning window, but should not compete
+// with the countdown’s “Nu” state at 45 seconds or less.
+const IMMINENT_THRESHOLD_MS = 3 * 60_000;
 const SOON_THRESHOLD_MS = 5 * 60_000;
 
 export type DepartureUrgency = 'now' | 'imminent' | 'soon' | 'later';
@@ -53,7 +55,7 @@ export function getDepartureUrgency(dep: Departure, now: number): DepartureUrgen
   }
 
   if (dep.minutes <= 0) return 'now';
-  if (dep.minutes <= 2) return 'imminent';
+  if (dep.minutes <= 3) return 'imminent';
   if (dep.minutes <= 5) return 'soon';
   return 'later';
 }

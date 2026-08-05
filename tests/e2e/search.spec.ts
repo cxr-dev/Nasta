@@ -123,4 +123,143 @@ test.describe("Segment search", () => {
     await expect(page.locator("text=Lindarängsvägen")).toBeVisible({ timeout: 10000 });
   });
 
+  test("uses the Lucide swap control, refined filters, and earliest-arrival priority", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route(
+      "https://journeyplanner.integration.sl.se/**",
+      async (route) => {
+        const url = route.request().url();
+        if (url.includes("/stop-finder")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(MOCK_STOP_FINDER_RESPONSE),
+          });
+          return;
+        }
+
+        if (url.includes("/trips")) {
+          const now = Date.now();
+          const trip = (departureMinutes: number, arrivalMinutes: number, durationMinutes: number) => ({
+            legs: [{
+              origin: {
+                name: "Odenplan",
+                disassembledName: "Odenplan",
+                departureTimePlanned: new Date(now + departureMinutes * 60000).toISOString(),
+              },
+              destination: {
+                name: "Slussen",
+                disassembledName: "Slussen",
+                arrivalTimePlanned: new Date(now + arrivalMinutes * 60000).toISOString(),
+              },
+              transportation: {
+                name: "Buss 40",
+                disassembledName: "40",
+                product: { name: "BUS" },
+              },
+              duration: durationMinutes * 60,
+              direction: 1,
+              directionName: "Slussen",
+            }],
+          });
+
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              journeys: [
+                trip(5, 35, 30),
+                trip(8, 20, 12),
+              ],
+            }),
+          });
+          return;
+        }
+
+        await route.continue();
+      },
+    );
+    await page.route("https://nominatim.openstreetmap.org/**", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    });
+
+    await page.locator(".empty-cta").click();
+    const addDialog = page.getByRole("dialog", { name: /Lägg till/ });
+    const titleRow = page.locator(".quick-add-title-row");
+    const stopTab = page.getByRole("tab", { name: "Hållplats" });
+    const routeTab = page.getByRole("tab", { name: "Resa" });
+    await expect(addDialog).toBeVisible();
+    await expect(titleRow).toContainText("+ Lägg till");
+    const closeButton = titleRow.getByRole("button", { name: "Stäng panel" });
+    await expect(closeButton).toBeVisible();
+    const closeBox = await closeButton.boundingBox();
+    expect(closeBox && closeBox.width >= 44 && closeBox.height >= 44).toBeTruthy();
+    await expect(stopTab).toContainText("Avgångar från en hållplats");
+    await expect(routeTab).toContainText("En resa från A till B");
+    await expect(stopTab).toHaveAttribute("aria-selected", "true");
+    await expect(routeTab).toHaveAttribute("aria-selected", "false");
+    expect(await stopTab.locator("svg").innerHTML()).toContain("M20 10c0 4.993-5.539 10.193-7.399 11.799");
+    expect(await stopTab.locator("svg").innerHTML()).toContain('cx="12" cy="10" r="3"');
+    expect(await routeTab.locator("svg").innerHTML()).toContain('cx="6" cy="19" r="3"');
+    expect(await routeTab.locator("svg").innerHTML()).toContain("M9 19h8.5a3.5 3.5 0 0 0 0-7");
+    expect(await routeTab.locator("svg").innerHTML()).toContain('cx="18" cy="5" r="3"');
+    await expect(routeTab.locator("svg")).toHaveCount(1);
+    await routeTab.click();
+    await expect(page.locator("#quick-add-route-panel")).toBeVisible();
+    await stopTab.click();
+    await expect(page.locator("#quick-add-stop-panel")).toBeVisible();
+    await routeTab.click();
+    await expect(page.locator("#quick-add-route-panel")).toBeVisible();
+
+    const swapButton = page.getByRole("button", { name: "Byt riktning" });
+    const fromInput = page.getByRole("textbox", { name: "från" });
+    const toInput = page.getByRole("textbox", { name: "Till" });
+    await expect(page.locator(".location-fields")).toBeVisible();
+    await expect(page.locator(".swap-connector")).toBeVisible();
+    await expect(page.locator(".connector-line")).toHaveCount(0);
+    const fromBox = await fromInput.boundingBox();
+    const toBox = await toInput.boundingBox();
+    const swapBox = await swapButton.boundingBox();
+    expect(fromBox && toBox && swapBox).toBeTruthy();
+    expect(swapBox!.x).toBeGreaterThan(fromBox!.x + fromBox!.width);
+    expect(Math.abs((swapBox!.y + swapBox!.height / 2) - ((fromBox!.y + toBox!.y + toBox!.height) / 2))).toBeLessThan(12);
+    await expect(swapButton.locator("svg")).toHaveAttribute("width", "24");
+    await expect(swapButton.locator('path[d="m3 16 4 4 4-4"]')).toHaveCount(1);
+
+    const advancedToggle = page.getByRole("button", { name: /Avancerat/ });
+    await advancedToggle.click();
+    const advancedPanel = page.locator("#journey-advanced-options");
+    await expect(advancedPanel).toBeVisible();
+    await expect(advancedPanel.locator('input[type="checkbox"]')).toHaveCount(5);
+    await expect(advancedPanel.locator('input[type="radio"]')).toHaveCount(7);
+
+    const journeyDialog = page.getByRole("dialog", { name: /Lägg till/ });
+    await journeyDialog.getByLabel("från").fill("Odenplan");
+    await journeyDialog.getByRole("textbox", { name: "Till" }).fill("Slussen");
+    await journeyDialog.getByRole("button", { name: "Hitta resa" }).click();
+
+    const resultCards = page.locator(".result-card");
+    await expect(resultCards).toHaveCount(2);
+    await expect(resultCards.first().locator(".result-duration")).toHaveText("12m");
+
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect(advancedPanel).toBeVisible();
+    const hasHorizontalOverflow = await page.locator(".journey-search").evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+
+    await addDialog.focus();
+    await page.keyboard.press("Escape");
+    await expect(addDialog).toBeHidden();
+    await page.locator(".empty-cta").click();
+    await expect(addDialog).toBeVisible();
+    await addDialog.locator(".quick-add-title-row").getByRole("button", { name: "Stäng panel" }).click();
+    await expect(addDialog).toBeHidden();
+    await page.locator(".empty-cta").click();
+    await expect(addDialog).toBeVisible();
+    await page.locator(".quick-add-backdrop").click();
+    await expect(addDialog).toBeHidden();
+  });
+
 });

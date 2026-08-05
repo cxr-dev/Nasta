@@ -1,11 +1,12 @@
 <script lang="ts">
-  import type { Journey } from '../types/journey';
+  import type { Journey, JourneyRouteType, JourneyTimeMode } from '../types/journey';
   import type { LocationSuggestion } from '../services/journeyService';
-  import { searchJourneys, searchLocations } from '../services/journeyService';
+  import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, searchLocations } from '../services/journeyService';
   import { getT } from '../stores/localeStore.svelte';
   import TransportIcon from './TransportIcon.svelte';
   import TrainPosition from './TrainPosition.svelte';
   import JourneyCard from './JourneyCard.svelte';
+  import { arrowDownUp, chevronDown } from '../icons/departureIcons';
   import gsap from 'gsap';
 
   let {
@@ -27,6 +28,29 @@
   let searching = $state(false);
   let noResults = $state(false);
   let searchAttempted = $state(false);
+  let timeMode = $state<JourneyTimeMode>('now');
+  let travelDate = $state('');
+  let travelTime = $state('');
+  let advancedOpen = $state(false);
+  let transportModes = $state<Array<'bus' | 'metro' | 'train' | 'tram' | 'boat'>>(['bus', 'metro', 'train', 'tram', 'boat']);
+  let maxChanges = $state(3);
+  let routeType = $state<JourneyRouteType>('leasttime');
+  const journeyTransportModes = ['bus', 'metro', 'train', 'tram', 'boat'] as const;
+
+  let advancedSummary = $derived.by(() => {
+    const modeSummary = transportModes.length === 0 || transportModes.length === journeyTransportModes.length
+      ? (t.journeyAllModes ?? 'Alla färdsätt')
+      : (t.journeyModesSelected ?? '{count} färdsätt').replace('{count}', String(transportModes.length));
+    const changesSummary = maxChanges >= 3
+      ? (t.journeyAnyChanges ?? 'Upp till 3 byten')
+      : (t.journeyUpToChanges ?? 'Upp till {count} byten').replace('{count}', String(maxChanges));
+    const routeSummary = routeType === 'leastinterchange'
+      ? (t.journeyFewestChanges ?? 'Färre byten')
+      : routeType === 'leastwalking'
+        ? (t.journeyLeastWalking ?? 'Minst gång')
+        : (t.journeyFastest ?? 'Snabbast');
+    return `${modeSummary} · ${changesSummary} · ${routeSummary}`;
+  });
 
   // Autocomplete
   let originFocused = $state(false);
@@ -68,6 +92,46 @@
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  function localDateValue(date = new Date()): string {
+    const year = date.toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric' });
+    const month = date.toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', month: '2-digit' });
+    const day = date.toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', day: '2-digit' });
+    return `${year}-${month}-${day}`;
+  }
+
+  function localTimeValue(date = new Date()): string {
+    return date.toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function ensureTimedDefaults() {
+    if (!travelDate) travelDate = localDateValue();
+    if (!travelTime) travelTime = localTimeValue();
+  }
+
+  function swapDirections() {
+    originAbort?.abort();
+    destAbort?.abort();
+    const oldOrigin = origin;
+    origin = dest;
+    dest = oldOrigin;
+    const oldCoord = originCoord;
+    originCoord = destCoord;
+    destCoord = oldCoord;
+    const oldType = originType;
+    originType = destType;
+    destType = oldType;
+    originSuggestions = [];
+    destSuggestions = [];
+    originSelectedIdx = -1;
+    destSelectedIdx = -1;
+    originFocused = false;
+    destFocused = false;
+    results = [];
+    previewJourneyId = null;
+    noResults = false;
+    searchAttempted = false;
   }
 
   function onOriginInput() {
@@ -196,6 +260,12 @@
         dest: dest.trim(),
         originCoord,
         destCoord,
+        timeMode,
+        date: timeMode === 'now' ? undefined : travelDate,
+        time: timeMode === 'now' ? undefined : travelTime,
+        transportModes,
+        maxChanges,
+        routeType,
         signal: resultsAbort.signal,
       });
 
@@ -229,6 +299,7 @@
       query: journey.query ?? {
         origin: journey.originLabel,
         destination: journey.destLabel,
+        routeType: DEFAULT_JOURNEY_ROUTE_TYPE,
       },
       status: 'planned' as const,
       totalDurationMin: journey.totalDurationMin,
@@ -287,6 +358,7 @@
   </div>
   <div class="step-content" bind:this={contentEl}>
   <div class="search-fields">
+    <div class="location-fields">
     <!-- Origin field -->
     <div class="field-wrap">
       <label class="field-label" for="journey-origin">{t.from}</label>
@@ -355,12 +427,6 @@
           </div>
         {/if}
       </div>
-    </div>
-
-    <div class="field-arrow">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M12 5v14M5 12l7 7 7-7" />
-      </svg>
     </div>
 
     <!-- Destination field -->
@@ -432,15 +498,102 @@
         {/if}
       </div>
     </div>
+    </div>
+
+    <div class="swap-connector" aria-hidden="false">
+      <button type="button" class="field-arrow" onclick={swapDirections} aria-label={t.journeySwap ?? 'Byt riktning'} title={t.journeySwap ?? 'Byt riktning'}>
+        <span class="field-arrow-visual">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+            {@html arrowDownUp}
+          </svg>
+        </span>
+      </button>
+    </div>
   </div>
 
   <button
     class="search-btn"
-    disabled={!origin.trim() || !dest.trim() || searching}
+    disabled={!origin.trim() || !dest.trim() || searching || (timeMode !== 'now' && (!travelDate || !travelTime))}
     onclick={doSearch}
   >
     {searching ? t.journeySearching : t.journeyFindRoute}
   </button>
+
+  <div class="time-options" aria-label={t.journeyTimeMode ?? 'När vill du åka?'}>
+    <span class="options-label">{t.journeyTimeMode ?? 'När vill du åka?'}</span>
+    <div class="time-mode-row" role="radiogroup">
+      <button type="button" class:active={timeMode === 'now'} role="radio" aria-checked={timeMode === 'now'} onclick={() => timeMode = 'now'}>
+        {t.journeyDepartNow ?? 'Åk nu'}
+      </button>
+      <button type="button" class:active={timeMode === 'departure'} role="radio" aria-checked={timeMode === 'departure'} onclick={() => { timeMode = 'departure'; ensureTimedDefaults(); }}>
+        {t.journeyDepartureTime ?? 'Avgångstid'}
+      </button>
+      <button type="button" class:active={timeMode === 'arrival'} role="radio" aria-checked={timeMode === 'arrival'} onclick={() => { timeMode = 'arrival'; ensureTimedDefaults(); }}>
+        {t.journeyArrivalTime ?? 'Ankomsttid'}
+      </button>
+    </div>
+    {#if timeMode !== 'now'}
+      <div class="datetime-row">
+        <label>{t.journeyDate ?? 'Datum'}<input type="date" min={localDateValue()} bind:value={travelDate} /></label>
+        <label>{t.journeyTime ?? 'Tid'}<input type="time" bind:value={travelTime} /></label>
+      </div>
+    {/if}
+  </div>
+
+  <button type="button" class="advanced-toggle" aria-expanded={advancedOpen} aria-controls="journey-advanced-options" onclick={() => advancedOpen = !advancedOpen}>
+    <span class="advanced-toggle-copy">
+      <span class="advanced-title">{t.journeyAdvanced ?? 'Avancerat'}</span>
+      <span class="advanced-summary">{advancedSummary}</span>
+    </span>
+    <svg class:open={advancedOpen} class="advanced-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+      {@html chevronDown}
+    </svg>
+  </button>
+  {#if advancedOpen}
+    <div id="journey-advanced-options" class="advanced-options">
+      <fieldset class="filter-group">
+        <legend>{t.journeyModes ?? 'Färdsätt'}</legend>
+        <div class="mode-options" role="group" aria-label={t.journeyModes ?? 'Färdsätt'}>
+          {#each [['bus', t.transportBus], ['metro', t.transportMetro], ['train', t.transportTrain], ['tram', t.transportTram], ['boat', t.transportBoat]] as [mode, label]}
+            <label class="filter-option" class:selected={transportModes.includes(mode as typeof transportModes[number])}>
+              <input type="checkbox" checked={transportModes.includes(mode as typeof transportModes[number])} onchange={(event) => {
+              const checked = (event.currentTarget as HTMLInputElement).checked;
+              transportModes = checked
+                ? [...transportModes, mode as typeof transportModes[number]]
+                : transportModes.filter((item) => item !== mode);
+              }} />
+              <span class="filter-check" aria-hidden="true">✓</span>
+              <TransportIcon type={mode as typeof transportModes[number]} size={17} />
+              <span>{label}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+      <fieldset class="filter-group">
+        <legend>{t.journeyMaxChanges ?? 'Max byten'}</legend>
+        <div class="segmented-options" role="radiogroup" aria-label={t.journeyMaxChanges ?? 'Max byten'}>
+          {#each [[0, '0'], [1, '1'], [2, '2'], [3, '3+']] as [value, label]}
+            <label class="segment-option" class:selected={maxChanges === value}>
+              <input type="radio" name="journey-max-changes" value={value} checked={maxChanges === value} onchange={() => maxChanges = value as number} />
+              <span>{label}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+      <fieldset class="filter-group">
+        <legend>{t.journeyRoutePreference ?? 'Prioritera'}</legend>
+        <div class="preference-options" role="radiogroup" aria-label={t.journeyRoutePreference ?? 'Prioritera'}>
+          {#each [['leasttime', t.journeyFastest ?? 'Snabbast'], ['leastinterchange', t.journeyFewestChanges ?? 'Färre byten'], ['leastwalking', t.journeyLeastWalking ?? 'Minst gång']] as [value, label]}
+            <label class="preference-option" class:selected={routeType === value}>
+              <input type="radio" name="journey-route-preference" value={value} checked={routeType === value} onchange={() => routeType = value as JourneyRouteType} />
+              <span class="preference-indicator" aria-hidden="true"></span>
+              <span>{label}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+    </div>
+  {/if}
 
   {#if noResults}
     <p class="status-text">{t.journeyNoRoutes}</p>
@@ -500,19 +653,84 @@
     padding: 12px 16px 16px;
   }
 
-  .search-fields {
+  .step-content {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin-bottom: 10px;
+  }
+
+  .search-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    column-gap: 12px;
+    align-items: stretch;
+    margin-bottom: 8px;
     position: relative;
+  }
+
+  .location-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .swap-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    min-height: 0;
+    margin-top: 17px;
   }
 
   .field-arrow {
     display: flex;
     justify-content: center;
-    color: var(--text-muted);
-    padding: 2px 0;
+    align-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0;
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+  }
+
+  .field-arrow-visual {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface-emphasis);
+    transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+  }
+
+  .field-arrow-visual svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .field-arrow:hover,
+  .field-arrow:focus-visible {
+    color: var(--accent);
+    outline: none;
+  }
+
+  .field-arrow:hover .field-arrow-visual,
+  .field-arrow:focus-visible .field-arrow-visual {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .field-arrow:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .field-label {
@@ -640,7 +858,8 @@
 
   .search-btn {
     width: 100%;
-    padding: 10px;
+    min-height: 44px;
+    padding: 10px 16px;
     border: none;
     border-radius: var(--radius-sm, 8px);
     background: var(--accent);
@@ -650,10 +869,274 @@
     font-family: inherit;
     cursor: pointer;
     margin-bottom: 12px;
+    order: 3;
+  }
+
+  .time-options { order: 1; margin: 2px 0 8px; }
+  .options-label, .advanced-options legend {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .time-mode-row { display: flex; gap: 4px; }
+  .time-mode-row button {
+    flex: 1;
+    min-height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .time-mode-row button.active {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    color: var(--text);
+    font-weight: 700;
+  }
+  .datetime-row { display: flex; gap: 8px; margin-top: 8px; }
+  .datetime-row label {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .datetime-row input {
+    min-height: 38px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  .advanced-toggle {
+    order: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .advanced-toggle-copy {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .advanced-title {
+    color: var(--text);
+    flex: 0 0 auto;
+  }
+
+  .advanced-summary {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .advanced-summary {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .advanced-chevron {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    transition: transform 150ms ease, color 150ms ease;
+  }
+
+  .advanced-chevron.open {
+    transform: rotate(180deg);
+    color: var(--accent);
+  }
+
+  .advanced-toggle:hover .advanced-chevron,
+  .advanced-toggle:focus-visible .advanced-chevron {
+    color: var(--accent);
+  }
+
+  .advanced-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .advanced-options {
+    order: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 12px);
+    background: var(--surface-emphasis);
+  }
+
+  .filter-group {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .filter-group + .filter-group {
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .filter-group legend {
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mode-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .filter-option,
+  .segment-option,
+  .preference-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  }
+
+  .filter-option {
+    gap: 7px;
+    padding: 6px 8px;
+  }
+
+  .filter-option:hover,
+  .segment-option:hover,
+  .preference-option:hover {
+    border-color: var(--accent);
+  }
+
+  .filter-option.selected,
+  .segment-option.selected,
+  .preference-option.selected {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    color: var(--text);
+  }
+
+  .filter-option:focus-within,
+  .segment-option:focus-within,
+  .preference-option:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .filter-option input,
+  .segment-option input,
+  .preference-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .filter-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: 5px;
+    color: transparent;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .filter-option.selected .filter-check {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+
+  .segmented-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .segment-option {
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .preference-options {
+    display: grid;
+    gap: 6px;
+  }
+
+  .preference-option {
+    gap: 8px;
+    padding: 6px 10px;
+  }
+
+  .preference-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+  }
+
+  .preference-option.selected .preference-indicator {
+    border: 4px solid var(--accent);
   }
 
   .search-btn:disabled {
-    opacity: 0.5;
+    opacity: 1;
+    border: 1px solid var(--border);
+    background: var(--surface-emphasis);
+    color: var(--text-muted);
     cursor: not-allowed;
   }
 
@@ -662,12 +1145,14 @@
     color: var(--text-muted);
     text-align: center;
     padding: 16px 0;
+    order: 4;
   }
 
   .results-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    order: 4;
   }
 
   .result-card {
@@ -778,7 +1263,7 @@
   .step-progress {
     display: flex;
     align-items: flex-start;
-    padding: 0 0 12px 0;
+    padding: 0 0 8px 0;
     width: 100%;
   }
 
@@ -843,21 +1328,14 @@
   }
 
   .step-label {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    text-align: center;
-    transition: color 0.2s ease;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
     white-space: nowrap;
-  }
-
-  .step-node.active .step-label {
-    color: var(--text-secondary);
-  }
-
-  .step-node.completed .step-label {
-    color: var(--accent);
+    border: 0;
   }
 </style>

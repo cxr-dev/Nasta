@@ -596,7 +596,7 @@
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
     <!-- Departure list -->
-    <div class="card-list" bind:this={depListEl}>
+    <div class="card-list" bind:this={depListEl} aria-busy={isLoading}>
     {#if lastError}
       <div class="error-bar">
         <span>{lastError}</span>
@@ -605,20 +605,17 @@
     {/if}
 
     {#if isLoading}
-      <div class="loading-skeleton">
+      <div class="loading-skeleton" aria-hidden="true">
         {#each Array(3) as _, i (i)}
           <div class="skeleton-card">
-            <div class="skeleton-inner">
-              <div class="skeleton-accent"></div>
-              <div class="skeleton-body">
-                <div class="skeleton-icon"></div>
-                <div class="skeleton-meta">
-                  <div class="sk-line sk-route"></div>
-                  <div class="sk-line sk-stop"></div>
-                  <div class="sk-line sk-dest"></div>
-                </div>
-                <div class="sk-countdown"></div>
+            <div class="skeleton-body">
+              <div class="skeleton-icon"></div>
+              <div class="skeleton-meta">
+                <div class="sk-line sk-route"></div>
+                <div class="sk-line sk-stop"></div>
+                <div class="sk-line sk-dest"></div>
               </div>
+              <div class="sk-countdown"></div>
             </div>
           </div>
         {/each}
@@ -940,28 +937,36 @@
     gap: 6px;
   }
   .skeleton-card {
+    position: relative;
     display: flex;
     flex-direction: column;
-    border-radius: 14px;
+    min-width: 0;
+    border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
   }
-  .skeleton-inner {
-    display: flex;
-    flex-direction: column;
-  }
-  .skeleton-accent {
-    width: 100%;
-    height: 4px;
-    background: var(--border);
+  .skeleton-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      110deg,
+      transparent 22%,
+      color-mix(in oklch, var(--surface) 68%, var(--text) 32%) 50%,
+      transparent 78%
+    );
+    transform: translateX(-100%);
+    animation: skeleton-shimmer 1.7s ease-in-out infinite;
   }
   .skeleton-body {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    min-height: 58px;
+    min-height: 64px;
   }
   .skeleton-icon {
     width: 32px;
@@ -979,9 +984,7 @@
   }
   .sk-line {
     border-radius: 4px;
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
-    background-size: 200% 100%;
-    animation: sk-shimmer 1.5s ease-in-out infinite;
+    background: var(--border);
   }
   .sk-route { width: 60px; height: 16px; }
   .sk-stop { width: 130px; height: 10px; }
@@ -991,16 +994,13 @@
     height: 28px;
     border-radius: 4px;
     flex-shrink: 0;
-    background: linear-gradient(90deg, var(--border) 0%, var(--surface-emphasis, color-mix(in oklch, var(--surface) 92%, #000 8%)) 50%, var(--border) 100%);
-    background-size: 200% 100%;
-    animation: sk-shimmer 1.5s ease-in-out infinite;
+    background: var(--border);
   }
-  @keyframes sk-shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  @keyframes skeleton-shimmer {
+    to { transform: translateX(100%); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .sk-line, .sk-countdown { animation: none; opacity: 0.4; }
+    .skeleton-card::after { display: none; }
   }
 
   .empty-state {
@@ -1086,10 +1086,26 @@
 
   /* ── Tablet: multi-column segments ── */
   @media (min-width: 768px) {
+    .content-section {
+      min-width: 0;
+    }
+
+    .content-section + .content-section {
+      margin-top: 0;
+      padding-top: 0;
+      padding-left: 12px;
+      border-top: 0;
+      border-left: 1px solid var(--border);
+    }
+
+    .content-section-heading {
+      min-height: 42px;
+    }
+
     .card-list {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 12px;
       align-content: start;
       align-items: start;
     }
@@ -1104,6 +1120,11 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+    }
+
+    .card-list > .loading-skeleton {
+      grid-column: 1 / -1;
+      width: 100%;
     }
 
     .page-title {

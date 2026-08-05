@@ -70,6 +70,18 @@ export interface JourneySearchRequest {
   originCoord?: [number, number];
   /** Destination coordinates (from address selection, bypasses stop-finder) */
   destCoord?: [number, number];
+  /** Search relative to the current time or a selected local Stockholm time. */
+  timeMode?: JourneyTimeMode;
+  /** Local Stockholm date in YYYY-MM-DD format. */
+  date?: string;
+  /** Local Stockholm time in HH:mm format. */
+  time?: string;
+  /** Transport modes to include. Empty/undefined means all supported modes. */
+  transportModes?: TransportType[];
+  /** Maximum number of changes allowed by the planner. */
+  maxChanges?: number;
+  /** Planner route strategy. */
+  routeType?: JourneyRouteType;
   /** AbortSignal for cancellation */
   signal?: AbortSignal;
 }
@@ -81,7 +93,16 @@ export interface JourneyQuery {
   destination: string;
   originCoord?: [number, number];
   destinationCoord?: [number, number];
+  timeMode?: JourneyTimeMode;
+  date?: string;
+  time?: string;
+  transportModes?: TransportType[];
+  maxChanges?: number;
+  routeType?: JourneyRouteType;
 }
+
+export type JourneyTimeMode = 'now' | 'departure' | 'arrival';
+export type JourneyRouteType = 'leasttime' | 'leastinterchange' | 'leastwalking';
 
 export interface ActiveJourneySnapshot {
   journeyId: string;

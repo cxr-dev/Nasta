@@ -216,6 +216,48 @@ test.describe("Weather badge in departure cards", () => {
   });
 });
 
+test.describe("Departure skeleton loader", () => {
+  test("spans the tablet list width and keeps three compact cards", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.route("**/*.integration.sl.se/**", async (route) => {
+      if (route.request().url().includes("departures")) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+      await mockSlApi(route);
+    });
+
+    await page.addInitScript(() => {
+      localStorage.setItem("nasta_routes", JSON.stringify([
+        {
+          id: "skeleton-1",
+          name: "Skeleton test",
+          segments: [{
+            id: "skeleton-segment-1",
+            line: "14",
+            lineName: "14",
+            direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+            fromStop: { id: "from-1", name: "T-Centralen", siteId: "100" },
+            toStop: { id: "to-1", name: "Mörby centrum", siteId: "456" },
+            transportType: "metro",
+          }],
+        },
+      ]));
+    });
+
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+
+    const skeleton = page.locator(".loading-skeleton");
+    await expect(skeleton).toBeVisible({ timeout: 5000 });
+    await expect(skeleton.locator(".skeleton-card")).toHaveCount(3);
+
+    const listBox = await page.locator(".card-list").boundingBox();
+    const skeletonBox = await skeleton.boundingBox();
+    expect(listBox).not.toBeNull();
+    expect(skeletonBox).not.toBeNull();
+    expect(skeletonBox!.width).toBeGreaterThan(listBox!.width * 0.9);
+  });
+});
+
 // ─────────────────────────────────────────────
 // 2. JOURNEY CARD
 // ─────────────────────────────────────────────
@@ -307,6 +349,106 @@ test.describe("JourneyCard for multi-leg journeys", () => {
     await expect(departureCard).not.toBeVisible({ timeout: 5000 });
   });
 
+  test("refreshes saved journeys using the stored route preference", async ({ page }) => {
+    const now = Date.now();
+    const rawTrip = (departureMinutes: number, arrivalMinutes: number, durationMinutes: number, legs: number) => ({
+      legs: Array.from({ length: legs }, (_, index) => ({
+        origin: {
+          name: index === 0 ? "T-Centralen" : "Östermalmstorg",
+          disassembledName: index === 0 ? "T-Centralen" : "Östermalmstorg",
+          departureTimePlanned: new Date(now + (departureMinutes + index * 8) * 60000).toISOString(),
+        },
+        destination: {
+          name: index === legs - 1 ? "Mörby centrum" : "Östermalmstorg",
+          disassembledName: index === legs - 1 ? "Mörby centrum" : "Östermalmstorg",
+          arrivalTimePlanned: new Date(now + (arrivalMinutes - (legs - index - 1) * 8) * 60000).toISOString(),
+        },
+        transportation: {
+          name: "Tunnelbana 14",
+          disassembledName: "14",
+          product: { name: "METRO" },
+        },
+        duration: durationMinutes * 60 / legs,
+        direction: 1,
+        directionName: "Mörby centrum",
+      })),
+    });
+
+    await page.route("**/*.integration.sl.se/**", async (route) => {
+      const url = route.request().url();
+      if (url.includes("/trips")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            // The zero-transfer option arrives later, proving the stored
+            // leastinterchange preference is applied during refresh.
+            journeys: [
+              rawTrip(3, 20, 17, 2),
+              rawTrip(5, 30, 25, 1),
+            ],
+          }),
+        });
+        return;
+      }
+      await mockSlApi(route);
+    });
+
+    const routes = [{
+      id: "refresh-test",
+      name: "Refresh Test",
+      segments: [{
+        id: "refresh-segment",
+        line: "14",
+        lineName: "14",
+        direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+        fromStop: { id: "f1", name: "T-Centralen", siteId: "100" },
+        toStop: { id: "t1", name: "Mörby centrum", siteId: "456" },
+        transportType: "metro",
+        journeyMeta: {
+          journeyId: "old-journey",
+          originLabel: "T-Centralen",
+          destLabel: "Mörby centrum",
+          totalDurationMin: 10,
+          transfers: 1,
+          updatedAt: now,
+          status: "planned",
+          query: {
+            origin: "T-Centralen",
+            destination: "Mörby centrum",
+            originCoord: [59.33, 18.06],
+            destinationCoord: [59.4, 18.05],
+            routeType: "leastinterchange",
+          },
+          legs: [{
+            originName: "T-Centralen",
+            destName: "Mörby centrum",
+            transportType: "metro" as const,
+            line: "14",
+            lineName: "14",
+            directionCode: 1,
+            directionName: "Mörby centrum",
+            departureTime: now + 30 * 60000,
+            arrivalTime: now + 40 * 60000,
+            durationMin: 10,
+            platformPosition: "middle" as const,
+          }],
+        },
+      }],
+    }];
+
+    await page.addInitScript((data) => {
+      localStorage.setItem("nasta_routes", JSON.stringify(data));
+    }, routes);
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await disableAnimations(page);
+
+    const journeyCard = page.locator("article.journey-card");
+    await expect(journeyCard).toBeVisible({ timeout: 15000 });
+    await expect(journeyCard.locator(".transfers")).toContainText("Direct", { timeout: 15000 });
+    await expect(journeyCard.locator(".duration")).toContainText("25 min");
+  });
+
   test("renders DepartureRow when segment has no journeyMeta", async ({ page }) => {
     await page.route("**/*.integration.sl.se/**", mockSlApi);
 
@@ -349,9 +491,29 @@ test.describe("JourneyCard for multi-leg journeys", () => {
 // ─────────────────────────────────────────────
 // 3. STATION GROUPING PILL LAYOUT
 // ─────────────────────────────────────────────
-test.describe("Station grouping pill layout", () => {
-  test("shows stacked-pill and dest-text-full when grouping by station", async ({ page }) => {
-    await page.route("**/*.integration.sl.se/**", mockSlApi);
+test.describe("Station grouping C2 layout", () => {
+  test("shows destination-first cards with a fixed countdown rail when grouping by station", async ({ page }) => {
+    await page.route("**/*.integration.sl.se/**", async (route) => {
+      if (route.request().url().includes("departures")) {
+        const now = new Date();
+        const dep = (mins: number) => new Date(now.getTime() + mins * 60000).toISOString();
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            departures: [3, 13, 23].map((mins) => ({
+              line: { designation: "14" },
+              direction_code: 1,
+              destination: "Mörby centrum",
+              display: `${mins} min`,
+              expected: dep(mins),
+            })),
+          }),
+        });
+        return;
+      }
+      await mockSlApi(route);
+    });
 
     // Seed routes with multiple segments from the same station
     const routes = [
@@ -400,21 +562,51 @@ test.describe("Station grouping pill layout", () => {
     await expect(sectionLabel).toBeVisible({ timeout: 5000 });
     await expect(sectionLabel).toContainText("T-Centralen");
 
-    // Stacked pill should be visible (station mode)
+    // Service identity remains visible in the lower-left service row.
     const stackedPill = page.locator(".stacked-pill");
     await expect(stackedPill).toHaveCount(2, { timeout: 10000 });
     await expect(stackedPill.first()).toContainText("14");
     await expect(stackedPill.nth(1)).toContainText("17");
 
-    // Destination text should be visible with bigger font
-    const destTextFull = page.locator(".dest-text-full");
-    await expect(destTextFull).toHaveCount(2, { timeout: 5000 });
-    await expect(destTextFull.first()).toContainText("Mörby centrum");
-    await expect(destTextFull.nth(1)).toContainText("Skarpnäck");
+    const stationCards = page.locator(".station-card-main");
+    await expect(stationCards).toHaveCount(2, { timeout: 5000 });
+    await expect(page.locator(".station-destination")).toHaveCount(2);
+    await expect(page.locator(".station-destination").first()).toContainText("Mörby centrum");
+    await expect(page.locator(".station-destination").nth(1)).toContainText("Skarpnäck");
+
+    // Countdown and subsequent times occupy separate parts of the card.
+    await expect(page.locator(".station-time-rail")).toHaveCount(2);
+    await expect(page.locator(".station-clock-times").first()).toBeVisible();
+    await expect(page.locator(".station-card-main .station-divider")).toHaveCount(0);
+
+    const firstCard = stationCards.first();
+    const identityBox = await firstCard.locator(".station-service-identity").boundingBox();
+    const timesBox = await firstCard.locator(".station-clock-times").boundingBox();
+    const metricBox = await firstCard.locator(".station-time-rail").boundingBox();
+    expect(identityBox).not.toBeNull();
+    expect(timesBox).not.toBeNull();
+    expect(metricBox).not.toBeNull();
+    expect(timesBox!.x).toBeGreaterThan(identityBox!.x + identityBox!.width);
+    expect(timesBox!.x + timesBox!.width).toBeLessThan(metricBox!.x + metricBox!.width);
+
+    // The station name belongs to the group header, not each card.
+    await expect(stationCards.first()).not.toContainText("T-Centralen");
 
     // from-stop should NOT be visible (hidden in station mode)
     const fromStop = page.locator(".from-stop");
     await expect(fromStop).not.toBeVisible({ timeout: 5000 });
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 820, height: 1180 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page.locator(".station-card-main").first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator(".station-card-main")).toHaveCount(2);
+      await expect(page.locator(".station-time-rail").first()).toBeVisible();
+      await expect(page.locator(".station-time-rail .countdown").first()).toHaveCSS("white-space", "nowrap");
+    }
   });
 
   test("shows normal layout when grouping mode is not station", async ({ page }) => {
@@ -460,9 +652,9 @@ test.describe("Station grouping pill layout", () => {
     const stackedPill = page.locator(".stacked-pill");
     await expect(stackedPill).not.toBeVisible({ timeout: 5000 });
 
-    // dest-text-full should NOT be visible (station-only class)
-    const destTextFull = page.locator(".dest-text-full");
-    await expect(destTextFull).not.toBeVisible({ timeout: 5000 });
+    // Station-only structure should not be present.
+    const stationCard = page.locator(".station-card-main");
+    await expect(stationCard).toHaveCount(0);
 
     // to-dest should be visible
     const toDest = page.locator(".to-dest");

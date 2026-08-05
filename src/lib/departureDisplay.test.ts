@@ -17,6 +17,8 @@ describe('getDepartureUrgency', () => {
 
   it('uses expectedAt for live urgency', () => {
     expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 30_000 }, now)).toBe('now');
+    expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 45_000 }, now)).toBe('now');
+    expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 179_000 }, now)).toBe('imminent');
     expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 90_000 }, now)).toBe('imminent');
     expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 4 * 60_000 }, now)).toBe('soon');
     expect(getDepartureUrgency({ ...baseDeparture, expectedAt: now + 6 * 60_000 }, now)).toBe('later');
@@ -24,6 +26,7 @@ describe('getDepartureUrgency', () => {
 
   it('falls back to numeric scheduled minutes', () => {
     expect(getDepartureUrgency({ ...baseDeparture, minutes: 0 }, now)).toBe('now');
+    expect(getDepartureUrgency({ ...baseDeparture, minutes: 3 }, now)).toBe('imminent');
     expect(getDepartureUrgency({ ...baseDeparture, minutes: 2 }, now)).toBe('imminent');
     expect(getDepartureUrgency({ ...baseDeparture, minutes: 5 }, now)).toBe('soon');
     expect(getDepartureUrgency({ ...baseDeparture, minutes: 6 }, now)).toBe('later');
