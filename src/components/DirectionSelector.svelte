@@ -106,15 +106,17 @@ function handleConfirm() {
     border: 1.5px solid var(--border);
     border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s cubic-bezier(0.2, 0, 0, 1), color 0.2s ease;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    animation: optionEnter 0.3s ease-out both;
+    animation: optionEnter 0.24s ease-out both;
     animation-delay: calc(var(--i) * 0.05s);
   }
 
-  .direction-option:hover {
-    border-color: var(--accent);
+  @media (hover: hover) and (pointer: fine) {
+    .direction-option:hover {
+      border-color: var(--accent);
+    }
   }
 
   .direction-option.selected {
@@ -155,17 +157,19 @@ function handleConfirm() {
   }
 
   .direction-option.selected .radio-circle::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .radio-circle::after {
     content: '';
     width: 10px;
     height: 10px;
     border-radius: 50%;
     background: var(--accent);
-    transform: scale(1);
-  }
-
-  .radio-circle::after {
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.16s ease-out;
+    transform: scale(0.85);
   }
 
   .direction-option-content {
@@ -230,7 +234,11 @@ function handleConfirm() {
       animation: none;
     }
     .radio-circle::after {
-      transition: none;
+      transition: opacity 160ms ease-out;
+      transform: none;
+    }
+    .direction-option.selected .radio-circle::after {
+      transform: none;
     }
   }
 </style>

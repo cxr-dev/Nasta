@@ -108,7 +108,7 @@ let listEl = $state<HTMLDivElement>();
           x: -el.offsetWidth,
           opacity: 0,
           duration: 0.25,
-          ease: 'power2.in',
+          ease: 'power2.out',
           onComplete: () => removeSegment(segmentId),
         });
       } else {

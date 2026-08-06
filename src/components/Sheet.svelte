@@ -152,8 +152,8 @@
     if (dy > SWIPE_THRESHOLD) {
       gsap.to(sheetEl, {
         y: '100%',
-        duration: 0.3,
-        ease: 'power2.in',
+        duration: 0.2,
+        ease: 'power2.out',
         onComplete: () => {
           onClose();
           dragging = false;
@@ -320,11 +320,15 @@
 
   @media (prefers-reduced-motion: reduce) {
     .sheet-overlay,
-    .sheet-overlay.open,
+    .sheet-overlay.open {
+      transition: opacity 160ms ease, background-color 160ms ease, visibility 0s linear 0s !important;
+    }
+
     .sheet,
     .sheet-overlay.open .sheet,
     .sheet.dragging {
       transition: none !important;
+      transform: none !important;
     }
   }
 

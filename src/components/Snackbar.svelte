@@ -4,15 +4,17 @@
     actionLabel = '',
     onAction,
     onClose,
+    closing = false,
   }: {
     message: string;
     actionLabel?: string;
     onAction?: () => void;
     onClose?: () => void;
+    closing?: boolean;
   } = $props();
 </script>
 
-<div class="snackbar" role="status" aria-live="polite">
+<div class="snackbar" class:closing role="status" aria-live="polite">
   <span>{message}</span>
   {#if actionLabel && onAction}
     <button type="button" onclick={onAction}>{actionLabel}</button>
@@ -42,6 +44,19 @@
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
     color: var(--text);
     font-size: 14px;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+  }
+
+  .snackbar.closing {
+    opacity: 0;
+    transform: translateY(100%);
   }
 
   .snackbar span { flex: 1; }
@@ -70,5 +85,13 @@
     width: 32px;
     color: var(--text-muted);
     font-size: 20px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar,
+    .snackbar.closing {
+      transition: opacity 160ms ease;
+      transform: none;
+    }
   }
 </style>

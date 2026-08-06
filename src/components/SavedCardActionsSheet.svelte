@@ -286,7 +286,14 @@
       border: 1px solid var(--border);
       border-radius: 14px;
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
-      transform: none !important;
+      transform: scale(0.97) !important;
+      transform-origin: top center;
+      opacity: 0 !important;
+      transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), transform 160ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+    }
+
+    :global(.sheet-overlay.open .sheet.saved-card-actions-sheet.popover) {
+      transform: scale(1) !important;
       opacity: 1 !important;
     }
 
@@ -327,6 +334,12 @@
     .action-button,
     .page-option {
       transition: none;
+    }
+
+    :global(.sheet.saved-card-actions-sheet.popover),
+    :global(.sheet-overlay.open .sheet.saved-card-actions-sheet.popover) {
+      transition: opacity 160ms ease !important;
+      transform: none !important;
     }
   }
 </style>

@@ -827,7 +827,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
     transition: background 150ms cubic-bezier(0.2, 0, 0, 1);
   }
 
-  @media (hover: hover) {
+  @media (hover: hover) and (pointer: fine) {
     .item:hover {
       background: var(--border);
     }
@@ -1014,10 +1014,9 @@ function filterIconType(type: TransportFilterOption): TransportType {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
-    transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
-    will-change: transform, border-color;
+    transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1), border-color 180ms cubic-bezier(0.2, 0, 0, 1), transform 180ms cubic-bezier(0.2, 0, 0, 1);
   }
-  @media (hover: hover) {
+  @media (hover: hover) and (pointer: fine) {
     .dep-item:hover {
       border-color: var(--accent);
       transform: translateY(-1px);
@@ -1119,22 +1118,22 @@ function filterIconType(type: TransportFilterOption): TransportType {
   }
 
   .step-dot {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     border: 1.5px solid var(--border);
     background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s ease, border-color 0.2s ease, width 0.2s ease, height 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    transform: scale(0.8333);
   }
 
   .step-node.active .step-dot {
-    width: 12px;
-    height: 12px;
     background: var(--accent);
     border-color: var(--accent);
+    transform: scale(1);
   }
 
   .step-node.completed .step-dot {

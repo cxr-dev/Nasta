@@ -46,7 +46,9 @@
   let editingSegment = $state<Segment | null>(null);
   let editingSegmentPageId = $state<string | null>(null);
   let snackbar = $state<{ message: string; snapshot?: RemovedSegmentSnapshot } | null>(null);
+  let snackbarClosing = $state(false);
   let snackbarTimer: ReturnType<typeof setTimeout> | null = null;
+  let snackbarCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
   let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
   let quickAddHandleDragging = $state(false);
@@ -354,8 +356,10 @@
 
   function showSnackbar(message: string, snapshot?: RemovedSegmentSnapshot) {
     if (snackbarTimer) clearTimeout(snackbarTimer);
+    if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
+    snackbarClosing = false;
     snackbar = { message, snapshot };
-    snackbarTimer = setTimeout(() => snackbar = null, 5000);
+    snackbarTimer = setTimeout(closeSnackbar, 5000);
   }
 
   function openEditSegment(segment: Segment) {
@@ -401,8 +405,7 @@
     const pending = snackbar?.snapshot;
     if (!pending) return;
     if (restoreSegment(pending)) {
-      snackbar = null;
-      if (snackbarTimer) clearTimeout(snackbarTimer);
+      closeSnackbar();
       void loadDepartures(true);
     } else {
       showSnackbar(t.restoreFailed ?? 'The item could not be restored.');
@@ -410,8 +413,18 @@
   }
 
   function closeSnackbar() {
-    snackbar = null;
-    if (snackbarTimer) clearTimeout(snackbarTimer);
+    if (snackbarTimer) {
+      clearTimeout(snackbarTimer);
+      snackbarTimer = null;
+    }
+    if (!snackbar) return;
+    snackbarClosing = true;
+    if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
+    snackbarCloseTimer = setTimeout(() => {
+      snackbar = null;
+      snackbarClosing = false;
+      snackbarCloseTimer = null;
+    }, 180);
   }
 
   async function refreshSavedJourneys(page = getActivePage(), force = false): Promise<void> {
@@ -685,21 +698,7 @@ function closeSettingsPanel() {
     }
 
     if (pullDistance > 0) {
-      const indicator = document.querySelector('.pull-indicator') as HTMLElement | null;
-      if (indicator) {
-        gsap.to(indicator, {
-          height: 0,
-          duration: 0.35,
-          ease: 'back.out(2.5)',
-          overwrite: 'auto',
-          onComplete: () => {
-            pullDistance = 0;
-            gsap.set(indicator, { clearProps: 'height' });
-          },
-        });
-      } else {
-        pullDistance = 0;
-      }
+      pullDistance = 0;
       return;
     }
     pullDistance = 0;
@@ -824,6 +823,8 @@ function closeSettingsPanel() {
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
     stopCacheLifecycle();
+    if (snackbarTimer) clearTimeout(snackbarTimer);
+    if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
   });
 </script>
 
@@ -968,6 +969,7 @@ function closeSettingsPanel() {
         actionLabel={snackbar.snapshot ? (t.undo ?? 'Undo') : undefined}
         onAction={snackbar.snapshot ? undoRemoval : undefined}
         onClose={closeSnackbar}
+        closing={snackbarClosing}
       />
     {/if}
 
@@ -1048,7 +1050,10 @@ function closeSettingsPanel() {
     :global(*::before),
     :global(*::after) {
       animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 160ms !important;
+      transition-delay: 0ms !important;
+      transition-property: color, background-color, border-color, opacity, box-shadow, fill, stroke !important;
     }
   }
 
@@ -1144,14 +1149,11 @@ function closeSettingsPanel() {
     justify-content: center;
     height: var(--pull, 0px);
     overflow: hidden;
-    transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: height;
     flex-shrink: 0;
   }
 
   .pull-indicator.refreshing {
     height: 52px;
-    transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .ptr-icon {
@@ -1311,6 +1313,12 @@ function closeSettingsPanel() {
     flex-direction: column;
     align-items: center;
     gap: 16px;
+    transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1), transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
 
   .empty-illustration {
@@ -1365,6 +1373,13 @@ function closeSettingsPanel() {
 
   .empty-cta:active {
     transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .empty-state {
+      transition: opacity 160ms ease;
+      transform: none;
+    }
   }
 
 

@@ -386,15 +386,23 @@
     inset: 0;
     z-index: 1000;
     background: #343b41;
-    animation: fullscreen-in 200ms ease-out both;
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 150ms ease-out, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
     display: flex;
     align-items: center;
     justify-content: center;
     touch-action: none;
     overscroll-behavior: none;
+
+    @starting-style {
+      opacity: 0;
+      transform: scale(0.96);
+    }
   }
   .map-overlay.closing {
-    animation: fullscreen-out 150ms ease-in both;
+    opacity: 0;
+    transform: scale(0.96);
   }
   .close-btn {
     position: absolute;
@@ -465,24 +473,17 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
-  @keyframes fullscreen-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  @keyframes fullscreen-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.96); }
-  }
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
   @media (prefers-reduced-motion: reduce) {
     .map-overlay {
-      animation: none;
+      transition: opacity 160ms ease;
+      transform: none;
     }
     .map-overlay.closing {
-      animation: none;
       opacity: 0;
+      transform: none;
     }
     .skeleton-spinner {
       animation: none;

@@ -33,6 +33,7 @@
   let mapInstance: any = null;
   let mapLoadError = $state(false);
   let isFullscreen = $state(false);
+  let fullscreenVisible = $state(false);
   let isClosing = $state(false);
 
   $effect(() => {
@@ -160,13 +161,22 @@
       lockBodyScroll(false);
       setTimeout(() => {
         isFullscreen = false;
+        fullscreenVisible = false;
         isClosing = false;
         requestAnimationFrame(() => mapInstance?.resize());
-      }, 150);
+      }, prefersReducedMotion() ? 0 : 150);
     } else {
       isFullscreen = true;
-      requestAnimationFrame(() => mapInstance?.resize());
+      fullscreenVisible = false;
+      requestAnimationFrame(() => {
+        if (isFullscreen) fullscreenVisible = true;
+        mapInstance?.resize();
+      });
     }
+  }
+
+  function prefersReducedMotion() {
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 </script>
 
@@ -191,6 +201,7 @@
       <div
         class="map-container"
         class:fullscreen={isFullscreen}
+        class:visible={fullscreenVisible}
         class:closing={isClosing}
         ontouchstart={isFullscreen ? stopTouchPropagation : undefined}
         ontouchmove={isFullscreen ? stopTouchPropagation : undefined}
@@ -326,16 +337,23 @@
   }
   .map-container {
     position: relative;
+    transition: opacity 150ms ease-out, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
   }
   .map-container.fullscreen {
     position: fixed;
     inset: 0;
     z-index: var(--z-overlay);
     background: #000;
-    animation: fullscreen-in 200ms ease-out both;
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  .map-container.fullscreen.visible {
+    opacity: 1;
+    transform: scale(1);
   }
   .map-container.closing {
-    animation: fullscreen-out 150ms ease-in both;
+    opacity: 0;
+    transform: scale(0.96);
   }
   .map-container.fullscreen .mini-map {
     height: 100dvh;
@@ -370,13 +388,14 @@
     width: 18px;
     height: 18px;
   }
-  @keyframes fullscreen-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  @keyframes fullscreen-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.96); }
+  @media (prefers-reduced-motion: reduce) {
+    .map-container,
+    .map-container.fullscreen,
+    .map-container.fullscreen.visible,
+    .map-container.closing {
+      transition: opacity 160ms ease;
+      transform: none;
+    }
   }
   :global(.maplibregl-ctrl-attrib-button) {
     width: 20px !important;

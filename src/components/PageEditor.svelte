@@ -75,7 +75,7 @@
       navigator.vibrate?.(10);
       if (el) {
         gsap.killTweensOf(el);
-        gsap.to(el, { x: -el.offsetWidth, opacity: 0, height: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0, duration: 0.25, ease: 'power2.in', onComplete: () => handleDeletePage(pageId) });
+        gsap.to(el, { x: -el.offsetWidth, opacity: 0, duration: 0.2, ease: 'power2.out', onComplete: () => handleDeletePage(pageId) });
       } else { handleDeletePage(pageId); }
       revealedPageId = null;
     } else {

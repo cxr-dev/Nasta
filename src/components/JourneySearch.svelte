@@ -1315,22 +1315,22 @@
   }
 
   .step-dot {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     border: 1.5px solid var(--border);
     background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s ease, border-color 0.2s ease, width 0.2s ease, height 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    transform: scale(0.8333);
   }
 
   .step-node.active .step-dot {
-    width: 12px;
-    height: 12px;
     background: var(--accent);
     border-color: var(--accent);
+    transform: scale(1);
   }
 
   .step-node.completed .step-dot {
