@@ -878,7 +878,7 @@
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 24px;
       align-content: start;
-      align-items: start;
+      align-items: stretch;
     }
 
     /* Error and quick-add rows are siblings, so only-of-type keeps a lone

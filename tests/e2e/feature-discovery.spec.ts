@@ -195,6 +195,7 @@ test.describe("feature discovery sheet", () => {
               lat: 59.33,
               lon: 18.07,
             },
+            categories: [{ slug: "music", title: "Music" }],
           },
         ]),
       });
@@ -284,7 +285,11 @@ test.describe("feature discovery sheet", () => {
     expect(eventRequestCount).toBe(eventRequestsBeforeOpen);
   });
 
-  test("renders a fixed event fallback visual without requesting an image", async ({ page }) => {
+  test("renders a fixed local editorial event visual without an external image request", async ({ page }) => {
+    const externalImageRequests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).hostname === 'images.unsplash.com') externalImageRequests.push(request.url());
+    });
     const segmentRow = page.getByTestId("segment-row").first();
     await expect(segmentRow).toBeVisible({ timeout: 15000 });
     await segmentRow.click({ force: true });
@@ -299,8 +304,29 @@ test.describe("feature discovery sheet", () => {
 
     const visual = card.locator(".event-visual");
     await expect(visual).toBeVisible();
-    await expect(visual.locator("img")).toHaveCount(0);
-    await expect(visual.locator(".event-category-tile")).toBeVisible();
+    await expect(visual.locator("img")).toHaveCount(1);
+    await expect(visual.locator("img")).toHaveAttribute('alt', '');
+    await expect(visual.locator("img")).toHaveAttribute('src', /\/venue-mood\/event-concert-.*\.webp$/);
+    await expect(visual.getByText('Editorial image')).toBeVisible();
+    expect(externalImageRequests).toEqual([]);
+    const bounds = await visual.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBe(80);
+    expect(bounds!.height).toBe(80);
+  });
+
+  test("restores the fixed category fallback if a local editorial image fails", async ({ page }) => {
+    await page.route('**/venue-mood/event-*', (route) => route.abort());
+    const segmentRow = page.getByTestId("segment-row").first();
+    await expect(segmentRow).toBeVisible({ timeout: 15000 });
+    await segmentRow.click({ force: true });
+    await page.getByRole("button", { name: /Discover nearby/i }).click();
+    const drawer = page.locator(".feature-drawer:visible");
+    await drawer.getByRole("tab", { name: /Events/i }).evaluate((button) => (button as HTMLButtonElement).click());
+    const card = page.getByRole("heading", { name: "Jazz Night" }).locator("xpath=ancestor::article");
+    await expect(card).toBeVisible({ timeout: 10000 });
+    const visual = card.locator('.event-visual');
+    await expect(visual.locator('.event-category-tile')).toBeVisible();
     const bounds = await visual.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBe(80);

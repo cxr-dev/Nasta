@@ -9,6 +9,7 @@ describe('resolveVenueMedia', () => {
     expect(resolved.get('venue-0')).toEqual({ kind: 'venue', imageUrl: 'https://images.example.test/venue.jpg' });
     const moodIds = [...resolved.values()].flatMap((media) => media.kind === 'mood' ? [media.image.id] : []);
     expect(new Set(moodIds).size).toBe(moodIds.length);
+    expect(moodIds.every((id) => !id.startsWith('event-'))).toBe(true);
     expect(venueMoodImages).toHaveLength(24);
   });
 

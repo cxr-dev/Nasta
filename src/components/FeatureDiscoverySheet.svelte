@@ -22,6 +22,7 @@
   import { distanceMeters } from '../services/geo';
   import { getSunPosition } from '../lib/sunPosition';
   import { moodImagePath, resolveVenueMedia } from '../data/venueMoodImages';
+  import { eventMoodImagePath, resolveEventMoodMedia } from '../data/eventMoodImages';
 
   function dedupeById<T extends { id: string }>(items: T[]): T[] {
     const seen = new Set<string>();
@@ -258,6 +259,7 @@
           return dA - dB;
         })
   );
+  let eventMedia = $derived(resolveEventMoodMedia(sortedEvents));
 
   let displayItems = $derived(
     activeTab !== 'events'
@@ -545,20 +547,29 @@
           </article>
         {:else}
           {@const event = item as EventItem}
-          {@const hasEventImage = Boolean(event.imageUrl && !failedEventImageIds.has(event.id))}
+          {@const editorialImage = event.imageUrl ? undefined : eventMedia.get(event.id)}
+          {@const hasEventImage = Boolean((editorialImage || event.imageUrl) && !failedEventImageIds.has(event.id))}
           <article class="card" style={`--index:${index}`}>
             <div class="event-heading">
               <div class="event-visual">
               {#if hasEventImage}
-                <img
-                  src={event.imageUrl}
-                  alt=""
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                  fetchpriority={index === 0 ? 'high' : 'auto'}
-                  decoding="async"
-                  onerror={() => { failedEventImageIds = new Set(failedEventImageIds).add(event.id); }}
-                />
-                {#if event.imageCredit && event.imageLicense}
+                {#if editorialImage}
+                  <picture>
+                    <source srcset={eventMoodImagePath(editorialImage, 'avif')} type="image/avif" />
+                    <img src={eventMoodImagePath(editorialImage, 'webp')} alt="" loading={index === 0 ? 'eager' : 'lazy'} fetchpriority={index === 0 ? 'high' : 'auto'} decoding="async" width="320" height="320" onerror={() => { failedEventImageIds = new Set(failedEventImageIds).add(event.id); }} />
+                  </picture>
+                  <span class="mood-label event-editorial-label">{t.eventEditorialImage ?? 'Editorial image'}</span>
+                {:else}
+                  <img
+                    src={event.imageUrl}
+                    alt=""
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    fetchpriority={index === 0 ? 'high' : 'auto'}
+                    decoding="async"
+                    onerror={() => { failedEventImageIds = new Set(failedEventImageIds).add(event.id); }}
+                  />
+                {/if}
+                {#if !editorialImage && event.imageCredit && event.imageLicense}
                   <button class="image-info" type="button" aria-label={t.imageInformation ?? 'Image information'} aria-expanded={imageInfoOpenId === event.id} aria-controls={`event-image-info-${event.id}`} onclick={() => imageInfoOpenId = imageInfoOpenId === event.id ? null : event.id}>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
                   </button>
@@ -871,7 +882,9 @@
   .card-heading, .event-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .event-heading { align-items: flex-start; gap: 10px; }
   .event-visual { position: relative; display: grid; place-items: center; flex: 0 0 72px; width: 72px; height: 72px; overflow: hidden; border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-info-bg) 70%, var(--surface)); color: var(--color-info); }
+  .event-visual picture { display: block; width: 100%; height: 100%; }
   .event-visual img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .event-editorial-label { left: 4px; bottom: 4px; padding: 1px 3px; font-size: 8px; }
   .event-category-tile { width: 100%; height: 100%; display: grid; place-items: center; background: var(--color-info-bg); color: var(--color-info); }
 
   .card-top {

@@ -710,6 +710,14 @@ test.describe("Station grouping C2 layout", () => {
     expect(departureCard!.width).toBe(374);
     expect(journeyCard!.width).toBe(374);
 
+    await page.locator('.departure-card').click();
+    await expect(page.locator('.departure-card.expanded')).toBeVisible();
+    const expandedDepartureSection = await page.locator('.content-section').nth(0).boundingBox();
+    const pairedJourneySection = await page.locator('.content-section').nth(1).boundingBox();
+    expect(expandedDepartureSection).not.toBeNull();
+    expect(pairedJourneySection).not.toBeNull();
+    expect(Math.abs(expandedDepartureSection!.height - pairedJourneySection!.height)).toBeLessThan(1);
+
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 10000 });

@@ -56,9 +56,9 @@ describe('FeatureDiscoverySheet shared session', () => {
     expect(prefetchMock).not.toHaveBeenCalled();
   });
 
-  it('uses a stable fallback visual when the current provider has no event image', async () => {
+  it('uses a stable editorial visual when the current provider has no event image', async () => {
     peekMock.mockImplementation((query: { mode: string }) => query.mode === 'events'
-      ? [{ id: 'event-1', name: 'Jazz Night', startTime: '2026-05-28T20:30:00+02:00', location: 'Central' }]
+      ? [{ id: 'event-1', name: 'Jazz Night', startTime: '2026-05-28T20:30:00+02:00', location: 'Central', categories: [{ slug: 'music', title: 'Music' }] }]
       : undefined);
     const { container, getByText } = render(FeatureDiscoverySheet, {
       props: { ...props, availableModes: ['events'], defaultMode: 'events' },
@@ -67,6 +67,22 @@ describe('FeatureDiscoverySheet shared session', () => {
     await waitFor(() => expect(getByText('Jazz Night')).toBeTruthy());
     const visual = container.querySelector('.event-visual');
     expect(visual).not.toBeNull();
+    const image = visual?.querySelector('img');
+    expect(image?.getAttribute('alt')).toBe('');
+    expect(image?.getAttribute('width')).toBe('320');
+    expect(visual?.textContent).toContain('Editorial image');
+  });
+
+  it('keeps an ambiguous family event on the neutral category fallback', async () => {
+    peekMock.mockImplementation((query: { mode: string }) => query.mode === 'events'
+      ? [{ id: 'event-1', name: 'Museum tour', categories: [{ slug: 'family', title: 'Family' }] }]
+      : undefined);
+    const { container, getByText } = render(FeatureDiscoverySheet, {
+      props: { ...props, availableModes: ['events'], defaultMode: 'events' },
+    });
+
+    await waitFor(() => expect(getByText('Museum tour')).toBeTruthy());
+    const visual = container.querySelector('.event-visual');
     expect(visual?.querySelector('img')).toBeNull();
     expect(visual?.querySelector('.event-category-tile')).not.toBeNull();
   });
