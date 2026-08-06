@@ -1105,6 +1105,9 @@ function closeSettingsPanel() {
     --color-info-subtle: #EEF7FA;
     --color-info-bg:   #EEF7FA;
     --layout-max-width: 480px;
+    --page-gutter: 16px;
+    --transit-card-padding-inline: 14px;
+    --sheet-padding-inline: 16px;
 
     /* Border-radius scale */
     --radius-sm: 8px;
@@ -1173,7 +1176,7 @@ function closeSettingsPanel() {
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 0 20px 0;
+    padding: 0 var(--page-gutter) 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -1213,7 +1216,7 @@ function closeSettingsPanel() {
     background: var(--bg);
     -webkit-mask-image: linear-gradient(to top, black 70%, transparent);
     mask-image: linear-gradient(to top, black 70%, transparent);
-    margin: 0 -20px;
+    margin: 0 calc(var(--page-gutter) * -1);
     padding-top: 16px;
   }
 
@@ -1270,7 +1273,7 @@ function closeSettingsPanel() {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
-    padding: 14px 16px 16px;
+    padding: 14px var(--sheet-padding-inline) var(--sheet-padding-inline);
     bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
@@ -1447,6 +1450,7 @@ function closeSettingsPanel() {
   @media (min-width: 768px) {
     :global(:root) {
       --layout-max-width: 820px;
+      --page-gutter: 24px;
     }
 
     .quick-add-drawer {

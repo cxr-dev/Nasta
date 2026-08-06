@@ -283,4 +283,27 @@ test.describe("feature discovery sheet", () => {
     expect(venueRequestCount).toBe(venueRequestsBeforeOpen);
     expect(eventRequestCount).toBe(eventRequestsBeforeOpen);
   });
+
+  test("renders a fixed event fallback visual without requesting an image", async ({ page }) => {
+    const segmentRow = page.getByTestId("segment-row").first();
+    await expect(segmentRow).toBeVisible({ timeout: 15000 });
+    await segmentRow.click({ force: true });
+    await page.getByRole("button", { name: /Discover nearby/i }).click();
+
+    const drawer = page.locator(".feature-drawer:visible");
+    const sheet = drawer.locator(".sheet-shell");
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await drawer.getByRole("tab", { name: /Events/i }).evaluate((button) => (button as HTMLButtonElement).click());
+    const card = page.getByRole("heading", { name: "Jazz Night" }).locator("xpath=ancestor::article");
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    const visual = card.locator(".event-visual");
+    await expect(visual).toBeVisible();
+    await expect(visual.locator("img")).toHaveCount(0);
+    await expect(visual.locator(".event-category-tile")).toBeVisible();
+    const bounds = await visual.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBe(80);
+    expect(bounds!.height).toBe(80);
+  });
 });

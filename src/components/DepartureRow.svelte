@@ -451,7 +451,7 @@
     align-items: center;
     min-height: 58px;
     width: 100%;
-    padding: 10px 14px;
+    padding: 10px var(--transit-card-padding-inline);
     gap: 10px;
     background: transparent;
     border: none;
@@ -548,7 +548,7 @@
     grid-template-rows: minmax(0, 1fr) auto auto;
     align-items: stretch;
     min-height: 86px;
-    padding: 12px 14px;
+    padding: 12px var(--transit-card-padding-inline);
     column-gap: 10px;
     row-gap: 8px;
   }
@@ -870,7 +870,7 @@
     outline-offset: 1px;
   }
   .expanded-panel > .expanded-actions {
-    padding: 0 14px 14px;
+    padding: 0 var(--transit-card-padding-inline) var(--transit-card-padding-inline);
   }
   .expanded-actions {
     position: relative;
@@ -887,7 +887,7 @@
     }
 
     .card-main {
-      padding: 12px 16px;
+      padding: 12px var(--transit-card-padding-inline);
       gap: 12px;
     }
 

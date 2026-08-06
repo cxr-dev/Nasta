@@ -537,7 +537,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 6px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 0 6px;
   }
   .header-icon-btn {
     display: flex;
@@ -577,7 +577,7 @@
 
 
   .section-label {
-    padding: 12px 16px 4px;
+    padding: 12px 0 4px;
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
@@ -616,8 +616,8 @@
   .card-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 0 14px calc(24px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+    padding: 0 0 24px;
     flex: 1;
     overflow-y: auto;
   }
@@ -629,8 +629,8 @@
   }
 
   .content-section + .content-section {
-    margin-top: 18px;
-    padding-top: 18px;
+    margin-top: 20px;
+    padding-top: 20px;
     border-top: 1px solid var(--border);
   }
 
@@ -639,7 +639,7 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    padding: 0 2px 2px;
+    padding: 0 0 2px;
   }
 
   .content-section-heading h2 {
@@ -779,7 +779,7 @@
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    padding: 12px 14px 6px;
+    padding: 12px 0 6px;
   }
 
   .empty-segments {
@@ -838,14 +838,23 @@
   @media (min-width: 768px) {
     .content-section {
       min-width: 0;
+      position: relative;
     }
 
     .content-section + .content-section {
       margin-top: 0;
       padding-top: 0;
-      padding-left: 12px;
       border-top: 0;
-      border-left: 1px solid var(--border);
+    }
+
+    .content-section + .content-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -12px;
+      width: 1px;
+      background: var(--border);
     }
 
     .content-section-heading {
@@ -854,8 +863,8 @@
 
     .card-list {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 24px;
       align-content: start;
       align-items: start;
     }
@@ -889,7 +898,7 @@
 
   @media (min-width: 768px) and (orientation: landscape) {
     .page-chrome {
-      padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 4px;
+      padding: calc(8px + env(safe-area-inset-top, 0px)) 0 4px;
     }
 
     .page-title {

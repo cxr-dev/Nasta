@@ -55,6 +55,8 @@ function normalizeText(value: any) {
   return "";
 }
 
+// Visit Stockholm's public event feed intentionally excludes event images. Keep this
+// narrow contract for an explicitly licensed source or deterministic test fixture.
 function trustedEventImage(event: any): Pick<EventItem, 'imageUrl' | 'imageCredit' | 'imageSource' | 'imageLicense' | 'imageResolvedAt'> {
   const imageUrl = toHttpsImage(
     event.image_url ??

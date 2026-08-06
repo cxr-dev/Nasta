@@ -398,7 +398,7 @@
 
   .card-body {
     flex: 1;
-    padding: 12px 14px;
+    padding: 12px var(--transit-card-padding-inline);
     min-width: 0;
   }
 
@@ -527,7 +527,7 @@
 
   .expanded-panel {
     border-top: 1px solid var(--border);
-    padding: 12px 14px 12px 18px;
+    padding: 12px var(--transit-card-padding-inline);
     overflow: hidden;
   }
 
@@ -780,20 +780,12 @@
   }
 
   @media (max-width: 420px) {
-    .card-body {
-      padding-inline: 12px;
-    }
-
     .card-meta {
       gap: 6px;
     }
 
     .journey-stats {
       flex-basis: 100%;
-    }
-
-    .expanded-panel {
-      padding-inline: 12px;
     }
 
     .leg-row,

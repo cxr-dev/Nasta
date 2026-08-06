@@ -56,6 +56,7 @@
   let activeTab = $state<TabKey>('beer');
   let activeVenueFilter = $state<VenueFilter>('all');
   let imageInfoOpenId = $state<string | null>(null);
+  let failedEventImageIds = $state<Set<string>>(new Set());
 
   let discoveryModes = $derived<TabKey[]>([
     ...(availableModes.some((mode) => mode === 'beer' || mode === 'wineCocktail') ? ['beer' as const] : []),
@@ -544,16 +545,18 @@
           </article>
         {:else}
           {@const event = item as EventItem}
+          {@const hasEventImage = Boolean(event.imageUrl && !failedEventImageIds.has(event.id))}
           <article class="card" style={`--index:${index}`}>
-            {#if event.imageUrl}
-              <div class="card-media event-media">
+            <div class="event-heading">
+              <div class="event-visual">
+              {#if hasEventImage}
                 <img
                   src={event.imageUrl}
-                  alt={event.name}
-                  loading={index < 2 ? 'eager' : 'lazy'}
-                  fetchpriority={index < 2 ? 'high' : 'auto'}
+                  alt=""
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchpriority={index === 0 ? 'high' : 'auto'}
                   decoding="async"
-                  onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  onerror={() => { failedEventImageIds = new Set(failedEventImageIds).add(event.id); }}
                 />
                 {#if event.imageCredit && event.imageLicense}
                   <button class="image-info" type="button" aria-label={t.imageInformation ?? 'Image information'} aria-expanded={imageInfoOpenId === event.id} aria-controls={`event-image-info-${event.id}`} onclick={() => imageInfoOpenId = imageInfoOpenId === event.id ? null : event.id}>
@@ -561,12 +564,10 @@
                   </button>
                   {#if imageInfoOpenId === event.id}<span id={`event-image-info-${event.id}`} class="image-info-popover">{event.imageCredit} · {event.imageSource} · {event.imageLicense}</span>{/if}
                 {/if}
-              </div>
-            {/if}
-            <div class="event-heading">
-              {#if !event.imageUrl}
+              {:else}
                 <span class="event-category-tile" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg></span>
               {/if}
+              </div>
               <h3 class="card-name">{event.name}</h3>
             </div>
             <div class="card-top">
@@ -845,9 +846,6 @@
   .card-media.venue-media {
     background: color-mix(in oklch, var(--color-warning-bg) 70%, var(--surface));
   }
-  .card-media.event-media {
-    background: color-mix(in oklch, var(--color-info-bg) 70%, var(--surface));
-  }
   .card-media img,
   .card-media picture {
     display: block;
@@ -869,9 +867,12 @@
   }
 
   .image-info { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.48); color: #fff; }
-  .image-info-popover { position: absolute; right: 8px; top: 48px; max-width: calc(100% - 16px); padding: 5px 7px; border-radius: 6px; background: rgba(0, 0, 0, 0.76); color: #fff; font-size: 10px; z-index: 1; }
+  .image-info-popover { position: absolute; right: 4px; top: 48px; max-width: calc(100% - 8px); padding: 5px 7px; border-radius: 6px; background: rgba(0, 0, 0, 0.76); color: #fff; font-size: 10px; z-index: 1; }
   .card-heading, .event-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .event-category-tile { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: var(--color-info-bg); color: var(--color-info); }
+  .event-heading { align-items: flex-start; gap: 10px; }
+  .event-visual { position: relative; display: grid; place-items: center; flex: 0 0 72px; width: 72px; height: 72px; overflow: hidden; border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-info-bg) 70%, var(--surface)); color: var(--color-info); }
+  .event-visual img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .event-category-tile { width: 100%; height: 100%; display: grid; place-items: center; background: var(--color-info-bg); color: var(--color-info); }
 
   .card-top {
     display: flex;
@@ -1112,7 +1113,10 @@
   .events-credit { margin: 0; padding: 4px 2px 12px; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
   .events-credit a { color: inherit; text-underline-offset: 2px; }
 
-  @media (min-width: 768px) { .card-media { height: 112px; } }
+  @media (min-width: 768px) {
+    .card-media { height: 112px; }
+    .event-visual { flex-basis: 80px; width: 80px; height: 80px; }
+  }
 
   @media (hover: none), (pointer: coarse) {
     .action-btn:hover { background: transparent; border-color: var(--border); }

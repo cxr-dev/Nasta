@@ -691,21 +691,24 @@ test.describe("Station grouping C2 layout", () => {
     await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 15000 });
 
     const listBox = await page.locator(".card-list").boundingBox();
-    const listContentWidth = await page.locator(".card-list").evaluate((element) => {
-      const styles = getComputedStyle(element);
-      return element.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
-    });
     const departureSection = await page.locator(".content-section").nth(0).boundingBox();
     const journeySection = await page.locator(".content-section").nth(1).boundingBox();
+    const departureCard = await page.locator(".departure-card").boundingBox();
+    const journeyCard = await page.locator(".journey-card").boundingBox();
     expect(listBox).not.toBeNull();
     expect(departureSection).not.toBeNull();
     expect(journeySection).not.toBeNull();
-    expect(Math.abs(departureSection!.width - journeySection!.width)).toBeLessThan(24);
+    expect(Math.abs(departureSection!.width - journeySection!.width)).toBeLessThan(1);
     expect(departureSection!.x).toBeLessThan(journeySection!.x);
-    expect(journeySection!.x).toBeGreaterThan(departureSection!.x + departureSection!.width);
-    expect(journeySection!.x + journeySection!.width).toBeCloseTo(listBox!.x + listBox!.width - 14, 0);
-    expect(departureSection!.width + journeySection!.width).toBeCloseTo(listContentWidth - 12, 0);
-    await expect(page.locator(".content-section").nth(1)).toHaveCSS("border-left-width", "1px");
+    expect(journeySection!.x - departureSection!.x - departureSection!.width).toBeCloseTo(24, 0);
+    expect(listBox!.x).toBe(24);
+    expect(listBox!.width).toBe(772);
+    expect(departureCard).not.toBeNull();
+    expect(journeyCard).not.toBeNull();
+    expect(departureCard!.x).toBe(24);
+    expect(journeyCard!.x).toBe(422);
+    expect(departureCard!.width).toBe(374);
+    expect(journeyCard!.width).toBe(374);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -715,7 +718,22 @@ test.describe("Station grouping C2 layout", () => {
     expect(mobileDeparture).not.toBeNull();
     expect(mobileJourney).not.toBeNull();
     expect(Math.abs(mobileDeparture!.x - mobileJourney!.x)).toBeLessThan(1);
+    expect(mobileDeparture!.x).toBe(16);
+    expect(mobileDeparture!.width).toBe(358);
+    const pageTitle = await page.locator(".page-title").boundingBox();
+    expect(pageTitle).not.toBeNull();
+    expect(pageTitle!.x).toBe(16);
     expect(mobileJourney!.y).toBeGreaterThan(mobileDeparture!.y + mobileDeparture!.height);
+
+    for (const [width, expectedCardWidth] of [[360, 328], [412, 380]]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 10000 });
+      const card = await page.locator(".departure-card").boundingBox();
+      expect(card).not.toBeNull();
+      expect(card!.x).toBe(16);
+      expect(card!.width).toBe(expectedCardWidth);
+    }
   });
 
   test("shows normal layout when grouping mode is not station", async ({ page }) => {
