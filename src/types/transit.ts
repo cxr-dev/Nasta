@@ -964,6 +964,14 @@ export interface TransitService {
     signal?: AbortSignal,
   ): Promise<TransitStopSequence | null>;
 
+  /** Warm the stop-sequence cache without tying the request to a UI lifecycle. */
+  prefetchStopSequence(
+    originStopId: EntityId,
+    destinationName: string,
+    line: string,
+    directionCode: number,
+  ): Promise<void>;
+
   // Vehicle positions
   getVehiclePositions(
     tripIds: EntityId[],

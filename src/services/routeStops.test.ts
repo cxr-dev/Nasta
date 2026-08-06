@@ -14,6 +14,7 @@ vi.mock("./persistentCache", () => ({
 const mockPersistentCache = await import("./persistentCache").then(
   (m) => m.persistentCache,
 );
+const { clearRouteStopsCache, resolveStopSequence } = await import("./routeStops");
 
 (globalThis as any).fetch = vi.fn();
 
@@ -42,6 +43,7 @@ function setupFetchMock(routes: MockRoute[]) {
 describe("routeStops", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearRouteStopsCache();
     (mockPersistentCache.get as any).mockResolvedValue(null);
   });
 
@@ -80,7 +82,6 @@ describe("routeStops", () => {
       },
     ]);
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toEqual(["Gamla stan", "T-Centralen"]);
@@ -102,13 +103,79 @@ describe("routeStops", () => {
     );
   });
 
+  it("shares concurrent requests and serves the result from memory", async () => {
+    setupFetchMock([
+      {
+        urlMatcher: "stop-finder",
+        responseBody: {
+          locations: [
+            { id: "90910010009999", name: "Ropsten", disassembledName: "Ropsten", type: "stop" },
+          ],
+        },
+      },
+      {
+        urlMatcher: "trips",
+        responseBody: {
+          journeys: [{ legs: [{ stopSequence: [
+            { name: "Slussen", parent: { disassembledName: "Slussen" } },
+            { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
+          ] }] }],
+        },
+      },
+    ]);
+
+    const [first, second] = await Promise.all([
+      resolveStopSequence("9001", "Ropsten", "13", 1),
+      resolveStopSequence("9001", "Ropsten", "13", 1),
+    ]);
+
+    expect(first).toEqual([]);
+    expect(second).toEqual([]);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    (globalThis.fetch as any).mockClear();
+    expect(await resolveStopSequence("9001", "Ropsten", "13", 1)).toEqual([]);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("continues a background request when an expanded preview is aborted", async () => {
+    setupFetchMock([
+      {
+        urlMatcher: "stop-finder",
+        responseBody: {
+          locations: [
+            { id: "90910010009999", name: "Ropsten", disassembledName: "Ropsten", type: "stop" },
+          ],
+        },
+      },
+      {
+        urlMatcher: "trips",
+        responseBody: {
+          journeys: [{ legs: [{ stopSequence: [
+            { name: "Slussen", parent: { disassembledName: "Slussen" } },
+            { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
+            { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
+          ] }] }],
+        },
+      },
+    ]);
+
+    const backgroundRequest = resolveStopSequence("9001", "Ropsten", "13", 1);
+    const controller = new AbortController();
+    controller.abort();
+
+    expect(await resolveStopSequence("9001", "Ropsten", "13", 1, controller.signal)).toBeNull();
+    expect(await backgroundRequest).toEqual(["Gamla stan"]);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(await resolveStopSequence("9001", "Ropsten", "13", 1)).toEqual(["Gamla stan"]);
+  });
+
   it("returns cached result without calling API", async () => {
     (mockPersistentCache.get as any).mockResolvedValue({
       stops: ["Odenplan", "St Eriksplan"],
       ts: Date.now(),
     });
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toEqual(["Odenplan", "St Eriksplan"]);
@@ -154,13 +221,12 @@ describe("routeStops", () => {
       },
     ]);
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     // Fetch was called (cache expired)
     expect(globalThis.fetch).toHaveBeenCalled();
     // No intermediate stops (origin→destination directly, 0 in between)
-    expect(result).toBeNull();
+    expect(result).toEqual([]);
   });
 
   it("returns null when Stop Finder gets no results", async () => {
@@ -168,7 +234,6 @@ describe("routeStops", () => {
       { urlMatcher: "stop-finder", responseBody: { locations: [] } },
     ]);
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Nowhere", "13", 1);
 
     expect(result).toBeNull();
@@ -192,7 +257,6 @@ describe("routeStops", () => {
       { urlMatcher: "trips", responseBody: { journeys: [] } },
     ]);
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toBeNull();
@@ -211,7 +275,6 @@ describe("routeStops", () => {
       { urlMatcher: "trips", responseBody: {}, ok: false },
     ]);
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toBeNull();
@@ -220,7 +283,6 @@ describe("routeStops", () => {
   it("returns null on network error (fetch throws)", async () => {
     (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error("Network failure"));
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toBeNull();
@@ -230,7 +292,6 @@ describe("routeStops", () => {
     const abortController = new AbortController();
     abortController.abort();
 
-    const { resolveStopSequence } = await import("./routeStops");
     const result = await resolveStopSequence(
       "9001",
       "Ropsten",

@@ -6,6 +6,14 @@ const TRIP_URL = "https://journeyplanner.integration.sl.se/v2/trips";
 const CACHE_PREFIX = "route-stops:v1";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+interface CachedStops {
+  stops: string[];
+  ts: number;
+}
+
+const memoryCache = new Map<string, CachedStops>();
+const inFlight = new Map<string, Promise<string[] | null>>();
+
 interface StopFinderLocation {
   id: string;
   name: string;
@@ -86,25 +94,42 @@ async function fetchStopSequenceFromTrip(
       .slice(1, -1)
       .map((s: { parent?: { disassembledName?: string }; name?: string; disassembledName?: string }) => s.parent?.disassembledName || s.name || "")
       .filter(Boolean);
-    return stops.length > 0 ? stops : null;
+    // An empty list is a valid response for a direct origin → destination
+    // route and should be cached just like a route with intermediate stops.
+    return stops;
   } catch {
     return null;
   }
 }
 
 async function getCached(key: string): Promise<string[] | null> {
+  const memory = memoryCache.get(key);
+  if (memory) {
+    if (Date.now() - memory.ts < CACHE_TTL_MS) return memory.stops;
+    memoryCache.delete(key);
+  }
+
   const data = await persistentCache.get(`${CACHE_PREFIX}:${key}`);
-  const d = data as { stops: string[]; ts: number } | null;
-  if (d && Date.now() - d.ts < CACHE_TTL_MS) return d.stops;
+  const d = data as CachedStops | null;
+  if (d && Array.isArray(d.stops) && Date.now() - d.ts < CACHE_TTL_MS) {
+    memoryCache.set(key, d);
+    return d.stops;
+  }
   return null;
 }
 
 async function setCache(key: string, stops: string[]): Promise<void> {
+  const data = { stops, ts: Date.now() };
+  memoryCache.set(key, data);
   await persistentCache.set(
     `${CACHE_PREFIX}:${key}`,
-    { stops, ts: Date.now() },
+    data,
     CACHE_TTL_MS,
   );
+}
+
+function cacheKey(originSiteId: string, line: string, directionCode: number): string {
+  return `${originSiteId}|${line}|${directionCode}`;
 }
 
 /**
@@ -113,7 +138,8 @@ async function setCache(key: string, stops: string[]): Promise<void> {
  * Makes up to 2 API calls on first access (Stop Finder + Trip), then caches
  * by `{originSiteId}|{line}|{directionCode}` for 1 hour.
  *
- * Returns null on failure or empty result — caller should fall back gracefully.
+ * Returns null on failure. An empty array is a valid direct route with no
+ * intermediate stops and is cached so repeated expansions stay instant.
  */
 export async function resolveStopSequence(
   originSiteId: string,
@@ -122,20 +148,42 @@ export async function resolveStopSequence(
   directionCode: number,
   signal?: AbortSignal,
 ): Promise<string[] | null> {
-  const cacheKey = `${originSiteId}|${line}|${directionCode}`;
+  if (signal?.aborted) return null;
 
-  const cached = await getCached(cacheKey);
+  const key = cacheKey(originSiteId, line, directionCode);
+
+  const cached = await getCached(key);
   if (cached) return cached;
 
-  const destGlobalId = await resolveDestinationToGlobalId(destinationName, signal);
-  if (!destGlobalId) return null;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
 
-  const originGlobalId = `9091001000${originSiteId}`;
-  const stops = await fetchStopSequenceFromTrip(originGlobalId, destGlobalId, line, directionCode, signal);
+  const request = (async (): Promise<string[] | null> => {
+    const destGlobalId = await resolveDestinationToGlobalId(destinationName, signal);
+    if (!destGlobalId) return null;
 
-  if (stops && stops.length > 0) {
-    await setCache(cacheKey, stops);
-  }
+    const originGlobalId = `9091001000${originSiteId}`;
+    const stops = await fetchStopSequenceFromTrip(originGlobalId, destGlobalId, line, directionCode, signal);
 
-  return stops;
+    if (stops !== null) {
+      await setCache(key, stops);
+    }
+
+    return stops;
+  })();
+
+  inFlight.set(key, request);
+  request.finally(() => {
+    if (inFlight.get(key) === request) inFlight.delete(key);
+  }).catch(() => {
+    // The original request result is still delivered to its caller.
+  });
+
+  return request;
+}
+
+/** Clear process-local state between isolated consumers or tests. */
+export function clearRouteStopsCache(): void {
+  memoryCache.clear();
+  inFlight.clear();
 }

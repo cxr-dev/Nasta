@@ -208,6 +208,13 @@
   const _prefetchInFlight = new Set<string>();
 
   async function prefetchForSegment(segment: Segment) {
+    void transitService.prefetchStopSequence(
+      toEntityId(segment.fromStop.siteId),
+      segment.direction.destination,
+      segment.line,
+      segment.direction.code,
+    ).catch(() => {});
+
     try {
       const coords = segment.fromStop.coord;
       if (!coords || coords.length < 2) return;

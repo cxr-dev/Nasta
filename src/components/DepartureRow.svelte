@@ -215,7 +215,7 @@
           observer.unobserve(node);
         }
       }
-    }, { root: null, rootMargin: '150px', threshold: 0.1 });
+    }, { root: null, rootMargin: '400px', threshold: 0.1 });
     observer.observe(node);
     return {
       destroy() {

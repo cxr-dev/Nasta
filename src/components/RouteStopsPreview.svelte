@@ -50,9 +50,20 @@
 </script>
 
 {#if loading}
-  <div class="route-stops route-stops-loading" aria-live="polite">
-    <span class="route-stops-title">{t.routeStops ?? 'Stops along the route'}</span>
-    <span class="route-stops-muted">{t.loading ?? 'Loading'}…</span>
+  <div class="route-stops route-stops-loading" aria-live="polite" aria-busy="true">
+    <div class="route-stops-heading">
+      <span class="route-stops-title">{t.routeStops ?? 'Stops along the route'}</span>
+      <span class="route-stops-muted">{t.loading ?? 'Loading'}…</span>
+    </div>
+    <ol class="stop-list route-stops-skeleton" aria-hidden="true">
+      {#each Array(4) as _, index (index)}
+        <li>
+          <span class="stop-node route-stops-skeleton-node"></span>
+          <span class="route-stops-skeleton-label"></span>
+        </li>
+      {/each}
+    </ol>
+    <span class="route-stops-skeleton-footer" aria-hidden="true"></span>
   </div>
 {:else if failed}
   <div class="route-stops route-stops-muted">
@@ -84,11 +95,11 @@
   .route-stops {
     padding: 12px 0 2px;
     border-bottom: 1px solid var(--border);
+    box-sizing: border-box;
+    min-height: 176px;
   }
   .route-stops-loading {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    display: block;
   }
   .route-stops-heading {
     display: flex;
@@ -113,6 +124,35 @@
     list-style: none;
     margin: 10px 0 8px;
     padding: 0;
+  }
+  .route-stops-skeleton {
+    margin-bottom: 8px;
+  }
+  .route-stops-skeleton li {
+    color: transparent;
+  }
+  .route-stops-skeleton-node {
+    border-color: var(--border-strong);
+    background: var(--border);
+    opacity: 0.7;
+  }
+  .route-stops-skeleton-label,
+  .route-stops-skeleton-footer {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--border);
+    opacity: 0.7;
+  }
+  .route-stops-skeleton-label {
+    width: min(52%, 180px);
+  }
+  .route-stops-skeleton li:nth-child(even) .route-stops-skeleton-label {
+    width: min(40%, 140px);
+  }
+  .route-stops-skeleton-footer {
+    width: 92px;
+    margin: 4px 0 6px 16px;
   }
   .stop-list li {
     position: relative;

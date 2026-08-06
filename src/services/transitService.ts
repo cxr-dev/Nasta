@@ -181,6 +181,20 @@ export class TransitServiceImpl implements TransitService {
     return null;
   }
 
+  prefetchStopSequence(
+    originStopId: EntityId,
+    destinationName: string,
+    line: string,
+    directionCode: number,
+  ): Promise<void> {
+    return this.getStopSequence(
+      originStopId,
+      destinationName,
+      line,
+      directionCode,
+    ).then(() => undefined);
+  }
+
   // ─── Future / Not Yet Implemented ────────────────────────────
 
   getVehiclePositions(

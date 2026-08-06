@@ -771,3 +771,136 @@ test.describe("Station grouping C2 layout", () => {
     await expect(toDest).toContainText("Mörby centrum");
   });
 });
+
+// ─────────────────────────────────────────────
+// 4. ROUTE STOPS PREFETCH AND STABLE EXPANSION
+// ─────────────────────────────────────────────
+test.describe("Route stops preview", () => {
+  const routes = [{
+    id: "route-stops-test",
+    name: "Route stops test",
+    segments: [{
+      id: "route-stops-segment",
+      line: "14",
+      lineName: "14",
+      direction: { code: 1, destination: "Ropsten", stopPointId: "" },
+      fromStop: { id: "f1", name: "T-Centralen", siteId: "100" },
+      toStop: { id: "t1", name: "Ropsten", siteId: "999" },
+      transportType: "metro",
+    }],
+  }];
+
+  async function installRoutes(page: any, options: { delayTrip?: boolean } = {}) {
+    let releaseTrip: (() => void) | undefined;
+    let tripStartedResolve: (() => void) | undefined;
+    const tripStarted = new Promise<void>((resolve) => {
+      tripStartedResolve = resolve;
+    });
+    let stopFinderCalls = 0;
+    let tripCalls = 0;
+
+    await page.route("**/*.integration.sl.se/**", async (route: any) => {
+      const url = route.request().url();
+      if (url.includes("/v2/stop-finder")) {
+        stopFinderCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            locations: [{ id: "90910010009999", name: "Ropsten", disassembledName: "Ropsten", type: "stop" }],
+          }),
+        });
+        return;
+      }
+      if (url.includes("/v2/trips")) {
+        tripCalls += 1;
+        tripStartedResolve?.();
+        if (options.delayTrip) {
+          await new Promise<void>((resolve) => {
+            releaseTrip = resolve;
+          });
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            journeys: [{
+              legs: [{
+                stopSequence: [
+                  { name: "Slussen", parent: { disassembledName: "Slussen" } },
+                  { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
+                  { name: "T-Centralen", parent: { disassembledName: "T-Centralen" } },
+                  { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
+                ],
+              }],
+            }],
+          }),
+        });
+        return;
+      }
+      await mockSlApi(route);
+    });
+
+    return { tripStarted, get releaseTrip() { return releaseTrip; }, get stopFinderCalls() { return stopFinderCalls; }, get tripCalls() { return tripCalls; } };
+  }
+
+  async function seedPage(page: any) {
+    await page.addInitScript((data) => {
+      localStorage.setItem("nasta_routes", JSON.stringify(data));
+    }, routes);
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await disableAnimations(page);
+    await expect(page.getByTestId("segment-row")).toBeVisible({ timeout: 15000 });
+  }
+
+  test("prefetches while collapsed and avoids duplicate requests on repeated expansion", async ({ page }) => {
+    const requestInfo = await installRoutes(page);
+    const stopFinderRequest = page.waitForRequest("**/v2/stop-finder**");
+    const tripRequest = page.waitForRequest("**/v2/trips**");
+
+    await seedPage(page);
+    await stopFinderRequest;
+    await tripRequest;
+
+    const card = page.getByTestId("segment-row");
+    await card.locator(".card-main").click();
+    await expect(card.locator(".route-stops")).toBeVisible({ timeout: 5000 });
+    await expect(card.locator(".route-stops-loading")).not.toBeVisible();
+    await expect(card.locator(".stop-list li")).toHaveCount(4);
+
+    await card.locator(".card-main").click();
+    await expect(card.locator(".expanded-panel")).not.toBeVisible({ timeout: 5000 });
+    await card.locator(".card-main").click();
+    await expect(card.locator(".route-stops")).toBeVisible();
+    await expect(card.locator(".route-stops-loading")).not.toBeVisible();
+
+    expect(requestInfo.stopFinderCalls).toBe(1);
+    expect(requestInfo.tripCalls).toBe(1);
+  });
+
+  test("keeps the expanded panel height stable while a prefetched response finishes", async ({ page }) => {
+    const requestInfo = await installRoutes(page, { delayTrip: true });
+    const stopFinderRequest = page.waitForRequest("**/v2/stop-finder**");
+
+    await seedPage(page);
+    await stopFinderRequest;
+    await requestInfo.tripStarted;
+
+    const card = page.getByTestId("segment-row");
+    await card.locator(".card-main").click();
+    await expect(card.locator(".route-stops-loading")).toBeVisible({ timeout: 5000 });
+    const panel = card.locator(".expanded-panel");
+    await expect.poll(async () => (await panel.boundingBox())?.height ?? 0).toBeGreaterThan(170);
+    const before = await panel.boundingBox();
+    expect(before).not.toBeNull();
+
+    expect(requestInfo.releaseTrip).toBeDefined();
+    requestInfo.releaseTrip!();
+    await expect(card.locator(".route-stops-loading")).not.toBeVisible({ timeout: 5000 });
+    const after = await panel.boundingBox();
+    expect(after).not.toBeNull();
+    expect(Math.abs(after!.height - before!.height)).toBeLessThanOrEqual(1);
+    expect(requestInfo.stopFinderCalls).toBe(1);
+    expect(requestInfo.tripCalls).toBe(1);
+  });
+});
