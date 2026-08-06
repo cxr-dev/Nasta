@@ -281,14 +281,16 @@ Enforced at the data layer to ensure unselected modes don't clutter the UI:
 ## Location Services
 
 Location-aware features are controlled by the persisted `locationServicesEnabled` setting in `nasta_settings`.
-The Settings UI treats it as a master switch: **Walking ETA** is only available when it is enabled, and
-distance-based ordering plus **Nära dig / Nearby** stop suggestions require the same location capability.
+The Settings UI treats it as a master switch: distance-based ordering and **Nära dig / Nearby** stop
+suggestions require Platsjänster, while **Walking ETA** additionally requires `walkingEtaEnabled`.
 
-`src/services/geo.ts` is the shared Geolocation API adapter. It calculates stop distances and walking-time
-estimates, returns `null` when the platform cannot provide a position, and does not replace the browser or
-operating-system permission model. Permission is origin-specific, may differ between a browser tab and an
-installed PWA, and requires a secure context (`https` or `localhost`). This applies to desktop Chrome/Safari,
-mobile browsers, and installed PWAs on iOS, Android, and tablets.
+`src/services/geo.ts` is the shared Geolocation API session. It deduplicates in-flight native requests,
+publishes in-memory results to mounted consumers, calculates stop distances and walking-time estimates, and
+returns `null` when the platform cannot provide a position. Startup uses a granted-only lookup, so an ordinary
+reload never opens a native prompt; prompt-capable calls are reserved for explicit Settings or nearby-stop
+actions. It does not replace the browser or operating-system permission model. Permission is origin-specific,
+may differ between a browser tab and an installed PWA, and requires a secure context (`https` or `localhost`).
+This applies to desktop Chrome/Safari, mobile browsers, and installed PWAs on iOS, Android, and tablets.
 
 The application settings preference and platform permission are separate states. A user can enable Platsjänster
 in Nästa while still needing to approve the browser/device prompt. If permission is unavailable, departure data

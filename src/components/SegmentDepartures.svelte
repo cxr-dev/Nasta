@@ -8,7 +8,7 @@
   import { formatDepartureTime } from "../lib/departureDisplay";
   import { buildDepartureBoardGroups, resolveDepartureBoardSnapshot } from "../lib/departureBoardModel";
   import { onMount, onDestroy } from "svelte";
-  import { getQuickLocation } from "../services/geo";
+  import { loadGrantedLocation, subscribeToLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
   import gsap from 'gsap';
 
@@ -77,6 +77,9 @@
   let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
+  let walkingEtaActive = $derived(
+    (settings.locationServicesEnabled ?? false) && (settings.walkingEtaEnabled ?? false),
+  );
   let activeActionSegment = $state<Segment | null>(null);
   let actionTrigger = $state<HTMLElement | null>(null);
 
@@ -132,32 +135,6 @@
   $effect(() => {
     page.id;
     expandedSegmentId = null;
-  });
-
-  $effect(() => {
-    const etaEnabled = settings.walkingEtaEnabled ?? false;
-    const active = etaEnabled;
-
-    if (!active) {
-      locationRequestInFlight = false;
-      userLocation = null;
-      return;
-    }
-
-    if (locationRequestInFlight || userLocation) return;
-
-    const controller = new AbortController();
-    locationRequestInFlight = true;
-    getQuickLocation(controller.signal)
-      .then(loc => {
-        if (!controller.signal.aborted) userLocation = loc;
-      })
-      .catch(() => {
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) locationRequestInFlight = false;
-      });
-    return () => controller.abort();
   });
 
   function toggleExpanded(segmentId: string) {
@@ -304,6 +281,13 @@
   }
 
   onMount(() => {
+    UNSUBSCRIBERS.push(
+      subscribeToLocation((snapshot) => {
+        userLocation = walkingEtaActive ? snapshot.position : null;
+        locationRequestInFlight = walkingEtaActive && snapshot.isLoading;
+      }),
+    );
+    if (walkingEtaActive) void loadGrantedLocation();
     UNSUBSCRIBERS.push(
       departureStore.subscribe((data) => {
         departureData = data;
@@ -491,8 +475,8 @@
               {topDevMessage}
               {topDevType}
               {userLocation}
-              locationRequestInFlight={settings.walkingEtaEnabled ? locationRequestInFlight : false}
-              walkingEtaEnabled={settings.walkingEtaEnabled ?? false}
+              locationRequestInFlight={walkingEtaActive ? locationRequestInFlight : false}
+              walkingEtaEnabled={walkingEtaActive}
               {openFeatureSheet}
               {t}
               {severity}

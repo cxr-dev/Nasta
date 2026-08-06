@@ -183,13 +183,13 @@ Location-aware features use the browser's native Geolocation API through `src/se
 They are optional and fail safely when the API is unavailable, permission is denied, or a request times out:
 
 - The **Platsjänster / Location services** setting is persisted in `nasta_settings` and gates location-aware UI.
-- **Walking ETA** is a dependent setting and is only exposed after location services are enabled.
-- Stop search uses the current position for **Nära dig / Nearby** suggestions and distance labels.
+- **Walking ETA** is a dependent display setting and is only exposed after location services are enabled.
+- Stop search uses Platsjänster directly for **Nära dig / Nearby** suggestions and distance labels; it does not require Walking ETA.
 - Walking ETA and distance-based sorting are unavailable without a usable position.
 - Location permission is granted separately by the browser and device operating system. It is origin-specific and may be separate for an installed PWA.
 - Geolocation requires a secure context (`https` or `localhost`) on desktop browsers, mobile browsers, and installed PWAs.
 
-The app can request location when a location-aware feature is enabled. A browser or operating system may show its own permission prompt again after the user resets site/app permissions, changes origin, uses private browsing, or selects an ask-every-time policy.
+The shared location session deduplicates native requests and keeps precise coordinates in memory only. Ordinary startup performs a granted-only lookup and never opens a native prompt. The app requests location only after an explicit user action: enabling Platsjänster, enabling Walking ETA, or selecting **Use nearby stops**. A browser or operating system may show its own prompt again after the user resets site/app permissions, changes origin, uses private browsing, or selects an ask-every-time policy such as iOS “Allow Once”.
 
 ## IndexedDB (Deviations Cache)
 

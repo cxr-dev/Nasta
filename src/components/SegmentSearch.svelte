@@ -1,6 +1,6 @@
 <script lang="ts">
   import { transitService } from '../providers/init';
-  import { getQuickLocation, getMemoizedDistance, formatDistance } from '../services/geo';
+  import { loadGrantedLocation, requestLocation, subscribeToLocation, getMemoizedDistance, formatDistance, type LocationAccessState } from '../services/geo';
 import type { TransitStopSearchResult, TransitDeparture } from '../providers/types';
 import type { TransportType, Stop, SegmentDirection, Segment } from '../types/page';
 import { getT } from '../stores/localeStore.svelte';
@@ -73,6 +73,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   let allDepartures = $state<TransitDeparture[]>([]);
   let userLocation = $state<[number, number] | null>(null);
   let isLoadingLocation = $state(false);
+  let locationAccess = $state<LocationAccessState>('unknown');
   let recentStops = $state<TransitStopSearchResult[]>([]);
   let activeTransportTypes = $state<TransportType[]>([]);
 
@@ -104,7 +105,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   });
 
   let nearbyStops = $derived.by(() => {
-    if (!userLocation) return [];
+    if (!(settings.locationServicesEnabled ?? false) || !userLocation) return [];
     return recentStops
       .map(s => {
         if (!s.coord) return { ...s, distance: Infinity };
@@ -437,15 +438,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
   return type === 'all' ? 'bus' : type;
 }
 
-  async function fetchLocationIfEnabled() {
-    if (!(settings.walkingEtaEnabled ?? false)) return;
-    isLoadingLocation = true;
-    userLocation = await getQuickLocation();
-    isLoadingLocation = false;
-  }
-
-  onMount(async () => {
-    if (!(settings.walkingEtaEnabled ?? false)) {
+  function loadRecentStops() {
     const recentStored = safeLocalStorageGet('nasta_recent_stops');
     if (recentStored) {
       try {
@@ -464,49 +457,23 @@ function filterIconType(type: TransportFilterOption): TransportType {
         recentStops = [];
       }
     }
-      return;
-    }
+  }
 
-    let shouldFetch = true;
-    if (navigator.permissions) {
-      try {
-        const status = await navigator.permissions.query({ name: 'geolocation' });
-        shouldFetch = status.state !== 'denied';
-      } catch {
-        shouldFetch = true;
-      }
-    }
-    if (shouldFetch) {
-      await fetchLocationIfEnabled();
-    }
+  function requestNearbyStops() {
+    if (!(settings.locationServicesEnabled ?? false)) return;
+    void requestLocation();
+  }
 
-    const recentStored = safeLocalStorageGet('nasta_recent_stops');
-    if (recentStored) {
-      try {
-        const parsed: any[] = JSON.parse(recentStored);
-        recentStops = parsed.map((s: any) => ({
-          id: s.id || s.siteId || `stale-${crypto.randomUUID()}`,
-          name: s.name || '',
-          coord: s.coord || (s.lat != null && s.lon != null ? [s.lat, s.lon] : undefined),
-          modes: s.modes || [],
-          relevance: s.relevance ?? 50,
-          locationType: s.locationType || (s.type || 'stop'),
-          providerMetadata: s.providerMetadata ?? (s.siteId ? { siteId: s.siteId } : {}),
-        }));
-      } catch (e) {
-        recentStops = [];
-      }
-    }
-  });
-
-  $effect(() => {
-    if (!(settings.walkingEtaEnabled ?? false)) {
-      userLocation = null;
-      return;
-    }
-    if (!userLocation && !isLoadingLocation) {
-      void fetchLocationIfEnabled();
-    }
+  onMount(() => {
+    const unsubscribe = subscribeToLocation((snapshot) => {
+      locationAccess = snapshot.access;
+      const locationEnabled = settings.locationServicesEnabled ?? false;
+      userLocation = locationEnabled ? snapshot.position : null;
+      isLoadingLocation = locationEnabled && snapshot.isLoading;
+    });
+    loadRecentStops();
+    if (settings.locationServicesEnabled ?? false) void loadGrantedLocation();
+    return unsubscribe;
   });
 
   $effect(() => {
@@ -573,6 +540,17 @@ function filterIconType(type: TransportFilterOption): TransportType {
         autocapitalize="off"
         spellcheck="false"
       />
+
+    {#if (settings.locationServicesEnabled ?? false) && recentStops.length > 0 && !userLocation && !isLoadingLocation}
+      <div class="location-action">
+        <button type="button" class="anchor-btn nearby-btn" onclick={requestNearbyStops}>
+          {t.useNearbyStops}
+        </button>
+        {#if locationAccess === 'denied'}
+          <span class="location-action-hint">{t.nearbyStopsPermissionDenied}</span>
+        {/if}
+      </div>
+    {/if}
 
     {#if nearbyStops.length > 0}
       <div class="anchor-row">
@@ -789,6 +767,19 @@ function filterIconType(type: TransportFilterOption): TransportType {
     display: flex;
     gap: 8px;
     margin-top: 8px;
+  }
+
+  .location-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .location-action-hint {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
   }
 
   .anchor-btn {

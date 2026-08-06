@@ -11,10 +11,30 @@ const mocks = vi.hoisted(() => {
     getNextScheduledDeparture: vi.fn().mockResolvedValue(null),
     prefetchStopSequence: vi.fn().mockResolvedValue(null),
   };
+  const settings = {
+    afterworkTypes: [],
+    afterworkVenuesEnabled: false,
+    disruptionSeverityThreshold: "warning",
+    eventsEnabled: false,
+    groupingMode: "none",
+    groupSleeping: false,
+    sortMode: "time",
+    locationServicesEnabled: false,
+    walkingEtaEnabled: false,
+  };
+  const geo = {
+    loadGrantedLocation: vi.fn().mockResolvedValue(null),
+    subscribeToLocation: (listener: (snapshot: unknown) => void) => {
+      listener({ position: null, isLoading: false, access: 'unknown' });
+      return () => {};
+    },
+  };
 
   return {
     predictionResolvers,
     transitService,
+    settings,
+    geo,
     departureStore: {
       subscribe(callback: (value: Map<string, never[]>) => void) {
         callback(new Map());
@@ -49,18 +69,9 @@ vi.mock("../stores/pageStore.svelte", () => ({
   getActivePageId: () => "page-1",
 }));
 vi.mock("../stores/settingsStore.svelte", () => ({
-  getSettings: () => ({
-    afterworkTypes: [],
-    afterworkVenuesEnabled: false,
-    disruptionSeverityThreshold: "warning",
-    eventsEnabled: false,
-    groupingMode: "none",
-    groupSleeping: false,
-    sortMode: "time",
-    walkingEtaEnabled: false,
-  }),
+  getSettings: () => mocks.settings,
 }));
-vi.mock("../services/geo", () => ({ getQuickLocation: vi.fn() }));
+vi.mock("../services/geo", () => mocks.geo);
 vi.mock("../services/eventService", () => ({ fetchNearbyEvents: vi.fn() }));
 vi.mock("../services/venueService", () => ({ fetchNearbyVenues: vi.fn() }));
 vi.mock("../services/weatherCache", () => ({ getWeatherForStation: vi.fn() }));
@@ -106,9 +117,32 @@ function prediction(minutes: number) {
   };
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  mocks.predictionResolvers.length = 0;
+  mocks.settings.locationServicesEnabled = false;
+  mocks.settings.walkingEtaEnabled = false;
+  mocks.geo.loadGrantedLocation.mockClear();
+});
 
 describe("SegmentDepartures request generation", () => {
+  it("does not load location when Platsjänster is off even if Walking ETA remains enabled", () => {
+    mocks.settings.walkingEtaEnabled = true;
+
+    render(SegmentDepartures, { props: { page } });
+
+    expect(mocks.geo.loadGrantedLocation).not.toHaveBeenCalled();
+  });
+
+  it("uses the non-prompting granted-only loader for active Walking ETA", () => {
+    mocks.settings.locationServicesEnabled = true;
+    mocks.settings.walkingEtaEnabled = true;
+
+    render(SegmentDepartures, { props: { page } });
+
+    expect(mocks.geo.loadGrantedLocation).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the newest snapshot when an older lookup resolves later", async () => {
     const { container } = render(SegmentDepartures, { props: { page } });
 

@@ -99,6 +99,8 @@ const sv = {
   enableLocationForWalkEta: "Aktivera plats för gång-ETA.",
   enableLocationForWalkEtaBrowser:
     "Tillåt platsåtkomst i webbläsaren för gång-ETA.",
+  useNearbyStops: "Visa hållplatser nära dig",
+  nearbyStopsPermissionDenied: "Tillåt platsåtkomst i webbläsaren för att visa hållplatser nära dig.",
   waitingForLocation: "Hämtar position...",
   departing: "Avgår",
   departureNow: "Nu",
@@ -522,6 +524,8 @@ const en: typeof sv = {
   enableLocationForWalkEta: "Enable location for live walk ETA.",
   enableLocationForWalkEtaBrowser:
     "Allow location in the browser for walking ETA.",
+  useNearbyStops: "Use nearby stops",
+  nearbyStopsPermissionDenied: "Allow location in the browser to show nearby stops.",
   waitingForLocation: "Fetching location...",
   departing: "Departing",
   departureNow: "Now",

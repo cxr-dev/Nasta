@@ -155,11 +155,11 @@ Available in the Settings panel (tap **"Inställningar"**):
 
 #### Location services
 
-**Platsjänster / Location services** is the master switch for features that use your device position. Enable it in Settings before enabling **Walking ETA**, choosing closest-first sorting, or using the **Nära dig / Nearby** stops shown in stop search. The location toggle does not change the browser or operating-system permission; it controls whether Nästa is allowed to use a permission that you have granted.
+**Platsjänster / Location services** is the master switch for features that use your device position. Enable it in Settings before choosing closest-first sorting or using the **Nära dig / Nearby** stops in stop search. **Walking ETA** is a separate display preference that also requires Platsjänster. The location toggle does not change the browser or operating-system permission; it controls whether Nästa is allowed to use a permission that you have granted.
 
 Location access works in desktop Chrome and Safari, regular mobile browsers, and the installed PWA on iOS, Android, and tablets. The page must be served from a secure origin (`https` or local development on `localhost`). You may need to allow location in both the browser/site permission and the device operating system. An installed PWA can have a separate operating-system permission from the browser tab, so check the permission for the installed app if location works in the browser but not in the PWA.
 
-If location is unavailable, denied, or disabled, the core departure and stop-search features continue to work; walking estimates, distance-based ordering, and nearby-stop suggestions are simply omitted. Browser and operating-system permission choices are managed outside `nasta_settings` and can be reset independently by the user or the platform.
+Nästa never opens a native location prompt simply because the app reloaded. It silently refreshes only when the platform has already granted permission. Prompts happen after an explicit action: enabling Platsjänster, enabling Walking ETA, or selecting **Use nearby stops**. If location is unavailable, denied, or disabled, the core departure and stop-search features continue to work; walking estimates, distance-based ordering, and nearby-stop suggestions are simply omitted. Browser and operating-system permission choices are managed outside `nasta_settings` and can be reset independently by the user or the platform.
 
 ---
 

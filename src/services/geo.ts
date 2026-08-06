@@ -3,31 +3,121 @@
  * Prioritizes minimal bundle size and architectural simplicity.
  */
 
-let cachedPosition: [number, number] | null = null;
+export type LocationAccessState = 'granted' | 'denied' | 'prompt' | 'unknown' | 'unsupported';
+
+export interface LocationSnapshot {
+  position: [number, number] | null;
+  isLoading: boolean;
+  access: LocationAccessState;
+}
+
+let locationSnapshot: LocationSnapshot = {
+  position: null,
+  isLoading: false,
+  access: 'unknown',
+};
+let locationRequest: Promise<[number, number] | null> | null = null;
+let sessionGeneration = 0;
+const locationListeners = new Set<(snapshot: LocationSnapshot) => void>();
 const distanceCache = new Map<string, number>();
 
-/**
- * Returns the current position using a one-time request with a 4s timeout.
- * Fails silently by returning null on timeout, error, or abort.
- */
-export async function getQuickLocation(signal?: AbortSignal): Promise<[number, number] | null> {
-  if (cachedPosition) return cachedPosition;
+function publishLocationSnapshot(next: LocationSnapshot) {
+  locationSnapshot = next;
+  for (const listener of locationListeners) listener(locationSnapshot);
+}
 
-  if (!navigator.geolocation) return null;
+function hasGeolocation(): boolean {
+  return typeof navigator !== 'undefined' && !!navigator.geolocation;
+}
 
-  return new Promise((resolve) => {
-    const callback = (pos: GeolocationPosition) => {
-      if (signal?.aborted) return resolve(null);
-      cachedPosition = [pos.coords.latitude, pos.coords.longitude];
-      resolve(cachedPosition);
-    };
+async function getBrowserLocationAccess(): Promise<LocationAccessState> {
+  if (!hasGeolocation()) return 'unsupported';
+  if (!navigator.permissions?.query) return 'unknown';
+
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function startLocationRequest(): Promise<[number, number] | null> {
+  const requestGeneration = sessionGeneration;
+  let failureAccess: LocationAccessState = 'unknown';
+
+  publishLocationSnapshot({ ...locationSnapshot, isLoading: true });
+  const request = new Promise<[number, number] | null>((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      callback,
-      () => resolve(null),
-      { timeout: 4000, enableHighAccuracy: false }
+      (position) => resolve([position.coords.latitude, position.coords.longitude]),
+      (error) => {
+        failureAccess = error.code === 1 ? 'denied' : 'unknown';
+        resolve(null);
+      },
+      { timeout: 4000, enableHighAccuracy: false },
     );
-    signal?.addEventListener('abort', () => resolve(null), { once: true });
   });
+
+  locationRequest = request;
+  void request.then((position) => {
+    if (requestGeneration !== sessionGeneration) return;
+    publishLocationSnapshot({
+      position,
+      isLoading: false,
+      access: position ? 'granted' : failureAccess,
+    });
+  }).finally(() => {
+    if (locationRequest === request) locationRequest = null;
+  });
+
+  return request;
+}
+
+/** Returns the shared in-memory location state without exposing persistent coordinates. */
+export function getLocationSnapshot(): LocationSnapshot {
+  return locationSnapshot;
+}
+
+/** Subscribes to shared location changes. The current state is delivered immediately. */
+export function subscribeToLocation(listener: (snapshot: LocationSnapshot) => void): () => void {
+  locationListeners.add(listener);
+  listener(locationSnapshot);
+  return () => locationListeners.delete(listener);
+}
+
+/**
+ * Requests the current location after an explicit user action. Concurrent callers share one
+ * browser request, and callers that unmount do not cancel the request for other consumers.
+ */
+export function requestLocation(): Promise<[number, number] | null> {
+  if (locationSnapshot.position) return Promise.resolve(locationSnapshot.position);
+  if (locationRequest) return locationRequest;
+  if (!hasGeolocation()) {
+    publishLocationSnapshot({ position: null, isLoading: false, access: 'unsupported' });
+    return Promise.resolve(null);
+  }
+  return startLocationRequest();
+}
+
+/**
+ * Refreshes location only after the platform has already granted access. This never opens a
+ * native permission prompt, including after an app reload.
+ */
+export async function loadGrantedLocation(): Promise<[number, number] | null> {
+  if (locationSnapshot.position) return locationSnapshot.position;
+  if (locationRequest) return locationRequest;
+
+  const access = await getBrowserLocationAccess();
+  if (access !== locationSnapshot.access) {
+    publishLocationSnapshot({ ...locationSnapshot, access });
+  }
+  return access === 'granted' ? requestLocation() : null;
+}
+
+/** Clears the in-memory position when the user disables Platsjänster. */
+export function clearLocationSession() {
+  sessionGeneration += 1;
+  locationRequest = null;
+  publishLocationSnapshot({ position: null, isLoading: false, access: 'unknown' });
 }
 
 /**

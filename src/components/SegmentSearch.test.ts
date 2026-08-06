@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup, act } from "@testing-library/svelte";
 import SegmentSearch from "./SegmentSearch.svelte";
 import { setLocale } from "../stores/localeStore.svelte";
+import { setLocationServicesEnabled, setWalkingEtaEnabled } from "../stores/settingsStore.svelte";
 
 const mockSearchStops = vi.fn();
 const mockGetDepartures = vi.fn();
 const mockGetKnownRoutes = vi.fn();
-const mockGetQuickLocation = vi.fn();
+const mockLoadGrantedLocation = vi.fn();
+const mockRequestLocation = vi.fn();
 const mockGetMemoizedDistance = vi.fn();
 const mockFormatDistance = vi.fn((km: number) => `${km.toFixed(1)} km`);
+let locationListener: ((snapshot: { position: [number, number] | null; isLoading: boolean; access: 'granted' | 'denied' | 'prompt' | 'unknown' | 'unsupported' }) => void) | null = null;
 
 vi.mock("../providers/init", () => ({
   transitService: {
@@ -20,7 +23,13 @@ vi.mock("../providers/init", () => ({
 }));
 
 vi.mock("../services/geo", () => ({
-  getQuickLocation: (...args: any[]) => mockGetQuickLocation(...args),
+  loadGrantedLocation: (...args: any[]) => mockLoadGrantedLocation(...args),
+  requestLocation: (...args: any[]) => mockRequestLocation(...args),
+  subscribeToLocation: (listener: typeof locationListener) => {
+    locationListener = listener;
+    listener?.({ position: null, isLoading: false, access: 'prompt' });
+    return () => { locationListener = null; };
+  },
   getMemoizedDistance: (...args: any[]) => mockGetMemoizedDistance(...args),
   formatDistance: (km: number) => mockFormatDistance(km),
 }));
@@ -51,11 +60,15 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.useRealTimers();
+  setLocationServicesEnabled(false);
+  setWalkingEtaEnabled(false);
   localStorage.clear();
 });
 
 beforeEach(() => {
   setLocale("sv");
+  mockLoadGrantedLocation.mockResolvedValue(null);
+  mockRequestLocation.mockResolvedValue(null);
 });
 
 describe("SegmentSearch", () => {
@@ -70,8 +83,6 @@ describe("SegmentSearch", () => {
         "nasta_recent_stops",
         JSON.stringify([stationCentralen])
       );
-      mockGetQuickLocation.mockResolvedValue(null);
-
       const { findByText } = render(SegmentSearch, { props: {} });
       // Recent stops section should appear after mount
       expect(findByText("Centralen")).toBeTruthy();
@@ -81,7 +92,6 @@ describe("SegmentSearch", () => {
   describe("search flow", () => {
     beforeEach(() => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
-      mockGetQuickLocation.mockResolvedValue(null);
     });
 
     it("calls searchStops after typing and debounce", async () => {
@@ -130,7 +140,6 @@ describe("SegmentSearch", () => {
   describe("error states", () => {
     beforeEach(() => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
-      mockGetQuickLocation.mockResolvedValue(null);
     });
 
     it("handles searchStops failure gracefully", async () => {
@@ -169,7 +178,6 @@ describe("SegmentSearch", () => {
   describe("auto-complete single-line path", () => {
     beforeEach(() => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
-      mockGetQuickLocation.mockResolvedValue(null);
       mockGetKnownRoutes.mockResolvedValue([]);
     });
 
@@ -240,6 +248,29 @@ describe("SegmentSearch", () => {
       const lineItems = await findAllByText(/^(19|17)$/);
       expect(lineItems.length).toBeGreaterThanOrEqual(2);
       expect(onSelect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("location services", () => {
+    it("does not load location while Platsjänster is off", () => {
+      render(SegmentSearch, { props: {} });
+      expect(mockLoadGrantedLocation).not.toHaveBeenCalled();
+    });
+
+    it("shows nearby stops without Walking ETA and requests location only from the explicit action", async () => {
+      setLocationServicesEnabled(true);
+      localStorage.setItem("nasta_recent_stops", JSON.stringify([stationCentralen]));
+      mockGetMemoizedDistance.mockReturnValue(0.4);
+
+      const { findByRole, findByText } = render(SegmentSearch, { props: {} });
+
+      expect(mockLoadGrantedLocation).toHaveBeenCalledTimes(1);
+      const action = await findByRole("button", { name: "Visa hållplatser nära dig" });
+      await fireEvent.click(action);
+      expect(mockRequestLocation).toHaveBeenCalledTimes(1);
+
+      locationListener?.({ position: [59.33, 18.06], isLoading: false, access: 'granted' });
+      expect(await findByText("Nära dig:")).toBeTruthy();
     });
   });
 });

@@ -3,6 +3,7 @@
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon } from '../icons/departureIcons';
+  import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
   import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
@@ -57,6 +58,22 @@
   $effect(() => {
     if (isOpen) activeEditorTab = 'features';
   });
+
+  function toggleLocationServices() {
+    const enabled = !(settings.locationServicesEnabled ?? false);
+    setLocationServicesEnabled(enabled);
+    if (enabled) {
+      void requestLocation();
+    } else {
+      clearLocationSession();
+    }
+  }
+
+  function toggleWalkingEta() {
+    const enabled = !(settings.walkingEtaEnabled ?? false);
+    setWalkingEtaEnabled(enabled);
+    if (enabled) void requestLocation();
+  }
 </script>
 
 <Sheet
@@ -197,7 +214,7 @@
             <button
               class="toggle-btn no-scale"
               class:on={settings.locationServicesEnabled ?? false}
-              onclick={() => setLocationServicesEnabled(!(settings.locationServicesEnabled ?? false))}
+              onclick={toggleLocationServices}
               aria-label={t.locationServices}
               role="switch"
               aria-checked={settings.locationServicesEnabled ?? false}
@@ -214,7 +231,7 @@
               <button
                 class="toggle-btn no-scale"
                 class:on={settings.walkingEtaEnabled ?? false}
-                onclick={() => setWalkingEtaEnabled(!(settings.walkingEtaEnabled ?? false))}
+                onclick={toggleWalkingEta}
                 aria-label={t.walkingEta}
                 role="switch"
                 aria-checked={settings.walkingEtaEnabled ?? false}
