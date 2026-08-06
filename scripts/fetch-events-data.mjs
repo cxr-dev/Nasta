@@ -8,6 +8,7 @@ const outputPath = join(root, "public", "events-data.json");
 
 const VISIT_STOCKHOLM_EVENTS_URL =
   "https://api.visitstockholm.com/api/public-v1/events/";
+const failOnFetchError = process.env.FAIL_ON_EVENTS_FETCH_ERROR === "true";
 
 async function main() {
   const allResults = [];
@@ -16,7 +17,9 @@ async function main() {
     const url = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({ size: "100", page: String(page) })}`;
     const res = await fetch(url);
     if (!res.ok) {
-      console.warn(`fetch-events-data: page ${page} returned ${res.status}, stopping pagination`);
+      const message = `fetch-events-data: page ${page} returned ${res.status}`;
+      if (failOnFetchError) throw new Error(message);
+      console.warn(`${message}, stopping pagination`);
       break;
     }
     const data = await res.json();
@@ -39,6 +42,12 @@ async function main() {
 }
 
 main().catch((err) => {
+  if (failOnFetchError) {
+    console.error("fetch-events-data: failed, stopping build —", err.message);
+    process.exitCode = 1;
+    return;
+  }
+
   console.warn("fetch-events-data: failed, writing empty data —", err.message);
-  writeFile(outputPath, JSON.stringify({ results: [] })).finally(() => process.exit(0));
+  writeFile(outputPath, JSON.stringify({ results: [] }));
 });

@@ -1,27 +1,20 @@
-name: Deploy to GitHub Pages
+name: CI
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-  schedule:
-    # Full rebuild + deploy at 06:00 UTC (08:00 Stockholm) — catches morning commuters
-    - cron: '0 6 * * *'
-    # Full rebuild + deploy at 10:00 UTC (12:00 Stockholm) — events ready before afterwork
-    - cron: '0 10 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: "ci-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -56,9 +49,6 @@ jobs:
           VITE_COMMIT_SHA: ${{ github.sha }}
           FAIL_ON_EVENTS_FETCH_ERROR: 'true'
 
-      - name: Write version.json
-        run: echo '{"version":"${{ github.sha }}"}' > dist/version.json
-
       - name: Verify production artifact
         run: pnpm run verify:build
 
@@ -67,20 +57,3 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm exec playwright test
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ./dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
