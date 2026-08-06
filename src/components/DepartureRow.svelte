@@ -15,6 +15,7 @@
 
   let {
     segment,
+    segmentId,
     departure,
     subsequent,
     hasDeparture,
@@ -43,6 +44,7 @@
     moreActionsLabel,
   }: {
     segment: Segment;
+    segmentId?: string;
     departure: Departure | undefined;
     subsequent: string | null;
     hasDeparture: boolean;
@@ -230,6 +232,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="departure-card"
+  data-segment-id={segmentId}
   class:expanded={isExpanded}
   class:has-disruption={siteDevs.length > 0}
   style="background: {cardBg}"

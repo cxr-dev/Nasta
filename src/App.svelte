@@ -548,6 +548,10 @@
   }
 
   function closeQuickAdd() {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && quickAddDrawerEl?.contains(activeElement)) {
+      activeElement.blur();
+    }
     const finish = () => {
       showQuickAdd = false;
       editingSegment = null;

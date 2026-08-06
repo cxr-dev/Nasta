@@ -69,12 +69,12 @@ describe('JourneySearch', () => {
     await fireEvent.focus(origin);
     await fireEvent.input(origin, { target: { value: 'Odenplan' } });
     await waitFor(() => expect(mockSearchLocations).toHaveBeenCalled());
-    await fireEvent.mouseDown(await findByRole('button', { name: /Odenplan Stop/ }));
+    await fireEvent.pointerDown(await findByRole('button', { name: /Odenplan Stop/ }));
 
     await fireEvent.focus(destination);
     await fireEvent.input(destination, { target: { value: 'Slussen' } });
     await waitFor(() => expect(mockSearchLocations).toHaveBeenCalledWith('Slussen', expect.anything()));
-    await fireEvent.mouseDown(await findByRole('button', { name: /Slussen Stop/ }));
+    await fireEvent.pointerDown(await findByRole('button', { name: /Slussen Stop/ }));
 
     await fireEvent.click(getByRole('button', { name: 'Byt riktning' }));
     expect(origin.value).toBe('Slussen');

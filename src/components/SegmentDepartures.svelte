@@ -7,7 +7,7 @@
   import { toEntityId } from "../lib/departureConverter";
   import { formatDepartureTime } from "../lib/departureDisplay";
   import { buildDepartureBoardGroups, resolveDepartureBoardSnapshot } from "../lib/departureBoardModel";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import { loadGrantedLocation, subscribeToLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
   import gsap from 'gsap';
@@ -144,7 +144,17 @@
   });
 
   function toggleExpanded(segmentId: string) {
-    expandedSegmentId = expandedSegmentId === segmentId ? null : segmentId;
+    const opening = expandedSegmentId !== segmentId;
+    expandedSegmentId = opening ? segmentId : null;
+    if (!opening) return;
+
+    void tick().then(() => {
+      const card = Array.from(depListEl?.querySelectorAll<HTMLElement>('[data-segment-id]') ?? [])
+        .find((element) => element.dataset.segmentId === segmentId);
+      if (card && typeof card.scrollIntoView === 'function') {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
   }
 
   function openSavedCardActions(segment: Segment, trigger?: HTMLElement) {
@@ -446,6 +456,7 @@
           {#if item.segment.journeyMeta}
             <JourneyCard
               journeyMeta={item.segment.journeyMeta}
+              segmentId={item.segment.id}
               now={now}
               isExpanded={isExpanded}
               ontoggle={() => toggleExpanded(item.segment.id)}
@@ -457,6 +468,7 @@
           {:else}
             <DepartureRow
               segment={item.segment}
+              segmentId={item.segment.id}
               {departure}
               {subsequent}
               {hasDeparture}
@@ -617,7 +629,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 0 0 24px;
+    padding: 0 0 calc(24px + env(safe-area-inset-bottom, 0px));
     flex: 1;
     overflow-y: auto;
   }

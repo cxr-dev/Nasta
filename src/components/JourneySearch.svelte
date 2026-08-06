@@ -439,7 +439,7 @@
                 <button
                   class="suggestion-item"
                   class:selected={idx === originSelectedIdx}
-                  onmousedown={() => selectOriginSuggestion(s)}
+                  onpointerdown={(event) => { event.preventDefault(); selectOriginSuggestion(s); }}
                 >
                   <span class="sug-icon">
                     {#if s.type === 'stop'}
@@ -509,7 +509,7 @@
                 <button
                   class="suggestion-item"
                   class:selected={idx === destSelectedIdx}
-                  onmousedown={() => selectDestSuggestion(s)}
+                  onpointerdown={(event) => { event.preventDefault(); selectDestSuggestion(s); }}
                 >
                   <span class="sug-icon">
                     {#if s.type === 'stop'}
@@ -808,7 +808,8 @@
     border-radius: var(--radius-sm, 8px);
     background: var(--surface);
     color: var(--text);
-    font-size: 14px;
+    /* Keep iOS Safari from zooming the page when this field receives focus. */
+    font-size: 16px;
     font-family: inherit;
     outline: none;
     box-sizing: border-box;
@@ -953,7 +954,8 @@
     background: var(--surface);
     color: var(--text);
     font: inherit;
-    font-size: 13px;
+    /* Keep iOS Safari from zooming the page when this field receives focus. */
+    font-size: 16px;
   }
   .advanced-toggle {
     order: 2;

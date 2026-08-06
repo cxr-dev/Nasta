@@ -11,6 +11,7 @@
 
   let {
     journeyMeta,
+    segmentId,
     isExpanded = false,
     now = Date.now(),
     ontoggle,
@@ -20,6 +21,7 @@
     moreActionsLabel,
   }: {
     journeyMeta: JourneyMeta;
+    segmentId?: string;
     isExpanded?: boolean;
     now?: number;
     ontoggle?: () => void;
@@ -155,6 +157,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <article
   class="journey-card"
+  data-segment-id={segmentId}
   class:expanded={isExpanded}
   class:active={journeyMeta.status === 'active'}
   role="group"

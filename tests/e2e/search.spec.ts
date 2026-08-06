@@ -217,6 +217,8 @@ test.describe("Segment search", () => {
     const swapButton = routePanel.getByRole("button", { name: "Byt riktning" });
     const fromInput = routePanel.locator("#quick-add-journey-origin");
     const toInput = routePanel.locator("#quick-add-journey-dest");
+    expect(await fromInput.evaluate((element) => getComputedStyle(element).fontSize)).toBe("16px");
+    expect(await toInput.evaluate((element) => getComputedStyle(element).fontSize)).toBe("16px");
     await expect(routePanel.locator(".location-fields")).toBeVisible();
     await expect(routePanel.locator(".swap-connector")).toBeVisible();
     await expect(routePanel.locator(".connector-line")).toHaveCount(0);
