@@ -95,7 +95,6 @@
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationStationAlerts = $state<StationAlert[]>([]);
   let deviationUsedCache = $state(false);
-  let deviationLastUpdatedAt = $state(0);
   let hour = $derived(getTimeOfDay().hour);
   let freshnessText = $derived(
     lastRefreshTime
@@ -869,7 +868,6 @@ function closeSettingsPanel() {
       deviationHealthBySegment = state.bySegmentId;
       deviationStationAlerts = state.stationAlerts;
       deviationUsedCache = state.usedCache;
-      deviationLastUpdatedAt = state.lastUpdatedAt;
     });
 
     lastRefreshInterval = setInterval(() => {
@@ -1014,7 +1012,6 @@ function closeSettingsPanel() {
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
               deviationUsedCache={deviationUsedCache}
-              deviationLastUpdatedAt={deviationLastUpdatedAt}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
               onEditToggle={toggleEdit}

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { Page, Segment, SortMode, GroupingMode, TransportType } from "../types/page";
+  import type { Page, Segment } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, type Departure } from "../stores/departureStore.svelte";
   import { getPages, getActivePageId } from "../stores/pageStore.svelte";
   import { transitService } from "../providers/init";
-  import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
-  import { formatDepartureTime, mergeDeparturesWithPredictions } from "../lib/departureDisplay";
-  import { deduplicateDeparturesByKey } from "../lib/departureDeduplication";
+  import { toEntityId } from "../lib/departureConverter";
+  import { formatDepartureTime } from "../lib/departureDisplay";
+  import { buildDepartureBoardGroups, resolveDepartureBoardSnapshot } from "../lib/departureBoardModel";
   import { onMount, onDestroy } from "svelte";
   import { getQuickLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
@@ -18,9 +18,9 @@
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
   import { fetchNearbyVenues } from "../services/venueService";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, chevronDown, cloudRain, cloudSnow, cloudLightning } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, cloudRain, cloudSnow, cloudLightning } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
-  import { getDisruptionDisplay, isSegmentDisrupted } from "./segmentUtils";
+  import { getDisruptionDisplay } from "./segmentUtils";
   import { getLocale } from "../stores/localeStore.svelte";
   import { disruptionType } from "../lib/disruptionType";
   import type { StationAlert } from "../types/deviation";
@@ -35,7 +35,6 @@
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationStationAlerts = [] as StationAlert[],
     deviationUsedCache = false,
-    deviationLastUpdatedAt = 0,
     openFeatureSheet = null,
     onSwitchPage,
     onEditToggle,
@@ -54,7 +53,6 @@
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationStationAlerts?: StationAlert[];
     deviationUsedCache?: boolean;
-    deviationLastUpdatedAt?: number;
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
     onEditToggle?: () => void;
@@ -82,7 +80,6 @@
   let expandedSegmentId = $state<string | null>(null);
   let isLoading = $state(false);
   let lastError = $state<string | null>(null);
-  let lastSuccessfulFetch = $state(0);
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
   let lastNearbyPrefetchKey = $state('');
@@ -126,7 +123,6 @@
 
   let dataAge = $derived(lastRefreshTime ? Date.now() - lastRefreshTime : Infinity);
   let isStale = $derived(lastRefreshTime !== undefined && dataAge > 120000);
-  let isFresh = $derived(lastRefreshTime !== undefined && !isStale);
 
   function freshnessDotColor(): string {
     if (lastRefreshTime === undefined) return 'var(--text-ghost)';
@@ -259,239 +255,45 @@
   let segmentDeps = $state<Map<string, Departure[]>>(new Map());
   let segmentSleeping = $state<Map<string, { isSleeping: boolean; nextTime: string | null }>>(new Map());
 
-
-
-  // Haversine distance
-  function haversineDistance(a: [number, number], b: [number, number]): number {
-    const R = 6371000;
-    const dLat = (b[0] - a[0]) * Math.PI / 180;
-    const dLon = (b[1] - a[1]) * Math.PI / 180;
-    const lat1 = a[0] * Math.PI / 180;
-    const lat2 = b[0] * Math.PI / 180;
-    const sinDLat = Math.sin(dLat / 2);
-    const sinDLon = Math.sin(dLon / 2);
-    const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
-    return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-  }
-
-  function sortByNextDeparture(segs: Segment[]): Segment[] {
-    return [...segs].sort((a, b) => {
-      const keyA = `${a.fromStop.siteId}|${a.line}|${a.direction?.code ?? 0}`;
-      const keyB = `${b.fromStop.siteId}|${b.line}|${b.direction?.code ?? 0}`;
-      const depsA = departureData.get(keyA) ?? [];
-      const depsB = departureData.get(keyB) ?? [];
-      const timeA = depsA[0]?.expectedAt ?? Infinity;
-      const timeB = depsB[0]?.expectedAt ?? Infinity;
-      return timeA - timeB;
-    });
-  }
-
-  const TRANSPORT_ORDER: Record<string, number> = {
-    metro: 0, train: 1, bus: 2, tram: 3, boat: 4
-  };
-
-  function sortByTransportType(segs: Segment[]): Segment[] {
-    return [...segs].sort((a, b) => {
-      const orderA = TRANSPORT_ORDER[a.transportType] ?? 99;
-      const orderB = TRANSPORT_ORDER[b.transportType] ?? 99;
-      if (orderA !== orderB) return orderA - orderB;
-      return sortByNextDeparture([a, b]).indexOf(a) === 0 ? -1 : 1;
-    });
-  }
-
-  function sortByLineNumber(segs: Segment[]): Segment[] {
-    return [...segs].sort((a, b) => {
-      const numA = parseInt(a.line, 10);
-      const numB = parseInt(b.line, 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      if (!isNaN(numA)) return -1;
-      if (!isNaN(numB)) return 1;
-      return a.line.localeCompare(b.line);
-    });
-  }
-
-  function sortByDistance(segs: Segment[], userLoc: [number, number] | null): Segment[] {
-    if (!userLoc) return segs;
-    return [...segs].sort((a, b) => {
-      const distA = a.fromStop.coord ? haversineDistance(userLoc, a.fromStop.coord) : Infinity;
-      const distB = b.fromStop.coord ? haversineDistance(userLoc, b.fromStop.coord) : Infinity;
-      return distA - distB;
-    });
-  }
-
-  let sortedSegments = $derived.by(() => {
-    const segs = [...(page.segments ?? [])];
-    const mode: SortMode = settings.sortMode ?? 'time';
-    switch (mode) {
-      case 'time': return sortByNextDeparture(segs);
-      case 'station': return segs.sort((a, b) => a.fromStop.name.localeCompare(b.fromStop.name, 'sv'));
-      case 'transport': return sortByTransportType(segs);
-      case 'line': return sortByLineNumber(segs);
-      case 'distance': return sortByDistance(segs, userLocation);
-      default: return segs;
-    }
-  });
-
-
-
-  function transportTypeLabel(type: TransportType): string {
-    const map: Record<TransportType, string> = {
-      bus: t.transportBus,
-      train: t.transportTrain,
-      metro: t.transportMetro,
-      tram: t.transportTram,
-      boat: t.transportBoat,
-    };
-    return map[type] ?? type;
-  }
-
-  function groupSegments(segs: Segment[]) {
-    const mode: GroupingMode = settings.groupingMode ?? 'none';
-
-    if (mode === 'none') {
-      const items = segs.map((seg, i) => ({ segment: seg, originalIndex: i }));
-      return { groups: [{ label: null as string | null, items }] };
-    }
-
-    if (mode === 'disrupted') {
-      const all: Array<{ segment: Segment; originalIndex: number }> = [];
-      const disrupted: Array<{ segment: Segment; originalIndex: number }> = [];
-      segs.forEach((seg, i) => {
-        const health = deviationHealthBySegment.get(seg.id);
-        const siteDevsList = stopDeviationsMap.get(seg.fromStop.siteId) || [];
-        const display = getDisruptionDisplay(siteDevsList, health, settings.disruptionSeverityThreshold, getLocale(), seg.line, undefined, seg.fromStop.siteId);
-        const isDisrupted = display.messages.length > 0;
-        (isDisrupted ? disrupted : all).push({ segment: seg, originalIndex: i });
-      });
-      const groups = [];
-      if (all.length > 0) groups.push({ label: null as string | null, items: all });
-      if (disrupted.length > 0) groups.push({ label: t.sectionDisrupted, items: disrupted });
-      return { groups };
-    }
-
-    if (mode === 'station') {
-      const map = new Map<string, Array<{ segment: Segment; originalIndex: number }>>();
-      segs.forEach((seg, i) => {
-        const key = seg.fromStop.name;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ segment: seg, originalIndex: i });
-      });
-      const groups = [...map.entries()]
-        .sort(([a], [b]) => a.localeCompare(b, 'sv'))
-        .map(([label, items]) => ({ label, items }));
-      return { groups };
-    }
-
-    if (mode === 'transport') {
-      const map = new Map<TransportType, Array<{ segment: Segment; originalIndex: number }>>();
-      segs.forEach((seg, i) => {
-        const key = seg.transportType;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ segment: seg, originalIndex: i });
-      });
-      const groups = [...map.entries()]
-        .sort(([a], [b]) => (TRANSPORT_ORDER[a] ?? 99) - (TRANSPORT_ORDER[b] ?? 99))
-        .map(([transportType, items]) => ({
-          label: transportTypeLabel(transportType),
-          items,
-        }));
-      return { groups };
-    }
-
-    const items = segs.map((seg, i) => ({ segment: seg, originalIndex: i }));
-    return { groups: [{ label: null as string | null, items }] };
-  }
-
-  let segmentGroups = $derived.by(() => groupSegments(sortedSegments.filter((segment) => !segment.journeyMeta)));
-  let journeyGroups = $derived.by(() => groupSegments(sortedSegments.filter((segment) => Boolean(segment.journeyMeta))));
-
-  // Post-process: when groupSleeping enabled, split active/sleeping items
-  let processedGroups = $derived.by(() => {
-    const src = segmentGroups;
-    if (!settings.groupSleeping) return src;
-
-    const activeGroups: typeof src.groups = [];
-    const sleepingItems: typeof src.groups[number]['items'] = [];
-
-    for (const group of src.groups) {
-      const groupActive: typeof sleepingItems = [];
-      for (const item of group.items) {
-        const sleep = segmentSleeping.get(item.segment.id);
-        if (sleep?.isSleeping) {
-          sleepingItems.push(item);
-        } else {
-          groupActive.push(item);
-        }
-      }
-      if (groupActive.length > 0) {
-        activeGroups.push({ label: group.label, items: groupActive });
-      }
-    }
-
-    if (sleepingItems.length > 0) {
-      activeGroups.push({ label: t.sleeping, items: sleepingItems });
-    }
-
-    return { groups: activeGroups };
-  });
+  let boardGroups = $derived.by(() => buildDepartureBoardGroups({
+    segments: page.segments ?? [],
+    departureData,
+    sleepingBySegment: segmentSleeping,
+    sortMode: settings.sortMode ?? 'time',
+    groupingMode: settings.groupingMode ?? 'none',
+    groupSleeping: settings.groupSleeping,
+    userLocation,
+    deviationHealthBySegment,
+    stopDeviationsMap,
+    disruptionSeverityThreshold: settings.disruptionSeverityThreshold,
+    locale: getLocale(),
+    labels: {
+      disrupted: t.sectionDisrupted,
+      sleeping: t.sleeping,
+      transport: {
+        bus: t.transportBus,
+        train: t.transportTrain,
+        metro: t.transportMetro,
+        tram: t.transportTram,
+        boat: t.transportBoat,
+      },
+    },
+  }));
 
   async function loadSegmentDeps() {
     const generation = ++segmentDepsGeneration;
     const segs = [...(page.segments ?? [])];
-    const results = await Promise.all(segs.map(async (seg) => {
-      const segEntityId = toEntityId(seg.fromStop.siteId);
-      let predicted: Departure[] = [];
-      try {
-        predicted = (await transitService.getPredictedDepartures(
-          segEntityId,
-          seg.fromStop.name,
-          seg.line,
-          seg.direction?.code ?? 0,
-          5,
-        )).map(toLegacyDeparture);
-      } catch {
-        // The live departure store remains the source of truth when the
-        // lightweight prediction request is unavailable.
-      }
-
-      const compositeKey = `${seg.fromStop.siteId}|${seg.line}|${seg.direction?.code ?? 0}`;
-      const live = departureData.get(compositeKey) ?? [];
-      const merged = live.length > 0
-        ? deduplicateDeparturesByKey(seg.fromStop.siteId, mergeDeparturesWithPredictions(live, predicted, 5))
-        : deduplicateDeparturesByKey(seg.fromStop.siteId, predicted);
-
-      if (merged.length > 0) {
-        return { id: seg.id, departures: merged, sleeping: { isSleeping: false, nextTime: null } };
-      }
-
-      try {
-        const nextTransit = await transitService.getNextScheduledDeparture(
-          toEntityId(seg.fromStop.siteId),
-          seg.fromStop.name,
-          seg.line,
-          seg.direction?.code ?? 0,
-        );
-        return {
-          id: seg.id,
-          departures: [],
-          sleeping: { isSleeping: Boolean(nextTransit), nextTime: nextTransit?.scheduledTime ?? null },
-        };
-      } catch {
-        return { id: seg.id, departures: [], sleeping: { isSleeping: false, nextTime: null } };
-      }
-    }));
+    const snapshot = await resolveDepartureBoardSnapshot({
+      segments: segs,
+      departureData,
+      transit: transitService,
+    });
 
     // A slower request started before the latest departure update must never
     // replace the newer snapshot and make cards jump backwards.
     if (generation !== segmentDepsGeneration) return;
-    const deps = new Map<string, Departure[]>();
-    const sleeping = new Map<string, { isSleeping: boolean; nextTime: string | null }>();
-    for (const result of results) {
-      deps.set(result.id, result.departures);
-      sleeping.set(result.id, result.sleeping);
-    }
-    segmentDeps = deps;
-    segmentSleeping = sleeping;
+    segmentDeps = snapshot.departuresBySegment;
+    segmentSleeping = snapshot.sleepingBySegment;
   }
 
   $effect(() => {
@@ -557,9 +359,6 @@
     );
     UNSUBSCRIBERS.push(
       departureStore.lastError.subscribe((val) => (lastError = val ? t.failedToFetchDepartures : null)),
-    );
-    UNSUBSCRIBERS.push(
-      departureStore.lastSuccessfulFetch.subscribe((val) => (lastSuccessfulFetch = val)),
     );
     startClockTimer();
 
@@ -661,8 +460,8 @@
       </div>
     {:else}
       {@const sections = [
-        { key: 'departures', title: t.departuresSection ?? 'Avgångar', description: '', groups: processedGroups.groups },
-        { key: 'journeys', title: t.journeysSection ?? 'Resor', description: t.journeysSectionDesc ?? 'Visar nästa bästa resa till din destination.', groups: journeyGroups.groups },
+        { key: 'departures', title: t.departuresSection ?? 'Avgångar', description: '', groups: boardGroups.departures.groups },
+        { key: 'journeys', title: t.journeysSection ?? 'Resor', description: t.journeysSectionDesc ?? 'Visar nästa bästa resa till din destination.', groups: boardGroups.journeys.groups },
       ]}
       {#each sections as section (section.key)}
         {#if section.groups.length > 0}
