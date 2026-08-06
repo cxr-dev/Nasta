@@ -28,7 +28,7 @@
   import StationNoticeBar from "./StationNoticeBar.svelte";
   import SavedCardActionsSheet from './SavedCardActionsSheet.svelte';
   import { dismissedStore } from "../stores/dismissedStore.svelte";
-  import { getWeatherForStation } from "../services/weatherCache";
+  import { getWeatherForStations } from "../services/weatherCache";
 
   let {
     page,
@@ -67,6 +67,7 @@
   let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
   let now = $state(Date.now());
   let expandedSegmentId = $state<string | null>(null);
+  let expandedPageId = $state<string | null>(null);
   let isLoading = $state(false);
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
@@ -81,19 +82,31 @@
 
   // Weather per station (for station grouping header)
   let stationWeather = $state<Map<string, string | null>>(new Map());
+  let segmentWeather = $state<Map<string, string | null>>(new Map());
+  let weatherGeneration = 0;
 
   $effect(() => {
-    // Only fetch when grouping by station
-    if (settings.groupingMode !== 'station') return;
-    for (const seg of page.segments ?? []) {
-      const station = seg.fromStop.name;
-      if (stationWeather.has(station)) continue;
-      const coord = seg.fromStop.coord;
-      if (!coord) continue;
-      getWeatherForStation(coord[0], coord[1]).then((s) => {
-        stationWeather.set(station, s);
-      });
+    const generation = ++weatherGeneration;
+    const segmentsWithCoords = (page.segments ?? []).filter((segment) => segment.fromStop.coord);
+    if (segmentsWithCoords.length === 0) {
+      stationWeather = new Map();
+      segmentWeather = new Map();
+      return;
     }
+
+    void getWeatherForStations(segmentsWithCoords.map((segment) => ({
+      id: segment.id,
+      lat: segment.fromStop.coord![0],
+      lon: segment.fromStop.coord![1],
+    }))).then((weather) => {
+      if (generation !== weatherGeneration) return;
+      segmentWeather = weather;
+      const byStation = new Map<string, string | null>();
+      for (const segment of segmentsWithCoords) {
+        byStation.set(segment.fromStop.name, weather.get(segment.id) ?? null);
+      }
+      stationWeather = byStation;
+    });
   });
 
   function weatherIconForSymbol(symbol: string | null): string | null {
@@ -145,8 +158,11 @@
   }
 
   $effect(() => {
-    page.id;
-    expandedSegmentId = null;
+    const nextPageId = page.id;
+    if (expandedPageId !== null && expandedPageId !== nextPageId) {
+      expandedSegmentId = null;
+    }
+    expandedPageId = nextPageId;
   });
 
   function toggleExpanded(segmentId: string) {
@@ -255,9 +271,11 @@
   $effect(() => {
     const count = [...segmentDeps.values()].reduce((a, b) => a + b.length, 0);
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
+    const cards = depListEl.querySelectorAll('.departure-card, .journey-card');
+    if (cards.length === 0) return;
     hasAnimatedStagger = true;
     gsap.fromTo(
-      depListEl.querySelectorAll('.departure-card, .journey-card'),
+      cards,
       { opacity: 0, y: 12 },
       { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out', stagger: 0.04, clearProps: 'transform,opacity' },
     );
@@ -482,6 +500,7 @@
               nextDepartureTime={sleepInfo.nextTime}
               {now}
               {departureStatus}
+              weatherSymbol={segmentWeather.get(item.segment.id) ?? null}
               onRetry={() => departureStore.retrySegment({
                 siteId: item.segment.fromStop.siteId,
                 stopName: item.segment.fromStop.name,

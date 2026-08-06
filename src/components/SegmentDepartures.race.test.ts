@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
 import type { Page, Segment } from "../types/page";
 
 const mocks = vi.hoisted(() => {
   const predictionResolvers: Array<(value: unknown[]) => void> = [];
-  const transitService = {
-    getPredictedDepartures: vi.fn(() => new Promise<unknown[]>((resolve) => {
-      predictionResolvers.push(resolve);
-    })),
-    getNextScheduledDeparture: vi.fn().mockResolvedValue(null),
-    prefetchStopSequence: vi.fn().mockResolvedValue(null),
+    const transitService = {
+      getPredictedDepartures: vi.fn(() => new Promise<unknown[]>((resolve) => {
+        predictionResolvers.push(resolve);
+      })),
+      getNextScheduledDeparture: vi.fn().mockResolvedValue(null),
+      getStopSequence: vi.fn().mockResolvedValue(null),
+      prefetchStopSequence: vi.fn().mockResolvedValue(null),
   };
   const settings = {
     afterworkTypes: [],
@@ -84,7 +85,9 @@ vi.mock("../stores/settingsStore.svelte", () => ({
 vi.mock("../services/geo", () => mocks.geo);
 vi.mock("../services/eventService", () => ({ fetchNearbyEvents: vi.fn() }));
 vi.mock("../services/venueService", () => ({ fetchNearbyVenues: vi.fn() }));
-vi.mock("../services/weatherCache", () => ({ getWeatherForStation: vi.fn() }));
+vi.mock("../services/weatherCache", () => ({
+  getWeatherForStations: vi.fn().mockResolvedValue(new Map()),
+}));
 
 import SegmentDepartures from "./SegmentDepartures.svelte";
 
@@ -169,5 +172,26 @@ describe("SegmentDepartures request generation", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(container.querySelector(".countdown")?.textContent?.trim()).toBe("2 min");
+  });
+
+  it("keeps an expanded card open when the same page is recreated", async () => {
+    const view = render(SegmentDepartures, { props: { page } });
+
+    await waitFor(() => expect(mocks.predictionResolvers).toHaveLength(2));
+    mocks.predictionResolvers[1]([prediction(2)]);
+    await waitFor(() => expect(view.container.querySelector(".countdown")?.textContent?.trim()).toBe("2 min"));
+    mocks.predictionResolvers[0]([prediction(3)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const card = view.container.querySelector<HTMLElement>(".departure-card");
+    expect(card).not.toBeNull();
+    await fireEvent.click(card!.querySelector(".card-main") as HTMLElement);
+    await waitFor(() => expect(card!.classList.contains("expanded")).toBe(true));
+
+    await view.rerender({ page: { ...page, name: "Still Home" } });
+    await waitFor(() => expect(card!.classList.contains("expanded")).toBe(true));
+
+    await view.rerender({ page: { ...page, id: "page-2" } });
+    await waitFor(() => expect(card!.classList.contains("expanded")).toBe(false));
   });
 });

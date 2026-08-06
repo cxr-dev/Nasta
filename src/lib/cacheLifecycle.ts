@@ -53,13 +53,6 @@ async function performCacheCleanup(): Promise<void> {
   try {
     await clearExpiredCache(MAX_CACHE_AGE_HOURS);
 
-    if (import.meta.env.DEV) {
-      const stats = await getCacheStats();
-      console.log(
-        `[cacheLifecycle] Cache: ${stats.entries} entries, ${stats.routes.length} routes`,
-      );
-    }
-
     await persistentCache.clearExpired();
   } catch (error) {
     if (import.meta.env.DEV) console.error("[cacheLifecycle] Cleanup error:", error);

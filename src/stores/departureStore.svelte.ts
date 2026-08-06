@@ -11,7 +11,9 @@ export interface DepartureStatus {
   canRetry: boolean;
 }
 
-export interface SegmentCacheMeta {
+export interface DepartureRequest {
+  siteId: string;
+  stopName: string;
   line: string;
   direction_code: number;
   destId?: string;
@@ -24,8 +26,6 @@ let _isUpdating = $state(false);
 let _statuses = $state<Map<string, DepartureStatus>>(new Map());
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
-let stopNamesMap = new Map<string, string>();
-let currentSiteIds: string[] = [];
 let currentRequestId: string | null = null;
 let currentAbortController: AbortController | null = null;
 let activeFetchCount = 0;
@@ -130,13 +130,7 @@ async function getDeparturesWithRetry(
 }
 
 const fetchAllHybrid = async (
-  segmentData: Array<{
-    siteId: string;
-    stopName: string;
-    line: string;
-    direction_code: number;
-    destId?: string;
-  }>,
+  segmentData: DepartureRequest[],
   clearFirst = false,
   requestId: string | null = null,
 ) => {
@@ -186,18 +180,9 @@ const fetchAllHybrid = async (
         24,
       );
       if (cached) {
-        if (import.meta.env.DEV)
-          console.log(
-            `[departureStore] Cache hit: ${seg.siteId} (${seg.stopName}) - ${cached.departures.length} departures`,
-          );
         const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
         results.set(key, cached.departures);
         cachedUpdatedAt.set(key, cached.updatedAt);
-      } else {
-        if (import.meta.env.DEV)
-          console.log(
-            `[departureStore] Cache miss: ${seg.siteId} (${seg.stopName}), will fetch API`,
-          );
       }
 
       // Cached schedules are an immediate snapshot, not a reason to skip the
@@ -220,10 +205,6 @@ const fetchAllHybrid = async (
       await Promise.all(
         siteIdsNeedingApi.map(async (seg) => {
           try {
-            if (import.meta.env.DEV)
-              console.log(
-                `[departureStore] API fetch: ${seg.siteId} (${seg.stopName})`,
-              );
             const { departures: transitDeps, stopDeviations } = await getDeparturesWithRetry(
               seg,
               currentAbortController?.signal,
@@ -302,40 +283,37 @@ const fetchAllHybrid = async (
   }
 };
 
+const uniqueRequests = (requests: DepartureRequest[]): DepartureRequest[] => {
+  const seen = new Set<string>();
+  return requests.filter((request) => {
+    const key = makeDepartureStatusKey(request.siteId, request.line, request.direction_code);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const fetchAll = async (
-  siteIds: string[],
-  stopNames: Map<string, string>,
-  segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
+  requests: DepartureRequest[],
   clearFirst = false,
   requestId: string | null = null,
 ) => {
-  const segmentData = siteIds.map((id) => ({
-    siteId: id,
-    stopName: stopNames.get(id) || "",
-    line: segmentMetaBySiteId.get(id)?.line ?? "",
-    direction_code: segmentMetaBySiteId.get(id)?.direction_code ?? 0,
-    destId: segmentMetaBySiteId.get(id)?.destId,
-  }));
-  await fetchAllHybrid(segmentData, clearFirst, requestId);
+  await fetchAllHybrid(uniqueRequests(requests), clearFirst, requestId);
 };
 
 function startAutoRefresh(
-  siteIds: string[],
-  stopNames: Map<string, string>,
-  segmentMetaBySiteId: Map<string, SegmentCacheMeta> = new Map(),
+  requests: DepartureRequest[],
   interval: number,
   clearFirst = false,
   requestId: string | null = null,
 ) {
   if (refreshTimer) clearInterval(refreshTimer);
-  stopNamesMap = stopNames;
-  currentSiteIds = siteIds;
   if (requestId) {
     currentRequestId = requestId;
   }
-  fetchAll(siteIds, stopNames, segmentMetaBySiteId, clearFirst, requestId);
+  fetchAll(requests, clearFirst, requestId);
   refreshTimer = setInterval(
-    () => fetchAll(siteIds, stopNames, segmentMetaBySiteId, false, requestId),
+    () => fetchAll(requests, false, requestId),
     interval,
   );
 }

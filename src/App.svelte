@@ -124,13 +124,13 @@
   function toDepartureStoreArgs(inputs: DepartureSegmentInput[]) {
     const readyInputs = inputs.filter((input): input is DepartureSegmentInput => Boolean(input.siteId));
     return {
-      siteIds: readyInputs.map((input) => input.siteId),
-      stopNames: new Map(readyInputs.map((input) => [input.siteId, input.stopName])),
-      segmentMetaBySiteId: new Map(readyInputs.map((input) => [input.siteId, {
+      requests: readyInputs.map((input) => ({
+        siteId: input.siteId,
+        stopName: input.stopName,
         line: input.line,
         direction_code: input.direction_code,
-        destId: input.destId
-      }])),
+        destId: input.destId,
+      })),
     };
   }
 
@@ -182,14 +182,12 @@
   ) {
     const inputs = await resolveMissingSiteIds(buildDepartureInputs(segments));
     if (requestId && requestId !== currentRequestId) return;
-    const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
+    const { requests } = toDepartureStoreArgs(inputs);
 
-    if (siteIds.length === 0) return;
+    if (requests.length === 0) return;
 
     departureStore.startAutoRefresh(
-      siteIds,
-      stopNames,
-      segmentMetaBySiteId,
+      requests,
       settings.refreshInterval || 30000,
       clearFirst,
       requestId
@@ -729,12 +727,10 @@ function closeSettingsPanel() {
     }
     try {
       const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentPage.segments));
-      const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
-      if (siteIds.length === 0) return;
+      const { requests } = toDepartureStoreArgs(inputs);
+      if (requests.length === 0) return;
       await departureStore.refresh(
-        siteIds,
-        stopNames,
-        segmentMetaBySiteId,
+        requests,
         true,
         null
       );

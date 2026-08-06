@@ -13,6 +13,13 @@ vi.mock("../providers/init", () => ({
   },
 }));
 
+const request = (siteId: string, stopName: string, line: string, direction_code: number) => ({
+  siteId,
+  stopName,
+  line,
+  direction_code,
+});
+
 describe("departureStore cache key wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,9 +30,7 @@ describe("departureStore cache key wiring", () => {
 
   it("uses siteId + line + direction_code for cached schedule lookups", async () => {
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
     );
 
@@ -36,6 +41,18 @@ describe("departureStore cache key wiring", () => {
       24,
     );
     expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "14", 1, undefined);
+  });
+
+  it("deduplicates exact routes without merging different lines at one stop", async () => {
+    await departureStore.refresh([
+      request("1001", "Centralen", "14", 1),
+      request("1001", "Centralen", "3", 2),
+      request("1001", "Centralen", "14", 1),
+    ], true);
+
+    expect(transitService.getDepartures).toHaveBeenCalledTimes(2);
+    expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "14", 1, undefined);
+    expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "3", 2, undefined);
   });
 
   it("publishes cached departures during a refresh", async () => {
@@ -50,9 +67,7 @@ describe("departureStore cache key wiring", () => {
     const snapshots: Map<string, any[]>[] = [];
     const unsubscribe = departureStore.subscribe((data) => snapshots.push(new Map(data)));
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
       "cache-first-refresh",
     );
@@ -80,9 +95,7 @@ describe("departureStore cache key wiring", () => {
     const unsubscribe = departureStore.subscribe((data) => snapshots.push(new Map(data)));
 
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
       "cached-revalidate",
     );
@@ -110,9 +123,7 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     // Start first request
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
       requestId1,
     );
@@ -120,9 +131,7 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     // Switch to second request
     await departureStore.refresh(
-      ["1002"],
-      new Map([["1002", "Work"]]),
-      new Map([["1002", { line: "3", direction_code: 2 }]]),
+      [request("1002", "Work", "3", 2)],
       true,
       requestId2,
     );
@@ -192,18 +201,14 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     // Load home page
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       false,
       requestId1,
     );
 
     // Switch pages with clearFirst=true
     await departureStore.refresh(
-      ["1002"],
-      new Map([["1002", "Work"]]),
-      new Map([["1002", { line: "3", direction_code: 2 }]]),
+      [request("1002", "Work", "3", 2)],
       true,
       requestId2,
     );
@@ -225,9 +230,7 @@ describe("departureStore - request identity and stale response filtering", () =>
 
     // Load page with first request ID
     await departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
       requestId1,
     );
@@ -254,17 +257,13 @@ describe("departureStore - request identity and stale response filtering", () =>
     );
 
     const firstRequest = departureStore.refresh(
-      ["1001"],
-      new Map([["1001", "Centralen"]]),
-      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      [request("1001", "Centralen", "14", 1)],
       true,
       "page-a",
     );
 
     const secondRequest = departureStore.refresh(
-      ["1002"],
-      new Map([["1002", "City"]]),
-      new Map([["1002", { line: "3", direction_code: 2 }]]),
+      [request("1002", "City", "3", 2)],
       true,
       "page-b",
     );

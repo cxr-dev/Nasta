@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getWeatherForStation, getDailySummary, clearWeatherCache } from './weatherCache';
+import { getWeatherForStation, getWeatherForStations, getDailySummary, clearWeatherCache } from './weatherCache';
 
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
@@ -84,6 +84,39 @@ describe('getWeatherForStation', () => {
 
     const r2 = await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON);
     expect(r2).toBe('rain');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('batches multiple visible stations into one request', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve([
+        {
+          current: { weather_code: 61, temperature_2m: 15 },
+          daily: { weather_code: [0], temperature_2m_max: [18], temperature_2m_min: [12] },
+        },
+        {
+          current: { weather_code: 71, temperature_2m: -2 },
+          daily: { weather_code: [0], temperature_2m_max: [0], temperature_2m_min: [-5] },
+        },
+      ]),
+    });
+
+    const result = await getWeatherForStations([
+      { id: 'first', lat: STOCKHOLM_LAT, lon: STOCKHOLM_LON },
+      { id: 'second', lat: STOCKHOLM_LAT + 0.01, lon: STOCKHOLM_LON + 0.01 },
+    ]);
+
+    expect(result.get('first')).toBe('rain');
+    expect(result.get('second')).toBe('snow');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('backs off silently after a rate-limit response', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, headers: { get: () => null } });
+
+    expect(await getWeatherForStation(STOCKHOLM_LAT, STOCKHOLM_LON)).toBeNull();
+    expect(await getWeatherForStation(STOCKHOLM_LAT + 0.02, STOCKHOLM_LON + 0.02)).toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -7,7 +7,6 @@
   import MapPreview from "./MapPreview.svelte";
   import RouteStopsPreview from "./RouteStopsPreview.svelte";
   import { dismissedStore } from "../stores/dismissedStore.svelte";
-  import { getWeatherForStation } from "../services/weatherCache";
   import { getDepartureUrgency, getEffectiveDisruption, getLiveMinutes } from "../lib/departureDisplay";
 
   import { cleanStopName as stopLabel } from "../lib/stopName";
@@ -36,6 +35,7 @@
     nextDepartureTime = null,
     now = Date.now(),
     departureStatus,
+    weatherSymbol = null,
     onRetry,
     ontoggle,
     onprefetch,
@@ -65,6 +65,7 @@
     nextDepartureTime?: string | null;
     now?: number;
     departureStatus?: DepartureStatus;
+    weatherSymbol?: string | null;
     onRetry?: () => void;
     ontoggle?: () => void;
     onprefetch?: () => void;
@@ -73,17 +74,6 @@
     onMoreActions?: (trigger: HTMLElement) => void;
     moreActionsLabel?: string;
   } = $props();
-
-  let weatherSymbol = $state<string | null>(null);
-
-  $effect(() => {
-    const coord = segment.fromStop.coord;
-    if (!coord) return;
-    const [lat, lon] = coord;
-    getWeatherForStation(lat, lon).then((s) => {
-      weatherSymbol = s;
-    });
-  });
 
   function pillLabel(type: string, severity: string): string {
     if (severity === 'critical') {
