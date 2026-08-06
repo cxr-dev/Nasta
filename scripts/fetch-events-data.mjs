@@ -8,6 +8,7 @@ const outputPath = join(root, "public", "events-data.json");
 
 const VISIT_STOCKHOLM_EVENTS_URL =
   "https://api.visitstockholm.com/api/public-v1/events/";
+const FETCH_TIMEOUT_MS = 15_000;
 const failOnFetchError = process.env.FAIL_ON_EVENTS_FETCH_ERROR === "true";
 
 async function main() {
@@ -15,7 +16,7 @@ async function main() {
 
   for (let page = 1; page <= 5; page++) {
     const url = `${VISIT_STOCKHOLM_EVENTS_URL}?${new URLSearchParams({ size: "100", page: String(page) })}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) {
       const message = `fetch-events-data: page ${page} returned ${res.status}`;
       if (failOnFetchError) throw new Error(message);

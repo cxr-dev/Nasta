@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { gzipSync } from "node:zlib";
 
 const distDir = resolve(process.cwd(), "dist");
 const indexPath = resolve(distDir, "index.html");
@@ -7,6 +8,8 @@ const indexPath = resolve(distDir, "index.html");
 const SERVER_RUNTIME_MARKERS = [
   "internal/server/render-context",
 ];
+const MAX_ENTRY_JS_GZIP_BYTES = 180_000;
+const MAX_PRECACHE_BYTES = 1_800_000;
 
 async function main() {
   const indexHtml = await readFile(indexPath, "utf8");
@@ -51,9 +54,43 @@ async function main() {
         );
       }
     }
+
+    const gzipSize = gzipSync(source).byteLength;
+    if (gzipSize > MAX_ENTRY_JS_GZIP_BYTES) {
+      throw new Error(
+        `Build verification failed: entry JavaScript gzip size ${gzipSize} B exceeds ${MAX_ENTRY_JS_GZIP_BYTES} B.`,
+      );
+    }
   }
 
-  console.log("Build verification passed.");
+  const serviceWorker = await readFile(resolve(distDir, "sw.js"), "utf8");
+  const precacheUrls = new Set(
+    [...serviceWorker.matchAll(/url:"([^\"]+)"/g)].map((match) => match[1]),
+  );
+  const optionalPrecacheUrls = [...precacheUrls].filter((url) =>
+    /\/assets\/(?:opening_hours\.esm|maplibre-gl)-.*\.(?:js|css)$/i.test(url),
+  );
+
+  if (optionalPrecacheUrls.length > 0) {
+    throw new Error(
+      `Build verification failed: optional feature assets are precached: ${optionalPrecacheUrls.join(", ")}.`,
+    );
+  }
+
+  let precacheBytes = 0;
+  for (const url of precacheUrls) {
+    if (/^https?:\/\//i.test(url)) continue;
+    const localPath = resolve(distDir, url.replace(/^\//, "").replace(/^Nasta\//, ""));
+    precacheBytes += (await stat(localPath)).size;
+  }
+
+  if (precacheBytes > MAX_PRECACHE_BYTES) {
+    throw new Error(
+      `Build verification failed: precache size ${precacheBytes} B exceeds ${MAX_PRECACHE_BYTES} B.`,
+    );
+  }
+
+  console.log(`Build verification passed (entry gzip: <= ${MAX_ENTRY_JS_GZIP_BYTES} B, precache: ${precacheBytes} B).`);
 }
 
 main().catch((error) => {

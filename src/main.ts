@@ -62,7 +62,17 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
       }
     }
 
-    registerServiceWorker();
+    const registerAfterLoad = () => {
+      window.setTimeout(() => {
+        void registerServiceWorker();
+      }, 0);
+    };
+
+    if (document.readyState === "complete") {
+      registerAfterLoad();
+    } else {
+      window.addEventListener("load", registerAfterLoad, { once: true });
+    }
 
     checkVersion().then((hasUpdate) => {
       if (hasUpdate) navigator.serviceWorker.getRegistration().then((registration) => registration?.update()).catch(() => {});

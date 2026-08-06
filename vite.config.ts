@@ -52,7 +52,12 @@ export default defineConfig(({ mode }) => {
           // with NetworkFirst so the SW always picks up fresh data from the daily rebuild
           // without waiting for a SW update cycle.
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff}"],
-          globIgnores: ["**/version.json"],
+          globIgnores: [
+            "**/version.json",
+            "**/assets/opening_hours.esm-*.js",
+            "**/assets/maplibre-gl-*.js",
+            "**/assets/maplibre-gl-*.css",
+          ],
           maximumFileSizeToCacheInBytes: 3000000,
           skipWaiting: false,
           clientsClaim: false,
@@ -108,6 +113,19 @@ export default defineConfig(({ mode }) => {
                 },
               },
             },
+            // Large optional map and venue-hours modules should not delay PWA installation.
+            // They are cached after the user first opens the feature.
+            {
+              urlPattern: /\/assets\/(?:opening_hours\.esm|maplibre-gl)-.*\.(?:js|css)$/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "optional-feature-assets",
+                expiration: {
+                  maxEntries: 4,
+                  maxAgeSeconds: 2592000,
+                },
+              },
+            },
           ],
         },
       }),
@@ -116,7 +134,6 @@ export default defineConfig(({ mode }) => {
       transformer: "lightningcss",
     },
     build: {
-      target: "esnext",
       minify: "esbuild",
       rollupOptions: {
         output: {
