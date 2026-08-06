@@ -84,6 +84,21 @@ describe("settingsStore", () => {
       expect(settings.theme).toBe("system");
       expect(settings.language).toBe("auto");
     });
+
+    it("reports an explicit persistence failure and clears it after recovery", () => {
+      const states: boolean[] = [];
+      const unsubscribe = settingsModule.subscribePersistence((failed) => states.push(failed));
+      saveSettingsMock.mockImplementationOnce(() => {
+        throw new Error("storage unavailable");
+      });
+
+      expect(settingsModule.setLanguage("sv")).toBe(false);
+      expect(states.at(-1)).toBe(true);
+
+      expect(settingsModule.retryPersistence()).toBe(true);
+      expect(states.at(-1)).toBe(false);
+      unsubscribe();
+    });
   });
 
   describe("theme preference", () => {

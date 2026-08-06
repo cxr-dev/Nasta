@@ -1,11 +1,14 @@
 import type { Departure } from "../types/departure";
-import { getCachedSchedule } from "../services/scheduleCache";
+import { getCachedScheduleSnapshot } from "../services/scheduleCache";
 import { transitService } from "../providers/init";
 import { toEntityId, toLegacyDeparture } from "../lib/departureConverter";
 
-interface DepartureWithSource extends Departure {
-  source?: "cache" | "api" | "enriched";
-  cachedAt?: number;
+export type DepartureFreshness = "live" | "recent" | "stale" | "timetable" | "unavailable";
+
+export interface DepartureStatus {
+  freshness: DepartureFreshness;
+  sourceUpdatedAt?: number;
+  canRetry: boolean;
 }
 
 export interface SegmentCacheMeta {
@@ -18,8 +21,7 @@ let _data = $state<Map<string, Departure[]>>(new Map());
 let _stopDeviations = $state<Map<string, any[]>>(new Map());
 let _isLoading = $state(false);
 let _isUpdating = $state(false);
-let _lastError = $state<string | null>(null);
-let _lastSuccessfulFetch = $state(0);
+let _statuses = $state<Map<string, DepartureStatus>>(new Map());
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let stopNamesMap = new Map<string, string>();
@@ -28,7 +30,7 @@ let currentRequestId: string | null = null;
 let currentAbortController: AbortController | null = null;
 let activeFetchCount = 0;
 
-function makeCompositeKey(siteId: string, line: string, direction_code: number): string {
+export function makeDepartureStatusKey(siteId: string, line: string, direction_code: number): string {
   return `${siteId}|${line}|${direction_code}`;
 }
 
@@ -37,8 +39,7 @@ let _dataSubscribers: Subscriber[] = [];
 let _stopDeviationSubscribers: Array<(data: Map<string, any[]>) => void> = [];
 let _loadingSubscribers: Array<(value: boolean) => void> = [];
 let _updatingSubscribers: Array<(value: boolean) => void> = [];
-let _errorSubscribers: Array<(value: string | null) => void> = [];
-let _successSubscribers: Array<(value: number) => void> = [];
+let _statusSubscribers: Array<(value: Map<string, DepartureStatus>) => void> = [];
 
 function notifyData() {
   for (const fn of _dataSubscribers) fn(_data);
@@ -48,8 +49,7 @@ function notifyMeta() {
   for (const fn of _stopDeviationSubscribers) fn(_stopDeviations);
   for (const fn of _loadingSubscribers) fn(_isLoading);
   for (const fn of _updatingSubscribers) fn(_isUpdating);
-  for (const fn of _errorSubscribers) fn(_lastError);
-  for (const fn of _successSubscribers) fn(_lastSuccessfulFetch);
+  for (const fn of _statusSubscribers) fn(_statuses);
 }
 
 function subscribe(fn: Subscriber): () => void {
@@ -67,6 +67,66 @@ function makeSubscribable<T>(val: () => T) {
       return () => {};
     },
   };
+}
+
+const STALE_AFTER_MS = 2 * 60 * 1000;
+const RETRY_DELAY_MS = 500;
+
+function waitForRetry(signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Request aborted", "AbortError"));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, RETRY_DELAY_MS);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Request aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function getDeparturesWithRetry(
+  segment: {
+    siteId: string;
+    stopName: string;
+    line: string;
+    direction_code: number;
+  },
+  signal?: AbortSignal,
+) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) await waitForRetry(signal);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("offline");
+      }
+      return await transitService.getDepartures(
+        toEntityId(segment.siteId),
+        segment.stopName,
+        segment.line,
+        segment.direction_code,
+        signal,
+      );
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      lastError = error;
+      if (attempt === 0 && typeof navigator !== "undefined" && !navigator.onLine) break;
+    }
+  }
+
+  throw lastError ?? new Error("Failed to fetch departures");
 }
 
 const fetchAllHybrid = async (
@@ -87,6 +147,7 @@ const fetchAllHybrid = async (
     currentAbortController = new AbortController();
     currentRequestId = requestId;
     _stopDeviations = new Map();
+    _statuses = new Map();
     notifyMeta();
     if (import.meta.env.DEV)
       console.log(`[departureStore] Request ID set to ${requestId}`);
@@ -107,7 +168,6 @@ const fetchAllHybrid = async (
   } else {
     _isUpdating = true;
   }
-  _lastError = null;
   notifyMeta();
 
   const results = clearFirst
@@ -115,11 +175,11 @@ const fetchAllHybrid = async (
     : new Map(_data);
 
   try {
-    const cacheResults = new Map<string, Departure[] | null>();
     const siteIdsNeedingApi: typeof segmentData = [];
+    const cachedUpdatedAt = new Map<string, number>();
 
     for (const seg of segmentData) {
-      const cached = await getCachedSchedule(
+      const cached = await getCachedScheduleSnapshot(
         seg.siteId,
         seg.line,
         seg.direction_code,
@@ -128,24 +188,31 @@ const fetchAllHybrid = async (
       if (cached) {
         if (import.meta.env.DEV)
           console.log(
-            `[departureStore] Cache hit: ${seg.siteId} (${seg.stopName}) - ${cached.length} departures`,
+            `[departureStore] Cache hit: ${seg.siteId} (${seg.stopName}) - ${cached.departures.length} departures`,
           );
-        cacheResults.set(seg.siteId, cached);
-        results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), cached);
+        const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
+        results.set(key, cached.departures);
+        cachedUpdatedAt.set(key, cached.updatedAt);
       } else {
         if (import.meta.env.DEV)
           console.log(
             `[departureStore] Cache miss: ${seg.siteId} (${seg.stopName}), will fetch API`,
           );
-        cacheResults.set(seg.siteId, null);
-        siteIdsNeedingApi.push(seg);
       }
+
+      // Cached schedules are an immediate snapshot, not a reason to skip the
+      // live request. Revalidate every configured segment when possible.
+      siteIdsNeedingApi.push(seg);
     }
 
     // Publish the cache snapshot before network requests finish. This keeps
     // the list populated during refresh and gives the API response a stable
     // snapshot to replace, instead of rendering an empty intermediate state.
     _data = results;
+    if (cachedUpdatedAt.size > 0) {
+      _isLoading = false;
+      _isUpdating = true;
+    }
     notifyData();
     notifyMeta();
 
@@ -157,12 +224,8 @@ const fetchAllHybrid = async (
               console.log(
                 `[departureStore] API fetch: ${seg.siteId} (${seg.stopName})`,
               );
-            const segEntityId = toEntityId(seg.siteId);
-            const { departures: transitDeps, stopDeviations } = await transitService.getDepartures(
-              segEntityId,
-              seg.stopName,
-              seg.line,
-              seg.direction_code,
+            const { departures: transitDeps, stopDeviations } = await getDeparturesWithRetry(
+              seg,
               currentAbortController?.signal,
             );
             const apiDepartures = transitDeps.map(toLegacyDeparture);
@@ -176,13 +239,17 @@ const fetchAllHybrid = async (
               return;
             }
 
-            results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), apiDepartures);
+            const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
+            results.set(key, apiDepartures);
 
             _stopDeviations.set(seg.siteId, stopDeviations ?? []);
-
-            if (apiDepartures.length > 0) {
-              _lastSuccessfulFetch = Date.now();
-            }
+            _statuses.set(key, {
+              freshness: transitDeps.length > 0 && transitDeps.every((departure) => departure.dataSource === "static")
+                ? "timetable"
+                : "live",
+              sourceUpdatedAt: Date.now(),
+              canRetry: false,
+            });
           } catch (e) {
             if (import.meta.env.DEV)
               console.error(
@@ -199,8 +266,20 @@ const fetchAllHybrid = async (
               return;
             }
 
-            _lastError = "Failed to fetch departures";
-            results.set(makeCompositeKey(seg.siteId, seg.line, seg.direction_code), []);
+            const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
+            const fallbackUpdatedAt = cachedUpdatedAt.get(key) ?? _statuses.get(key)?.sourceUpdatedAt;
+            if (!results.has(key)) {
+              results.set(key, []);
+            }
+            _statuses.set(key, {
+              freshness: results.get(key)?.length
+                ? fallbackUpdatedAt && Date.now() - fallbackUpdatedAt <= STALE_AFTER_MS
+                  ? "recent"
+                  : "stale"
+                : "unavailable",
+              sourceUpdatedAt: fallbackUpdatedAt,
+              canRetry: typeof navigator === "undefined" || navigator.onLine,
+            });
           }
         }),
       );
@@ -212,7 +291,6 @@ const fetchAllHybrid = async (
   } catch (error) {
     if (import.meta.env.DEV)
       console.error("[departureStore] Overall fetch error:", error);
-    _lastError = "Failed to fetch departures";
     notifyMeta();
   } finally {
     activeFetchCount = Math.max(0, activeFetchCount - 1);
@@ -269,6 +347,33 @@ function stopAutoRefresh() {
   }
 }
 
+function setConnectivity(isOnline: boolean) {
+  let changed = false;
+  const next = new Map(_statuses);
+  for (const [key, status] of next) {
+    const canRetry = isOnline && (status.freshness === "stale" || status.freshness === "unavailable");
+    if (status.canRetry !== canRetry) {
+      next.set(key, { ...status, canRetry });
+      changed = true;
+    }
+  }
+  if (changed) {
+    _statuses = next;
+    notifyMeta();
+  }
+}
+
+function retrySegment(segment: {
+  siteId: string;
+  stopName: string;
+  line: string;
+  direction_code: number;
+  destId?: string;
+}) {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+  void fetchAllHybrid([segment], false, currentRequestId);
+}
+
 export const departureStore = {
   subscribe,
   stopDeviations: {
@@ -292,18 +397,13 @@ export const departureStore = {
       return () => { _updatingSubscribers = _updatingSubscribers.filter((subscriber) => subscriber !== fn); };
     },
   },
-  lastError: {
-    subscribe: (fn: (val: string | null) => void): (() => void) => {
-      fn(_lastError);
-      _errorSubscribers.push(fn);
-      return () => { _errorSubscribers = _errorSubscribers.filter((subscriber) => subscriber !== fn); };
-    },
-  },
-  lastSuccessfulFetch: {
-    subscribe: (fn: (val: number) => void): (() => void) => {
-      fn(_lastSuccessfulFetch);
-      _successSubscribers.push(fn);
-      return () => { _successSubscribers = _successSubscribers.filter((subscriber) => subscriber !== fn); };
+  status: {
+    subscribe: (fn: (value: Map<string, DepartureStatus>) => void): (() => void) => {
+      fn(_statuses);
+      _statusSubscribers.push(fn);
+      return () => {
+        _statusSubscribers = _statusSubscribers.filter((subscriber) => subscriber !== fn);
+      };
     },
   },
   getCurrentRequestId: () => currentRequestId,
@@ -328,11 +428,14 @@ export const departureStore = {
   clear: () => {
     _data = new Map();
     _stopDeviations = new Map();
+    _statuses = new Map();
     notifyData();
     notifyMeta();
   },
   startAutoRefresh,
   stopAutoRefresh,
+  setConnectivity,
+  retrySegment,
   refresh: fetchAll,
 };
 export type { Departure };

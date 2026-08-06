@@ -16,6 +16,7 @@ export function toLegacyDeparture(td: TransitDeparture): Departure {
     time: td.scheduledTime,
     expectedAt: td.expectedTime,
     predicted: td.dataSource === "predicted", // only predicted cache, not static/scheduled
+    dataSource: td.dataSource,
     transportType: td.transportMode === "ferry" ? "boat" : (td.transportMode as TransportType),
     isFirstMorning: td.isFirstMorning,
     display: meta.display as string | undefined,

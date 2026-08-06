@@ -22,7 +22,6 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
         });
 
         if (registration.waiting && navigator.serviceWorker.controller) {
-          registration.waiting.postMessage({ type: "SKIP_WAITING" });
           window.dispatchEvent(new CustomEvent("pwa-update-available"));
         }
 
@@ -32,7 +31,6 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
 
           newWorker.addEventListener("statechange", () => {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: "SKIP_WAITING" });
               window.dispatchEvent(new CustomEvent("pwa-update-available"));
             }
           });
@@ -52,9 +50,7 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
           if (!navigator.onLine) return;
 
           checkVersion().then((hasUpdate) => {
-            if (hasUpdate) {
-              window.dispatchEvent(new CustomEvent("pwa-update-available"));
-            }
+            if (hasUpdate) registration.update().catch(() => {});
           });
 
           registration.update().catch(() => {});
@@ -69,22 +65,9 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
     registerServiceWorker();
 
     checkVersion().then((hasUpdate) => {
-      if (hasUpdate) {
-        window.dispatchEvent(new CustomEvent("pwa-update-available"));
-      }
+      if (hasUpdate) navigator.serviceWorker.getRegistration().then((registration) => registration?.update()).catch(() => {});
     });
 
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (window.__swReloaded) return;
-      window.__swReloaded = true;
-      window.location.reload();
-    });
-  }
-}
-
-declare global {
-  interface Window {
-    __swReloaded?: boolean;
   }
 }
 

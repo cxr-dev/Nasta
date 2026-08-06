@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Page, Segment } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
-  import { departureStore, type Departure } from "../stores/departureStore.svelte";
+  import { departureStore, makeDepartureStatusKey, type Departure, type DepartureStatus } from "../stores/departureStore.svelte";
   import { getPages, getActivePageId } from "../stores/pageStore.svelte";
   import { transitService } from "../providers/init";
   import { toEntityId } from "../lib/departureConverter";
@@ -34,7 +34,6 @@
     page,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationStationAlerts = [] as StationAlert[],
-    deviationUsedCache = false,
     openFeatureSheet = null,
     onSwitchPage,
     onEditToggle,
@@ -43,12 +42,10 @@
     onJourneyAction,
     onSavedCardAction,
     onMoveSegment,
-    lastRefreshTime,
   }: {
     page: Page;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationStationAlerts?: StationAlert[];
-    deviationUsedCache?: boolean;
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
     onEditToggle?: () => void;
@@ -57,7 +54,6 @@
     onJourneyAction?: (segmentId: string, action: SavedJourneyAction) => void;
     onSavedCardAction?: (segment: Segment, action: SavedCardActionId) => void;
     onMoveSegment?: (segment: Segment, pageId: string) => void;
-    lastRefreshTime?: number;
   } = $props();
 
   let pages = $derived(getPages());
@@ -67,11 +63,11 @@
   let hasNext = $derived(currentPageIndex < pages.length - 1);
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
+  let departureStatuses = $state<Map<string, DepartureStatus>>(new Map());
   let stopDeviationsMap = $state<Map<string, any[]>>(new Map());
   let now = $state(Date.now());
   let expandedSegmentId = $state<string | null>(null);
   let isLoading = $state(false);
-  let lastError = $state<string | null>(null);
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
   let showMap = $state(false);
@@ -115,21 +111,37 @@
   let hasAnimatedStagger = $state(false);
   let segmentDepsGeneration = 0;
 
-  let dataAge = $derived(lastRefreshTime ? Date.now() - lastRefreshTime : Infinity);
-  let isStale = $derived(lastRefreshTime !== undefined && dataAge > 120000);
+  let departureSegments = $derived((page.segments ?? []).filter((segment) => !segment.journeyMeta));
+  let allDeparturesUnavailable = $derived(
+    departureSegments.length > 0 && departureSegments.every((segment) => {
+      const status = departureStatuses.get(makeDepartureStatusKey(
+        segment.fromStop.siteId,
+        segment.line,
+        segment.direction.code,
+      ));
+      return status?.freshness === 'unavailable';
+    }),
+  );
+  let allDeparturesOffline = $derived(
+    allDeparturesUnavailable && departureSegments.every((segment) => {
+      const status = departureStatuses.get(makeDepartureStatusKey(
+        segment.fromStop.siteId,
+        segment.line,
+        segment.direction.code,
+      ));
+      return status?.canRetry === false;
+    }),
+  );
 
-  function freshnessDotColor(): string {
-    if (lastRefreshTime === undefined) return 'var(--text-ghost)';
-    if (isStale) return '#e8950a';
-    return 'var(--color-success, #27ae60)';
-  }
-
-  function freshnessLabel(): string {
-    if (lastRefreshTime === undefined) return t.loading;
-    if (isStale) return t.dataMayBeStale;
-    const mins = Math.max(0, Math.floor(dataAge / 60000));
-    if (mins === 0) return t.updatedJustNow;
-    return t.updatedMinutesAgo.replace('{minutes}', String(mins));
+  function retryAllDepartures() {
+    for (const segment of departureSegments) {
+      void departureStore.retrySegment({
+        siteId: segment.fromStop.siteId,
+        stopName: segment.fromStop.name,
+        line: segment.line,
+        direction_code: segment.direction.code,
+      });
+    }
   }
 
   $effect(() => {
@@ -299,10 +311,12 @@
       }),
     );
     UNSUBSCRIBERS.push(
-      departureStore.isLoading.subscribe((val) => (isLoading = val)),
+      departureStore.status.subscribe((data) => {
+        departureStatuses = data;
+      }),
     );
     UNSUBSCRIBERS.push(
-      departureStore.lastError.subscribe((val) => (lastError = val ? t.failedToFetchDepartures : null)),
+      departureStore.isLoading.subscribe((val) => (isLoading = val)),
     );
     startClockTimer();
 
@@ -363,29 +377,11 @@
       </button>
     </div>
   {:else}
-    <!-- Surface freshness only when it changes the user's decision. Healthy,
-         current data should feel trustworthy rather than self-reporting. -->
-    {#if isStale || deviationUsedCache || lastError}
-      <div class="freshness-row" class:cached={deviationUsedCache && !isStale}>
-        <span class="fresh-dot" style="background: {freshnessDotColor()}"></span>
-        <span class="fresh-label">
-          {#if deviationUsedCache && !isStale}{t.usingCachedDisruptions}{:else}{freshnessLabel()}{/if}
-        </span>
-      </div>
-    {/if}
-
     <!-- Station facility notices: collapsed ambient bar, expands inline -->
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
     <!-- Departure list -->
     <div class="card-list" bind:this={depListEl} aria-busy={isLoading}>
-    {#if lastError}
-      <div class="error-bar">
-        <span>{lastError}</span>
-        <button onclick={() => (lastError = null)}>×</button>
-      </div>
-    {/if}
-
     {#if isLoading}
       <div class="loading-skeleton" aria-hidden="true">
         {#each Array(3) as _, i (i)}
@@ -450,6 +446,7 @@
           {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
+          {@const departureStatus = departureStatuses.get(makeDepartureStatusKey(item.segment.fromStop.siteId, item.segment.line, item.segment.direction.code))}
 
           {#if item.segment.journeyMeta}
             <JourneyCard
@@ -484,6 +481,13 @@
               isSleeping={sleepInfo.isSleeping}
               nextDepartureTime={sleepInfo.nextTime}
               {now}
+              {departureStatus}
+              onRetry={() => departureStore.retrySegment({
+                siteId: item.segment.fromStop.siteId,
+                stopName: item.segment.fromStop.name,
+                line: item.segment.line,
+                direction_code: item.segment.direction.code,
+              })}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
               groupingMode={settings.groupingMode}
@@ -503,7 +507,14 @@
       {#if (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
-          <p class="empty-text">{t.noDeparturesAvailable}</p>
+          {#if allDeparturesUnavailable && allDeparturesOffline}
+            <p class="empty-text">{t.noConnectionDepartures}</p>
+          {:else if allDeparturesUnavailable}
+            <p class="empty-text">{t.failedToUpdateDepartures}</p>
+            <button class="empty-retry" type="button" onclick={retryAllDepartures}>{t.retry}</button>
+          {:else}
+            <p class="empty-text">{t.noDeparturesAvailable}</p>
+          {/if}
         </div>
       {/if}
       {#if onQuickAdd}
@@ -616,29 +627,6 @@
     white-space: nowrap;
   }
 
-  .freshness-row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 16px 10px;
-  }
-  .fresh-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    flex-shrink: 0;
-  }
-  .fresh-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .card-list {
     display: flex;
     flex-direction: column;
@@ -707,25 +695,16 @@
     background: color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
-  .error-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: var(--color-error-bg, #fef2f2);
-    border: 1px solid var(--color-error-subtle, #fecaca);
-    border-radius: 8px;
-    color: var(--color-error, #991b1b);
-    font-size: 13px;
-  }
-  .error-bar button {
-    background: none;
-    border: none;
-    color: #991b1b;
+  .empty-retry {
+    min-height: 44px;
+    padding: 8px 16px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 700;
     cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    padding: 0 4px;
   }
 
   .loading-skeleton {
@@ -914,7 +893,6 @@
     }
 
     .card-list > .empty-state,
-    .card-list > .error-bar,
     .card-list > .quick-add-card {
       grid-column: 1 / -1;
     }
@@ -944,8 +922,5 @@
       font-size: 24px;
     }
 
-    .freshness-row {
-      padding-bottom: 6px;
-    }
   }
 </style>

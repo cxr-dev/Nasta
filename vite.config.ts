@@ -11,16 +11,19 @@ export default defineConfig(({ mode }) => {
         devOptions: {
           enabled: false,
         },
-        registerType: "autoUpdate",
+        injectRegister: false,
+        registerType: "prompt",
         includeAssets: ["logosvg.svg", "apple-touch-icon.png", "robots.txt"],
         manifest: {
           name: "Nästa",
           short_name: "Nästa",
           description: "Swedish public transit commute tracker",
+          lang: "sv",
           theme_color: "#635BFF",
           background_color: "#635BFF",
           display: "standalone",
-          orientation: "portrait",
+          orientation: "any",
+          id: "./",
           start_url: "./",
           scope: "./",
           icons: [
@@ -51,8 +54,8 @@ export default defineConfig(({ mode }) => {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff}"],
           globIgnores: ["**/version.json"],
           maximumFileSizeToCacheInBytes: 3000000,
-          skipWaiting: true,
-          clientsClaim: true,
+          skipWaiting: false,
+          clientsClaim: false,
           runtimeCaching: [
             {
               urlPattern: ({ request }) => request.mode === "navigate",

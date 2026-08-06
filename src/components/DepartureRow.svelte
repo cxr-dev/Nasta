@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
-  import type { Departure } from "../stores/departureStore.svelte";
+  import type { Departure, DepartureStatus } from "../stores/departureStore.svelte";
   import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
@@ -35,6 +35,8 @@
     isSleeping = false,
     nextDepartureTime = null,
     now = Date.now(),
+    departureStatus,
+    onRetry,
     ontoggle,
     onprefetch,
     groupingMode,
@@ -62,6 +64,8 @@
     isSleeping?: boolean;
     nextDepartureTime?: string | null;
     now?: number;
+    departureStatus?: DepartureStatus;
+    onRetry?: () => void;
     ontoggle?: () => void;
     onprefetch?: () => void;
     groupingMode?: string;
@@ -171,6 +175,27 @@
       ? effectiveDisruption === 'critical' ? 'var(--color-critical-bg)' : effectiveDisruption === 'affected' ? 'var(--color-warning-bg)' : 'var(--surface)'
       : ''
   );
+
+  const STALE_AFTER_MS = 2 * 60 * 1000;
+  let displayFreshness = $derived(
+    departureStatus?.freshness === 'recent' && departureStatus.sourceUpdatedAt &&
+      now - departureStatus.sourceUpdatedAt > STALE_AFTER_MS
+      ? 'stale'
+      : departureStatus?.freshness,
+  );
+
+  let statusAgeMinutes = $derived(
+    departureStatus?.sourceUpdatedAt
+      ? Math.max(0, Math.floor((now - departureStatus.sourceUpdatedAt) / 60_000))
+      : null,
+  );
+
+  function updatedLabel(): string {
+    const minutes = statusAgeMinutes ?? 0;
+    return minutes < 1
+      ? (t.updatedJustNow ?? 'Updated just now')
+      : (t.updatedMinutesAgo ?? 'Updated {minutes} min ago').replace('{minutes}', String(minutes));
+  }
 
   function handleToggle() {
     if (isExpanded) {
@@ -353,6 +378,26 @@
     {/if}
   </button>
 
+  {#if displayFreshness === 'recent'}
+    <p class="departure-status" aria-label={updatedLabel()}>{updatedLabel()}</p>
+  {:else if displayFreshness === 'stale'}
+    <div class="departure-status stale-status" role="status" aria-live="polite">
+      <span>{t.timesMayHaveChanged ?? 'Times may have changed'} · {updatedLabel()}</span>
+      {#if departureStatus?.canRetry}
+        <button type="button" onclick={(event) => { event.stopPropagation(); onRetry?.(); }}>{t.retry}</button>
+      {/if}
+    </div>
+  {:else if displayFreshness === 'timetable'}
+    <p class="departure-status" aria-label={t.timetable ?? 'Timetable'}>{t.timetable ?? 'Timetable'}</p>
+  {:else if displayFreshness === 'unavailable'}
+    <div class="departure-status unavailable-status" role="status" aria-live="polite">
+      <span>{t.couldNotUpdateStop ?? 'Couldn’t update this stop'}</span>
+      {#if departureStatus?.canRetry}
+        <button type="button" onclick={(event) => { event.stopPropagation(); onRetry?.(); }}>{t.retry}</button>
+      {/if}
+    </div>
+  {/if}
+
   {#if siteDevs.length > 0}
     <div
       class="disrupt-strip"
@@ -521,6 +566,42 @@
     -webkit-line-clamp: 2;
     overflow: hidden;
     line-height: 1.3;
+  }
+
+  .departure-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 28px;
+    margin: 0;
+    padding: 2px 14px 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+  }
+  .departure-status button {
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .departure-status button:hover,
+  .departure-status button:focus-visible {
+    background: var(--accent-subtle);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .stale-status,
+  .unavailable-status {
+    color: var(--text-secondary);
   }
   .disruption-summary {
     display: inline-flex;

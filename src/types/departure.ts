@@ -23,6 +23,8 @@ export interface Departure {
   transportType: TransportType;
   /** True when computed from cached timetable rather than confirmed by live API. */
   predicted?: boolean;
+  /** Provider-level source classification for truthful freshness messaging. */
+  dataSource?: "realtime" | "predicted" | "scheduled" | "static";
   /** SL journey reference, used to fetch the stop sequence for the progress strip. */
   journeyRef?: string;
   /** SL trip reference, used as fallback for cache key when journeyRef is missing. */

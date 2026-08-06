@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { departureStore } from "./departureStore.svelte";
-import { getCachedSchedule } from "../services/scheduleCache";
+import { getCachedScheduleSnapshot } from "../services/scheduleCache";
 import { transitService } from "../providers/init";
 
 vi.mock("../services/scheduleCache", () => ({
-  getCachedSchedule: vi.fn(() => Promise.resolve(null)),
+  getCachedScheduleSnapshot: vi.fn(() => Promise.resolve(null)),
 }));
 
 vi.mock("../providers/init", () => ({
@@ -16,6 +16,9 @@ vi.mock("../providers/init", () => ({
 describe("departureStore cache key wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getCachedScheduleSnapshot).mockReset().mockResolvedValue(null);
+    vi.mocked(transitService.getDepartures).mockReset().mockResolvedValue({ departures: [], stopDeviations: [] });
+    departureStore.clear();
   });
 
   it("uses siteId + line + direction_code for cached schedule lookups", async () => {
@@ -26,7 +29,7 @@ describe("departureStore cache key wiring", () => {
       true,
     );
 
-    expect(getCachedSchedule).toHaveBeenCalledWith(
+    expect(getCachedScheduleSnapshot).toHaveBeenCalledWith(
       "1001",
       "14",
       1,
@@ -43,7 +46,7 @@ describe("departureStore cache key wiring", () => {
       direction_code: 1,
       time: "12:05",
     }] as any;
-    vi.mocked(getCachedSchedule).mockResolvedValueOnce(cached);
+    vi.mocked(getCachedScheduleSnapshot).mockResolvedValueOnce({ departures: cached, updatedAt: Date.now() });
     const snapshots: Map<string, any[]>[] = [];
     const unsubscribe = departureStore.subscribe((data) => snapshots.push(new Map(data)));
     await departureStore.refresh(
@@ -57,11 +60,46 @@ describe("departureStore cache key wiring", () => {
     expect(snapshots.some((snapshot) => snapshot.get("1001|14|1") === cached)).toBe(true);
     unsubscribe();
   });
+
+  it("revalidates cached departures and retains them when live refresh fails", async () => {
+    const cached = [{
+      id: "cached-1",
+      siteId: "1001",
+      line: "14",
+      direction_code: 1,
+      time: "12:05",
+      predicted: true,
+    }] as any;
+    vi.mocked(getCachedScheduleSnapshot).mockResolvedValue({ departures: cached, updatedAt: Date.now() });
+    vi.mocked(transitService.getDepartures).mockRejectedValue(new Error("offline"));
+    const snapshots: Map<string, any[]>[] = [];
+    let latestStatus: any;
+    const unsubscribeStatus = departureStore.status.subscribe((value) => {
+      latestStatus = value.get("1001|14|1");
+    });
+    const unsubscribe = departureStore.subscribe((data) => snapshots.push(new Map(data)));
+
+    await departureStore.refresh(
+      ["1001"],
+      new Map([["1001", "Centralen"]]),
+      new Map([["1001", { line: "14", direction_code: 1 }]]),
+      true,
+      "cached-revalidate",
+    );
+
+    expect(transitService.getDepartures).toHaveBeenCalledWith("sl:1001", "Centralen", "14", 1, expect.any(AbortSignal));
+    expect(snapshots.at(-1)?.get("1001|14|1")).toBe(cached);
+    expect(latestStatus.freshness).toBe("recent");
+    unsubscribeStatus();
+    unsubscribe();
+  });
 });
 
 describe("departureStore - request identity and stale response filtering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getCachedScheduleSnapshot).mockReset().mockResolvedValue(null);
+    vi.mocked(transitService.getDepartures).mockReset().mockResolvedValue({ departures: [], stopDeviations: [] });
     // Reset any active timers
     vi.clearAllTimers();
   });
@@ -269,16 +307,10 @@ describe("departureStore — subscribers and lifecycle", () => {
     expect(fn).toHaveBeenCalledWith(expect.any(Boolean));
   });
 
-  it("lastError subscriber fires with current value", () => {
+  it("status subscriber fires with the current per-segment map", () => {
     const fn = vi.fn();
-    departureStore.lastError.subscribe(fn);
-    expect(fn).toHaveBeenCalled();
-  });
-
-  it("lastSuccessfulFetch subscriber fires with current timestamp", () => {
-    const fn = vi.fn();
-    departureStore.lastSuccessfulFetch.subscribe(fn);
-    expect(fn).toHaveBeenCalledWith(expect.any(Number));
+    departureStore.status.subscribe(fn);
+    expect(fn).toHaveBeenCalledWith(expect.any(Map));
   });
 
   it("stopDeviations subscriber fires with current Map", () => {

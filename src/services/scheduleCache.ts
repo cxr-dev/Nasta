@@ -33,6 +33,11 @@ interface CacheEntry {
 
 export type CacheStore = Record<string, CacheEntry>; // key = "siteId|line|directionText"
 
+export interface CachedScheduleSnapshot {
+  departures: Departure[];
+  updatedAt: number;
+}
+
 let cacheLoaded = false;
 let inMemoryCache: CacheStore = {};
 
@@ -112,12 +117,12 @@ const MAX_CACHED_MINUTES = 24 * 60; // 24 hours (handles overnight schedules)
  * Retrieve cached schedule for a route
  * Returns null if no cache or expired
  */
-export async function getCachedSchedule(
+export async function getCachedScheduleSnapshot(
   siteId: string,
   line: string,
   direction_code: number,
   maxAgeHours: number = 24,
-): Promise<Departure[] | null> {
+): Promise<CachedScheduleSnapshot | null> {
   if (!siteId || !line) return null;
 
   await ensureCacheLoaded();
@@ -170,10 +175,21 @@ export async function getCachedSchedule(
         expectedAt,
         transportType: "bus" as const,
         predicted: true,
+        dataSource: "predicted" as const,
       };
     });
 
-  return departures.length > 0 ? departures : null;
+  return departures.length > 0 ? { departures, updatedAt: entry.updatedAt } : null;
+}
+
+export async function getCachedSchedule(
+  siteId: string,
+  line: string,
+  direction_code: number,
+  maxAgeHours: number = 24,
+): Promise<Departure[] | null> {
+  const snapshot = await getCachedScheduleSnapshot(siteId, line, direction_code, maxAgeHours);
+  return snapshot?.departures ?? null;
 }
 
 /**

@@ -6,19 +6,26 @@
   let t = $derived(getT());
 
   let isVisible = $state(false);
+  let dismissed = $state(false);
   let bannerEl = $state<HTMLDivElement | undefined>();
 
   $effect(() => {
     if (isVisible && bannerEl) {
-      gsap.fromTo(bannerEl,
-        { y: '100%', opacity: 0 },
-        { y: '0%', opacity: 1, duration: 0.3, ease: 'back.out(1.4)' }
-      );
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        gsap.set(bannerEl, { y: '0%', opacity: 1 });
+      } else {
+        gsap.fromTo(bannerEl,
+          { y: '100%', opacity: 0 },
+          { y: '0%', opacity: 1, duration: 0.2, ease: 'power2.out' }
+        );
+      }
     }
   });
 
   onMount(() => {
     const handleUpdateAvailable = () => {
+      if (dismissed) return;
       isVisible = true;
       if (import.meta.env.DEV) console.log('[PWA] Update available');
     };
@@ -39,6 +46,12 @@
   }
 
   function handleDismiss() {
+    dismissed = true;
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      isVisible = false;
+      return;
+    }
     if (bannerEl) {
       gsap.to(bannerEl, {
         y: '100%',
@@ -54,7 +67,7 @@
 </script>
 
 {#if isVisible}
-  <div class="update-banner" bind:this={bannerEl}>
+  <div class="update-banner" bind:this={bannerEl} role="status" aria-live="polite">
     <div class="banner-content">
       <p class="banner-text">{t.updateAvailable}</p>
       <button class="reload-btn" onclick={handleReload}>
@@ -70,14 +83,15 @@
 <style>
   .update-banner {
     position: fixed;
-    bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     left: 16px;
     right: 16px;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    padding: 12px 16px;
+    background: var(--surface-raised, var(--surface));
+    color: var(--text);
+    border: 1px solid var(--accent-subtle);
+    padding: 8px 10px 8px 14px;
     border-radius: var(--radius-md);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
     z-index: var(--z-toast);
   }
 
@@ -98,37 +112,38 @@
   }
 
   .reload-btn {
-    background: color-mix(in oklch, var(--text-on-accent) 20%, transparent);
+    background: var(--accent);
     color: var(--text-on-accent);
-    border: 1px solid color-mix(in oklch, var(--text-on-accent) 30%, transparent);
+    border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
+    min-height: 44px;
     padding: 6px 12px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 200ms ease;
+    transition: background 150ms ease;
     white-space: nowrap;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
   .reload-btn:hover {
-    background: color-mix(in oklch, var(--text-on-accent) 30%, transparent);
+    background: color-mix(in oklch, var(--accent) 85%, var(--text));
   }
 
   .reload-btn:active {
-    background: color-mix(in oklch, var(--text-on-accent) 15%, transparent);
+    background: color-mix(in oklch, var(--accent) 75%, var(--text));
   }
 
   .dismiss-btn {
     background: none;
     border: none;
-    color: var(--text-on-accent);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 18px;
     padding: 4px;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -140,18 +155,4 @@
     opacity: 0.8;
   }
 
-  @media (max-width: 480px) {
-    .banner-content {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .reload-btn {
-      width: 100%;
-    }
-
-    .dismiss-btn {
-      align-self: flex-end;
-    }
-  }
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { tick } from 'svelte';
   import gsap from 'gsap';
   import IconButton from './IconButton.svelte';
 
@@ -36,6 +37,7 @@
   let dragging = $state(false);
   let dragStartY = $state(0);
   let popoverStyle = $state('');
+  let restoreFocusEl = $state<HTMLElement | null>(null);
 
   const SWIPE_THRESHOLD = 48;
 
@@ -70,8 +72,47 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+
+    if (e.key !== 'Tab' || !sheetEl) return;
+    const focusable = Array.from(sheetEl.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ));
+    if (focusable.length === 0) {
+      e.preventDefault();
+      sheetEl.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
+
+  $effect(() => {
+    if (isOpen) {
+      restoreFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      tick().then(() => {
+        sheetEl?.querySelector<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+        )?.focus();
+      });
+      return;
+    }
+
+    const target = restoreFocusEl;
+    restoreFocusEl = null;
+    if (target?.isConnected) tick().then(() => target.focus());
+  });
 
   function handleSheetTouchStart(e: TouchEvent) {
     onSheetTouchStart?.(e);
@@ -148,6 +189,7 @@
   class="sheet-overlay {overlayClass}"
   class:open={isOpen}
   aria-hidden={!isOpen}
+  inert={!isOpen}
   aria-modal="true"
   onclick={handleOverlayClick}
   onkeydown={handleKeydown}

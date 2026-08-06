@@ -7,7 +7,7 @@ Frontend-only PWA for Stockholm SL commuter departures. Svelte 5 (Runes) + TypeS
 ## Commands
 
 ```sh
-pnpm install              # must use pnpm (packageManager: "pnpm@9.15.0")
+pnpm install              # must use pnpm (packageManager: "pnpm@11.9.0")
 pnpm run dev              # Vite dev server, base="/". predev hook fetches events-data.json
 pnpm run build            # production build to dist/, base="/Nasta/". prebuild: generate-png-icons + fetch-events-data
 pnpm run check            # svelte-check type checking (run before test)
@@ -22,7 +22,7 @@ CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` (with 
 
 ## Quirks & conventions
 
-- **pnpm only.** `packageManager: "pnpm@9.15.0"`, `node-linker=hoisted` (`.npmrc`). Stale `package-lock.json` is gitignored — delete if found.
+- **pnpm only.** `packageManager: "pnpm@11.9.0"`, `node-linker=hoisted` (`.npmrc`). Stale `package-lock.json` is gitignored — delete if found.
 - **No linter, no formatter.** TypeScript `strict: true` + `checkJs: true` is the only enforcement.
 - **Svelte 5 Runes.** All stores use module-level `$state()` + manual subscriber arrays — *not* `svelte/store` writable/derived. Stores export either an object with methods (`departureStore`, `deviationStore`) or bare functions (`pageStore`, `settingsStore`, `localeStore`, `stopAreaStore`). Rune module files use `.svelte.ts` extension.
 - **Base path** is `/` in dev, `/Nasta/` in production (GitHub Pages). Always use `import.meta.env.BASE_URL` for asset/service worker paths. `verify-build.mjs` enforces this in CI.

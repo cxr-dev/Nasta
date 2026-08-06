@@ -42,10 +42,17 @@ const mocks = vi.hoisted(() => {
       },
       stopDeviations: {
         subscribe(callback: (value: Map<string, never[]>) => void) {
-          callback(new Map());
+          callback(new Map<string, never>());
           return () => {};
         },
       },
+      status: {
+        subscribe(callback: (value: Map<string, never>) => void) {
+          callback(new Map<string, never>());
+          return () => {};
+        },
+      },
+      retrySegment: vi.fn(),
       isLoading: {
         subscribe(callback: (value: boolean) => void) {
           callback(false);
@@ -63,7 +70,10 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("../providers/init", () => ({ transitService: mocks.transitService }));
-vi.mock("../stores/departureStore.svelte", () => ({ departureStore: mocks.departureStore }));
+vi.mock("../stores/departureStore.svelte", () => ({
+  departureStore: mocks.departureStore,
+  makeDepartureStatusKey: (siteId: string, line: string, direction: number) => `${siteId}|${line}|${direction}`,
+}));
 vi.mock("../stores/pageStore.svelte", () => ({
   getPages: () => [],
   getActivePageId: () => "page-1",

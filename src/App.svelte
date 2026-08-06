@@ -10,6 +10,7 @@
   import { applyTheme, resolveTheme } from './themes';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
   import { getT, getLocale, resolveLocale, setLocale } from './stores/localeStore.svelte';
+  import { subscribeToPlatformLifecycle } from './lib/platform';
 
   let t = $derived(getT());
   let locale = $derived(getLocale());
@@ -51,8 +52,6 @@
   let quickAddHandleDragging = $state(false);
   let quickAddHandleStartY = $state(0);
   let quickAddDragOffset = $state(0);
-  let lastRefreshTime = $state(Date.now());
-  let lastRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let journeyRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let journeyRefreshInFlight = false;
   let journeyRefreshPendingForce = false;
@@ -60,7 +59,6 @@
 
 
   let siteLookupError = $state<string | null>(null);
-   let dataOld = $derived(Date.now() - lastRefreshTime > 120000);
   let swipeStartX = 0;
   let swipeStartY = 0;
   let scrollContainer = $state<HTMLElement | null>(null);
@@ -101,18 +99,7 @@
   let departures = $state<Map<string, Departure[]>>(new Map());
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationStationAlerts = $state<StationAlert[]>([]);
-  let deviationUsedCache = $state(false);
   let hour = $derived(getTimeOfDay().hour);
-  let freshnessText = $derived(
-    lastRefreshTime
-      ? dataOld
-        ? t.dataMayBeStale
-        : t.updatedMinutesAgo.replace(
-            '{minutes}',
-            String(Math.max(0, Math.floor((Date.now() - lastRefreshTime) / 60000))),
-          )
-      : t.loading,
-  );
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -208,7 +195,6 @@
       requestId
     );
     startDisruptionsForPage(segments);
-    lastRefreshTime = Date.now();
   }
 
   $effect(() => {
@@ -753,7 +739,6 @@ function closeSettingsPanel() {
         null
       );
       await refreshDisruptions(currentPage.segments, { force: true });
-      lastRefreshTime = Date.now();
     } catch (error) {
       if (import.meta.env.DEV) console.error('[App] manual refresh failed', error);
     } finally {
@@ -775,50 +760,32 @@ function closeSettingsPanel() {
     const unsubDeviations = deviationStore.subscribe(state => {
       deviationHealthBySegment = state.bySegmentId;
       deviationStationAlerts = state.stationAlerts;
-      deviationUsedCache = state.usedCache;
     });
-
-    lastRefreshInterval = setInterval(() => {
-      if (!document.hidden) {
-        lastRefreshTime = Date.now();
-      }
-    }, 1000);
 
     journeyRefreshInterval = setInterval(() => {
       if (!document.hidden) void refreshSavedJourneys(getActivePage());
     }, 15000);
 
-    const onVisibility = () => {
-      const currentPage = getActivePage();
-      if (!document.hidden && currentPage?.segments) {
-        const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-        if (timeSinceLastRefresh > 10000) {
-          void (async () => {
-            try {
-              const inputs = await resolveMissingSiteIds(buildDepartureInputs(currentPage.segments));
-              const { siteIds, stopNames, segmentMetaBySiteId } = toDepartureStoreArgs(inputs);
-              if (siteIds.length === 0) return;
-              await departureStore.refresh(
-                siteIds,
-                stopNames,
-                segmentMetaBySiteId,
-                false,
-                null
-              );
-              lastRefreshTime = Date.now();
-            } catch (error) {
-              if (import.meta.env.DEV) console.error('[App] visibility refresh failed', error);
-            }
-          })();
-        }
+    const unsubscribeLifecycle = subscribeToPlatformLifecycle(({ isVisible, isOnline: online }) => {
+      departureStore.setConnectivity(online);
+      if (!isVisible || !online || editing || showSettings || showQuickAdd) {
+        departureStore.stopAutoRefresh();
+        deviationStore.stopAutoRefresh();
+        return;
       }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
+
+      const currentPage = getActivePage();
+      if (currentPage?.segments) {
+        void startDeparturesForPage(currentPage.segments, false, currentRequestId);
+        void startDisruptionsForPage(currentPage.segments);
+        void refreshSavedJourneys(currentPage, true);
+      }
+    });
 
     return () => {
       unsub();
       unsubDeviations();
-      document.removeEventListener('visibilitychange', onVisibility);
+      unsubscribeLifecycle();
       if (journeyRefreshInterval) clearInterval(journeyRefreshInterval);
     };
   });
@@ -854,7 +821,6 @@ function closeSettingsPanel() {
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
     stopCacheLifecycle();
-    if (lastRefreshInterval) clearInterval(lastRefreshInterval);
   });
 </script>
 
@@ -919,7 +885,6 @@ function closeSettingsPanel() {
               page={page}
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
-              deviationUsedCache={deviationUsedCache}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
               onEditToggle={toggleEdit}
@@ -928,7 +893,6 @@ function closeSettingsPanel() {
               onJourneyAction={handleJourneyAction}
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
-              {lastRefreshTime}
             />
           {/if}
         </div>

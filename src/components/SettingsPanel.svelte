@@ -5,7 +5,7 @@
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon } from '../icons/departureIcons';
   import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
-  import { getSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
+  import { getSettings, subscribePersistence, retryPersistence, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
 
   let t = $derived(getT());
@@ -24,6 +24,7 @@
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let activeTheme = $derived(settings.theme ?? 'system');
+  let persistenceFailed = $state(false);
 
   const themeChoices: Array<{ id: ThemePreference; label: keyof typeof t; preview: ResolvedTheme; description?: keyof typeof t }> = [
     { id: 'system', label: 'themeSystem', preview: 'light', description: 'themeSystemDesc' },
@@ -59,6 +60,13 @@
     if (isOpen) activeEditorTab = 'features';
   });
 
+  $effect(() => {
+    if (!isOpen) return;
+    return subscribePersistence((failed) => {
+      persistenceFailed = failed;
+    });
+  });
+
   function toggleLocationServices() {
     const enabled = !(settings.locationServicesEnabled ?? false);
     setLocationServicesEnabled(enabled);
@@ -88,6 +96,13 @@
       <button type="button" role="tab" class="tab" class:active={activeEditorTab === 'features'} aria-selected={activeEditorTab === 'features'} onclick={() => activeEditorTab = 'features'}>{t.tabFeatures}</button>
       <button type="button" role="tab" class="tab" class:active={activeEditorTab === 'theme'} aria-selected={activeEditorTab === 'theme'} onclick={() => activeEditorTab = 'theme'}>{t.tabTheme}</button>
     </div>
+
+    {#if persistenceFailed}
+      <div class="persistence-notice" role="status" aria-live="polite">
+        <span>{t.persistenceFailed}</span>
+        <button type="button" onclick={() => retryPersistence()}>{t.retry}</button>
+      </div>
+    {/if}
 
     {#if activeEditorTab === 'features'}
       <div class="tab-content features-tab">
@@ -1101,5 +1116,30 @@
     .tab-bar {
       padding: 0 16px;
     }
+  }
+  .persistence-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 10px 16px 0;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .persistence-notice button {
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 </style>

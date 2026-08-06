@@ -4,24 +4,51 @@ import type { ThemePreference } from '../themes';
 import { loadSettings, saveSettings } from '../services/storage';
 
 let _settings = $state<Settings>(loadSettings());
+let _persistenceFailed = $state(false);
+let _pendingSettings: Settings | null = null;
+const persistenceSubscribers: Array<(failed: boolean) => void> = [];
+
+function persistSettings(next: Settings): boolean {
+  _settings = next;
+  _pendingSettings = next;
+  try {
+    saveSettings(_settings);
+    _persistenceFailed = false;
+    _pendingSettings = null;
+  } catch {
+    _persistenceFailed = true;
+  }
+  for (const subscriber of persistenceSubscribers) subscriber(_persistenceFailed);
+  return !_persistenceFailed;
+}
+
+export function retryPersistence(): boolean {
+  return _pendingSettings ? persistSettings(_pendingSettings) : true;
+}
+
+export function subscribePersistence(fn: (failed: boolean) => void): () => void {
+  persistenceSubscribers.push(fn);
+  fn(_persistenceFailed);
+  return () => {
+    const index = persistenceSubscribers.indexOf(fn);
+    if (index >= 0) persistenceSubscribers.splice(index, 1);
+  };
+}
 
 export function getSettings(): Settings {
   return _settings;
 }
 
 export function setRefreshInterval(interval: number) {
-  _settings = { ..._settings, refreshInterval: interval };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, refreshInterval: interval });
 }
 
 export function markSwiped() {
-  _settings = { ..._settings, hasSwipedRoutes: true };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, hasSwipedRoutes: true });
 }
 
 export function setTheme(theme: ThemePreference) {
-  _settings = { ..._settings, theme };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, theme });
 }
 
 export function toggleTheme() {
@@ -29,71 +56,57 @@ export function toggleTheme() {
 }
 
 export function setLanguage(language: Settings['language']) {
-  _settings = { ..._settings, language };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, language });
 }
 
 export function setDisruptionAlertsEnabled(enabled: boolean) {
-  _settings = { ..._settings, disruptionAlertsEnabled: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, disruptionAlertsEnabled: enabled });
 }
 
 export function setDisruptionSeverityThreshold(threshold: Settings['disruptionSeverityThreshold']) {
-  _settings = { ..._settings, disruptionSeverityThreshold: threshold };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, disruptionSeverityThreshold: threshold });
 }
 
 export function setDisruptionLanguage(language: Settings['disruptionLanguage']) {
-  _settings = { ..._settings, disruptionLanguage: language };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, disruptionLanguage: language });
 }
 
 export function setLocationServicesEnabled(enabled: boolean) {
-  _settings = { ..._settings, locationServicesEnabled: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, locationServicesEnabled: enabled });
 }
 
 export function setWalkingEtaEnabled(enabled: boolean) {
-  _settings = { ..._settings, walkingEtaEnabled: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, walkingEtaEnabled: enabled });
 }
 
 export function setAfterworkVenuesEnabled(enabled: boolean) {
-  _settings = { ..._settings, afterworkVenuesEnabled: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, afterworkVenuesEnabled: enabled });
 }
 
 export function setAfterworkStartHour(hour: number) {
-  _settings = { ..._settings, afterworkStartHour: Math.min(23, Math.max(0, hour)) };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, afterworkStartHour: Math.min(23, Math.max(0, hour)) });
 }
 
 export function setEventsEnabled(enabled: boolean) {
-  _settings = { ..._settings, eventsEnabled: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, eventsEnabled: enabled });
 }
 
 export function setGroupDisruptedSegments(enabled: boolean) {
-  _settings = { ..._settings, groupingMode: enabled ? 'disrupted' : 'none' };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, groupingMode: enabled ? 'disrupted' : 'none' });
 }
 
 export function setSortMode(mode: Settings['sortMode']) {
-  _settings = { ..._settings, sortMode: mode };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, sortMode: mode });
 }
 
 export function setGroupingMode(mode: Settings['groupingMode']) {
-  _settings = { ..._settings, groupingMode: mode };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, groupingMode: mode });
 }
 
 export function setActiveTransportType(type: TransportType | null) {
-  _settings = { ..._settings, activeTransportType: type };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, activeTransportType: type });
 }
 
 export function setGroupSleeping(enabled: boolean) {
-  _settings = { ..._settings, groupSleeping: enabled };
-  saveSettings(_settings);
+  return persistSettings({ ..._settings, groupSleeping: enabled });
 }
