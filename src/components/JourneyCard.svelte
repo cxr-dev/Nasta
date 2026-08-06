@@ -5,7 +5,7 @@
   import { getT } from '../stores/localeStore.svelte';
   import gsap from 'gsap';
   import { tick } from 'svelte';
-  import type { JourneyMeta } from '../types/journey';
+  import type { JourneyConnection, JourneyMeta } from '../types/journey';
   import type { SavedJourneyAction } from '../lib/savedJourneyLifecycle';
   import { longPress } from '../lib/longPress';
 
@@ -31,13 +31,14 @@
 
   let t = $derived(getT());
 
-  let displayLegs = $derived(journeyMeta.status === 'active' && journeyMeta.activeSnapshot
-    ? journeyMeta.activeSnapshot.legs
-    : journeyMeta.legs);
-  let depTime = $derived(displayLegs[0]?.departureTime ?? 0);
-  let arrTime = $derived(displayLegs.length > 0
-    ? displayLegs[displayLegs.length - 1].arrivalTime
-    : 0);
+  let activeSnapshot = $derived(journeyMeta.status === 'active' ? journeyMeta.activeSnapshot : undefined);
+  let displayLegs = $derived(activeSnapshot?.legs ?? journeyMeta.legs);
+  let displayConnections = $derived(activeSnapshot?.connections ?? journeyMeta.connections ?? []);
+  let depTime = $derived(activeSnapshot?.plannedDepartureTime ?? journeyMeta.departureTime ?? displayLegs[0]?.departureTime ?? 0);
+  let arrTime = $derived(activeSnapshot?.plannedArrivalTime ?? journeyMeta.arrivalTime ?? displayLegs.at(-1)?.arrivalTime ?? 0);
+  let journeyDuration = $derived(depTime > 0 && arrTime >= depTime
+    ? Math.max(1, Math.ceil((arrTime - depTime) / 60_000))
+    : journeyMeta.totalDurationMin);
   let departureMinutes = $derived(Math.max(0, Math.ceil((depTime - now) / 60000)));
   let departureCountdown = $derived(depTime <= now + 45000 ? 'Nu' : `${departureMinutes} min`);
   let isPlannedExpired = $derived(journeyMeta.status === 'planned' && depTime > 0 && depTime <= now);
@@ -50,8 +51,9 @@
   let statusLabel = $derived(
     journeyMeta.status === 'active'
       ? (t.journeyActive ?? 'Pågående resa')
-      : (t.journeyNext ?? 'Nästa resa')
+      : ''
   );
+  let panelId = $derived(`journey-details-${journeyMeta.journeyId}`);
 
   function formatTime(ms: number): string {
     const d = new Date(ms);
@@ -63,6 +65,44 @@
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function formatDistance(distance: number | undefined): string {
+    if (!distance) return '';
+    return distance >= 1000 ? `${(distance / 1000).toFixed(1)} km` : `${distance} m`;
+  }
+
+  function connectionsBefore(index: number): JourneyConnection[] {
+    const supplied = displayConnections.filter((connection) => connection.beforeLegIndex === index);
+    const walking = supplied.filter((connection) => connection.kind === 'walk');
+    if (walking.length > 0) {
+      const walk = walking[0];
+      const connectionDuration = supplied
+        .filter((connection) => connection.kind === 'transfer')
+        .reduce((total, connection) => total + connection.durationMin, 0);
+      const durationMin = walk.durationMin + connectionDuration;
+      return [{ ...walk, durationMin, walkDurationMin: durationMin }];
+    }
+    if (supplied.length > 0 || index === 0 || index >= displayLegs.length) return supplied;
+    const previous = displayLegs[index - 1];
+    const next = displayLegs[index];
+    const durationMin = Math.max(0, Math.round((next.departureTime - previous.arrivalTime) / 60_000));
+    return [{ beforeLegIndex: index, kind: 'transfer', durationMin }];
+  }
+
+  function showConnection(connection: JourneyConnection): boolean {
+    return connection.beforeLegIndex > 0 && connection.beforeLegIndex < displayLegs.length
+      ? true
+      : connection.durationMin >= 2;
+  }
+
+  function connectionLabel(connection: JourneyConnection): string {
+    const duration = formatDuration(connection.walkDurationMin ?? connection.durationMin);
+    if (connection.kind === 'walk') {
+      const distance = formatDistance(connection.walkDistanceMeters);
+      return `${t.walking ?? 'Walk'} · ${duration}${distance ? ` · ${distance}` : ''}`;
+    }
+    return `${t.transfer ?? 'Transfer'}${connection.durationMin > 0 ? ` · ${duration}` : ''}`;
   }
 
   function hasTrainPosition(transportType: TransportType): boolean {
@@ -133,11 +173,16 @@
     }
   }}
 >
-  <button class="card-main" onclick={() => handleToggle()}>
+  <button
+    class="card-main"
+    type="button"
+    aria-expanded={isExpanded}
+    aria-controls={panelId}
+    aria-label={`${journeyMeta.originLabel} → ${journeyMeta.destLabel}, ${formatTime(depTime)} – ${formatTime(arrTime)}, ${formatDuration(journeyDuration)}, ${journeyMeta.transfers === 0 ? (t.direct ?? 'Direct') : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}`}
+    onclick={() => handleToggle()}
+  >
     <div class="card-body">
-      <div class="card-top">
-        <span class="card-kicker">{statusLabel}</span>
-      </div>
+      {#if statusLabel}<div class="card-top"><span class="card-kicker">{statusLabel}</span></div>{/if}
 
       <div class="journey-endpoints">
         <span>{journeyMeta.originLabel}</span>
@@ -150,11 +195,25 @@
         <span class="time-range">
           {formatTime(depTime)} – {formatTime(arrTime)}
         </span>
-        <span class="duration">{formatDuration(journeyMeta.totalDurationMin)}</span>
-        <span class="transfers">
-          {journeyMeta.transfers === 0
-            ? (t.direct ?? 'Direct')
-            : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}
+        <span class="journey-stats" aria-hidden="true">
+          <span class="journey-stat duration">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            {formatDuration(journeyDuration)}
+          </span>
+          <span class="journey-stat transfers">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" x2="6" y1="3" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+            {journeyMeta.transfers === 0
+              ? (t.direct ?? 'Direct')
+              : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}
+          </span>
         </span>
       </div>
 
@@ -170,6 +229,10 @@
           <span class="leg-line">{displayLegs[0].lineName}</span>
           <span class="leg-direction">{displayLegs[0].directionName}</span>
           {#if hasTrainPosition(displayLegs[0].transportType)}
+            <svg class="train-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="16" height="16" x="4" y="3" rx="2" />
+              <path d="M4 11h16M8 19l-2 2M16 19l2 2M8 7h.01M16 7h.01" />
+            </svg>
             <TrainPosition position={displayLegs[0].platformPosition} />
           {/if}
         </div>
@@ -178,36 +241,48 @@
   </button>
 
   {#if isExpanded || collapsing}
-    <div class="expanded-panel" class:collapsing bind:this={panelEl}>
+    <div id={panelId} class="expanded-panel" class:collapsing bind:this={panelEl}>
       <div class="journey-detail-header">
-        <div>
-          <span class="detail-kicker">{journeyMeta.originLabel}</span>
-          <span class="detail-arrow" aria-hidden="true">→</span>
-          <strong>{journeyMeta.destLabel}</strong>
-        </div>
+        {#if journeyMeta.status === 'active'}
+          <span class="active-now">{t.journeyCurrentLeg ?? 'Nuvarande del'}</span>
+        {:else}
+          <span></span>
+        {/if}
         <button
           type="button"
           class="more-actions-button"
           aria-label={moreActionsLabel ?? `More actions for journey to ${journeyMeta.destLabel}`}
           onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
         >
-          <span aria-hidden="true">•••</span>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" />
+          </svg>
         </button>
-        {#if journeyMeta.status === 'active'}
-          <span class="active-now">{t.journeyCurrentLeg ?? 'Nuvarande del'}</span>
-        {/if}
       </div>
-      <div class="timeline">
-        {#each displayLegs as leg, i}
-          <div class="leg-row" class:current={i === activeLegIndex}>
-            <span class="leg-dot"></span>
+      <ol class="timeline">
+        {#each displayLegs as leg, i (leg.departureTime + '-' + i)}
+          {#each connectionsBefore(i).filter(showConnection) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
+            <li class="connection-row" class:walk={connection.kind === 'walk'}>
+              <span class="connection-time">{formatDuration(connection.durationMin)}</span>
+              <span class="connection-track" aria-hidden="true"></span>
+              <span class="connection-label">
+                {#if connection.kind === 'walk'}
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V19a2 2 0 0 0 2 2h.5" /><path d="M14 19v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V22" /></svg>
+                {:else}
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>
+                {/if}
+                {connectionLabel(connection)}
+              </span>
+            </li>
+          {/each}
+          <li class="leg-row" class:current={i === activeLegIndex} aria-current={i === activeLegIndex ? 'step' : undefined}>
+            <div class="leg-times"><time>{formatTime(leg.departureTime)}</time><time>{formatTime(leg.arrivalTime)}</time></div>
+            <span class="leg-track"><span class="leg-dot"></span></span>
             <div class="leg-info">
               <div class="leg-header">
                 <TransportIcon type={leg.transportType} size={12} />
                 <span class="leg-line-name">{leg.lineName}</span>
-                <span class="leg-time">
-                  {formatTime(leg.departureTime)} → {formatTime(leg.arrivalTime)}
-                </span>
+                <span class="leg-direction-name">{leg.directionName}</span>
               </div>
               <div class="leg-route">
                 <span class="route-from">{legOriginName(i, leg.originName)}</span>
@@ -230,9 +305,23 @@
                 </div>
               {/if}
             </div>
-          </div>
+          </li>
         {/each}
-      </div>
+        {#each connectionsBefore(displayLegs.length).filter(showConnection) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
+          <li class="connection-row" class:walk={connection.kind === 'walk'}>
+            <span class="connection-time">{formatDuration(connection.durationMin)}</span>
+            <span class="connection-track" aria-hidden="true"></span>
+            <span class="connection-label">
+              {#if connection.kind === 'walk'}
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V19a2 2 0 0 0 2 2h.5" /><path d="M14 19v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V22" /></svg>
+              {:else}
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>
+              {/if}
+              {connectionLabel(connection)}
+            </span>
+          </li>
+        {/each}
+      </ol>
       <div class="journey-actions">
         {#if journeyMeta.status === 'active'}
           <p class="next-action">{t.journeyNextAction ?? 'Följ nästa del av resan'}</p>
@@ -274,8 +363,20 @@
     transition: box-shadow 0.2s ease;
   }
 
-  .journey-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  .journey-card:focus-within {
+    border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+  }
+
+  .card-main:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: inherit;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .journey-card:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
   }
 
   .journey-card.active {
@@ -335,22 +436,10 @@
     text-overflow: ellipsis;
   }
 
-  .endpoint-arrow,
-  .detail-arrow {
+  .endpoint-arrow {
     color: var(--accent);
     font-weight: 800;
     flex-shrink: 0;
-  }
-
-  .duration {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 14px;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    line-height: 1;
   }
 
   .card-meta {
@@ -379,6 +468,26 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .journey-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--text-muted);
+  }
+
+  .journey-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .journey-stat svg,
+  .train-icon {
+    flex: 0 0 auto;
+  }
+
   .primary-leg {
     display: flex;
     align-items: center;
@@ -386,6 +495,11 @@
     font-size: 12px;
     color: var(--text-secondary);
     min-width: 0;
+  }
+
+  .primary-leg .train-icon {
+    color: var(--text-muted);
+    margin-left: auto;
   }
 
   .missed-notice {
@@ -424,12 +538,16 @@
   .timeline {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
 
   .leg-row {
-    display: flex;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: 44px 14px minmax(0, 1fr);
+    column-gap: 8px;
     position: relative;
   }
 
@@ -442,13 +560,21 @@
     color: var(--text);
   }
 
-  .leg-row:not(:last-child)::after {
+  .leg-track {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  .leg-track::after,
+  .connection-track::after {
     content: '';
     position: absolute;
-    left: 5px;
-    top: 14px;
-    bottom: -16px;
+    top: 11px;
+    bottom: -14px;
+    left: 50%;
     width: 1px;
+    transform: translateX(-50%);
     background: var(--border);
   }
 
@@ -484,11 +610,40 @@
     color: var(--text);
   }
 
-  .leg-time {
-    margin-left: auto;
+  .leg-direction-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--text-muted);
-    flex-shrink: 0;
   }
+
+  .leg-times,
+  .connection-time {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .leg-times { display: flex; flex-direction: column; gap: 3px; }
+
+  .leg-times time:last-child { color: var(--text-secondary); }
+
+  .connection-row {
+    display: grid;
+    grid-template-columns: 44px 14px minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: center;
+    min-height: 22px;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .connection-track { position: relative; height: 100%; }
+
+  .connection-label { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+
+  .connection-row.walk .connection-label { color: var(--text-secondary); }
 
   .leg-route {
     display: flex;
@@ -541,7 +696,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 12px;
+    margin: -8px -8px 4px 0;
     color: var(--text);
     font-size: 13px;
   }
@@ -563,16 +718,18 @@
     letter-spacing: 2px;
   }
 
-  .more-actions-button:hover,
+  @media (hover: hover) and (pointer: fine) {
+    .more-actions-button:hover {
+      background: var(--accent-subtle);
+      color: var(--accent);
+    }
+  }
+
   .more-actions-button:focus-visible {
     background: var(--accent-subtle);
     color: var(--accent);
     outline: 2px solid var(--accent);
     outline-offset: 1px;
-  }
-
-  .detail-kicker {
-    color: var(--text-secondary);
   }
 
   .active-now {
@@ -599,7 +756,7 @@
   }
 
   .journey-action {
-    min-height: 38px;
+    min-height: 44px;
     padding: 8px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-full);
@@ -622,9 +779,24 @@
     font-weight: 800;
   }
 
-  @media (min-width: 768px) {
-    .duration {
-      font-size: 15px;
+  @media (max-width: 420px) {
+    .card-body {
+      padding-inline: 12px;
     }
+
+    .card-meta {
+      gap: 6px;
+    }
+
+    .journey-stats {
+      flex-basis: 100%;
+    }
+
+    .expanded-panel {
+      padding-inline: 12px;
+    }
+
+    .leg-row,
+    .connection-row { grid-template-columns: 42px 12px minmax(0, 1fr); column-gap: 7px; }
   }
 </style>

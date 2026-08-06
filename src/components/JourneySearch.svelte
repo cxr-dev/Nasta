@@ -93,6 +93,7 @@
   let originAbort: AbortController | null = null;
   let destAbort: AbortController | null = null;
   let resultsAbort: AbortController | null = null;
+  let searchGeneration = 0;
 
   // Step progress
   let journeyStep = $derived(
@@ -272,12 +273,13 @@
     if (!origin.trim() || !dest.trim()) return;
 
     resultsAbort?.abort();
-    resultsAbort = new AbortController();
+    const controller = new AbortController();
+    resultsAbort = controller;
+    const generation = ++searchGeneration;
 
     searching = true;
     noResults = false;
     searchAttempted = true;
-    results = [];
     previewJourneyId = null;
 
     try {
@@ -292,20 +294,26 @@
         transportModes,
         maxChanges,
         routeType,
-        signal: resultsAbort.signal,
+        signal: controller.signal,
       });
 
+      if (generation !== searchGeneration || controller !== resultsAbort) return;
+
       if (journeys.length === 0) {
+        results = [];
         noResults = true;
       } else {
         results = journeys;
       }
     } catch (e: any) {
-      if (e?.name !== 'AbortError') {
+      if (generation === searchGeneration && controller === resultsAbort && e?.name !== 'AbortError') {
+        results = [];
         noResults = true;
       }
     } finally {
-      searching = false;
+      if (generation === searchGeneration && controller === resultsAbort) {
+        searching = false;
+      }
     }
   }
 
@@ -330,6 +338,9 @@
       status: 'planned' as const,
       totalDurationMin: journey.totalDurationMin,
       transfers: journey.transfers,
+      departureTime: journey.departureTime,
+      arrivalTime: journey.arrivalTime,
+      connections: journey.connections,
       updatedAt: Date.now(),
       legs: journey.legs,
     };

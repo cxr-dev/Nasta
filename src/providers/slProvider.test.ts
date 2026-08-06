@@ -116,7 +116,7 @@ describe("slProvider", () => {
 
   describe("getDepartures", () => {
     it("wraps SL departures API", async () => {
-      const now = new Date("2026-06-25T12:00:00Z").getTime();
+      const now = new Date("2026-06-25T10:00:00Z").getTime();
       vi.useFakeTimers();
       vi.setSystemTime(now);
 
@@ -155,8 +155,8 @@ describe("slProvider", () => {
     it("filters by line when specified", async () => {
       mockFetchResponse({
         departures: [
-          { line: { designation: "4" }, destination: "A", direction_code: 0, scheduled: "2026-06-25T12:05:00" },
-          { line: { designation: "17" }, destination: "B", direction_code: 1, scheduled: "2026-06-25T12:10:00" },
+          { line: { designation: "4" }, destination: "A", direction_code: 0, scheduled: "2099-06-25T12:05:00" },
+          { line: { designation: "17" }, destination: "B", direction_code: 1, scheduled: "2099-06-25T12:10:00" },
         ],
         stop_deviations: [],
       });

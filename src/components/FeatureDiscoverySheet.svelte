@@ -21,6 +21,7 @@
   } from '../services/featureDiscoverySession';
   import { distanceMeters } from '../services/geo';
   import { getSunPosition } from '../lib/sunPosition';
+  import { moodImagePath, resolveVenueMedia } from '../data/venueMoodImages';
 
   function dedupeById<T extends { id: string }>(items: T[]): T[] {
     const seen = new Set<string>();
@@ -54,6 +55,7 @@
 
   let activeTab = $state<TabKey>('beer');
   let activeVenueFilter = $state<VenueFilter>('all');
+  let imageInfoOpenId = $state<string | null>(null);
 
   let discoveryModes = $derived<TabKey[]>([
     ...(availableModes.some((mode) => mode === 'beer' || mode === 'wineCocktail') ? ['beer' as const] : []),
@@ -208,6 +210,7 @@
           })
       : []
   );
+  let venueMedia = $derived(resolveVenueMedia(filteredVenues));
 
   // Events filter/sort derived
   let eventCategories = $derived.by(() => {
@@ -281,20 +284,6 @@
     if (prefersReduced) return;
     gsap.fromTo(cards, { opacity: 0, y: 12 }, { opacity: 1, y: 0, stagger: 0.07, duration: 0.36, ease: 'power2.out' });
   });
-
-  function retryLoad() {
-    const tab = activeTab;
-    if (tab === 'events') {
-      eventsTab = { items: [], loading: false, loaded: false, error: undefined };
-    } else {
-      venuesByTab = {
-        ...venuesByTab,
-        beer: { items: [], loading: false, loaded: false, error: undefined },
-        wineCocktail: { items: [], loading: false, loaded: false, error: undefined },
-      };
-    }
-    void loadMode(tab);
-  }
 
   onMount(async () => {
     activeTab = defaultMode === 'events' && discoveryModes.includes('events') ? 'events' : discoveryModes[0] ?? 'beer';
@@ -423,8 +412,7 @@
   <div class="list" role="tabpanel" aria-labelledby="feature-tab-{activeTab}" bind:this={railEl}>
     {#if currentItems.error && displayItems.length === 0}
       <div class="error-card">
-        <p class="error-text">{currentItems.error}</p>
-        <button type="button" class="action-btn" onclick={retryLoad}>{t.retry}</button>
+        <p class="error-text">{t.featureUnavailable ?? 'Unavailable'}</p>
       </div>
     {:else if currentItems.loading && displayItems.length === 0}
       <div class="skeleton-list">
@@ -447,11 +435,13 @@
           {@const venue = item as Venue}
           {@const openState = venueOpenState[venue.id]}
           {@const venSun = venue.lat !== undefined && venue.lon !== undefined ? getSunPosition(venue.lat, venue.lon) : null}
+          {@const media = venueMedia.get(venue.id)}
           <article class="card" style={`--index:${index}`}>
-            <div class="card-media venue-media" class:has-image={!!venue.imageUrl}>
-              {#if venue.imageUrl}
+            {#if media}
+              <div class="card-media venue-media" class:mood-media={media.kind === 'mood'}>
+              {#if media.kind === 'venue'}
                 <img
-                  src={venue.imageUrl}
+                  src={media.imageUrl}
                   alt={venue.name}
                   loading={index < 2 ? 'eager' : 'lazy'}
                   fetchpriority={index < 2 ? 'high' : 'auto'}
@@ -459,20 +449,15 @@
                   onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />
               {:else}
-                <span aria-hidden="true">{activeTab === 'beer' ? '✦' : '◌'}</span>
+                <picture>
+                  <source srcset={moodImagePath(media.image, 'avif')} type="image/avif" />
+                  <img src={moodImagePath(media.image, 'webp')} alt="" loading={index < 2 ? 'eager' : 'lazy'} fetchpriority={index < 2 ? 'high' : 'auto'} decoding="async" width="960" height="360" />
+                </picture>
+                <span class="mood-label">{t.moodImage ?? 'Stämningsbild'}</span>
               {/if}
-              {#if venue.imageCredit}
-                <small class="image-credit">{venue.imageCredit}</small>
-              {/if}
-              <div class="media-overlay">
-                <span class="media-kicker">{t.afterwork}</span>
-                <h3 class="media-title">{venue.name}</h3>
-                <div class="media-meta">
-                  {#if openState?.statusText}<span>{openState.statusText}</span>{/if}
-                  {#if venue.distance !== undefined}<span>{venue.distance < 1000 ? `${Math.round(venue.distance)} m` : `${(venue.distance / 1000).toFixed(1)} km`}</span>{/if}
-                </div>
               </div>
-            </div>
+            {/if}
+            <div class="card-heading"><h3 class="card-name">{venue.name}</h3></div>
             <div class="card-top">
               <span class="card-distance">
                 {venue.distance !== undefined
@@ -560,8 +545,8 @@
         {:else}
           {@const event = item as EventItem}
           <article class="card" style={`--index:${index}`}>
-            <div class="card-media event-media" class:has-image={!!event.imageUrl}>
-              {#if event.imageUrl}
+            {#if event.imageUrl}
+              <div class="card-media event-media">
                 <img
                   src={event.imageUrl}
                   alt={event.name}
@@ -570,23 +555,19 @@
                   decoding="async"
                   onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />
-              {:else}
-                <span aria-hidden="true">◌</span>
-              {/if}
-              {#if event.imageCredit}
-                <small class="image-credit">{event.imageCredit}</small>
-              {/if}
-              <div class="media-overlay">
-                <span class="media-kicker">{t.events}</span>
-                <h3 class="media-title">{event.name}</h3>
-                <div class="media-meta">
-                  {#if event.startTime}<span>{formatEventDateTime(event.startTime, locale, t)}</span>{/if}
-                  {#if event.lat !== undefined && event.lon !== undefined}
-                    {@const mediaDist = distanceMeters(lat, lon, event.lat, event.lon)}
-                    <span>{mediaDist < 1000 ? `${Math.round(mediaDist)} m` : `${(mediaDist / 1000).toFixed(1)} km`}</span>
-                  {/if}
-                </div>
+                {#if event.imageCredit && event.imageLicense}
+                  <button class="image-info" type="button" aria-label={t.imageInformation ?? 'Image information'} aria-expanded={imageInfoOpenId === event.id} aria-controls={`event-image-info-${event.id}`} onclick={() => imageInfoOpenId = imageInfoOpenId === event.id ? null : event.id}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                  </button>
+                  {#if imageInfoOpenId === event.id}<span id={`event-image-info-${event.id}`} class="image-info-popover">{event.imageCredit} · {event.imageSource} · {event.imageLicense}</span>{/if}
+                {/if}
               </div>
+            {/if}
+            <div class="event-heading">
+              {#if !event.imageUrl}
+                <span class="event-category-tile" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg></span>
+              {/if}
+              <h3 class="card-name">{event.name}</h3>
             </div>
             <div class="card-top">
               <span class="card-tag">{t.events}</span>
@@ -620,6 +601,9 @@
           </article>
         {/if}
       {/each}
+      {#if activeTab === 'events'}
+        <p class="events-credit">{t.eventDataAttribution ?? 'Event information from'} <a href="https://api.visitstockholm.com/documentation/" target="_blank" rel="noopener noreferrer">Stockholm Business Region · CC BY 4.0</a></p>
+      {/if}
     {/if}
   </div>
 </div>
@@ -840,7 +824,7 @@
     border-radius: var(--radius-md);
     background: var(--surface);
     border: 1px solid var(--border);
-    padding: 16px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -851,8 +835,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 112px;
-    margin: -16px -16px 4px;
+    height: 104px;
+    margin: -12px -12px 2px;
     overflow: hidden;
     background: var(--accent-subtle);
     color: var(--accent);
@@ -864,65 +848,30 @@
   .card-media.event-media {
     background: color-mix(in oklch, var(--color-info-bg) 70%, var(--surface));
   }
-  .card-media img {
+  .card-media img,
+  .card-media picture {
     display: block;
     width: 100%;
-    aspect-ratio: 16 / 9;
+    height: 100%;
     object-fit: cover;
   }
-  .card-media:not(.has-image) {
-    aspect-ratio: 16 / 9;
-  }
 
-  .media-overlay {
+  .mood-label {
     position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 10px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
-    background: color-mix(in oklch, #10110f 78%, transparent);
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
-  }
-  .media-kicker {
-    color: rgba(255, 255, 255, 0.72);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .media-title {
-    margin: 0;
-    color: #fff;
-    font-size: 17px;
-    font-weight: 800;
-    line-height: 1.12;
-    text-wrap: balance;
-  }
-  .media-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 11px;
-    font-weight: 650;
-  }
-  .image-credit {
-    position: absolute;
-    right: 6px;
-    bottom: 5px;
+    left: 8px;
+    bottom: 7px;
     padding: 2px 5px;
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.58);
     color: #fff;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
   }
+
+  .image-info { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.48); color: #fff; }
+  .image-info-popover { position: absolute; right: 8px; top: 48px; max-width: calc(100% - 16px); padding: 5px 7px; border-radius: 6px; background: rgba(0, 0, 0, 0.76); color: #fff; font-size: 10px; z-index: 1; }
+  .card-heading, .event-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .event-category-tile { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: var(--color-info-bg); color: var(--color-info); }
 
   .card-top {
     display: flex;
@@ -1116,8 +1065,8 @@
     font-size: 13px;
     color: var(--text-muted);
     line-height: 1.45;
-    line-clamp: 3;
-    -webkit-line-clamp: 3;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     display: -webkit-box;
@@ -1158,6 +1107,15 @@
 
   .action-btn.primary:hover {
     opacity: 0.9;
+  }
+
+  .events-credit { margin: 0; padding: 4px 2px 12px; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+  .events-credit a { color: inherit; text-underline-offset: 2px; }
+
+  @media (min-width: 768px) { .card-media { height: 112px; } }
+
+  @media (hover: none), (pointer: coarse) {
+    .action-btn:hover { background: transparent; border-color: var(--border); }
   }
 
   .empty-card {

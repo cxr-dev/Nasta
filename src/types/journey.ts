@@ -39,6 +39,18 @@ export interface JourneyLeg {
   platformPosition: PlatformPosition;
 }
 
+/** A walking or interchange interval placed before a transit leg. */
+export interface JourneyConnection {
+  /** 0 is access to the first leg; legs.length is egress after the last leg. */
+  beforeLegIndex: number;
+  kind: 'walk' | 'transfer';
+  durationMin: number;
+  walkDurationMin?: number;
+  walkDistanceMeters?: number;
+  originName?: string;
+  destName?: string;
+}
+
 /** Full journey search result. */
 export interface Journey {
   /** Unique ID for this journey option */
@@ -49,6 +61,8 @@ export interface Journey {
   destLabel: string;
   /** Ordered legs of the journey */
   legs: JourneyLeg[];
+  /** Walking and interchange intervals supplied by the planner. */
+  connections?: JourneyConnection[];
   /** Total duration in minutes */
   totalDurationMin: number;
   /** Departure time of first leg (ms UTC) */
@@ -111,6 +125,7 @@ export interface ActiveJourneySnapshot {
   plannedDepartureTime: number;
   plannedArrivalTime: number;
   legs: JourneyLeg[];
+  connections?: JourneyConnection[];
 }
 
 /** Metadata attached to a segment when it represents a saved journey. */
@@ -123,6 +138,10 @@ export interface JourneyMeta {
   destLabel: string;
   /** All legs */
   legs: JourneyLeg[];
+  /** Journey-level bounds include access, interchange, and egress time. */
+  departureTime?: number;
+  arrivalTime?: number;
+  connections?: JourneyConnection[];
   /** Total duration */
   totalDurationMin: number;
   /** Transfers count */

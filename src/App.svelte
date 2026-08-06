@@ -327,6 +327,9 @@
         status: editingSegment?.journeyMeta?.status ?? 'planned',
         totalDurationMin: journey.totalDurationMin,
         transfers: journey.transfers,
+        departureTime: journey.departureTime,
+        arrivalTime: journey.arrivalTime,
+        connections: journey.connections,
         updatedAt: Date.now(),
         legs: journey.legs,
       },
@@ -1056,11 +1059,10 @@ function closeSettingsPanel() {
 
   /* Global button press feedback for snappy feel */
   :global(button) {
-    transition: transform 120ms ease, opacity 120ms ease;
+    transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease;
     -webkit-tap-highlight-color: transparent;
   }
-  :global(button:not(.no-scale):active) {
-    transform: scale(0.965);
+  :global(button:active) {
     opacity: 0.9;
   }
   :global(button:disabled) {

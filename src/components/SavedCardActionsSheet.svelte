@@ -32,6 +32,22 @@
   let showingPages = $state(false);
   let actionListEl = $state<HTMLDivElement | undefined>();
   let pageListEl = $state<HTMLDivElement | undefined>();
+  let presentationMode = $state<'sheet' | 'popover'>('sheet');
+
+  $effect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+    const pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const updateMode = () => {
+      presentationMode = window.innerWidth >= 768 && pointerQuery.matches ? 'popover' : 'sheet';
+    };
+    updateMode();
+    pointerQuery.addEventListener('change', updateMode);
+    window.addEventListener('resize', updateMode);
+    return () => {
+      pointerQuery.removeEventListener('change', updateMode);
+      window.removeEventListener('resize', updateMode);
+    };
+  });
 
   let kind = $derived(segment ? getSavedCardKind(segment) : 'departure');
   let actions = $derived(segment ? getSavedCardActions(segment, pages, {
@@ -87,7 +103,7 @@
   closeAriaLabel={t.closePanel ?? 'Close panel'}
   onClose={close}
   sheetClass="saved-card-actions-sheet"
-  mode="popover"
+  mode={presentationMode}
   anchor={trigger}
 >
   {#snippet children()}
@@ -261,7 +277,7 @@
       background: transparent;
     }
 
-    :global(.sheet.saved-card-actions-sheet) {
+    :global(.sheet.saved-card-actions-sheet.popover) {
       position: fixed;
       inset: auto;
       width: 320px;
@@ -274,13 +290,36 @@
       opacity: 1 !important;
     }
 
-    :global(.sheet.saved-card-actions-sheet .sheet-handle),
-    :global(.sheet.saved-card-actions-sheet .sheet-header > .icon-btn) {
+    :global(.sheet.saved-card-actions-sheet.popover .sheet-handle),
+    :global(.sheet.saved-card-actions-sheet.popover .sheet-header > .icon-btn) {
       display: none;
     }
 
     .sheet-content {
       padding: 12px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    :global(.sheet-overlay:has(.sheet.saved-card-actions-sheet.touch-sheet)) {
+      display: block;
+      padding: 0;
+      background: transparent;
+    }
+
+    :global(.sheet.saved-card-actions-sheet.touch-sheet) {
+      position: fixed;
+      inset: auto 0 0;
+      width: 100%;
+      height: auto;
+      max-height: min(78dvh, 620px);
+      border-radius: 22px 22px 0 0;
+      transform: translateY(100%) !important;
+      opacity: 1;
+    }
+
+    :global(.sheet-overlay.open .sheet.saved-card-actions-sheet.touch-sheet) {
+      transform: translateY(0) !important;
     }
   }
 

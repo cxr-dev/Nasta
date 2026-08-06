@@ -1,5 +1,5 @@
 import { fetchNearbyEvents, type EventItem } from './eventService';
-import { enrichVenueImages, fetchNearbyVenues, type Venue } from './venueService';
+import { fetchNearbyVenues, type Venue } from './venueService';
 
 export type FeatureDiscoveryMode = 'beer' | 'wineCocktail' | 'events';
 
@@ -81,12 +81,5 @@ export function loadFeatureDiscovery(
 export async function prefetchFeatureDiscovery(
   query: FeatureDiscoveryQuery,
 ): Promise<void> {
-  const items = await loadFeatureDiscovery(query);
-  if (query.mode === 'events') return;
-
-  const enriched = await enrichVenueImages(items as Venue[]);
-  const cached = readCached(query);
-  if (cached) {
-    resultCache.set(queryKey(query), { ...cached, items: enriched });
-  }
+  await loadFeatureDiscovery(query);
 }

@@ -13,6 +13,7 @@ export type EventItem = {
   imageUrl?: string;
   imageCredit?: string;
   imageSource?: string;
+  imageLicense?: string;
   imageResolvedAt?: number;
 };
 
@@ -54,8 +55,8 @@ function normalizeText(value: any) {
   return "";
 }
 
-function eventImageUrl(event: any): string | undefined {
-  return toHttpsImage(
+function trustedEventImage(event: any): Pick<EventItem, 'imageUrl' | 'imageCredit' | 'imageSource' | 'imageLicense' | 'imageResolvedAt'> {
+  const imageUrl = toHttpsImage(
     event.image_url ??
       event.imageUrl ??
       event.image?.url ??
@@ -69,6 +70,17 @@ function eventImageUrl(event: any): string | undefined {
       event.media?.image?.image_url ??
       event.renditions?.[0]?.url,
   );
+  const license = normalizeText(event.image_license ?? event.imageLicense ?? event.image?.license ?? event.media?.[0]?.license);
+  const credit = normalizeText(event.image_credit ?? event.imageCredit ?? event.image?.credit ?? event.image?.photographer ?? event.media?.[0]?.credit);
+  const recognized = /^(CC BY(?: 4\.0)?|CC0|Public Domain)$/i.test(license.trim());
+  if (!imageUrl || !credit || !recognized) return {};
+  return {
+    imageUrl,
+    imageCredit: credit,
+    imageSource: normalizeText(event.image_source ?? event.imageSource ?? event.image?.source) || 'Visit Stockholm',
+    imageLicense: license,
+    imageResolvedAt: Date.now(),
+  };
 }
 
 export async function fetchNearbyEvents(
@@ -183,10 +195,7 @@ export async function fetchNearbyEvents(
               e.url ??
               undefined,
             description: normalizeText(e.description ?? e.summary ?? undefined),
-            imageUrl: eventImageUrl(e),
-            imageCredit: eventImageUrl(e) ? 'Visit Stockholm' : undefined,
-            imageSource: eventImageUrl(e) ? 'Visit Stockholm' : undefined,
-            imageResolvedAt: eventImageUrl(e) ? Date.now() : undefined,
+            ...trustedEventImage(e),
             lat: typeof eventLat === "number" ? eventLat : undefined,
             lon: typeof eventLon === "number" ? eventLon : undefined,
             categories: Array.isArray(e.categories)

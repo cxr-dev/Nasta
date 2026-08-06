@@ -103,7 +103,7 @@ describe("slApi service", () => {
   });
 
   describe("getDepartures", () => {
-    it("returns departures with correct minute calculation", async () => {
+    it("rejects departures whose timestamp has already passed", async () => {
       vi.useFakeTimers();
       // Set system time to 2024-01-01T08:00:30 UTC
       // This is 09:00:30 in Stockholm (UTC+1)
@@ -126,12 +126,7 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("9001");
-      expect(result.departures).toHaveLength(1);
-      expect(result.departures[0].line).toBe("76");
-      // Parsed time 07:04 UTC, now is 08:00:30 UTC
-      // Minutes = Math.max(1, Math.ceil((07:04 - 08:00:30) / 60)) = 1
-      // This shows the timestamp is in the past, but we never show 0 or negative
-      expect(result.departures[0].minutes).toBe(1);
+      expect(result.departures).toHaveLength(0);
     });
 
     it("correctly handles future departures", async () => {
@@ -170,7 +165,7 @@ describe("slApi service", () => {
             line: { designation: "76", name: "76", transport_mode: "bus" },
             destination: "Test",
             direction_code: 1,
-            expected: "2024-01-01T10:00:00",
+            expected: "2099-01-01T10:00:00",
             journey: { id: "journey-xyz" },
             trip: { id: "trip-123" },
           },
@@ -233,26 +228,26 @@ describe("slApi service", () => {
             line: { designation: "76" },
             destination: "Test",
             direction_code: 1,
-            expected: "2024-01-01T10:00:00",
+            expected: "2099-01-01T10:00:00",
           },
           // Invalid - missing line
           {
             destination: "Test",
             direction_code: 1,
-            expected: "2024-01-01T10:05:00",
+            expected: "2099-01-01T10:05:00",
           },
           // Invalid - missing destination
           {
             line: { designation: "2" },
             direction_code: 1,
-            expected: "2024-01-01T10:10:00",
+            expected: "2099-01-01T10:10:00",
           },
           // Valid
           {
             line: { designation: "2" },
             destination: "Test2",
             direction_code: 2,
-            expected: "2024-01-01T10:15:00",
+            expected: "2099-01-01T10:15:00",
           },
         ],
       };
@@ -275,7 +270,7 @@ describe("slApi service", () => {
             line: { designation: "30", name: "30", transport_mode: "tram" },
             destination: "Solna station",
             direction_code: 1,
-            expected: "2024-01-01T10:00:00",
+            expected: "2099-01-01T10:00:00",
           },
         ],
       };
@@ -295,7 +290,7 @@ describe("slApi service", () => {
             line: { designation: "30", name: "30", transport_mode: "lightrail" },
             destination: "Solna station",
             direction_code: 1,
-            expected: "2024-01-01T10:00:00",
+            expected: "2099-01-01T10:00:00",
           },
         ],
       };
@@ -329,7 +324,7 @@ describe("slApi service", () => {
       expect(result.departures[0].minutes).toBe(3);
     });
 
-    it("defaults minutes to 1 when both expected and timeToDeparture are missing", async () => {
+    it("rejects departures when both timestamp and timeToDeparture are missing", async () => {
       const mockDepartures = {
         departures: [
           {
@@ -345,7 +340,7 @@ describe("slApi service", () => {
       });
 
       const result = await getDepartures("9001");
-      expect(result.departures[0].minutes).toBe(1);
+      expect(result.departures).toHaveLength(0);
     });
 
     it("throws on network fetch error", async () => {
@@ -361,7 +356,7 @@ describe("slApi service", () => {
             line: { designation: "76" },
             destination: "Test",
             direction_code: 1,
-            expected: "2024-01-01T10:00:00",
+            expected: "2099-01-01T10:00:00",
             deviations: [
               { importance_level: 3, consequence: "DELAYED", message: "5 min sen" },
             ],

@@ -25,7 +25,7 @@ describe("eventService", () => {
     localStorage.clear();
   });
 
-  it("parses direct array payloads", async () => {
+  it("rejects a bare event image URL without reusable-license metadata", async () => {
     const todayIso = new Date().toISOString().slice(0, 10);
 
     vi.stubGlobal(
@@ -55,8 +55,22 @@ describe("eventService", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0].name).toBe("Jazz Night");
-    expect(events[0].imageUrl).toBe("https://images.example.test/jazz.jpg");
-    expect(events[0].imageCredit).toBe("Visit Stockholm");
+    expect(events[0].imageUrl).toBeUndefined();
+    expect(events[0].imageCredit).toBeUndefined();
+  });
+
+  it("accepts event media only with a recognized license and credit", async () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([{
+      id: 'licensed', name: 'Licensed Event', startTime: `${todayIso}T19:00:00+02:00`,
+      location: { lat: 59.33, lon: 18.06 }, image: { url: 'https://images.example.test/event.jpg', license: 'CC BY 4.0', credit: 'Photo Person' },
+    }]), { status: 200 })) as any);
+
+    const fetchNearbyEvents = await loadEventService();
+    const [event] = await fetchNearbyEvents(59.33, 18.06);
+    expect(event.imageUrl).toBe('https://images.example.test/event.jpg');
+    expect(event.imageCredit).toBe('Photo Person');
+    expect(event.imageLicense).toBe('CC BY 4.0');
   });
 
   it("parses wrapped event payloads", async () => {

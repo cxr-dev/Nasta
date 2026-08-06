@@ -111,14 +111,32 @@ function isValidStopFinderResult(obj: unknown): obj is StopFinderLocation {
   );
 }
 
+function parseDisplayMinutes(value: unknown): number {
+  if (typeof value !== "string") return NaN;
+  const trimmed = value.trim();
+  if (/^(?:nu|now)$/i.test(trimmed)) return 0;
+  const match = trimmed.match(/^(\d+)\s*(?:min|m)$/i);
+  return match ? Number(match[1]) : NaN;
+}
+
 function isValidDeparture(obj: unknown): obj is Departure {
   if (!obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
+  const line = o.line;
+  const hasUsableTimeToDeparture =
+    typeof o.timeToDeparture === "number" &&
+    Number.isFinite(o.timeToDeparture) &&
+    o.timeToDeparture >= 0;
+  const hasUsableDisplay = Number.isFinite(parseDisplayMinutes(o.display));
+  const hasTimestamp = [o.expected, o.scheduled].some(
+    (value) => typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
+  );
   return (
-    typeof o.line === "object" &&
-    o.line !== null &&
+    typeof line === "object" &&
+    line !== null &&
     typeof o.destination === "string" &&
-    typeof o.direction_code === "number"
+    typeof o.direction_code === "number" &&
+    (hasTimestamp || hasUsableTimeToDeparture || hasUsableDisplay)
   );
 }
 
@@ -224,51 +242,54 @@ export async function getDepartures(
     }
   }
 
-  const departures = validDeps.map((dep: any) => {
-    const liveTime = dep.expected || dep.scheduled || "";
+  const departures = validDeps.flatMap((dep: any) => {
+    const timestampCandidate = [dep.expected, dep.scheduled].find(
+      (value) => typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
+    );
+    const liveTime = timestampCandidate ?? "";
     const parsedTime = liveTime ? parseSlTimestamp(liveTime) : NaN;
+    const apiMinutes =
+      typeof dep.timeToDeparture === "number" && Number.isFinite(dep.timeToDeparture)
+        ? dep.timeToDeparture
+        : NaN;
+    const displayMinutes = parseDisplayMinutes(dep.display);
+
+    if (Number.isNaN(parsedTime) && Number.isNaN(apiMinutes) && Number.isNaN(displayMinutes)) return [];
 
     // Prioritize computed minutes from parsed timestamp
     let minutes: number;
-    let isFromParsedTime = false;
 
-    if (liveTime && !isNaN(parsedTime)) {
+    if (!Number.isNaN(parsedTime)) {
       // Compute from absolute timestamp (most reliable)
-      // Use Math.max(1, Math.ceil(...)) to avoid 0 min display for imminent departures
-      minutes = Math.max(1, Math.ceil((parsedTime - Date.now()) / 60000));
-      isFromParsedTime = true;
-    } else if (
-      dep.timeToDeparture !== undefined &&
-      typeof dep.timeToDeparture === "number"
-    ) {
-      // Fallback to API-provided timeToDeparture
-      minutes = Math.max(1, dep.timeToDeparture);
-    } else {
-      // Last resort: use 1 if both fail (avoid 0 min display)
-      minutes = 1;
-    }
-
-    // Dev diagnostics for stale/invalid timestamps
-    if (import.meta.env.DEV) {
-      if (minutes < 0) {
-        console.warn("[SL API] Stale timestamp detected:", {
-          raw: liveTime,
-          parsed: parsedTime,
-          now: Date.now(),
-          minutes,
-          line: dep.line?.designation,
-          destination: dep.destination,
-        });
+      const now = Date.now();
+      if (parsedTime < now) {
+        if (import.meta.env.DEV) {
+          console.warn("[SL API] Ignoring stale departure:", {
+            raw: liveTime,
+            parsed: parsedTime,
+            now,
+            line: dep.line?.designation,
+            destination: dep.destination,
+          });
+        }
+        return [];
       }
+      minutes = Math.ceil((parsedTime - now) / 60000);
+    } else {
+      // Use the provider's relative value only when no usable timestamp exists.
+      minutes = !Number.isNaN(apiMinutes)
+        ? Math.max(0, Math.ceil(apiMinutes))
+        : Math.max(0, Math.ceil(displayMinutes));
     }
 
-    const formattedTime = !isNaN(parsedTime)
+    const formattedTime = !Number.isNaN(parsedTime)
       ? formatTime(new Date(parsedTime))
       : "";
 
     // Extract scheduled time from API response and cache it
-    if (dep.scheduled) {
-      const scheduledDate = new Date(parseSlTimestamp(dep.scheduled));
+    const scheduledTime = typeof dep.scheduled === "string" ? parseSlTimestamp(dep.scheduled) : NaN;
+    if (Number.isFinite(scheduledTime)) {
+      const scheduledDate = new Date(scheduledTime);
       const line = dep.line?.designation || dep.line?.name || "";
       const direction_code = dep.direction_code ?? 0;
       cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(() => {});
@@ -283,14 +304,14 @@ export async function getDepartures(
         }))
       : undefined;
 
-    return {
+    return [{
       line: dep.line?.designation || dep.line?.name || "",
       lineName: dep.line?.name || "",
       destination: dep.destination || "",
       direction_code: dep.direction_code ?? 0,
       minutes,
       time: formattedTime,
-      expectedAt: dep.expected ? parseSlTimestamp(dep.expected) : undefined,
+      expectedAt: Number.isFinite(parsedTime) ? parsedTime : undefined,
       deviations: depDeviations,
       transportType: getTransportType(dep.line?.transport_mode),
       // SL API exposes journey.id — used for vehicle position estimation in the progress strip
@@ -301,7 +322,7 @@ export async function getDepartures(
       display: dep.display,
       // SL API provides stop point ID
       stop_point_id: dep.stop_point?.id ?? undefined,
-    };
+    }];
   });
 
   return { departures, stopDeviations };

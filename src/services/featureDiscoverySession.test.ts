@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchNearbyEventsMock, fetchNearbyVenuesMock, enrichVenueImagesMock } = vi.hoisted(() => ({
+const { fetchNearbyEventsMock, fetchNearbyVenuesMock } = vi.hoisted(() => ({
   fetchNearbyEventsMock: vi.fn(),
   fetchNearbyVenuesMock: vi.fn(),
-  enrichVenueImagesMock: vi.fn(async (items: unknown[]) => items),
 }));
 
 vi.mock('./eventService', () => ({ fetchNearbyEvents: fetchNearbyEventsMock }));
 vi.mock('./venueService', () => ({
   fetchNearbyVenues: fetchNearbyVenuesMock,
-  enrichVenueImages: enrichVenueImagesMock,
 }));
 
 async function loadSession() {
@@ -22,7 +20,6 @@ describe('featureDiscoverySession', () => {
     vi.clearAllMocks();
     fetchNearbyEventsMock.mockResolvedValue([]);
     fetchNearbyVenuesMock.mockResolvedValue([]);
-    enrichVenueImagesMock.mockImplementation(async (items: unknown[]) => items);
   });
 
   it('shares concurrent foreground and prefetch requests', async () => {
@@ -53,18 +50,16 @@ describe('featureDiscoverySession', () => {
     expect(fetchNearbyVenuesMock).toHaveBeenCalledWith(59.33, 18.06, 1200, ['beer']);
   });
 
-  it('uses the canonical wine and cocktail query and enriches prefetched venues', async () => {
+  it('uses the canonical wine and cocktail query without name-based image enrichment', async () => {
     const venues = [{ id: 'venue-1' }];
-    const enriched = [{ id: 'venue-1', imageUrl: 'https://image.test/venue.jpg' }];
     fetchNearbyVenuesMock.mockResolvedValue(venues);
-    enrichVenueImagesMock.mockResolvedValue(enriched);
     const { peekFeatureDiscovery, prefetchFeatureDiscovery } = await loadSession();
     const query = { lat: 59.33, lon: 18.06, mode: 'wineCocktail' as const };
 
     await prefetchFeatureDiscovery(query);
 
     expect(fetchNearbyVenuesMock).toHaveBeenCalledWith(59.33, 18.06, 1200, ['wine', 'cocktail']);
-    expect(peekFeatureDiscovery(query)).toEqual(enriched);
+    expect(peekFeatureDiscovery(query)).toEqual(venues);
   });
 
   it('does not cache failures, so retry can call the provider again', async () => {

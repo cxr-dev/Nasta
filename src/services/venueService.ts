@@ -41,83 +41,6 @@ const venuesInflight = new Map<string, Promise<Venue[]>>();
 const _venuesCache = new Map<string, { expiry: number; data: Venue[] }>();
 const MAX_VENUE_RESULTS = 12;
 const OVERPASS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
-type ImageMetadata = { imageUrl?: string; imageCredit?: string; imageSource?: string; imageResolvedAt?: number };
-const commonsImageCache = new Map<string, { expires: number } & ImageMetadata>();
-
-function stripMarkup(value: unknown): string {
-  return typeof value === 'string' ? value.replace(/<[^>]*>/g, '').trim() : '';
-}
-
-async function findCommonsImage(name: string, signal?: AbortSignal): Promise<ImageMetadata> {
-  const key = name.trim().toLowerCase();
-  const cached = commonsImageCache.get(key);
-  if (cached && cached.expires > Date.now()) return cached;
-
-  try {
-    const url = `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({
-      action: 'query',
-      generator: 'search',
-      gsrsearch: `${name} Stockholm`,
-      gsrnamespace: '6',
-      gsrlimit: '3',
-      prop: 'imageinfo',
-      iiprop: 'url|extmetadata',
-      iiurlwidth: '900',
-      format: 'json',
-      origin: '*',
-    })}`;
-    const response = await fetch(url, { signal });
-    if (!response.ok) throw new Error(`Commons returned ${response.status}`);
-    const payload = await response.json() as { query?: { pages?: Record<string, any> } };
-    const pages = Object.values(payload.query?.pages ?? {});
-    const normalizedName = name.toLowerCase().replace(/[^a-z0-9åäö]+/gi, ' ').trim();
-    const page = pages.find((candidate) => {
-      const title = String(candidate.title ?? '').toLowerCase().replace(/[^a-z0-9åäö]+/gi, ' ');
-      return normalizedName.split(' ').filter((word) => word.length > 3).some((word) => title.includes(word));
-    });
-    const info = page?.imageinfo?.[0];
-    const imageUrl = toHttpsImage(info?.thumburl ?? info?.url);
-    const imageCredit = imageUrl
-      ? stripMarkup(info?.extmetadata?.Credit?.value ?? info?.extmetadata?.Artist?.value ?? 'Wikimedia Commons')
-      : undefined;
-    const result = { imageUrl, imageCredit, imageSource: imageUrl ? 'Wikimedia Commons' : undefined, imageResolvedAt: Date.now() };
-    commonsImageCache.set(key, { ...result, expires: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-    return result;
-  } catch {
-    const result = { imageResolvedAt: Date.now() };
-    commonsImageCache.set(key, { ...result, expires: Date.now() + 60 * 60 * 1000 });
-    return result;
-  }
-}
-
-/** Optional, attribution-preserving image enrichment for providers without photos. */
-export async function enrichVenueImages(venues: Venue[], signal?: AbortSignal): Promise<Venue[]> {
-  const candidates = venues.filter((venue) => !venue.imageUrl && !venue.imageResolvedAt).slice(0, 6);
-  if (candidates.length === 0) return venues;
-  const found = await Promise.all(candidates.map(async (venue) => {
-    const cacheKey = `venue-image:${venue.source ?? 'unknown'}:${venue.id}:${venue.name}`;
-    const stored = await persistentCache.get(cacheKey).catch(() => null) as ImageMetadata | null;
-    if (stored) return [venue.id, stored] as const;
-    const image = await findCommonsImage(venue.name, signal);
-    await persistentCache.set(cacheKey, image, image.imageUrl ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000).catch(() => {});
-    return [venue.id, image] as const;
-  }));
-  const byId = new Map(found);
-  return venues.map((venue) => {
-    const image = byId.get(venue.id);
-    return image ? { ...venue, ...image } : venue;
-  });
-}
-
-async function applyStoredImageMetadata(venues: Venue[]): Promise<Venue[]> {
-  const enriched = await Promise.all(venues.map(async (venue) => {
-    if (venue.imageUrl || venue.imageResolvedAt) return venue;
-    const key = `venue-image:${venue.source ?? 'unknown'}:${venue.id}:${venue.name}`;
-    const image = await persistentCache.get(key).catch(() => null) as ImageMetadata | null;
-    return image ? { ...venue, ...image } : venue;
-  }));
-  return enriched;
-}
 
 function readLocalOverpassCache(key: string): Venue[] | null {
   if (typeof localStorage === "undefined") return null;
@@ -229,7 +152,7 @@ export async function fetchNearbyVenues(
   const TTL = 30 * 60 * 1000;
 
   const cached = cache.get(key);
-  if (cached && cached.expiry > now) return applyStoredImageMetadata(cached.data);
+  if (cached && cached.expiry > now) return cached.data;
 
   const inflight = venuesInflight.get(key);
   if (inflight) return inflight;
@@ -239,11 +162,11 @@ export async function fetchNearbyVenues(
     try {
       const localCacheKey = `nasta_venues_v2:${key}`;
       const localCache = readLocalOverpassCache(localCacheKey);
-      if (localCache) return applyStoredImageMetadata(localCache);
+      if (localCache) return localCache;
 
       try {
         const p = await persistentCache.get(`venues_v2:${key}`);
-        if (p) return applyStoredImageMetadata(p as Venue[]);
+        if (p) return p as Venue[];
       } catch (e) {}
 
       const results: Venue[] = [];
@@ -762,7 +685,7 @@ export async function fetchNearbyVenues(
           );
         } catch (e) {}
       }
-      return applyStoredImageMetadata(out);
+      return out;
     } finally {
       venuesInflight.delete(key);
     }

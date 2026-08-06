@@ -135,28 +135,6 @@
       return status?.freshness === 'unavailable';
     }),
   );
-  let allDeparturesOffline = $derived(
-    allDeparturesUnavailable && departureSegments.every((segment) => {
-      const status = departureStatuses.get(makeDepartureStatusKey(
-        segment.fromStop.siteId,
-        segment.line,
-        segment.direction.code,
-      ));
-      return status?.canRetry === false;
-    }),
-  );
-
-  function retryAllDepartures() {
-    for (const segment of departureSegments) {
-      void departureStore.retrySegment({
-        siteId: segment.fromStop.siteId,
-        stopName: segment.fromStop.name,
-        line: segment.line,
-        direction_code: segment.direction.code,
-      });
-    }
-  }
-
   $effect(() => {
     const nextPageId = page.id;
     if (expandedPageId !== null && expandedPageId !== nextPageId) {
@@ -431,7 +409,7 @@
               </div>
               <span class="section-count">{section.groups.reduce((count, group) => count + group.items.length, 0)}</span>
             </header>
-      {#each section.groups as group}
+      {#each section.groups as group (group.label ?? 'all')}
         {#if group.label}
           <div class="section-label">
             {group.label}
@@ -464,7 +442,6 @@
           {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
-          {@const departureStatus = departureStatuses.get(makeDepartureStatusKey(item.segment.fromStop.siteId, item.segment.line, item.segment.direction.code))}
 
           {#if item.segment.journeyMeta}
             <JourneyCard
@@ -499,14 +476,7 @@
               isSleeping={sleepInfo.isSleeping}
               nextDepartureTime={sleepInfo.nextTime}
               {now}
-              {departureStatus}
               weatherSymbol={segmentWeather.get(item.segment.id) ?? null}
-              onRetry={() => departureStore.retrySegment({
-                siteId: item.segment.fromStop.siteId,
-                stopName: item.segment.fromStop.name,
-                line: item.segment.line,
-                direction_code: item.segment.direction.code,
-              })}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
               groupingMode={settings.groupingMode}
@@ -526,11 +496,8 @@
       {#if (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
-          {#if allDeparturesUnavailable && allDeparturesOffline}
-            <p class="empty-text">{t.noConnectionDepartures}</p>
-          {:else if allDeparturesUnavailable}
-            <p class="empty-text">{t.failedToUpdateDepartures}</p>
-            <button class="empty-retry" type="button" onclick={retryAllDepartures}>{t.retry}</button>
+          {#if allDeparturesUnavailable}
+            <p class="empty-text">{t.departuresUnavailable ?? 'Departures unavailable'}</p>
           {:else}
             <p class="empty-text">{t.noDeparturesAvailable}</p>
           {/if}
@@ -712,18 +679,6 @@
   }
   .quick-add-card:active {
     background: color-mix(in oklch, var(--accent) 10%, transparent);
-  }
-
-  .empty-retry {
-    min-height: 44px;
-    padding: 8px 16px;
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--accent);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
   }
 
   .loading-skeleton {

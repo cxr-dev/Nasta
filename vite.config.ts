@@ -97,6 +97,17 @@ export default defineConfig(({ mode }) => {
                 networkTimeoutSeconds: 4,
               },
             },
+            {
+              urlPattern: /venue-mood\/.*\.(?:avif|webp)$/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "venue-mood-cache",
+                expiration: {
+                  maxEntries: 48,
+                  maxAgeSeconds: 31536000,
+                },
+              },
+            },
           ],
         },
       }),

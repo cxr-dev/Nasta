@@ -39,9 +39,26 @@
 
   async function handleReload() {
     const reg = await navigator.serviceWorker.getRegistration();
-    if (reg?.waiting) {
-      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    if (!reg?.waiting) {
+      window.location.reload();
+      return;
     }
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let timeoutId: number;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        navigator.serviceWorker.removeEventListener('controllerchange', finish);
+        window.clearTimeout(timeoutId);
+        resolve();
+      };
+      timeoutId = window.setTimeout(finish, 2500);
+      navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+      reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
+    });
+
     window.location.reload();
   }
 
@@ -74,7 +91,9 @@
         {t.reload}
       </button>
       <button class="dismiss-btn" onclick={handleDismiss} aria-label={t.dismissHint}>
-        ✕
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
       </button>
     </div>
   </div>

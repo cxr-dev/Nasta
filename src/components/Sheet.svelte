@@ -1,3 +1,7 @@
+<script module lang="ts">
+  let nextSheetId = 0;
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { tick } from 'svelte';
@@ -38,6 +42,7 @@
   let dragStartY = $state(0);
   let popoverStyle = $state('');
   let restoreFocusEl = $state<HTMLElement | null>(null);
+  const titleId = `sheet-title-${++nextSheetId}`;
 
   const SWIPE_THRESHOLD = 48;
 
@@ -191,6 +196,7 @@
   aria-hidden={!isOpen}
   inert={!isOpen}
   aria-modal="true"
+  aria-labelledby={titleId}
   onclick={handleOverlayClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -201,6 +207,7 @@
     bind:this={sheetEl}
     class="sheet {sheetClass}"
     class:popover={mode === 'popover'}
+    class:touch-sheet={mode === 'sheet'}
     style={mode === 'popover' ? popoverStyle : undefined}
     class:dragging
     onclick={(e) => e.stopPropagation()}
@@ -218,14 +225,14 @@
 
     <div class="sheet-header">
       <IconButton onclick={onClose} ariaLabel={closeAriaLabel}>
-        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m15 18-6-6 6-6" />
         </svg>
-        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M6 6l12 12M18 6 6 18"/>
+        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
         </svg>
       </IconButton>
-      <span class="sheet-title">{title}</span>
+      <span id={titleId} class="sheet-title">{title}</span>
     </div>
 
     {@render children()}

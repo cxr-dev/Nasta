@@ -7,7 +7,12 @@ import type {
 } from '../types/journey';
 import type { TransportType } from '../types/page';
 import { getPlatformPosition } from './platformPosition';
-import { getWalkingTime } from './geo';
+import { parseSlTimestamp } from './slApi';
+
+type ParsedConnection = NonNullable<Journey['connections']>[number] & {
+  departureTime: number;
+  arrivalTime: number;
+};
 
 const JOURNEY_PLANNER_URL = 'https://journeyplanner.integration.sl.se/v2';
 const STOP_FINDER_URL = `${JOURNEY_PLANNER_URL}/stop-finder`;
@@ -233,6 +238,8 @@ interface TripLeg {
   stopSequence?: TripLegStop[];
   /** Duration in seconds */
   duration?: number;
+  /** Distance in metres when supplied for a walking connection. */
+  distance?: number;
   /** Direction code */
   direction?: number;
   /** Direction display name */
@@ -286,6 +293,46 @@ function parseDirectionCode(
     return (hash % 4) + 1; // 1-4
   }
   return 1;
+}
+
+function parseLegTime(value: string | undefined): number {
+  return value ? parseSlTimestamp(value) : NaN;
+}
+
+function connectionForLeg(
+  leg: TripLeg,
+  beforeLegIndex: number,
+  originFallback: string,
+  destFallback: string,
+): ParsedConnection | undefined {
+  const classId = leg.transportation?.product?.class;
+  const isWalk = classId === 100 || leg.type?.toLowerCase().includes('walk');
+  const isConnection = isWalk || classId === 99 || !leg.transportation;
+  if (!isConnection) return undefined;
+
+  const departureTime = parseLegTime(leg.origin?.departureTimePlanned);
+  const arrivalTime = parseLegTime(leg.destination?.arrivalTimePlanned);
+  const elapsed = Number.isFinite(departureTime) && Number.isFinite(arrivalTime)
+    ? Math.round((arrivalTime - departureTime) / 60_000)
+    : NaN;
+  const fromDuration = Number.isFinite(leg.duration) ? Math.round((leg.duration ?? 0) / 60) : NaN;
+  const durationMin = Math.max(0, Number.isFinite(elapsed) ? elapsed : fromDuration);
+  if (!Number.isFinite(durationMin)) return undefined;
+
+  const distance = Number.isFinite(leg.distance) && (leg.distance ?? 0) > 0
+    ? Math.round(leg.distance ?? 0)
+    : undefined;
+  return {
+    beforeLegIndex,
+    kind: isWalk ? 'walk' as const : 'transfer' as const,
+    durationMin,
+    ...(isWalk ? { walkDurationMin: durationMin } : {}),
+    ...(distance !== undefined ? { walkDistanceMeters: distance } : {}),
+    originName: stopDisplayName(leg.origin, originFallback),
+    destName: stopDisplayName(leg.destination, destFallback),
+    departureTime,
+    arrivalTime,
+  };
 }
 
 // --- Main ---
@@ -361,19 +408,21 @@ export async function searchJourneys(
     const raw = journeys[ji];
     const rawLegs = Array.isArray(raw.legs) ? raw.legs : [];
 
-    // Filter out walk/transfer legs (product class 99=facility transfer, 100=footpath)
-    const transportLegs = rawLegs.filter(
-      (l) => l.transportation && l.transportation.product?.class !== 99 && l.transportation.product?.class !== 100,
-    );
-
-    if (transportLegs.length === 0) continue;
-
     const legs: JourneyLeg[] = [];
-    let totalDuration = 0;
+    const connections: ParsedConnection[] = [];
     let firstDeparture = Infinity;
     let lastArrival = 0;
+    let transitIndex = 0;
 
-    for (const rawLeg of transportLegs) {
+    for (const rawLeg of rawLegs) {
+      const connection = connectionForLeg(rawLeg, transitIndex, origin, dest);
+      if (connection) {
+        connections.push(connection);
+        if (Number.isFinite(connection.departureTime)) firstDeparture = Math.min(firstDeparture, connection.departureTime);
+        if (Number.isFinite(connection.arrivalTime)) lastArrival = Math.max(lastArrival, connection.arrivalTime);
+        continue;
+      }
+      if (!rawLeg.transportation) continue;
       const transport = rawLeg.transportation!;
       // Display name: use disassembledName for line number, fall back to full name
       const displayName =
@@ -404,12 +453,10 @@ export async function searchJourneys(
       const durationMin = Math.max(1, Math.round(rawDuration / 60));
 
       // Parse departure/arrival times (API uses departureTimePlanned/arrivalTimePlanned on origin/destination)
-      const depTime = rawLeg.origin?.departureTimePlanned
-        ? parseSlTime(rawLeg.origin.departureTimePlanned)
-        : 0;
-      const arrTime = rawLeg.destination?.arrivalTimePlanned
-        ? parseSlTime(rawLeg.destination.arrivalTimePlanned)
-        : depTime + durationMin * 60_000;
+      const depTime = parseLegTime(rawLeg.origin?.departureTimePlanned);
+      if (!Number.isFinite(depTime)) continue;
+      const arrTime = parseLegTime(rawLeg.destination?.arrivalTimePlanned);
+      if (!Number.isFinite(arrTime) || arrTime < depTime) continue;
       const sequenceStops = Array.isArray(rawLeg.stopSequence)
         ? normalizeJourneyStopNames(rawLeg.stopSequence)
         : [];
@@ -446,22 +493,24 @@ export async function searchJourneys(
         platformPosition: platformPos,
       });
 
-      totalDuration += durationMin;
-      if (depTime && depTime < firstDeparture) firstDeparture = depTime;
-      if (arrTime && arrTime > lastArrival) lastArrival = arrTime;
+      firstDeparture = Math.min(firstDeparture, depTime);
+      lastArrival = Math.max(lastArrival, arrTime);
+      transitIndex += 1;
     }
 
-    const transfers = legs.length - 1;
+    if (legs.length === 0 || !Number.isFinite(firstDeparture) || !Number.isFinite(lastArrival) || lastArrival < firstDeparture) continue;
+    const transfers = Math.max(0, legs.length - 1);
+    const totalDuration = Math.max(1, Math.ceil((lastArrival - firstDeparture) / 60_000));
 
     results.push({
       id: `journey-${crypto.randomUUID()}`,
       originLabel: origin,
       destLabel: dest,
       legs,
-      totalDurationMin: totalDuration || getWalkingTime(1),
-      departureTime:
-        firstDeparture !== Infinity ? firstDeparture : Date.now(),
-      arrivalTime: lastArrival || Date.now() + totalDuration * 60_000,
+      connections: connections.map(({ departureTime: _departureTime, arrivalTime: _arrivalTime, ...connection }) => connection),
+      totalDurationMin: totalDuration,
+      departureTime: firstDeparture,
+      arrivalTime: lastArrival,
       transfers,
       query: {
         origin,
@@ -553,14 +602,4 @@ export function appendJourneyOptions(
       params.set(param, req.transportModes.includes(mode as TransportType) ? 'true' : 'false');
     }
   }
-}
-
-/**
- * Parse SL local timestamp (timezone-naive Stockholm time) to UTC ms.
- */
-function parseSlTime(raw: string): number {
-  if (/Z|[+-]\d{2}:\d{2}$/.test(raw)) {
-    return new Date(raw).getTime();
-  }
-  return new Date(raw + 'Z').getTime();
 }

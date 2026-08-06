@@ -427,3 +427,34 @@ The app is served as a static SPA from the `/Nasta/` base path.
 - Icons from curated transit-style SVG paths in `src/icons/transport.ts`
 - Fonts from [Fontshare](https://fontshare.com) — Neue Machina & Satoshi
 - Built with ❤️ using Svelte & TypeScript
+
+## Image credits
+
+After-work mood images are locally hosted under the [Unsplash License](https://unsplash.com/license). They are intentionally labelled `Stämningsbild` in the app: they describe an atmosphere, not the pictured venue.
+
+### Beer
+
+- [Daniel](https://unsplash.com/@unsplashbydan) — [photo](https://unsplash.com/photos/c3YF1RU1tis)
+- [Bohdan Stocek](https://unsplash.com/@bohdans) — [photo](https://unsplash.com/photos/Pjdv-RjOmGs)
+- [Akaki Khotcholava](https://unsplash.com/@khotcholava1) — [photo](https://unsplash.com/photos/JDC13vBkDv0)
+- [Haberdoedas](https://unsplash.com/@haberdoedas) — [photos](https://unsplash.com/photos/hlzE8sd6Anc), [2](https://unsplash.com/photos/WXKune1m3oM), [3](https://unsplash.com/photos/hwAVIsqJQBA)
+- [Aleksey Cherenkevich](https://unsplash.com/@cherenkevich) — [photo](https://unsplash.com/photos/ktGhPU_eBV8)
+- [Boris Izmaylov](https://unsplash.com/@borisizmaylov) — [photo](https://unsplash.com/photos/GKAtssAFJM8)
+
+### Wine
+
+- [Hai Nguyen](https://unsplash.com/@hai_nguyen) — [photo](https://unsplash.com/photos/ctzU0vk2hqk)
+- [Yaxuan Liu](https://unsplash.com/@seeulater) — [photo](https://unsplash.com/photos/5b7Tmar2-Ig)
+- [Dima Solomin](https://unsplash.com/@solomin_d) — [photo](https://unsplash.com/photos/cXhLFvFfi6U)
+- [Romain HUNEAU](https://unsplash.com/@honni) — [photo](https://unsplash.com/photos/Dopd4VCYQjM)
+- [María Del Mar García](https://unsplash.com/@photo_mdgr) — [photo](https://unsplash.com/photos/uln7leAbXUI)
+- [Yanhao Fang](https://unsplash.com/@alamanga) — [photo](https://unsplash.com/photos/5PSEDvGlTXc)
+- [Shawn DENG](https://unsplash.com/@dzshawn) — [photo](https://unsplash.com/photos/nsgzQHsxbXE)
+- [Franco Debartolo](https://unsplash.com/@francotheshooter) — [photo](https://unsplash.com/photos/HkybwP2PorY)
+
+### Cocktails
+
+- [Ambitious Studio | Rick Barrett](https://unsplash.com/@weareambitious) — [photos](https://unsplash.com/photos/QjUY7auDzUQ), [2](https://unsplash.com/photos/8faBJjLhWoo), [3](https://unsplash.com/photos/L-VilLa6n_I), [4](https://unsplash.com/photos/RgugaEqIFAI), [5](https://unsplash.com/photos/SirIM8Pv1Rs)
+- [Anastasiia Krutota](https://unsplash.com/@krutota) — [photo](https://unsplash.com/photos/EX8UtPjOFhY)
+- [Laure Noverraz](https://unsplash.com/@lornov) — [photo](https://unsplash.com/photos/3Dh2KgJHLZc)
+- [Durenne Loris](https://unsplash.com/@abstra_be) — [photo](https://unsplash.com/photos/vJAOEbcCr8o)

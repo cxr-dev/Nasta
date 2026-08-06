@@ -15,8 +15,8 @@
 
 <style>
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border: none;
     background: none;
     cursor: pointer;
@@ -30,6 +30,18 @@
 
   .icon-btn:hover {
     background: var(--border);
+  }
+
+  .icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (pointer: coarse) {
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
   }
 
   @media (min-width: 768px) {

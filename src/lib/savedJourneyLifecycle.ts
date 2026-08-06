@@ -29,7 +29,7 @@ export function reduceSavedJourneyAction(
   now: number,
 ): SavedJourneyActionResult {
   if (action === 'start' && meta.status !== 'active') {
-    if (meta.legs[0]?.departureTime && meta.legs[0].departureTime <= now) {
+    if (plannedDeparture(meta) <= now) {
       return { nextMeta: meta, changed: false, shouldRefresh: true };
     }
 
@@ -103,12 +103,21 @@ function buildActiveMeta(
       journeyId: meta.journeyId,
       selectedAt: now,
       startedAt: now,
-      plannedDepartureTime: legs[0]?.departureTime ?? now,
-      plannedArrivalTime: legs.at(-1)?.arrivalTime ?? now,
+      plannedDepartureTime: plannedDeparture(meta),
+      plannedArrivalTime: plannedArrival(meta),
       legs,
+      connections: meta.connections,
     },
     updatedAt: now,
   };
+}
+
+function plannedDeparture(meta: JourneyMeta): number {
+  return meta.departureTime ?? meta.legs[0]?.departureTime ?? 0;
+}
+
+function plannedArrival(meta: JourneyMeta): number {
+  return meta.arrivalTime ?? meta.legs.at(-1)?.arrivalTime ?? plannedDeparture(meta);
 }
 
 export type SavedJourneyLookup = (
@@ -145,7 +154,7 @@ export async function resolveSavedJourneyRefreshes({
     const meta = segment.journeyMeta;
     if (!meta || meta.status === 'active') return false;
     if (force || meta.status !== 'planned') return true;
-    return !meta.legs[0]?.departureTime || meta.legs[0].departureTime <= refreshBefore;
+    return !plannedDeparture(meta) || plannedDeparture(meta) <= refreshBefore;
   });
 
   const settled = await Promise.all(candidates.map(async (segment) => {
@@ -174,21 +183,25 @@ export async function resolveSavedJourneyRefreshes({
 
       const missed =
         meta.status === 'planned' &&
-        Boolean(meta.legs[0]?.departureTime) &&
-        meta.legs[0].departureTime <= now;
+        Boolean(plannedDeparture(meta)) &&
+        plannedDeparture(meta) <= now;
       const lastMissedJourney = missed && meta.legs[0]
         ? {
             journeyId: meta.journeyId,
             selectedAt: meta.updatedAt,
-            plannedDepartureTime: meta.legs[0].departureTime,
-            plannedArrivalTime: meta.legs.at(-1)?.arrivalTime ?? meta.legs[0].arrivalTime,
+            plannedDepartureTime: plannedDeparture(meta),
+            plannedArrivalTime: plannedArrival(meta),
             legs: meta.legs,
+            connections: meta.connections,
           }
         : undefined;
       const nextMeta: JourneyMeta = {
         ...meta,
         journeyId: selected.id,
         legs: selected.legs,
+        departureTime: selected.departureTime,
+        arrivalTime: selected.arrivalTime,
+        connections: selected.connections,
         totalDurationMin: selected.totalDurationMin,
         transfers: selected.transfers,
         updatedAt: now,
