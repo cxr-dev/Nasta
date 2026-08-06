@@ -26,7 +26,7 @@ Nästa helps Stockholm commuters track their daily routes by showing real-time d
 - **Dark mode & themes** — 18 color palettes with two variants each, auto contrast adjustment
 - **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
 - **Transport filtering** — Filter by transport mode (bus/metro/train/tram/boat) with single-mode focus
-- **Walking ETA** — Walking distance and time estimates to stops using Geolocation API
+- **Location-aware commute tools** — Optional nearby-stop ranking, walking distance, and walking-time estimates using the browser Geolocation API
 - **Feature discovery** — Afterwork venues (beer/wine/cocktail) and nearby events via Visit Stockholm, Supabase, and Overpass APIs
 - **Map preview** — Interactive map of segment stops with user location using MapLibre GL
 
@@ -145,13 +145,21 @@ Available in the Settings panel (tap **"Inställningar"**):
 | **Disruption language**         | Auto, Swedish, English                                      | "auto"       | Language for disruption text                   |
 | **Transport filter mode**       | Multi / Single                                              | "multi"      | Multi-mode or focus single transport mode      |
 | **Active transport type**       | bus/train/metro/tram/boat or null                           | null         | Single-mode focus transport                    |
-| **Location services**           | On/Off                                                      | Off          | Enable geolocation for walking ETA             |
-| **Walking ETA**                 | On/Off                                                      | Off          | Show walking time to stops                     |
+| **Location services**           | On/Off                                                      | Off          | Required before location-aware features can use your position |
+| **Walking ETA**                 | On/Off                                                      | Off          | Show walking distance and time to stops        |
 | **Afterwork venues**            | On/Off                                                      | Off          | Show nearby beer/wine/cocktail venues          |
 | **Afterwork start hour**        | 0-23                                                        | 15           | Hour to start showing afterwork venues         |
 | **Afterwork types**             | beer, wine, cocktail (multi-select)                         | []           | Which venue types to show                      |
 | **Events**                      | On/Off                                                      | Off          | Show nearby events from Visit Stockholm        |
 | **Group disrupted segments**    | On/Off                                                      | Off          | Collapse disrupted segments together           |
+
+#### Location services
+
+**Platsjänster / Location services** is the master switch for features that use your device position. Enable it in Settings before enabling **Walking ETA**, choosing closest-first sorting, or using the **Nära dig / Nearby** stops shown in stop search. The location toggle does not change the browser or operating-system permission; it controls whether Nästa is allowed to use a permission that you have granted.
+
+Location access works in desktop Chrome and Safari, regular mobile browsers, and the installed PWA on iOS, Android, and tablets. The page must be served from a secure origin (`https` or local development on `localhost`). You may need to allow location in both the browser/site permission and the device operating system. An installed PWA can have a separate operating-system permission from the browser tab, so check the permission for the installed app if location works in the browser but not in the PWA.
+
+If location is unavailable, denied, or disabled, the core departure and stop-search features continue to work; walking estimates, distance-based ordering, and nearby-stop suggestions are simply omitted. Browser and operating-system permission choices are managed outside `nasta_settings` and can be reset independently by the user or the platform.
 
 ---
 
@@ -226,8 +234,9 @@ User Action → Svelte Store → Service → API/Storage
 | `src/services/geo.ts`                    | Geolocation utilities, distance calculation, walking time estimates                |
 | `src/services/eventService.ts`           | Visit Stockholm events API client                                                  |
 | `src/services/venueService.ts`           | Supabase/Overpass venue API client (beer/wine/cocktail)                            |
-| `src/services/prefetchService.ts`        | Orchestrates venue/event prefetching for segments                                  |
-| `src/services/nextDepartureResolver.ts`  | Resolves next departure from combined sources                                      |
+| `src/services/featureDiscoverySession.ts` | Shares venue/event prefetches, foreground requests, and cached results              |
+| `src/lib/departureBoardModel.ts`          | Resolves and groups departure-board state                                          |
+| `src/lib/savedJourneyLifecycle.ts`        | Applies saved-journey actions and refresh rules                                     |
 | `src/services/persistentCache.ts`        | Generic persistent cache layer                                                     |
 | `src/services/routeStops.ts`             | Stop-finder + trip planning with persistent cache                                  |
 | `src/lib/departureDisplay.ts`            | Merges live and predicted departures, computes minutes remaining                   |

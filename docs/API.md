@@ -172,9 +172,24 @@ Used for planned trip fallback and direction lookup when needed.
 | `nasta_stop_area_mapping` | JSON object | `{"3001": "3031"}`                  | Permanent |
 
 > [!NOTE]
-> `nasta_location_prompted` was used in earlier versions to track location permission state;
-> location preference is now stored inside the `nasta_settings` object as `locationServicesEnabled`.
-> A migration path from the legacy key is maintained in `storage.ts`.
+> `locationServicesEnabled` and `walkingEtaEnabled` are stored inside `nasta_settings`.
+> `locationServicesEnabled` is the app-level master switch: it must be enabled before
+> walking ETA, distance-based ordering, or nearby-stop suggestions can use the user's position.
+> Browser and operating-system geolocation permission is managed by the platform, not by LocalStorage.
+
+### Location services
+
+Location-aware features use the browser's native Geolocation API through `src/services/geo.ts`.
+They are optional and fail safely when the API is unavailable, permission is denied, or a request times out:
+
+- The **Platsjänster / Location services** setting is persisted in `nasta_settings` and gates location-aware UI.
+- **Walking ETA** is a dependent setting and is only exposed after location services are enabled.
+- Stop search uses the current position for **Nära dig / Nearby** suggestions and distance labels.
+- Walking ETA and distance-based sorting are unavailable without a usable position.
+- Location permission is granted separately by the browser and device operating system. It is origin-specific and may be separate for an installed PWA.
+- Geolocation requires a secure context (`https` or `localhost`) on desktop browsers, mobile browsers, and installed PWAs.
+
+The app can request location when a location-aware feature is enabled. A browser or operating system may show its own permission prompt again after the user resets site/app permissions, changes origin, uses private browsing, or selects an ask-every-time policy.
 
 ## IndexedDB (Deviations Cache)
 
