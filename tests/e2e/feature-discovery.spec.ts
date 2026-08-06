@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
+let venueRequestCount = 0;
+let eventRequestCount = 0;
+
 test.describe("feature discovery sheet", () => {
   test.beforeEach(async ({ page }) => {
+    venueRequestCount = 0;
+    eventRequestCount = 0;
     const fixedNowIso = "2026-05-28T18:30:00+02:00";
     const fixedNow = new Date(fixedNowIso).valueOf();
 
@@ -111,6 +116,7 @@ test.describe("feature discovery sheet", () => {
     await page.route(
       "**/izrgqxgsuhogrukisfrd.supabase.co/functions/v1/get-venues",
       async (route) => {
+        venueRequestCount += 1;
         await route.fulfill({
           status: 200,
           headers: {
@@ -170,6 +176,7 @@ test.describe("feature discovery sheet", () => {
     });
 
     await page.route("**/events-data.json", async (route) => {
+      eventRequestCount += 1;
       await route.fulfill({
         status: 200,
         headers: {
@@ -256,5 +263,24 @@ test.describe("feature discovery sheet", () => {
     // This is a known limitation of animating content-heavy sheets with Playwright.
     // A future improvement would be to add a test-mode flag that disables animations,
     // or to refactor the sheet to use CSS animations instead of GSAP for better E2E testability.
+  });
+
+  test("prefetches discovery data while collapsed and reuses it on repeated opens", async ({ page }) => {
+    await expect(page.getByTestId("segment-row").first()).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => venueRequestCount).toBeGreaterThan(0);
+    await expect.poll(() => eventRequestCount).toBeGreaterThan(0);
+
+    const venueRequestsBeforeOpen = venueRequestCount;
+    const eventRequestsBeforeOpen = eventRequestCount;
+    const segmentRow = page.getByTestId("segment-row").first();
+    await segmentRow.click({ force: true });
+    await page.getByRole("button", { name: /Discover nearby/i }).click();
+
+    const sheet = page.locator(".sheet-shell");
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
+    await expect(sheet.locator(".skeleton-list")).toHaveCount(0);
+    expect(venueRequestCount).toBe(venueRequestsBeforeOpen);
+    expect(eventRequestCount).toBe(eventRequestsBeforeOpen);
   });
 });

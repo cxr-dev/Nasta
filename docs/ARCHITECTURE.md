@@ -104,8 +104,7 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `scheduleCache.ts`           | Caches predicted departures from schedules                          |
 | `timetableCache.ts`          | Learns departure patterns from SL API responses                     |
 | `persistentCache.ts`         | Generic persistent cache layer                                      |
-| `prefetchService.ts`         | Orchestrates venue/event prefetching for segments                   |
-| `nextDepartureResolver.ts`   | Resolves next departure from combined sources                       |
+| `featureDiscoverySession.ts` | Shares exact venue/event queries, results, and in-flight requests between prefetch and the discovery sheet |
 | `storage.ts`                 | LocalStorage persistence for pages, settings                       |
 | `routeStops.ts`              | Stop-finder + trip planning with persistent cache                  |
 
@@ -127,6 +126,8 @@ Stores do **not** use `svelte/store` writable/readable/derived primitives. Inste
 | `departureIcons.ts`          | Departure icon mapping for transport modes                          |
 | `i18n.ts`                    | Full Swedish + English translations (~550 keys)                     |
 | `timeOfDay.svelte.ts`        | Time-of-day state (morning/afternoon/evening/night)                 |
+| `departureBoardModel.ts`     | Atomic departure snapshot resolution and deterministic board grouping |
+| `savedJourneyLifecycle.ts`   | Saved journey action transitions and guarded planner refresh patches |
 
 ## Components
 
@@ -285,7 +286,7 @@ Three external APIs used for discovering nearby venues and events:
 - **Supabase Edge Function** (`venueService.ts`) — Curated beer venue data (prices, happy hour). `VITE_SUPABASE_ANON_KEY` is an optional override; the service falls back to a bundled anon token and can retry through a CORS proxy when enabled.
 - **Overpass API** (`venueService.ts`) — OpenStreetMap queries for wine/cocktail venues, with local/persistent caching to reduce repeated fetches.
 
-Prefetching is orchestrated by `prefetchService.ts`. A static snapshot of events is generated at build time via `scripts/fetch-events-data.mjs`.
+`featureDiscoverySession.ts` owns the shared request identity and in-memory session cache used by both approaching-card prefetch and `FeatureDiscoverySheet.svelte`. Venue requests use a 1,200 m radius; event requests use a 5,000 m radius. Prefetch is limited to the first two cards and cards approaching the viewport. A static snapshot of events is generated at build time via `scripts/fetch-events-data.mjs`.
 
 ## PWA Configuration
 

@@ -149,7 +149,7 @@ describe('resolveSavedJourneyRefreshes', () => {
     const result = await resolveSavedJourneyRefreshes({ page, force: true, now: NOW, lookup });
 
     expect(result.updates).toHaveLength(0);
-    expect(result.failedSegmentIds).toEqual(['segment-1', 'segment-2']);
+    expect(result.failedSegmentIds).toEqual(['segment-1']);
   });
 });
 

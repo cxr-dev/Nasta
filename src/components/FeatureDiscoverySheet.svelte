@@ -11,8 +11,14 @@
     formatStockholmTime,
     formatVenueOpenStatus,
   } from '../lib/i18n';
-  import { fetchNearbyEvents, type EventItem } from '../services/eventService';
-  import { fetchNearbyVenues, type Venue } from '../services/venueService';
+  import type { EventItem } from '../services/eventService';
+  import type { Venue } from '../services/venueService';
+  import {
+    loadFeatureDiscovery,
+    peekFeatureDiscovery,
+    prefetchFeatureDiscovery,
+    type FeatureDiscoveryMode,
+  } from '../services/featureDiscoverySession';
   import { distanceMeters } from '../services/geo';
   import { getSunPosition } from '../lib/sunPosition';
 
@@ -58,20 +64,20 @@
     items: T[];
     loading: boolean;
     loaded: boolean;
-    token: number;
     error?: string;
   };
 
-  let venuesByTab: Record<'beer' | 'wineCocktail', TabData<Venue>> = $state({
-    beer: { items: [], loading: false, loaded: false, token: 0, error: undefined },
-    wineCocktail: { items: [], loading: false, loaded: false, token: 0, error: undefined },
+  let venuesByTab: Record<'beer' | 'wineCocktail', TabData<Venue>> = $state.raw({
+    beer: { items: [], loading: false, loaded: false, error: undefined },
+    wineCocktail: { items: [], loading: false, loaded: false, error: undefined },
   });
-  let eventsTab: TabData<EventItem> = $state({
-    items: [], loading: false, loaded: false, token: 0, error: undefined,
+  let eventsTab: TabData<EventItem> = $state.raw({
+    items: [], loading: false, loaded: false, error: undefined,
   });
   let openingHoursParser: any = null;
   let venueOpenState = $state<Record<string, { isOpenNow: boolean; statusText: string; statusClass: string }>>({});
-  let tabLoadCtrl: AbortController | null = null;
+  let loadGeneration = 0;
+  let disposed = false;
 
   $effect(() => {
     if (activeTab === 'wineCocktail' || !discoveryModes.includes(activeTab)) {
@@ -79,93 +85,50 @@
     }
   });
 
-  $effect(() => {
-    // If the tab already has cached data, render it immediately and refresh
-    // in background without aborting any in-flight request. The user sees
-    // data instantly; freshness comes silently.
-    const tabData = activeTab === 'events' ? eventsTab : venuesByTab.beer;
-    if (tabData.items.length > 0) {
-      if (!tabData.loading && tabData.loaded) return;
-      // Has cached items but not fully loaded — background refresh (no abort)
-      if (activeTab !== 'events') {
-        loadVenues('beer');
-        if (activeVenueFilter === 'wineCocktail' || venuesByTab.wineCocktail.items.length > 0) loadVenues('wineCocktail');
+  function hydrateCachedData() {
+    const beer = peekFeatureDiscovery({ lat, lon, mode: 'beer' });
+    const wineCocktail = peekFeatureDiscovery({ lat, lon, mode: 'wineCocktail' });
+    const events = peekFeatureDiscovery({ lat, lon, mode: 'events' });
+    if (beer) venuesByTab = { ...venuesByTab, beer: { items: beer, loading: false, loaded: true, error: undefined } };
+    if (wineCocktail) venuesByTab = { ...venuesByTab, wineCocktail: { items: wineCocktail, loading: false, loaded: true, error: undefined } };
+    if (events) eventsTab = { items: events, loading: false, loaded: true, error: undefined };
+  }
+
+  async function loadMode(mode: FeatureDiscoveryMode) {
+    const generation = loadGeneration;
+    if (mode === 'events') {
+      if (eventsTab.loading || eventsTab.loaded) return;
+      eventsTab = { ...eventsTab, loading: true, error: undefined };
+      try {
+        const loaded = await loadFeatureDiscovery({ lat, lon, mode });
+        if (disposed || generation !== loadGeneration) return;
+        eventsTab = { items: loaded, loading: false, loaded: true, error: undefined };
+      } catch (error) {
+        if (disposed || generation !== loadGeneration) return;
+        console.warn('[FeatureDiscoverySheet] loadMode failed:', mode, error);
+        eventsTab = { items: [], loading: false, loaded: true, error: t.loadError };
       }
-      else loadEvents();
       return;
     }
 
-    // Guard against re-entrance: if already loading or loaded (no items yet)
-    if (activeTab === 'events' && (eventsTab.loading || eventsTab.loaded)) return;
-    if (activeTab !== 'events' && (venuesByTab.beer.loading || venuesByTab.beer.loaded)) return;
-
-    // Cancel any in-progress tab load when switching tabs.
-    tabLoadCtrl?.abort();
-    const ctrl = new AbortController();
-    tabLoadCtrl = ctrl;
-
-    if (activeTab !== 'events') {
-      loadVenues('beer', ctrl.signal);
-      loadVenues('wineCocktail', ctrl.signal);
-    }
-    if (activeTab === 'events') loadEvents(ctrl.signal);
-    // No cleanup registered — onDestroy handles unmount abort. The cleanup
-    // would otherwise fire on every reactive re-run and abort the first signal.
-  });
-
-  // Kick off background prefetch for all available tabs immediately on mount so
-  // switching tabs feels instant. These run without a signal — they use the service's
-  // own internal caches and timeouts. The $effect above handles the reactive UI state.
-  $effect(() => {
-    const modes = availableModes;
-    // Use a microtask so this doesn't block the initial render
-    Promise.resolve().then(() => {
-      if (modes.includes('beer') && !venuesByTab.beer.loaded) {
-        void fetchNearbyVenues(lat, lon, 1200, ['beer']).catch(() => {});
-      }
-      if (modes.includes('wineCocktail') && !venuesByTab.wineCocktail.loaded) {
-        void fetchNearbyVenues(lat, lon, 1200, ['wine', 'cocktail']).catch(() => {});
-      }
-      if (modes.includes('events') && !eventsTab.loaded) {
-        void fetchNearbyEvents(lat, lon, 5000).catch(() => {});
-      }
-    });
-  });
-
-  async function loadVenues(tab: 'beer' | 'wineCocktail', signal?: AbortSignal) {
-    const state = venuesByTab[tab];
+    const state = venuesByTab[mode];
     if (state.loading || state.loaded) return;
-    const token = ++state.token;
-    venuesByTab = { ...venuesByTab, [tab]: { ...state, loading: true, error: undefined } };
+    venuesByTab = { ...venuesByTab, [mode]: { ...state, loading: true, error: undefined } };
     try {
-      const types: Array<'beer' | 'wine' | 'cocktail'> = tab === 'beer' ? ['beer'] : ['wine', 'cocktail'];
-      const loaded = await fetchNearbyVenues(lat, lon, 1200, types, signal);
-      if (signal?.aborted && token !== venuesByTab[tab].token) return;
-      if (token !== venuesByTab[tab].token) return;
-      venuesByTab = { ...venuesByTab, [tab]: { items: loaded, loading: false, loaded: true, token, error: undefined } };
-    } catch (e) {
-      if ((e as any)?.name === 'AbortError') return;
-      if (token !== venuesByTab[tab].token) return;
-      console.warn('[FeatureDiscoverySheet] loadVenues failed:', tab, e);
-      venuesByTab = { ...venuesByTab, [tab]: { items: [], loading: false, loaded: true, token, error: t.loadError } };
+      const loaded = await loadFeatureDiscovery({ lat, lon, mode });
+      if (disposed || generation !== loadGeneration) return;
+      venuesByTab = { ...venuesByTab, [mode]: { items: loaded, loading: false, loaded: true, error: undefined } };
+    } catch (error) {
+      if (disposed || generation !== loadGeneration) return;
+      console.warn('[FeatureDiscoverySheet] loadMode failed:', mode, error);
+      venuesByTab = { ...venuesByTab, [mode]: { items: [], loading: false, loaded: true, error: t.loadError } };
     }
   }
 
-  async function loadEvents(signal?: AbortSignal) {
-    if (eventsTab.loading || eventsTab.loaded) return;
-    const token = ++eventsTab.token;
-    eventsTab = { ...eventsTab, loading: true, error: undefined };
-    try {
-      const loaded = await fetchNearbyEvents(lat, lon, 5000, signal);
-      if (signal?.aborted && token !== eventsTab.token) return;
-      if (token !== eventsTab.token) return;
-      eventsTab = { items: loaded, loading: false, loaded: true, token, error: undefined };
-    } catch (e) {
-      if ((e as any)?.name === 'AbortError') return;
-      if (token !== eventsTab.token) return;
-      console.warn('[FeatureDiscoverySheet] loadEvents failed:', e);
-      eventsTab = { items: [], loading: false, loaded: true, token, error: t.loadError };
-    }
+  function selectTab(tab: TabKey) {
+    activeTab = tab;
+    void loadMode(tab);
+    if (tab !== 'events' && availableModes.includes('wineCocktail')) void loadMode('wineCocktail');
   }
 
   function computeVenueOpenState(venue: Venue) {
@@ -225,7 +188,6 @@
           items: venueItems,
           loading: venuesByTab.beer.loading || venuesByTab.wineCocktail.loading,
           loaded: venuesByTab.beer.loaded || venuesByTab.wineCocktail.loaded,
-          token: 0,
           error: venuesByTab.beer.error ?? venuesByTab.wineCocktail.error,
         }
   );
@@ -323,18 +285,27 @@
   function retryLoad() {
     const tab = activeTab;
     if (tab === 'events') {
-      eventsTab = { items: [], loading: false, loaded: false, token: 0, error: undefined };
+      eventsTab = { items: [], loading: false, loaded: false, error: undefined };
     } else {
       venuesByTab = {
         ...venuesByTab,
-        beer: { items: [], loading: false, loaded: false, token: 0, error: undefined },
-        wineCocktail: { items: [], loading: false, loaded: false, token: 0, error: undefined },
+        beer: { items: [], loading: false, loaded: false, error: undefined },
+        wineCocktail: { items: [], loading: false, loaded: false, error: undefined },
       };
     }
+    void loadMode(tab);
   }
 
   onMount(async () => {
     activeTab = defaultMode === 'events' && discoveryModes.includes('events') ? 'events' : discoveryModes[0] ?? 'beer';
+    hydrateCachedData();
+    loadGeneration += 1;
+    void loadMode(activeTab);
+    if (activeTab !== 'events' && availableModes.includes('wineCocktail')) void loadMode('wineCocktail');
+    for (const mode of availableModes) {
+      if (mode === activeTab) continue;
+      void prefetchFeatureDiscovery({ lat, lon, mode }).catch(() => {});
+    }
     try {
       const mod = await import('opening_hours');
       openingHoursParser = mod.default ?? mod;
@@ -346,11 +317,11 @@
   });
 
   onDestroy(() => {
-    tabLoadCtrl?.abort();
+    disposed = true;
+    loadGeneration += 1;
   });
 
   function closeAndAbort() {
-    tabLoadCtrl?.abort();
     onClose();
   }
 
@@ -386,7 +357,7 @@
         class:active={activeTab === tab}
         aria-selected={activeTab === tab}
         id="feature-tab-{tab}"
-        onclick={() => (activeTab = tab)}
+        onclick={() => selectTab(tab)}
       >
         {tabLabel[tab]}
       </button>
@@ -407,7 +378,7 @@
           aria-pressed={activeVenueFilter === filter[0]}
           onclick={() => {
             activeVenueFilter = filter[0] as VenueFilter;
-            if (activeVenueFilter === 'wineCocktail') loadVenues('wineCocktail');
+            if (activeVenueFilter === 'wineCocktail') void loadMode('wineCocktail');
           }}
         >{filter[1]}</button>
       {/each}

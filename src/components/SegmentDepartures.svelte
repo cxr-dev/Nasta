@@ -17,8 +17,7 @@
   import type { SavedJourneyAction } from "../lib/savedJourneyLifecycle";
   import { getSettings } from "../stores/settingsStore.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
-  import { fetchNearbyEvents } from "../services/eventService";
-  import { fetchNearbyVenues } from "../services/venueService";
+  import { prefetchFeatureDiscovery } from "../services/featureDiscoverySession";
   import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, cloudRain, cloudSnow, cloudLightning } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay } from "./segmentUtils";
@@ -75,7 +74,6 @@
   let lastError = $state<string | null>(null);
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
-  let lastNearbyPrefetchKey = $state('');
   let showMap = $state(false);
   let t = $derived(getT());
   let settings = $derived(getSettings());
@@ -191,10 +189,6 @@
   }
 
   const PREFETCH_SEGMENT_COUNT = 2;
-  const PREFETCH_VENUE_RADIUS = 1200;
-  const PREFETCH_EVENT_RADIUS = 3000;
-
-  const _prefetchInFlight = new Set<string>();
 
   async function prefetchForSegment(segment: Segment) {
     void transitService.prefetchStopSequence(
@@ -209,40 +203,20 @@
       if (!coords || coords.length < 2) return;
       const lat = coords[0];
       const lon = coords[1];
-      const key = `${lat.toFixed(4)}:${lon.toFixed(4)}`;
-      if (_prefetchInFlight.has(key)) return;
-      _prefetchInFlight.add(key);
-      try {
-        if (settings.afterworkVenuesEnabled) {
-          const types = settings.afterworkTypes && settings.afterworkTypes.length ? settings.afterworkTypes : ['beer'];
-          if (types.includes('beer')) {
-            void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, ['beer']).catch(() => {});
-          }
-          if (types.includes('wine') || types.includes('cocktail')) {
-            void fetchNearbyVenues(lat, lon, PREFETCH_VENUE_RADIUS, ['wine', 'cocktail']).catch(() => {});
-          }
+      if (settings.afterworkVenuesEnabled) {
+        const types = settings.afterworkTypes && settings.afterworkTypes.length ? settings.afterworkTypes : ['beer'];
+        if (types.includes('beer')) {
+          void prefetchFeatureDiscovery({ lat, lon, mode: 'beer' }).catch(() => {});
         }
-        if (settings.eventsEnabled) {
-          void fetchNearbyEvents(lat, lon, PREFETCH_EVENT_RADIUS).catch(() => {});
+        if (types.includes('wine') || types.includes('cocktail')) {
+          void prefetchFeatureDiscovery({ lat, lon, mode: 'wineCocktail' }).catch(() => {});
         }
-      } finally {
-        setTimeout(() => _prefetchInFlight.delete(key), 30 * 1000);
+      }
+      if (settings.eventsEnabled) {
+        void prefetchFeatureDiscovery({ lat, lon, mode: 'events' }).catch(() => {});
       }
     } catch (e) {
     }
-  }
-
-  function scheduleNearbyPrefetch() {
-    const shouldPrefetch = settings.afterworkVenuesEnabled || settings.eventsEnabled;
-    if (!shouldPrefetch || !(page.segments ?? []).length) return;
-
-    const prefKey = `${page.id}:${settings.afterworkVenuesEnabled ? 1 : 0}:${settings.eventsEnabled ? 1 : 0}`;
-    if (prefKey === lastNearbyPrefetchKey) return;
-    lastNearbyPrefetchKey = prefKey;
-
-    void import('../services/prefetchService')
-      .then((m) => m.prefetchSegments(page.segments ?? [], settings, { concurrency: 4 }))
-      .catch(() => {});
   }
 
   let segmentDeps = $state<Map<string, Departure[]>>(new Map());
@@ -288,13 +262,6 @@
     segmentDeps = snapshot.departuresBySegment;
     segmentSleeping = snapshot.sleepingBySegment;
   }
-
-  $effect(() => {
-    page.segments;
-    if (settings.afterworkVenuesEnabled || settings.eventsEnabled) {
-      scheduleNearbyPrefetch();
-    }
-  });
 
   $effect(() => {
     const count = [...segmentDeps.values()].reduce((a, b) => a + b.length, 0);
