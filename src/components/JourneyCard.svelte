@@ -6,6 +6,7 @@
   import gsap from 'gsap';
   import { tick } from 'svelte';
   import type { JourneyMeta } from '../types/journey';
+  import type { SavedJourneyAction } from '../lib/savedJourneyLifecycle';
   import { longPress } from '../lib/longPress';
 
   let {
@@ -13,11 +14,7 @@
     isExpanded = false,
     now = Date.now(),
     ontoggle,
-    onStart,
-    onStartLate,
-    onStartMissed,
-    onComplete,
-    onCancel,
+    onAction,
     onLongPress,
     onMoreActions,
     moreActionsLabel,
@@ -26,11 +23,7 @@
     isExpanded?: boolean;
     now?: number;
     ontoggle?: () => void;
-    onStart?: () => void;
-    onStartLate?: () => void;
-    onStartMissed?: () => void;
-    onComplete?: () => void;
-    onCancel?: () => void;
+    onAction?: (action: SavedJourneyAction) => void;
     onLongPress?: (trigger?: HTMLElement) => void;
     onMoreActions?: (trigger: HTMLElement) => void;
     moreActionsLabel?: string;
@@ -243,25 +236,25 @@
       <div class="journey-actions">
         {#if journeyMeta.status === 'active'}
           <p class="next-action">{t.journeyNextAction ?? 'Följ nästa del av resan'}</p>
-          <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onComplete?.(); }}>
+          <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onAction?.('complete'); }}>
             {t.journeyComplete ?? 'Resan klar'}
           </button>
-          <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onCancel?.(); }}>
+          <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onAction?.('cancel'); }}>
             {t.journeyCancel ?? 'Avsluta resa'}
           </button>
         {:else}
           {#if isPlannedExpired}
             <p class="next-action">{t.journeyUpdating ?? 'Uppdaterar nästa avgång…'}</p>
-            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onStartLate?.(); }}>
+            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onAction?.('start-late'); }}>
               {t.journeyStartMissed ?? 'Jag hann med den resan'}
             </button>
           {:else}
-            <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onStart?.(); }}>
+            <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onAction?.('start'); }}>
               {t.journeyStart ?? 'Starta resa'}
             </button>
           {/if}
           {#if isMissedNoticeVisible && journeyMeta.lastMissedJourney}
-            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onStartMissed?.(); }}>
+            <button type="button" class="journey-action" onclick={(event) => { event.stopPropagation(); onAction?.('start-missed'); }}>
               {t.journeyStartMissed ?? 'Jag hann med den resan'}
             </button>
           {/if}

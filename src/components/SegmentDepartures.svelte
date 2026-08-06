@@ -14,6 +14,7 @@
 
   import DepartureRow from "./DepartureRow.svelte";
   import JourneyCard from "./JourneyCard.svelte";
+  import type { SavedJourneyAction } from "../lib/savedJourneyLifecycle";
   import { getSettings } from "../stores/settingsStore.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { fetchNearbyEvents } from "../services/eventService";
@@ -40,11 +41,7 @@
     onEditToggle,
     onOpenSettings,
     onQuickAdd,
-    onJourneyStart,
-    onJourneyStartLate,
-    onJourneyStartMissed,
-    onJourneyComplete,
-    onJourneyCancel,
+    onJourneyAction,
     onSavedCardAction,
     onMoveSegment,
     lastRefreshTime,
@@ -58,11 +55,7 @@
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
     onQuickAdd?: () => void;
-    onJourneyStart?: (segmentId: string) => void;
-    onJourneyStartLate?: (segmentId: string) => void;
-    onJourneyStartMissed?: (segmentId: string) => void;
-    onJourneyComplete?: (segmentId: string) => void;
-    onJourneyCancel?: (segmentId: string) => void;
+    onJourneyAction?: (segmentId: string, action: SavedJourneyAction) => void;
     onSavedCardAction?: (segment: Segment, action: SavedCardActionId) => void;
     onMoveSegment?: (segment: Segment, pageId: string) => void;
     lastRefreshTime?: number;
@@ -513,11 +506,7 @@
               now={now}
               isExpanded={isExpanded}
               ontoggle={() => toggleExpanded(item.segment.id)}
-              onStart={() => onJourneyStart?.(item.segment.id)}
-              onStartLate={() => onJourneyStartLate?.(item.segment.id)}
-              onStartMissed={() => onJourneyStartMissed?.(item.segment.id)}
-              onComplete={() => onJourneyComplete?.(item.segment.id)}
-              onCancel={() => onJourneyCancel?.(item.segment.id)}
+              onAction={(action) => onJourneyAction?.(item.segment.id, action)}
               onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
               onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
               moreActionsLabel={t.moreActionsForJourney?.replace('{destination}', item.segment.journeyMeta.destLabel) ?? `More actions for journey to ${item.segment.journeyMeta.destLabel}`}
