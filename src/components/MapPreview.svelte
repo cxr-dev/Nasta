@@ -3,7 +3,7 @@
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import { cleanStopName as stopLabel } from "../lib/stopName";
 
-  const maplibreLoad = import('maplibre-gl').then(m => m.default);
+  const maplibreLoad = import('maplibre-gl');
   void import('maplibre-gl/dist/maplibre-gl.css');
 
   let {
