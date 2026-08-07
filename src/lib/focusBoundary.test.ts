@@ -55,4 +55,26 @@ describe('focusBoundary', () => {
     expect(document.activeElement).toBe(heading);
     expect(heading.hasAttribute('tabindex')).toBe(false);
   });
+
+  it('does not restore focus to the opener when restore is false', async () => {
+    document.body.innerHTML = `
+      <button id="opener">Open</button>
+      <div id="boundary">
+        <button id="first">First</button>
+      </div>
+    `;
+    const opener = document.querySelector<HTMLButtonElement>('#opener')!;
+    const boundary = document.querySelector<HTMLElement>('#boundary')!;
+    const first = document.querySelector<HTMLButtonElement>('#first')!;
+    opener.focus();
+
+    const action = focusBoundary(boundary, { active: true, initialFocus: '#first', restore: false });
+    await Promise.resolve();
+    expect(document.activeElement).toBe(first);
+
+    action.destroy();
+    await Promise.resolve();
+    // focus stays wherever it was inside the boundary, not the opener
+    expect(document.activeElement).toBe(first);
+  });
 });

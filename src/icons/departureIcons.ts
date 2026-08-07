@@ -22,6 +22,8 @@ export const infoCircle = `<circle cx="12" cy="12" r="10" stroke="currentColor" 
 
 export const gripVertical = `<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>`;
 
+export const moreHorizontal = `<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>`;
+
 export const moonIcon = `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
 export const mapIcon = `<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="9" y1="3" x2="9" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15" y1="6" x2="15" y2="21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`;

@@ -4,7 +4,7 @@ import { render, fireEvent, cleanup } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import PageEditor from './PageEditor.svelte';
 import { setLocale } from '../stores/localeStore.svelte';
-import { reorderPages, renamePage, deletePage } from '../stores/pageStore.svelte';
+import { reorderPages, renamePage, deletePage, createPage, setActivePage } from '../stores/pageStore.svelte';
 import { getSettings } from '../stores/settingsStore.svelte';
 import type { Page } from '../types/page';
 
@@ -75,6 +75,17 @@ function makeTouchEvent(type: string, clientX: number, clientY: number): Event {
   return event;
 }
 
+// jsdom lacks PointerEvent with pointerType; build synthetic pointer events
+// that match the shape longPress.ts listens for (touch pointer, button 0).
+function makePointerEvent(type: string, x = 0, y = 0): MouseEvent {
+  const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+  Object.defineProperties(event, {
+    pointerType: { value: 'touch' },
+    pointerId: { value: 1 },
+  });
+  return event;
+}
+
 // jsdom lacks elementFromPoint — polyfill so vi.spyOn works.
 if (typeof document.elementFromPoint !== 'function') {
   document.elementFromPoint = () => null;
@@ -126,7 +137,7 @@ describe('PageEditor page drag', () => {
 
       const items = container.querySelectorAll('[data-page-drag-index]');
 
-      await fireEvent.dragStart(items[0]);
+      await fireEvent.dragStart(items[0].querySelector('.page-drag-handle')!);
       await tick();
       expect(items[0].classList.contains('page-dragging')).toBe(true);
 
@@ -160,7 +171,7 @@ describe('PageEditor page drag', () => {
 
       const items = container.querySelectorAll('[data-page-drag-index]');
 
-      await fireEvent.dragStart(items[0]);
+      await fireEvent.dragStart(items[0].querySelector('.page-drag-handle')!);
       await fireEvent.dragOver(items[0]);
       await fireEvent.drop(items[0]);
       await tick();
@@ -358,38 +369,73 @@ describe('PageEditor page drag', () => {
   });
 
   describe('page actions and swipe isolation', () => {
-    function setup() {
+    function setup(pages: Page[] = makePages(3), onSwitchPage: (id: string) => void = vi.fn()) {
       return render(PageEditor, {
         props: {
-          pages: makePages(3),
-          activePageId: 'p0',
+          pages,
+          activePageId: pages[0]?.id ?? null,
           isOpen: true,
           onClose: vi.fn(),
-          onSwitchPage: vi.fn(),
+          onSwitchPage,
         },
       });
     }
 
-    it('pencil tap opens rename input without renaming or deleting', async () => {
-      const { getByText, container } = setup();
+    async function showPages(getByText: (text: string) => HTMLElement) {
       await fireEvent.click(getByText('Pages'));
       await tick();
-      const row = container.querySelector('[data-page-drag-index="0"]')!;
-      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
-      await fireEvent.click(pencil);
+    }
+
+    function moreButton(container: HTMLElement): HTMLButtonElement {
+      return container.querySelector(
+        '[data-page-drag-index="0"] .page-actions button',
+      ) as HTMLButtonElement;
+    }
+
+    it('more button opens menu with rename and delete actions', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
+      expect(getByText('Rename')).toBeTruthy();
+      expect(getByText('Delete page')).toBeTruthy();
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(deletePage).not.toHaveBeenCalled();
+    });
+
+    it('clicking Rename in the menu opens the rename input', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      await fireEvent.click(getByText('Rename'));
       await tick();
       expect(container.querySelector('.page-rename-input')).toBeTruthy();
       expect(renamePage).not.toHaveBeenCalled();
       expect(deletePage).not.toHaveBeenCalled();
     });
 
+    it('Rename in menu focuses the rename input, not the trigger button', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      await fireEvent.click(getByText('Rename'));
+      await tick();
+      const input = container.querySelector('.page-rename-input') as HTMLInputElement;
+      expect(document.activeElement).toBe(input);
+      expect(document.activeElement?.getAttribute('data-page-more-btn')).toBeNull();
+      // sheet is fully closed before the rename input takes focus
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+    });
+
     it('commits renamed page via Enter with trimmed value', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
       await tick();
-      const row = container.querySelector('[data-page-drag-index="0"]')!;
-      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
-      await fireEvent.click(pencil);
+      await fireEvent.click(getByText('Rename'));
       await tick();
       const input = container.querySelector('.page-rename-input') as HTMLInputElement;
       await fireEvent.input(input, { target: { value: '  Hem  ' } });
@@ -401,29 +447,63 @@ describe('PageEditor page drag', () => {
       expect(container.querySelector('.page-rename-input')).toBeNull();
     });
 
-    it('commits renamed page via blur', async () => {
+    it('blur does not commit rename and keeps the input mounted', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
       await tick();
-      const row = container.querySelector('[data-page-drag-index="0"]')!;
-      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
-      await fireEvent.click(pencil);
+      await fireEvent.click(getByText('Rename'));
       await tick();
       const input = container.querySelector('.page-rename-input') as HTMLInputElement;
       await fireEvent.input(input, { target: { value: 'Work' } });
       await tick();
       await fireEvent.blur(input);
       await tick();
-      expect(renamePage).toHaveBeenCalledWith('p0', 'Work');
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-rename-input')).toBeTruthy();
+    });
+
+    it('cancel button cancels rename without committing', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      await fireEvent.click(getByText('Rename'));
+      await tick();
+      const input = container.querySelector('.page-rename-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: 'Work' } });
+      await tick();
+      const cancel = container.querySelector(
+        '.page-rename-actions button:first-child',
+      ) as HTMLButtonElement;
+      await fireEvent.click(cancel);
+      await tick();
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-rename-input')).toBeNull();
+    });
+
+    it('Escape cancels rename without committing', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      await fireEvent.click(getByText('Rename'));
+      await tick();
+      const input = container.querySelector('.page-rename-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: 'Work' } });
+      await tick();
+      await fireEvent.keyDown(input, { key: 'Escape' });
+      await tick();
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-rename-input')).toBeNull();
     });
 
     it('touch start on action buttons does not arm page swipe', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
-      await tick();
+      await showPages(getByText);
       const row = container.querySelector('[data-page-drag-index="0"]')!;
-      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
-      await fireEvent(pencil, makeTouchEvent('touchstart', 200, 300));
+      const more = moreButton(container);
+      await fireEvent(more, makeTouchEvent('touchstart', 200, 300));
       await tick();
       await fireEvent(row, makeTouchEvent('touchmove', 180, 300));
       await tick();
@@ -431,17 +511,16 @@ describe('PageEditor page drag', () => {
       await tick();
       const deleteAction = container.querySelector('.page-delete-action')!;
       expect(deleteAction.classList.contains('page-delete-visible')).toBe(false);
-      // tap still works after the touch sequence
-      await fireEvent.click(pencil);
+      // tap still works after the touch sequence — opens menu, not rename
+      await fireEvent.click(more);
       await tick();
-      expect(container.querySelector('.page-rename-input')).toBeTruthy();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
       expect(deletePage).not.toHaveBeenCalled();
     });
 
     it('touch swipe from page name still reveals delete', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
-      await tick();
+      await showPages(getByText);
       const row = container.querySelector('[data-page-drag-index="0"]')!;
       const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
       await fireEvent(nameBtn, makeTouchEvent('touchstart', 200, 300));
@@ -463,17 +542,15 @@ describe('PageEditor page drag', () => {
 
     it('hidden delete action is pointer-inert', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
-      await tick();
+      await showPages(getByText);
       const deleteAction = container.querySelector('.page-delete-action')!;
       expect(deleteAction.classList.contains('page-delete-visible')).toBe(false);
       expect(componentCss()).toMatch(/\.page-delete-action[^{]*\{[^}]*pointer-events:\s*none/);
     });
 
-    it('revealed delete action is pointer-active and deletes on tap', async () => {
+    it('revealed delete action opens confirm view and deletes only after confirm', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
-      await tick();
+      await showPages(getByText);
       const row = container.querySelector('[data-page-drag-index="0"]')!;
       const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
       await fireEvent(nameBtn, makeTouchEvent('touchstart', 200, 300));
@@ -487,20 +564,203 @@ describe('PageEditor page drag', () => {
       expect(componentCss()).toMatch(/\.page-delete-action[^{]*page-delete-visible[^{]*\{[^}]*pointer-events:\s*auto/);
       await fireEvent.click(deleteAction);
       await tick();
+      expect(deletePage).not.toHaveBeenCalled();
+      expect(container.textContent).toContain('Delete this page?');
+      await fireEvent.click(getByText('Delete page'));
+      await tick();
+      expect(deletePage).toHaveBeenCalledTimes(1);
       expect(deletePage).toHaveBeenCalledWith('p0');
     });
 
-    it('direct trash button deletes page', async () => {
+    it('delete via menu requires confirmation', async () => {
       const { getByText, container } = setup();
-      await fireEvent.click(getByText('Pages'));
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
       await tick();
-      const row = container.querySelector('[data-page-drag-index="0"]')!;
-      const buttons = row.querySelectorAll('.page-actions button');
-      const trash = buttons[1] as HTMLButtonElement;
-      await fireEvent.click(trash);
+      await fireEvent.click(getByText('Delete page'));
       await tick();
+      expect(deletePage).not.toHaveBeenCalled();
+      expect(container.textContent).toContain('Delete this page?');
+      await fireEvent.click(getByText('Delete page'));
+      await tick();
+      expect(deletePage).toHaveBeenCalledTimes(1);
       expect(deletePage).toHaveBeenCalledWith('p0');
       expect(renamePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+    });
+
+    it('Escape closes the menu', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      const action = container.querySelector('.page-menu-action') as HTMLElement;
+      await fireEvent.keyDown(action, { key: 'Escape' });
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+    });
+
+    it('outside click closes the menu', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
+      const overlays = container.querySelectorAll('.sheet-overlay');
+      const menuOverlay = overlays[overlays.length - 1] as HTMLElement;
+      await fireEvent.click(menuOverlay);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+    });
+
+    it('opening a second page menu replaces the first', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const buttons = container.querySelectorAll('.page-actions button');
+      await fireEvent.click(buttons[0]);
+      await tick();
+      await fireEvent.click(buttons[1]);
+      await tick();
+      expect(container.querySelectorAll('.page-actions-menu')).toHaveLength(1);
+      expect(getByText('Rename')).toBeTruthy();
+    });
+
+    it('clicking the SVG inside the more button still opens the menu', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const svg = moreButton(container).querySelector('svg')!;
+      await fireEvent.click(svg);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
+    });
+
+    it('add page button creates a page and switches to it', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const addBtn = container.querySelector('.add-btn') as HTMLButtonElement;
+      await fireEvent.click(addBtn);
+      await tick();
+      expect(createPage).toHaveBeenCalled();
+      expect(setActivePage).toHaveBeenCalled();
+    });
+
+    it('title is static Manage pages, no page name interpolation', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      expect(getByText('Manage pages')).toBeTruthy();
+      expect(container.querySelector('.sheet-title')?.textContent).toBe('Manage pages');
+    });
+
+    it('delete action hidden in menu when only one page exists', async () => {
+      const { getByText, container } = setup(makePages(1));
+      await showPages(getByText);
+      await fireEvent.click(moreButton(container));
+      await tick();
+      expect(container.querySelectorAll('.page-menu-action')).toHaveLength(1);
+      expect(container.querySelector('.page-menu-action.destructive')).toBeNull();
+    });
+
+    it('long press on page info opens the same actions menu as the more button', async () => {
+      vi.useFakeTimers();
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const infoWrap = row.querySelector('.page-info-wrap')!;
+      infoWrap.dispatchEvent(makePointerEvent('pointerdown', 200, 300));
+      vi.advanceTimersByTime(450);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
+      expect(getByText('Rename')).toBeTruthy();
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(deletePage).not.toHaveBeenCalled();
+      infoWrap.dispatchEvent(makePointerEvent('pointerup', 200, 300));
+      vi.useRealTimers();
+    });
+
+    it('long press on the drag handle does not open the menu', async () => {
+      vi.useFakeTimers();
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const handle = row.querySelector('.page-drag-handle')!;
+      handle.dispatchEvent(makePointerEvent('pointerdown', 200, 300));
+      vi.advanceTimersByTime(450);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+      handle.dispatchEvent(makePointerEvent('pointerup', 200, 300));
+      vi.useRealTimers();
+    });
+
+    it('long press is cancelled when the pointer moves beyond the threshold', async () => {
+      vi.useFakeTimers();
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const infoWrap = row.querySelector('.page-info-wrap')!;
+      infoWrap.dispatchEvent(makePointerEvent('pointerdown', 200, 300));
+      vi.advanceTimersByTime(449);
+      infoWrap.dispatchEvent(makePointerEvent('pointermove', 220, 300));
+      vi.advanceTimersByTime(20);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+      infoWrap.dispatchEvent(makePointerEvent('pointerup', 220, 300));
+      vi.useRealTimers();
+    });
+
+    it('quick tap on page info does not open the menu', async () => {
+      vi.useFakeTimers();
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const infoWrap = row.querySelector('.page-info-wrap')!;
+      infoWrap.dispatchEvent(makePointerEvent('pointerdown', 200, 300));
+      infoWrap.dispatchEvent(makePointerEvent('pointerup', 200, 300));
+      vi.advanceTimersByTime(450);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeNull();
+      vi.useRealTimers();
+    });
+
+    it('click is suppressed after a successful long press (no page switch)', async () => {
+      const onSwitchPage = vi.fn();
+      const { getByText, container } = setup(makePages(3), onSwitchPage);
+      await showPages(getByText);
+      vi.useFakeTimers();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const infoWrap = row.querySelector('.page-info-wrap')!;
+      const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
+      infoWrap.dispatchEvent(makePointerEvent('pointerdown', 200, 300));
+      vi.advanceTimersByTime(450);
+      await tick();
+      expect(container.querySelector('.page-actions-menu')).toBeTruthy();
+      infoWrap.dispatchEvent(makePointerEvent('pointerup', 200, 300));
+      nameBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await tick();
+      expect(onSwitchPage).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('cancelling delete after swipe reveal restores the row', async () => {
+      const { getByText, container } = setup();
+      await showPages(getByText);
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
+      await fireEvent(nameBtn, makeTouchEvent('touchstart', 200, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchmove', 120, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchend', 120, 300));
+      await tick();
+      expect(container.querySelector('.page-delete-visible')).toBeTruthy();
+      const deleteAction = container.querySelector('.page-delete-action')!;
+      await fireEvent.click(deleteAction);
+      await tick();
+      expect(deletePage).not.toHaveBeenCalled();
+      expect(container.textContent).toContain('Delete this page?');
+      await fireEvent.click(getByText('Cancel'));
+      await tick();
+      expect(deletePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-delete-visible')).toBeNull();
     });
   });
 });

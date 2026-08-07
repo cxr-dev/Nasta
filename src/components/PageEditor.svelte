@@ -2,14 +2,14 @@
   import type { Page } from '../types/page';
   import { renamePage, reorderPages } from '../stores/pageStore.svelte';
   import { setActivePage, createPage, deletePage } from '../stores/pageStore.svelte';
-  import { getActivePage } from '../stores/pageStore.svelte';
 
   import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
+  import { longPress } from '../lib/longPress';
 
   let t = $derived(getT());
   import Sheet from './Sheet.svelte';
-  import { gripVertical } from '../icons/departureIcons';
+  import { gripVertical, moreHorizontal, checkIcon } from '../icons/departureIcons';
 
   // Page drag-and-drop state
   let pageDraggingIndex = $state<number | null>(null);
@@ -35,7 +35,7 @@
 
   function handlePageSwipeTouchStart(e: TouchEvent, pageId: string) {
     const target = e.target as Element | null;
-    if (target?.closest('.page-actions, .page-drag-handle, .page-rename-input')) return;
+    if (target?.closest('.page-actions, .page-drag-handle, .page-rename-input, .page-rename-actions')) return;
     if (pageDraggingIndex !== null) return;
     if (e.touches.length !== 1) return;
     if (revealedPageId && revealedPageId !== pageId) {
@@ -71,13 +71,6 @@
     const currentX = pageSwipeCurrentDx;
     if (!pageSwipeIntent || currentX > -PAGE_REVEAL_THRESHOLD) {
       if (el) { gsap.killTweensOf(el); gsap.to(el, { x: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' }); }
-      revealedPageId = null;
-    } else if (currentX <= -PAGE_COMMIT_THRESHOLD) {
-      navigator.vibrate?.(10);
-      if (el) {
-        gsap.killTweensOf(el);
-        gsap.to(el, { x: -el.offsetWidth, opacity: 0, duration: 0.2, ease: 'power2.out', onComplete: () => handleDeletePage(pageId) });
-      } else { handleDeletePage(pageId); }
       revealedPageId = null;
     } else {
       if (el) { gsap.killTweensOf(el); gsap.to(el, { x: -PAGE_DELETE_WIDTH, duration: 0.2, ease: 'power2.out' }); }
@@ -229,14 +222,29 @@
     onSwitchPage: (pageId: string) => void;
   } = $props();
 
-  let page = $derived(pages.find(p => p.id === activePageId));
   let renameId = $state<string | null>(null);
   let renameValue = $state('');
+  let renameInputEl = $state<HTMLInputElement | undefined>();
   let pagesTabEl = $state<HTMLDivElement>();
+  let pageMenuAnchor = $state<HTMLElement | null>(null);
+  let menuState = $state<{ pageId: string; view: 'menu' | 'delete' } | null>(null);
+  let menuPage = $derived(pages.find(p => p.id === menuState?.pageId) ?? null);
+  let menuPresentationMode = $state<'sheet' | 'popover'>('sheet');
 
-  function getPageLabel(p: Page): string {
-    return p.name;
-  }
+  $effect(() => {
+    if (!menuState || typeof window === 'undefined') return;
+    const pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const updateMode = () => {
+      menuPresentationMode = window.innerWidth >= 768 && pointerQuery.matches ? 'popover' : 'sheet';
+    };
+    updateMode();
+    pointerQuery.addEventListener('change', updateMode);
+    window.addEventListener('resize', updateMode);
+    return () => {
+      pointerQuery.removeEventListener('change', updateMode);
+      window.removeEventListener('resize', updateMode);
+    };
+  });
 
   function handleCreatePage() {
     const newId = createPage(t.defaultPageName);
@@ -258,15 +266,62 @@
     renamePage(id, name.trim());
     renameId = null;
     renameValue = '';
+    document.querySelector<HTMLElement>(`[data-page-more-btn="${id}"]`)?.focus();
+  }
+
+  function cancelRename() {
+    const id = renameId;
+    renameId = null;
+    renameValue = '';
+    if (id) {
+      document.querySelector<HTMLElement>(`[data-page-more-btn="${id}"]`)?.focus();
+    }
+  }
+
+  function openPageMenu(pageId: string) {
+    cancelPageSwipe();
+    dismissPageRevealed();
+    pageMenuAnchor = document.querySelector<HTMLElement>(`[data-page-more-btn="${pageId}"]`);
+    menuState = { pageId, view: 'menu' };
+  }
+
+  function requestDeletePage(pageId: string) {
+    navigator.vibrate?.(10);
+    dismissPageRevealed();
+    pageMenuAnchor = document.querySelector<HTMLElement>(`[data-page-more-btn="${pageId}"]`);
+    menuState = { pageId, view: 'delete' };
+  }
+
+  function closePageMenu() {
+    menuState = null;
+  }
+
+  function showDeleteConfirm() {
+    if (!menuState) return;
+    menuState = { pageId: menuState.pageId, view: 'delete' };
+    queueMicrotask(() => {
+      document.querySelector<HTMLElement>('.page-menu-action.destructive')?.focus();
+    });
+  }
+
+  function confirmDelete() {
+    if (!menuState) return;
+    const id = menuState.pageId;
+    menuState = null;
+    handleDeletePage(id);
+  }
+
+  function startRenameFromMenu(id: string) {
+    const page = pages.find(p => p.id === id);
+    menuState = null;
+    if (!page) return;
+    renameId = id;
+    renameValue = page.name;
+    queueMicrotask(() => renameInputEl?.focus());
   }
 
   function handleReorderPage(fromIndex: number, toIndex: number) {
     reorderPages(fromIndex, toIndex);
-  }
-
-  function startRename(id: string, currentName: string) {
-    renameId = id;
-    renameValue = currentName;
   }
 
   function handlePageSwitch(id: string) {
@@ -279,7 +334,7 @@
 <Sheet
   isOpen={isOpen}
   onClose={onClose}
-  title={`${t.managePages ?? t.editingPage}: ${page ? getPageLabel(page) : ''}`}
+  title={t.managePages ?? t.editingPage}
   closeAriaLabel={t.closeEditor}
   overlayClass="editor-overlay"
   sheetClass="editor-sheet"
@@ -292,9 +347,6 @@
         aria-label={t.pages}
       >
         <h3 class="section-title">{t.pages}</h3>
-        <button class="add-btn" onclick={handleCreatePage}>
-          + {t.add}
-        </button>
         <div class="page-list" role="list">
           {#each pages as page, index (page.id)}
             {@const isDropHere = pageDraggingIndex !== null && pageDropInsertIndex === index && pageDropInsertIndex !== pageDraggingIndex}
@@ -317,7 +369,7 @@
                   class="page-delete-action"
                   class:page-delete-visible={revealedPageId === page.id || (swipingPageId === page.id && pageSwipeIntent)}
                   aria-hidden={revealedPageId !== page.id}
-                  onclick={() => { navigator.vibrate?.(10); handleDeletePage(page.id); }}
+                  onclick={() => requestDeletePage(page.id)}
                   role="button"
                   tabindex={revealedPageId === page.id ? 0 : -1}
                 >
@@ -329,15 +381,13 @@
                 role="listitem"
                 aria-label={page.name}
                 class:active={page.id === activePageId}
+                class:renaming={renameId === page.id}
                 class:page-dragging={pageDraggingIndex === index}
                 class:page-drag-over={pageDragOverIndex === index && pageDraggingIndex !== index}
                 data-page-drag-index={index}
                 data-page-swipe-id={page.id}
-                draggable="true"
-                ondragstart={(e) => handlePageDragStart(e, index)}
                 ondragover={(e) => handlePageDragOver(e, index)}
                 ondrop={(e) => handlePageDrop(e, index)}
-                ondragend={handlePageDragEnd}
                 ontouchstart={(e) => handlePageSwipeTouchStart(e, page.id)}
                 ontouchmove={(e) => handlePageSwipeTouchMove(e, page.id)}
                 ontouchend={(e) => handlePageSwipeTouchEnd(e, page.id)}
@@ -347,6 +397,9 @@
                 class="page-drag-handle no-scale"
                 class:long-pressing={pageIsLongPressing}
                 aria-hidden="true"
+                draggable="true"
+                ondragstart={(e) => handlePageDragStart(e, index)}
+                ondragend={handlePageDragEnd}
                 ontouchstart={(e) => handlePageHandleTouchStart(e, index)}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
@@ -359,14 +412,37 @@
                   type="text"
                   class="page-rename-input"
                   bind:value={renameValue}
+                  bind:this={renameInputEl}
+                  enterkeyhint="done"
                   onkeydown={(e) => {
                     if (e.key === 'Enter') handleRenamePage(page.id, renameValue);
-                    if (e.key === 'Escape') renameId = null;
+                    if (e.key === 'Escape') cancelRename();
                   }}
-                  onblur={() => handleRenamePage(page.id, renameValue)}
                 />
+                <div class="page-rename-actions">
+                  <button
+                    type="button"
+                    class="page-rename-btn"
+                    aria-label={t.cancel}
+                    onclick={cancelRename}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-rename-btn"
+                    aria-label={t.confirm}
+                    onclick={() => handleRenamePage(page.id, renameValue)}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      {@html checkIcon}
+                    </svg>
+                  </button>
+                </div>
               {:else}
-                <div class="page-info-wrap">
+                <div class="page-info-wrap" use:longPress={{ onLongPress: () => openPageMenu(page.id) }}>
                   <button
                     class="page-name-btn"
                     onclick={() => handlePageSwitch(page.id)}
@@ -386,31 +462,77 @@
               <div class="page-actions">
                 <button
                   class="page-action-btn"
-                  onclick={() => startRename(page.id, page.name)}
-                  aria-label={t.renamePage ?? 'Rename page'}
+                  data-page-more-btn={page.id}
+                  onclick={() => openPageMenu(page.id)}
+                  aria-label={t.moreActions}
+                  aria-haspopup="menu"
+                  aria-expanded={menuState?.pageId === page.id && menuState?.view === 'menu'}
                 >
-                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                    <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61z"/>
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    {@html moreHorizontal}
                   </svg>
                 </button>
-                {#if pages.length > 1}
-                  <button
-                    class="page-action-btn danger"
-                    onclick={() => handleDeletePage(page.id)}
-                    aria-label={t.remove}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                      <path d="M2 4h12M5.5 4V2.5a1 1 0 011-1h3a1 1 0 011 1V4M4 4v9.5a1 1 0 001 1h6a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    </svg>
-                  </button>
-                {/if}
               </div>
             </div>
           </div>
           {/each}
         </div>
+        <button class="add-btn" onclick={handleCreatePage}>
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>{t.addPage}</span>
+        </button>
       </div>
 
+      {#if menuState}
+        <Sheet
+          isOpen={true}
+          onClose={closePageMenu}
+          title={menuState.view === 'delete' ? t.deletePageConfirmTitle : t.moreActions}
+          closeAriaLabel={t.closeActions}
+          mode={menuPresentationMode}
+          anchor={pageMenuAnchor}
+          sheetClass="page-actions-menu"
+          initialFocusSelector=".page-menu-action"
+          restoreFocusOnClose={menuState.view === 'delete'}
+          onSheetTouchStart={(e) => e.stopPropagation()}
+          onSheetTouchEnd={(e) => e.stopPropagation()}
+        >
+          {#if menuState.view === 'delete'}
+            <div class="sheet-content">
+              <p class="page-menu-delete-desc">
+                {(menuPage?.segments.length ?? 0) === 0
+                  ? t.deletePageConfirmDescEmpty.replace('{name}', menuPage?.name ?? '')
+                  : t.deletePageConfirmDesc
+                      .replace('{name}', menuPage?.name ?? '')
+                      .replace('{n}', String(menuPage?.segments.length ?? 0))}
+              </p>
+              <div class="action-list">
+                <button class="page-menu-action destructive" onclick={confirmDelete}>
+                  {t.deletePage}
+                </button>
+                <button class="page-menu-action" onclick={closePageMenu}>
+                  {t.cancel}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <div class="sheet-content">
+              <div class="action-list">
+                <button class="page-menu-action" onclick={() => startRenameFromMenu(menuState!.pageId)}>
+                  {t.renamePageShort}
+                </button>
+                {#if pages.length > 1}
+                  <button class="page-menu-action destructive" onclick={showDeleteConfirm}>
+                    {t.deletePage}
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/if}
+        </Sheet>
+      {/if}
 </Sheet>
 
 <style>
@@ -465,7 +587,11 @@
 
   .page-item.active {
     border-color: var(--accent);
-    background: var(--accent-subtle);
+    background: color-mix(in oklch, var(--accent) 4%, var(--surface));
+  }
+
+  .page-item.renaming {
+    background: color-mix(in oklch, var(--accent) 4%, var(--surface));
   }
 
   .page-item.page-dragging {
@@ -677,6 +803,31 @@
     min-width: 0;
   }
 
+  .page-rename-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .page-rename-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .page-rename-btn:hover {
+    color: var(--text);
+    background: var(--border);
+  }
+
   .page-actions {
     display: flex;
     gap: 8px;
@@ -703,21 +854,20 @@
     background: var(--border);
   }
 
-  .page-action-btn.danger:hover {
-    color: var(--color-error);
-    background: color-mix(in oklch, var(--color-error) 10%, transparent);
-  }
-
   .add-btn {
-    position: relative;
     width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     padding: 12px;
-    border: 1.5px dashed var(--accent);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
-    background: transparent;
+    background: var(--surface);
     color: var(--accent);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 650;
     cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
@@ -725,7 +875,138 @@
   }
 
   .add-btn:active {
-    background: color-mix(in oklch, var(--accent) 10%, transparent);
+    background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  }
+
+  .add-btn:hover {
+    background: color-mix(in oklch, var(--accent) 6%, var(--surface));
+  }
+
+  /* Page action sheet — mirrors SavedCardActionsSheet */
+  .sheet-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  .action-list {
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 12px);
+    background: var(--surface);
+  }
+
+  .page-menu-action {
+    min-height: 56px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    padding: 10px 16px;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .page-menu-action:last-child {
+    border-bottom: 0;
+  }
+
+  .page-menu-action:hover,
+  .page-menu-action:focus-visible {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .page-menu-action.destructive {
+    color: var(--color-critical, #b42318);
+  }
+
+  .page-menu-delete-desc {
+    margin: 0;
+    padding: 4px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    overflow-wrap: break-word;
+  }
+
+  :global(.sheet.page-actions-menu) {
+    bottom: 0;
+    height: auto;
+    max-height: min(62dvh, 440px);
+    min-height: 0;
+    border-radius: 22px 22px 0 0;
+  }
+
+  @media (max-width: 767px) {
+    :global(.sheet.page-actions-menu) {
+      left: 0 !important;
+      top: auto !important;
+      right: 0 !important;
+    }
+  }
+
+  @media (min-width: 768px) {
+    :global(.sheet-overlay:has(.sheet.page-actions-menu)) {
+      display: block;
+      padding: 0;
+      background: transparent;
+    }
+
+    :global(.sheet.page-actions-menu.popover) {
+      position: fixed;
+      inset: auto;
+      width: 320px;
+      height: auto;
+      max-height: min(70dvh, 520px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+      transform: scale(0.97) !important;
+      transform-origin: top center;
+      opacity: 0 !important;
+      transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), transform 160ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+    }
+
+    :global(.sheet-overlay.open .sheet.page-actions-menu.popover) {
+      transform: scale(1) !important;
+      opacity: 1 !important;
+    }
+
+    :global(.sheet.page-actions-menu.popover .sheet-handle) {
+      display: none;
+    }
+
+    :global(.sheet-overlay:has(.sheet.page-actions-menu.touch-sheet)) {
+      display: block;
+      padding: 0;
+      background: transparent;
+    }
+
+    :global(.sheet.page-actions-menu.touch-sheet) {
+      position: fixed;
+      inset: auto 0 0;
+      width: 100%;
+      height: auto;
+      max-height: min(78dvh, 620px);
+      border-radius: 22px 22px 0 0;
+      transform: translateY(100%) !important;
+      opacity: 1;
+    }
+
+    :global(.sheet-overlay.open .sheet.page-actions-menu.touch-sheet) {
+      transform: translateY(0) !important;
+    }
   }
 
 
@@ -738,6 +1019,14 @@
     }
     .drop-ghost {
       animation: none;
+    }
+    .page-menu-action {
+      transition: none;
+    }
+    :global(.sheet.page-actions-menu.popover),
+    :global(.sheet-overlay.open .sheet.page-actions-menu.popover) {
+      transition: opacity 160ms ease !important;
+      transform: none !important;
     }
   }
 

@@ -20,6 +20,7 @@
     initialFocusSelector?: string;
     onSheetTouchStart?: (e: TouchEvent) => void;
     onSheetTouchEnd?: (e: TouchEvent) => void;
+    restoreFocusOnClose?: boolean;
     children: Snippet;
   }
 
@@ -35,6 +36,7 @@
     initialFocusSelector = '[data-surface-control]',
     onSheetTouchStart,
     onSheetTouchEnd,
+    restoreFocusOnClose = true,
     children,
   }: Props = $props();
 
@@ -70,6 +72,7 @@
   });
 
   function handleOverlayClick(e: MouseEvent) {
+    e.stopPropagation();
     if (!overlayEl) return;
     const target = e.target as Node;
     if (target === overlayEl || (sheetEl && !sheetEl.contains(target))) {
@@ -78,6 +81,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    e.stopPropagation();
     if (e.key === 'Escape') {
       onClose();
     }
@@ -174,7 +178,7 @@
     class:touch-sheet={mode === 'sheet'}
     style={mode === 'popover' ? popoverStyle : undefined}
     class:dragging
-    use:focusBoundary={{ active: isOpen, initialFocus: initialFocusSelector }}
+    use:focusBoundary={{ active: isOpen, initialFocus: initialFocusSelector, restore: restoreFocusOnClose }}
     ontouchstart={handleSheetTouchStart}
     ontouchend={handleSheetTouchEnd}
   >

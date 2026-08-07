@@ -1,6 +1,8 @@
 export type FocusBoundaryOptions = {
   active: boolean;
   initialFocus?: string;
+  /** When false, focus is not restored on deactivate. */
+  restore?: boolean;
 };
 
 const focusableSelector = [
@@ -64,7 +66,7 @@ export function focusBoundary(node: HTMLElement, initialOptions: FocusBoundaryOp
   function activate() {
     if (active) return;
     active = true;
-    restoreTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    restoreTarget = options.restore === false ? null : document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.addEventListener('focusin', handleFocusIn);
     node.addEventListener('keydown', handleKeydown);
     queueMicrotask(() => {
@@ -77,6 +79,7 @@ export function focusBoundary(node: HTMLElement, initialOptions: FocusBoundaryOp
     active = false;
     document.removeEventListener('focusin', handleFocusIn);
     node.removeEventListener('keydown', handleKeydown);
+    if (options.restore === false) return;
     const target = restoreTarget;
     restoreTarget = null;
     queueMicrotask(() => {
