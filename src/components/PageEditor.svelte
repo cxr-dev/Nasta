@@ -34,7 +34,8 @@
   let revealedPageId = $state<string | null>(null);
 
   function handlePageSwipeTouchStart(e: TouchEvent, pageId: string) {
-    if ((e.target as HTMLElement).closest('.page-drag-handle')) return;
+    const target = e.target as Element | null;
+    if (target?.closest('.page-actions, .page-drag-handle, .page-rename-input')) return;
     if (pageDraggingIndex !== null) return;
     if (e.touches.length !== 1) return;
     if (revealedPageId && revealedPageId !== pageId) {
@@ -450,6 +451,8 @@
   }
 
   .page-item {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -522,10 +525,12 @@
     font-family: inherit;
     border: none;
     border-radius: 0 10px 10px 0;
+    pointer-events: none;
   }
 
   .page-delete-action.page-delete-visible {
     opacity: 1;
+    pointer-events: auto;
   }
 
   .page-delete-action:active {
@@ -674,13 +679,13 @@
 
   .page-actions {
     display: flex;
-    gap: 4px;
+    gap: 8px;
     flex-shrink: 0;
   }
 
   .page-action-btn {
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     border: none;
     background: transparent;
     border-radius: 6px;

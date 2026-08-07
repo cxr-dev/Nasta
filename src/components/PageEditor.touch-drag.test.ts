@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { render, fireEvent, cleanup } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import PageEditor from './PageEditor.svelte';
 import { setLocale } from '../stores/localeStore.svelte';
-import { reorderPages } from '../stores/pageStore.svelte';
+import { reorderPages, renamePage, deletePage } from '../stores/pageStore.svelte';
 import { getSettings } from '../stores/settingsStore.svelte';
 import type { Page } from '../types/page';
 
@@ -353,6 +354,153 @@ describe('PageEditor page drag', () => {
         expect(clearTimeoutSpy).toHaveBeenCalled();
         clearTimeoutSpy.mockRestore();
       });
+    });
+  });
+
+  describe('page actions and swipe isolation', () => {
+    function setup() {
+      return render(PageEditor, {
+        props: {
+          pages: makePages(3),
+          activePageId: 'p0',
+          isOpen: true,
+          onClose: vi.fn(),
+          onSwitchPage: vi.fn(),
+        },
+      });
+    }
+
+    it('pencil tap opens rename input without renaming or deleting', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
+      await fireEvent.click(pencil);
+      await tick();
+      expect(container.querySelector('.page-rename-input')).toBeTruthy();
+      expect(renamePage).not.toHaveBeenCalled();
+      expect(deletePage).not.toHaveBeenCalled();
+    });
+
+    it('commits renamed page via Enter with trimmed value', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
+      await fireEvent.click(pencil);
+      await tick();
+      const input = container.querySelector('.page-rename-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: '  Hem  ' } });
+      await tick();
+      await fireEvent.keyDown(input, { key: 'Enter' });
+      await tick();
+      expect(renamePage).toHaveBeenCalledWith('p0', 'Hem');
+      expect(deletePage).not.toHaveBeenCalled();
+      expect(container.querySelector('.page-rename-input')).toBeNull();
+    });
+
+    it('commits renamed page via blur', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
+      await fireEvent.click(pencil);
+      await tick();
+      const input = container.querySelector('.page-rename-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: 'Work' } });
+      await tick();
+      await fireEvent.blur(input);
+      await tick();
+      expect(renamePage).toHaveBeenCalledWith('p0', 'Work');
+    });
+
+    it('touch start on action buttons does not arm page swipe', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const pencil = row.querySelector('.page-actions button') as HTMLButtonElement;
+      await fireEvent(pencil, makeTouchEvent('touchstart', 200, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchmove', 180, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchend', 180, 300));
+      await tick();
+      const deleteAction = container.querySelector('.page-delete-action')!;
+      expect(deleteAction.classList.contains('page-delete-visible')).toBe(false);
+      // tap still works after the touch sequence
+      await fireEvent.click(pencil);
+      await tick();
+      expect(container.querySelector('.page-rename-input')).toBeTruthy();
+      expect(deletePage).not.toHaveBeenCalled();
+    });
+
+    it('touch swipe from page name still reveals delete', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
+      await fireEvent(nameBtn, makeTouchEvent('touchstart', 200, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchmove', 120, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchend', 120, 300));
+      await tick();
+      const deleteAction = container.querySelector('.page-delete-action')!;
+      expect(deleteAction.classList.contains('page-delete-visible')).toBe(true);
+    });
+
+    // jsdom does not inject Svelte component styles into the DOM (no <style> tags,
+    // no adoptedStyleSheets, and getComputedStyle ignores them). Assert the rules
+    // against the component source instead; real hit-testing is a device-test concern.
+    function componentCss(): string {
+      return readFileSync('src/components/PageEditor.svelte', 'utf8');
+    }
+
+    it('hidden delete action is pointer-inert', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const deleteAction = container.querySelector('.page-delete-action')!;
+      expect(deleteAction.classList.contains('page-delete-visible')).toBe(false);
+      expect(componentCss()).toMatch(/\.page-delete-action[^{]*\{[^}]*pointer-events:\s*none/);
+    });
+
+    it('revealed delete action is pointer-active and deletes on tap', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const nameBtn = row.querySelector('.page-name-btn') as HTMLButtonElement;
+      await fireEvent(nameBtn, makeTouchEvent('touchstart', 200, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchmove', 120, 300));
+      await tick();
+      await fireEvent(row, makeTouchEvent('touchend', 120, 300));
+      await tick();
+      const deleteAction = container.querySelector('.page-delete-action')!;
+      expect(deleteAction.classList.contains('page-delete-visible')).toBe(true);
+      expect(componentCss()).toMatch(/\.page-delete-action[^{]*page-delete-visible[^{]*\{[^}]*pointer-events:\s*auto/);
+      await fireEvent.click(deleteAction);
+      await tick();
+      expect(deletePage).toHaveBeenCalledWith('p0');
+    });
+
+    it('direct trash button deletes page', async () => {
+      const { getByText, container } = setup();
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]')!;
+      const buttons = row.querySelectorAll('.page-actions button');
+      const trash = buttons[1] as HTMLButtonElement;
+      await fireEvent.click(trash);
+      await tick();
+      expect(deletePage).toHaveBeenCalledWith('p0');
+      expect(renamePage).not.toHaveBeenCalled();
     });
   });
 });
