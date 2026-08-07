@@ -22,6 +22,7 @@ const maplibre = vi.hoisted(() => {
         addTo: vi.fn().mockReturnThis(),
       };
     }),
+    setWorkerUrl: vi.fn(),
   };
 });
 

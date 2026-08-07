@@ -9,6 +9,12 @@
 
   const maplibreLoad = import('maplibre-gl');
   void import('maplibre-gl/dist/maplibre-gl.css');
+  // maplibre-gl v6 ships its web worker as a separate file that imports a
+  // sibling shared chunk. ?worker&url routes it through Vite's worker pipeline
+  // so the build emits one self-contained worker asset; setWorkerUrl() points
+  // MapLibre at it. Without this the worker resolves to an un-emitted
+  // assets/maplibre-gl-worker.mjs in production (404) and no tiles load.
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
   let {
     segment,
@@ -44,6 +50,7 @@
 
   $effect(() => {
     maplibreLoad.then(m => {
+      m.setWorkerUrl(workerUrl);
       maplibregl = m;
     }).catch(() => {
       mapLoadError = true;
