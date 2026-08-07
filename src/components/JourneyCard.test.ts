@@ -66,6 +66,7 @@ describe('JourneyCard unified action seam', () => {
       props: { journeyMeta: { ...meta(), connections: [{ beforeLegIndex: 0, kind: 'walk', durationMin: 4 }, { beforeLegIndex: 1, kind: 'transfer', durationMin: 3 }] }, isExpanded: true, now: 1_700_000_000_000 },
     });
     expect(container.querySelectorAll('.connection-row')).toHaveLength(2);
+    expect(container.querySelector('.connection-row.walk svg circle')?.getAttribute('cx')).toBe('13');
     expect(container.textContent).toContain('4 min');
   });
 

@@ -270,7 +270,7 @@
               <span class="connection-track" aria-hidden="true"></span>
               <span class="connection-label">
                 {#if connection.kind === 'walk'}
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V19a2 2 0 0 0 2 2h.5" /><path d="M14 19v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V22" /></svg>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="1" /><path d="M7 21l3-4" /><path d="M16 21l-2-4l-3-3l1-6" /><path d="M6 12l2-3l4-1l3 3l3 1" /></svg>
                 {:else}
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>
                 {/if}
@@ -316,7 +316,7 @@
             <span class="connection-track" aria-hidden="true"></span>
             <span class="connection-label">
               {#if connection.kind === 'walk'}
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V19a2 2 0 0 0 2 2h.5" /><path d="M14 19v-2.38c0-.8.5-1.54 1.26-1.82l2.12-.7c.57-.18 1.16.07 1.4.6l.63 1.41c.23.5.04 1.1-.43 1.37l-1.83 1.03c-.4.23-.65.65-.65 1.11V22" /></svg>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="1" /><path d="M7 21l3-4" /><path d="M16 21l-2-4l-3-3l1-6" /><path d="M6 12l2-3l4-1l3 3l3 1" /></svg>
               {:else}
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>
               {/if}
