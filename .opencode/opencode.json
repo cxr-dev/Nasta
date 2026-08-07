@@ -15,7 +15,7 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp"],
+      "command": ["node", "scripts/playwright-mcp.mjs"],
       "enabled": true
     },
     "svelte": {

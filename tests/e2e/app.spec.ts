@@ -146,7 +146,7 @@ test.describe("Nästa App", () => {
   test("should load from GitHub Pages subpath and survive hard refresh", async ({
     page,
   }) => {
-    await page.goto("http://localhost:5173/Nasta/");
+    await page.goto("/Nasta/");
     await page.reload({ waitUntil: "domcontentloaded" });
 
     const routeHeader = page.locator("h1.page-title");

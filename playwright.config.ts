@@ -33,8 +33,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite preview --host 127.0.0.1 --port 5173",
-    url: "http://localhost:5173",
+    command: "pnpm exec vite preview --host localhost --port 5173",
+    url: "http://localhost:5173/Nasta/",
     reuseExistingServer: !process.env.CI,
   },
 });
