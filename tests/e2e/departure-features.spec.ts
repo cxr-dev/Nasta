@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * E2E tests for the three features added to departure cards:
@@ -46,8 +46,9 @@ function mockSlApi(route: any) {
   }
 }
 
-function disableAnimations(page: any) {
-  return page.addStyleTag({
+async function disableAnimations(page: Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addStyleTag({
     content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
   });
 }
@@ -688,12 +689,13 @@ test.describe("Station grouping C2 layout", () => {
     await page.setViewportSize({ width: 820, height: 1180 });
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await disableAnimations(page);
-    await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 15000 });
+    const sections = page.getByTestId("content-section");
+    await expect(sections).toHaveCount(2, { timeout: 15000 });
 
     const listBox = await page.locator(".card-list").boundingBox();
-    const departureSection = await page.locator(".content-section").nth(0).boundingBox();
-    const journeySection = await page.locator(".content-section").nth(1).boundingBox();
-    const departureCard = await page.locator(".departure-card").boundingBox();
+    const departureSection = await sections.nth(0).boundingBox();
+    const journeySection = await sections.nth(1).boundingBox();
+    const departureCard = await page.getByTestId("segment-row").boundingBox();
     const journeyCard = await page.locator(".journey-card").boundingBox();
     expect(listBox).not.toBeNull();
     expect(departureSection).not.toBeNull();
@@ -710,19 +712,28 @@ test.describe("Station grouping C2 layout", () => {
     expect(departureCard!.width).toBe(374);
     expect(journeyCard!.width).toBe(374);
 
-    await page.locator('.departure-card').click();
-    await expect(page.locator('.departure-card.expanded')).toBeVisible();
-    const expandedDepartureSection = await page.locator('.content-section').nth(0).boundingBox();
-    const pairedJourneySection = await page.locator('.content-section').nth(1).boundingBox();
+    const departureToggle = page
+      .getByTestId("segment-row")
+      .getByRole("button", { name: /14 T-Centralen.*Mörby/i });
+    await departureToggle.click();
+    await expect(departureToggle).toHaveAttribute("aria-expanded", "true");
+    await expect
+      .poll(async () => {
+        const [departure, journey] = await Promise.all([sections.nth(0).boundingBox(), sections.nth(1).boundingBox()]);
+        return departure && journey ? Math.abs(departure.height - journey.height) : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThan(1);
+    const expandedDepartureSection = await sections.nth(0).boundingBox();
+    const pairedJourneySection = await sections.nth(1).boundingBox();
     expect(expandedDepartureSection).not.toBeNull();
     expect(pairedJourneySection).not.toBeNull();
     expect(Math.abs(expandedDepartureSection!.height - pairedJourneySection!.height)).toBeLessThan(1);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 10000 });
-    const mobileDeparture = await page.locator(".content-section").nth(0).boundingBox();
-    const mobileJourney = await page.locator(".content-section").nth(1).boundingBox();
+    await expect(sections).toHaveCount(2, { timeout: 10000 });
+    const mobileDeparture = await sections.nth(0).boundingBox();
+    const mobileJourney = await sections.nth(1).boundingBox();
     expect(mobileDeparture).not.toBeNull();
     expect(mobileJourney).not.toBeNull();
     expect(Math.abs(mobileDeparture!.x - mobileJourney!.x)).toBeLessThan(1);
@@ -736,8 +747,8 @@ test.describe("Station grouping C2 layout", () => {
     for (const [width, expectedCardWidth] of [[360, 328], [412, 380]]) {
       await page.setViewportSize({ width, height: 844 });
       await page.reload({ waitUntil: "domcontentloaded" });
-      await expect(page.locator(".content-section")).toHaveCount(2, { timeout: 10000 });
-      const card = await page.locator(".departure-card").boundingBox();
+      await expect(sections).toHaveCount(2, { timeout: 10000 });
+      const card = await page.getByTestId("segment-row").boundingBox();
       expect(card).not.toBeNull();
       expect(card!.x).toBe(16);
       expect(card!.width).toBe(expectedCardWidth);

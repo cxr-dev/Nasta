@@ -411,7 +411,7 @@
       ]}
       {#each sections as section (section.key)}
         {#if section.groups.length > 0}
-          <section class="content-section" class:journey-section={section.key === 'journeys'} aria-labelledby="section-{section.key}">
+          <section class="content-section" class:journey-section={section.key === 'journeys'} data-testid="content-section" aria-labelledby="section-{section.key}">
             <header class="content-section-heading">
               <div>
                 <h2 id="section-{section.key}">{section.title}</h2>

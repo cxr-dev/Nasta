@@ -1,7 +1,22 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 let venueRequestCount = 0;
 let eventRequestCount = 0;
+
+async function openFeatureDiscovery(page: Page): Promise<Locator> {
+  const segmentRow = page.getByTestId("segment-row").first();
+  await expect(segmentRow).toBeVisible({ timeout: 15000 });
+  await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({ timeout: 15000 });
+  await segmentRow.getByRole("button").click();
+
+  const nearbyButton = page.getByRole("button", { name: /Discover nearby/i });
+  await expect(nearbyButton).toBeVisible({ timeout: 10000 });
+  await nearbyButton.click();
+
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible({ timeout: 10000 });
+  return sheet;
+}
 
 test.describe("feature discovery sheet", () => {
   test.beforeEach(async ({ page }) => {
@@ -10,12 +25,7 @@ test.describe("feature discovery sheet", () => {
     const fixedNowIso = "2026-05-28T18:30:00+02:00";
     const fixedNow = new Date(fixedNowIso).valueOf();
 
-    page.on("console", (message) => {
-      console.log(`[Browser ${message.type()}] ${message.text()}`);
-    });
-    page.on("pageerror", (error) => {
-      console.log(`[PageError] ${error.message}`);
-    });
+    await page.emulateMedia({ reducedMotion: "reduce" });
 
     await page.addInitScript((nowIso) => {
       const fixedNow = new Date(nowIso).valueOf();
@@ -112,9 +122,28 @@ test.describe("feature discovery sheet", () => {
       });
     });
 
+    await page.route("**/api.open-meteo.com/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          current: { weather_code: 0, temperature_2m: 15 },
+          daily: { weather_code: [0], temperature_2m_max: [16], temperature_2m_min: [10] },
+        }),
+      });
+    });
+
+    await page.route("**/basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+      });
+    });
+
     // Intercept the real Supabase function host used by `fetchNearbyVenues`
     await page.route(
-      "**/izrgqxgsuhogrukisfrd.supabase.co/functions/v1/get-venues",
+      "**/izrgqxgsuhogrukisfrd.supabase.co/functions/v1/get-venues**",
       async (route) => {
         venueRequestCount += 1;
         await route.fulfill({
@@ -175,7 +204,7 @@ test.describe("feature discovery sheet", () => {
       });
     });
 
-    await page.route("**/events-data.json", async (route) => {
+    await page.route("**/events-data.json**", async (route) => {
       eventRequestCount += 1;
       await route.fulfill({
         status: 200,
@@ -202,7 +231,6 @@ test.describe("feature discovery sheet", () => {
     });
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.reload({ waitUntil: "domcontentloaded" });
     await page.addStyleTag({
       content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
@@ -211,59 +239,27 @@ test.describe("feature discovery sheet", () => {
   test("opens the feature discovery sheet when nearby button is clicked", async ({
     page,
   }) => {
-    // Expand segment to reveal the "Discover nearby" button
-    const segmentRow = page.getByTestId("segment-row").first();
-    await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({
-      timeout: 15000,
-    });
-    await segmentRow.click({ force: true });
+    const sheet = await openFeatureDiscovery(page);
 
-    // Click "Discover nearby" button
-    const nearbyButton = page.getByRole("button", { name: /Discover nearby/i });
-    await expect(nearbyButton).toBeVisible({ timeout: 10000 });
-    await nearbyButton.click();
+    await expect(sheet.getByRole("tab", { name: /Afterwork|Efter jobbet/i })).toBeVisible();
 
-    // Verify sheet is visible and contains venue data
-    const sheet = page.locator(".sheet-shell");
-    await expect(sheet).toBeVisible({ timeout: 10000 });
-
-    // Verify tabs are rendered
-    await expect(page.getByRole("tab", { name: /Afterwork|Efter jobbet/i })).toBeVisible();
-
-    // Verify venue content loads (Afterwork tab active by default)
-    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
+    await expect(sheet.getByRole("heading", { name: "Tap Room" })).toBeVisible({
       timeout: 10000,
     });
   });
 
-  test("displays different tabs in feature discovery sheet", async ({
+  test("switches discovery tabs and displays their content", async ({
     page,
   }) => {
-    // Setup: open the sheet
-    const segmentRow = page.getByTestId("segment-row").first();
-    await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await expect(segmentRow.getByTestId("countdown-minutes")).toBeVisible({
-      timeout: 15000,
-    });
-    await segmentRow.click({ force: true });
+    const sheet = await openFeatureDiscovery(page);
+    const afterworkTab = sheet.getByRole("tab", { name: /Afterwork|Efter jobbet/i });
+    await expect(afterworkTab).toHaveAttribute("aria-selected", "true");
+    await expect(sheet.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
 
-    const nearbyButton = page.getByRole("button", { name: /Discover nearby/i });
-    await expect(nearbyButton).toBeVisible({ timeout: 10000 });
-    await nearbyButton.click();
-
-    const sheet = page.locator(".sheet-shell");
-    await expect(sheet).toBeVisible({ timeout: 10000 });
-
-    // Verify Afterwork tab content (default)
-    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Note: Tab switching involves GSAP animations which cause layout shifts.
-    // This is a known limitation of animating content-heavy sheets with Playwright.
-    // A future improvement would be to add a test-mode flag that disables animations,
-    // or to refactor the sheet to use CSS animations instead of GSAP for better E2E testability.
+    const eventsTab = sheet.getByRole("tab", { name: /Events/i });
+    await eventsTab.click();
+    await expect(eventsTab).toHaveAttribute("aria-selected", "true");
+    await expect(sheet.getByRole("heading", { name: "Jazz Night" })).toBeVisible({ timeout: 10000 });
   });
 
   test("prefetches discovery data while collapsed and reuses it on repeated opens", async ({ page }) => {
@@ -273,13 +269,8 @@ test.describe("feature discovery sheet", () => {
 
     const venueRequestsBeforeOpen = venueRequestCount;
     const eventRequestsBeforeOpen = eventRequestCount;
-    const segmentRow = page.getByTestId("segment-row").first();
-    await segmentRow.click({ force: true });
-    await page.getByRole("button", { name: /Discover nearby/i }).click();
-
-    const sheet = page.locator(".sheet-shell");
-    await expect(sheet).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
+    const sheet = await openFeatureDiscovery(page);
+    await expect(sheet.getByRole("heading", { name: "Tap Room" })).toBeVisible({ timeout: 10000 });
     await expect(sheet.locator(".skeleton-list")).toHaveCount(0);
     expect(venueRequestCount).toBe(venueRequestsBeforeOpen);
     expect(eventRequestCount).toBe(eventRequestsBeforeOpen);
@@ -290,16 +281,9 @@ test.describe("feature discovery sheet", () => {
     page.on('request', (request) => {
       if (new URL(request.url()).hostname === 'images.unsplash.com') externalImageRequests.push(request.url());
     });
-    const segmentRow = page.getByTestId("segment-row").first();
-    await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await segmentRow.click({ force: true });
-    await page.getByRole("button", { name: /Discover nearby/i }).click();
-
-    const drawer = page.locator(".feature-drawer:visible");
-    const sheet = drawer.locator(".sheet-shell");
-    await expect(sheet).toBeVisible({ timeout: 10000 });
-    await drawer.getByRole("tab", { name: /Events/i }).evaluate((button) => (button as HTMLButtonElement).click());
-    const card = page.getByRole("heading", { name: "Jazz Night" }).locator("xpath=ancestor::article");
+    const sheet = await openFeatureDiscovery(page);
+    await sheet.getByRole("tab", { name: /Events/i }).click();
+    const card = sheet.locator("article").filter({ hasText: "Jazz Night" });
     await expect(card).toBeVisible({ timeout: 10000 });
 
     const visual = card.locator(".event-visual");
@@ -317,13 +301,9 @@ test.describe("feature discovery sheet", () => {
 
   test("restores the fixed category fallback if a local editorial image fails", async ({ page }) => {
     await page.route('**/venue-mood/event-*', (route) => route.abort());
-    const segmentRow = page.getByTestId("segment-row").first();
-    await expect(segmentRow).toBeVisible({ timeout: 15000 });
-    await segmentRow.click({ force: true });
-    await page.getByRole("button", { name: /Discover nearby/i }).click();
-    const drawer = page.locator(".feature-drawer:visible");
-    await drawer.getByRole("tab", { name: /Events/i }).evaluate((button) => (button as HTMLButtonElement).click());
-    const card = page.getByRole("heading", { name: "Jazz Night" }).locator("xpath=ancestor::article");
+    const sheet = await openFeatureDiscovery(page);
+    await sheet.getByRole("tab", { name: /Events/i }).click();
+    const card = sheet.locator("article").filter({ hasText: "Jazz Night" });
     await expect(card).toBeVisible({ timeout: 10000 });
     const visual = card.locator('.event-visual');
     await expect(visual.locator('.event-category-tile')).toBeVisible();

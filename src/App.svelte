@@ -553,6 +553,10 @@
 
   function closeFeatureSheet() {
     if (!backdropEl || !drawerEl) { activeFeatureContext = null; return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      activeFeatureContext = null;
+      return;
+    }
     gsap.to(backdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
     gsap.to(drawerEl, {
       xPercent: -50, y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
@@ -594,6 +598,7 @@
 
   $effect(() => {
     if (activeFeatureContext && backdropEl && drawerEl) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       gsap.fromTo(backdropEl,
         { opacity: 0 },
         { opacity: 1, duration: 0.18, ease: 'power2.out' }
