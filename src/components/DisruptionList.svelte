@@ -43,7 +43,7 @@
       <span>{t.disruptions}</span>
     </div>
     <div class="disruption-content">
-      {#each siteDevs as dev, i (i)}
+      {#each siteDevs as dev (dev.message)}
         <p>{dev.message}</p>
       {/each}
     </div>

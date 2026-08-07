@@ -101,16 +101,15 @@ test.describe("Segment search", () => {
       },
     );
 
-    const createRouteButton = page.locator(".empty-cta");
+    const createRouteButton = page.getByRole("button", { name: /add|lägg till/i });
     await expect(createRouteButton).toBeVisible({ timeout: 10000 });
     await createRouteButton.click();
 
-    const searchInput = page.locator(".quick-add-drawer .search-input");
+    const searchInput = page.getByLabel(/search stops|sök hållplats/i);
     await expect(searchInput).toBeVisible({ timeout: 10000 });
     await searchInput.fill("Lindarängsvägen");
-    await page.waitForTimeout(500);
 
-    const firstResult = page.locator(".results .item").first();
+    const firstResult = page.getByRole("button", { name: /Lindarängsvägen|Österhammarsgatan/ }).first();
     await expect(firstResult).toBeVisible({ timeout: 10000 });
     await expect(firstResult).toContainText(
       /Lindarängsvägen|Österhammarsgatan/,

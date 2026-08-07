@@ -36,7 +36,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     }, legacyRoutes);
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
 
     // Verify app loads without crash
     const routeHeader = page.locator("h1.page-title");
@@ -175,7 +174,6 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     });
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
 
     // Check if app is in empty state
     const emptyState = page.locator(".empty-state");

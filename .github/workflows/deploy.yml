@@ -57,7 +57,7 @@ jobs:
           FAIL_ON_EVENTS_FETCH_ERROR: 'true'
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Run E2E tests
         run: pnpm exec playwright test

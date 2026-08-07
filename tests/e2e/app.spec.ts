@@ -79,7 +79,6 @@ test.describe("Nästa App", () => {
       localStorage.setItem("nasta_routes", JSON.stringify(defaultRoutes));
     });
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
 
     // Disable CSS transitions to avoid Playwright waiting for animations or elements outside viewport
     await page.addStyleTag({
@@ -91,8 +90,6 @@ test.describe("Nästa App", () => {
       `,
     });
 
-    // Wait for app to initialize
-    await page.waitForLoadState("domcontentloaded");
   });
 
   test.afterEach(async ({ page }, testInfo) => {
@@ -117,7 +114,7 @@ test.describe("Nästa App", () => {
   test("should keep sorting in Settings without a main-page reorder control", async ({ page }) => {
     await expect(page.locator('button[aria-label="Reorder cards"]')).toHaveCount(0);
 
-    await page.locator('button[aria-label="Settings"]').click();
+    await page.getByRole("button", { name: "Settings" }).click();
     const settings = page.locator(".settings-overlay.open");
     await expect(settings).toBeVisible();
     await settings.getByRole("button", { name: "Sort by" }).click();
@@ -126,7 +123,7 @@ test.describe("Nästa App", () => {
   });
 
   test("should toggle edit mode", async ({ page }) => {
-    const editBtn = page.locator('button[aria-label="Manage pages"]');
+    const editBtn = page.getByRole("button", { name: "Manage pages" });
     await editBtn.waitFor({ state: "visible", timeout: 10000 });
     await editBtn.click();
 
@@ -134,7 +131,7 @@ test.describe("Nästa App", () => {
   });
 
   test("should keep the page editor scoped to pages", async ({ page }) => {
-    await page.locator('button[aria-label="Manage pages"]').click();
+    await page.getByRole("button", { name: "Manage pages" }).click();
     const editor = page.locator(".editor-overlay.open");
     await expect(editor.locator(".pages-tab")).toBeVisible();
     await expect(editor.locator(".tab-bar")).toHaveCount(0);
@@ -150,7 +147,6 @@ test.describe("Nästa App", () => {
     page,
   }) => {
     await page.goto("http://localhost:5173/Nasta/");
-    await page.waitForLoadState("domcontentloaded");
     await page.reload({ waitUntil: "domcontentloaded" });
 
     const routeHeader = page.locator("h1.page-title");

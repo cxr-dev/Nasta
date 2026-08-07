@@ -49,7 +49,6 @@ test.describe("locale switching", () => {
     });
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("domcontentloaded");
     await page.addStyleTag({
       content: `*, *::before, *::after { transition: none !important; animation: none !important; }`,
     });
@@ -61,7 +60,7 @@ test.describe("locale switching", () => {
 
 // e2e-tests: close settings overlay (backdrop click closes the panel)
 function closeSettings(page: import("@playwright/test").Page) {
-  return page.locator('.settings-overlay.open').click({ position: { x: 10, y: 10 } });
+  return page.keyboard.press("Escape");
 }
 
 test("should start in English and switch between languages", async ({ page }) => {
@@ -77,8 +76,6 @@ test("should start in English and switch between languages", async ({ page }) =>
 
     await langGroup(page).getByRole("button").nth(1).click();
     await closeSettings(page);
-    await page.waitForTimeout(100);
-
     await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible({ timeout: 10000 });
   });
 
@@ -104,12 +101,13 @@ test("should start in English and switch between languages", async ({ page }) =>
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
 
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.waitForTimeout(50);
+    await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible();
     await langGroup(page).getByRole("button").nth(0).click();
-    await page.waitForTimeout(50);
+    await expect(page.locator('button[aria-label="Settings"]')).toBeVisible();
     await langGroup(page).getByRole("button").nth(1).click();
-    await page.waitForTimeout(50);
+    await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible();
     await langGroup(page).getByRole("button").nth(0).click();
+    await expect(page.locator('button[aria-label="Settings"]')).toBeVisible();
     await closeSettings(page);
 
     expect(errors.filter((m) => !m.includes("ERR_FAILED") && !m.includes("ERR_ABORTED"))).toEqual([]);

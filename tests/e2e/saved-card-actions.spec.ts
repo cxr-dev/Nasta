@@ -120,15 +120,18 @@ test.describe('saved card contextual actions', () => {
     await prepare(page, { width: 390, height: 844 });
     const card = page.locator('.departure-card');
     await card.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 8, clientX: 120, clientY: 120, button: 0 });
-    await page.waitForTimeout(500);
+    const sheet = page.locator('.sheet.saved-card-actions-sheet');
+    await expect(sheet).toBeVisible({ timeout: 2000 });
     await card.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 8, clientX: 120, clientY: 120, button: 0 });
-    const longPressActions = await page.locator('.sheet.saved-card-actions-sheet .action-button').allTextContents();
-    await expect(page.locator('.sheet.saved-card-actions-sheet')).toBeVisible();
+    const longPressActions = await sheet.locator('.action-button').allTextContents();
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(800);
+    await expect(sheet).toBeHidden();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(card).toBeVisible();
     await card.locator('.card-main').click();
+    await expect(card.locator('.more-actions-button')).toBeVisible();
     await card.locator('.more-actions-button').click();
-    const moreActions = await page.locator('.sheet.saved-card-actions-sheet .action-button').allTextContents();
+    const moreActions = await sheet.locator('.action-button').allTextContents();
     expect(longPressActions).toEqual(moreActions);
   });
 

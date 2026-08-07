@@ -26,6 +26,11 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "mobile-safari",
+      testMatch: /mobile-compat\.spec\.ts/,
+      use: { ...devices["iPhone 13"], browserName: "webkit" },
+    },
   ],
   webServer: {
     command: "pnpm exec vite preview --host 127.0.0.1 --port 5173",

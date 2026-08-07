@@ -357,7 +357,7 @@
       </svg>
       {#if isExpanded}
         <div class="disrupt-body">
-          {#each siteDevs.slice(0, showAllMessages ? siteDevs.length : 3) as dev}
+          {#each siteDevs.slice(0, showAllMessages ? siteDevs.length : 3) as dev (dev.message)}
             <span class="disrupt-msg-line">{dev.message}</span>
           {/each}
           {#if siteDevs.length > 3}

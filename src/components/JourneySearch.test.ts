@@ -89,6 +89,28 @@ describe('JourneySearch', () => {
     }));
   });
 
+  it('keeps autocomplete content attached to suggestion identity when results reorder', async () => {
+    mockSearchLocations.mockImplementation((query: string) => Promise.resolve(
+      query === 'Ab'
+        ? [
+            { id: 'alpha', name: 'Alpha', detail: 'Stop', type: 'stop' },
+            { id: 'beta', name: 'Beta', detail: 'Stop', type: 'stop' },
+          ]
+        : [
+            { id: 'beta', name: 'Beta', detail: 'Stop', type: 'stop' },
+            { id: 'alpha', name: 'Alpha', detail: 'Stop', type: 'stop' },
+          ],
+    ));
+
+    const { container, getByLabelText } = render(JourneySearch);
+    const origin = getByLabelText('från') as HTMLInputElement;
+    await fireEvent.focus(origin);
+    await fireEvent.input(origin, { target: { value: 'Ab' } });
+    await waitFor(() => expect(container.querySelectorAll('.suggestion-item')).toHaveLength(2));
+    await fireEvent.input(origin, { target: { value: 'Bc' } });
+    await waitFor(() => expect(Array.from(container.querySelectorAll('.suggestion-item')).map((item) => item.textContent?.trim())).toEqual(['Beta Stop', 'Alpha Stop']));
+  });
+
   it('sends the selected departure time and advanced options', async () => {
     const { getByLabelText, getByRole, getByText } = render(JourneySearch);
     const origin = getByLabelText('från') as HTMLInputElement;

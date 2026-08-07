@@ -435,7 +435,7 @@
             {#if originLoading}
               <div class="suggestion-msg">{t.journeySearching}</div>
             {:else}
-              {#each originSuggestions as s, idx}
+              {#each originSuggestions as s, idx (s.id)}
                 <button
                   class="suggestion-item"
                   class:selected={idx === originSelectedIdx}
@@ -505,7 +505,7 @@
             {#if destLoading}
               <div class="suggestion-msg">{t.journeySearching}</div>
             {:else}
-              {#each destSuggestions as s, idx}
+              {#each destSuggestions as s, idx (s.id)}
                 <button
                   class="suggestion-item"
                   class:selected={idx === destSelectedIdx}
@@ -638,7 +638,7 @@
 
   {#if results.length > 0}
     <div class="results-list">
-      {#each results as journey}
+      {#each results as journey (journey.id)}
         <button class="result-card" class:selected={previewJourneyId === journey.id} onclick={() => selectJourney(journey)} aria-expanded={previewJourneyId === journey.id}>
           <div class="result-header">
             <span class="result-dest">{journey.destLabel}</span>
@@ -648,7 +648,7 @@
             {formatTime(journey.departureTime)} – {formatTime(journey.arrivalTime)}
           </div>
           <div class="result-legs">
-            {#each journey.legs as leg, i}
+            {#each journey.legs as leg, i (`${leg.departureTime}-${leg.line}-${leg.originSiteId ?? leg.originName}`)}
               {#if i > 0}
                 <span class="leg-sep">→</span>
               {/if}
