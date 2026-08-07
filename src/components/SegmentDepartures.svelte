@@ -39,6 +39,7 @@
     onEditToggle,
     onOpenSettings,
     onQuickAdd,
+    onScroll,
     onJourneyAction,
     onSavedCardAction,
     onMoveSegment,
@@ -51,6 +52,7 @@
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
     onQuickAdd?: () => void;
+    onScroll?: () => void;
     onJourneyAction?: (segmentId: string, action: SavedJourneyAction) => void;
     onSavedCardAction?: (segment: Segment, action: SavedCardActionId) => void;
     onMoveSegment?: (segment: Segment, pageId: string) => void;
@@ -387,7 +389,7 @@
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
     <!-- Departure list -->
-    <div class="card-list" bind:this={depListEl} aria-busy={isLoading}>
+    <div class="card-list" bind:this={depListEl} onscroll={onScroll} aria-busy={isLoading}>
     {#if isLoading}
       <div class="loading-skeleton" aria-hidden="true">
         {#each Array(3) as _, i (i)}

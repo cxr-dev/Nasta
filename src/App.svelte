@@ -86,6 +86,9 @@
   let pullDistance = $state(0);
   let isRefreshing = $state(false);
   let pullTriggered = false;
+  const PAGE_INDICATOR_DURATION = 1400;
+  let pageIndicatorVisible = $state(false);
+  let pageIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
   // PTR icon spring entrance
   let ptrSpinnerEl = $state<HTMLDivElement | undefined>();
   let ptrIconEl = $state<SVGSVGElement | undefined>();
@@ -483,10 +486,27 @@
     await performPageTransition(pageId);
   }
 
+  function showPageIndicator() {
+    if (getPages().length < 2) return;
+    pageIndicatorVisible = true;
+    if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
+    pageIndicatorTimer = setTimeout(() => {
+      pageIndicatorVisible = false;
+      pageIndicatorTimer = null;
+    }, PAGE_INDICATOR_DURATION);
+  }
+
+  function hidePageIndicator() {
+    pageIndicatorVisible = false;
+    if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
+    pageIndicatorTimer = null;
+  }
+
   async function performPageTransition(nextPageId: string) {
     const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!pageContentEl || rm) {
       pageSetActivePage(nextPageId);
+      showPageIndicator();
       return;
     }
 
@@ -530,6 +550,7 @@
     }
 
     isTransitioning = false;
+    showPageIndicator();
   }
 
   function openSegmentPanels(segment: Segment) {
@@ -832,6 +853,7 @@ function closeSettingsPanel() {
     stopCacheLifecycle();
     if (snackbarTimer) clearTimeout(snackbarTimer);
     if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
+    if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
   });
 </script>
 
@@ -874,7 +896,7 @@ function closeSettingsPanel() {
       </div>
     {/if}
 
-    <div class="scroll-container" bind:this={scrollContainer}>
+    <div class="scroll-container" bind:this={scrollContainer} onscroll={hidePageIndicator}>
       {#key activePageId}
         <div bind:this={pageContentEl} class="page-transition-inner">
           {#if hasNoRoutes}
@@ -901,6 +923,7 @@ function closeSettingsPanel() {
               onEditToggle={toggleEdit}
               onOpenSettings={openSettingsPanel}
               onQuickAdd={() => showQuickAdd = true}
+              onScroll={hidePageIndicator}
               onJourneyAction={handleJourneyAction}
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
@@ -909,9 +932,10 @@ function closeSettingsPanel() {
         </div>
       {/key}
 
-          {#if pages.length > 1 && !editing && !hasNoRoutes}
-            <nav class="bottom-nav" aria-label={t.pageNavigation}>
-              <span class="sr-only">Page {pages.findIndex(p => p.id === activePageId) + 1} of {pages.length}</span>
+    </div>
+
+    {#if pages.length > 1 && !editing && !hasNoRoutes}
+            <div class="page-dot-indicator" class:visible={pageIndicatorVisible} aria-hidden="true">
               <div class="page-dots">
                 {#each pages as p, i (p.id)}
                   <span
@@ -921,9 +945,8 @@ function closeSettingsPanel() {
                   ></span>
                 {/each}
               </div>
-            </nav>
-          {/if}
-    </div>
+            </div>
+    {/if}
 
     {#if !hasNoRoutes && page}
       <SettingsPanel
@@ -1208,39 +1231,28 @@ function closeSettingsPanel() {
     flex-direction: column;
   }
 
-  /* Screen-reader-only utility */
-  .sr-only {
+  .page-dot-indicator {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .bottom-nav {
-    position: sticky;
-    bottom: 0;
+    left: 50%;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     display: flex;
     justify-content: center;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
     z-index: var(--z-sticky);
-    background: var(--bg);
-    -webkit-mask-image: linear-gradient(to top, black 70%, transparent);
-    mask-image: linear-gradient(to top, black 70%, transparent);
-    margin: 0 calc(var(--page-gutter) * -1);
-    padding-top: 16px;
+    opacity: 0;
+    transform: translate(-50%, 4px);
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+
+  .page-dot-indicator.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 
   .page-dots {
     display: flex;
     align-items: center;
     gap: 6px;
-    pointer-events: auto;
   }
 
   .dot {
@@ -1487,9 +1499,10 @@ function closeSettingsPanel() {
     }
   }
 
-  @media (min-width: 768px) and (orientation: landscape) {
-    .bottom-nav {
-      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  @media (prefers-reduced-motion: reduce) {
+    .page-dot-indicator {
+      transition: none;
+      transform: translate(-50%, 0);
     }
   }
 </style>

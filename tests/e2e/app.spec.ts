@@ -153,13 +153,24 @@ test.describe("Nästa App", () => {
     await expect(routeHeader).toBeVisible();
   });
 
-  test("should show multiple route dots", async ({ page }) => {
+  test("should show the page indicator only after switching pages and hide it on scroll", async ({ page }) => {
     const pageTitle = page.locator("h1.page-title");
     await expect(pageTitle).toBeVisible({ timeout: 10000 });
 
-    const dots = page.locator(".page-dots .dot");
+    const indicator = page.locator(".page-dot-indicator");
+    const dots = indicator.locator(".dot");
     const dotCount = await dots.count();
     expect(dotCount).toBeGreaterThan(1);
+
+    await expect(indicator).not.toHaveClass(/visible/);
+
+    await page.keyboard.press("ArrowRight");
+    await expect(indicator).toHaveClass(/visible/);
+
+    await page.locator(".card-list").evaluate((element) => {
+      element.dispatchEvent(new Event("scroll"));
+    });
+    await expect(indicator).not.toHaveClass(/visible/);
   });
 
   test("should display countdown with visible departure times", async ({
