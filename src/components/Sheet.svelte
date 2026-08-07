@@ -4,9 +4,9 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { tick } from 'svelte';
   import gsap from 'gsap';
-  import IconButton from './IconButton.svelte';
+  import SurfaceControl from './SurfaceControl.svelte';
+  import { focusBoundary } from '../lib/focusBoundary';
 
   interface Props {
     isOpen: boolean;
@@ -17,6 +17,7 @@
     sheetClass?: string;
     mode?: 'sheet' | 'popover';
     anchor?: HTMLElement | null;
+    initialFocusSelector?: string;
     onSheetTouchStart?: (e: TouchEvent) => void;
     onSheetTouchEnd?: (e: TouchEvent) => void;
     children: Snippet;
@@ -31,6 +32,7 @@
     sheetClass = '',
     mode = 'sheet',
     anchor = null,
+    initialFocusSelector = '[data-surface-control]',
     onSheetTouchStart,
     onSheetTouchEnd,
     children,
@@ -41,7 +43,6 @@
   let dragging = $state(false);
   let dragStartY = $state(0);
   let popoverStyle = $state('');
-  let restoreFocusEl = $state<HTMLElement | null>(null);
   const titleId = `sheet-title-${++nextSheetId}`;
 
   const SWIPE_THRESHOLD = 48;
@@ -79,45 +80,8 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       onClose();
-      return;
-    }
-
-    if (e.key !== 'Tab' || !sheetEl) return;
-    const focusable = Array.from(sheetEl.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ));
-    if (focusable.length === 0) {
-      e.preventDefault();
-      sheetEl.focus();
-      return;
-    }
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
     }
   }
-
-  $effect(() => {
-    if (isOpen) {
-      restoreFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      tick().then(() => {
-        sheetEl?.querySelector<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-        )?.focus();
-      });
-      return;
-    }
-
-    const target = restoreFocusEl;
-    restoreFocusEl = null;
-    if (target?.isConnected) tick().then(() => target.focus());
-  });
 
   function handleSheetTouchStart(e: TouchEvent) {
     onSheetTouchStart?.(e);
@@ -210,8 +174,7 @@
     class:touch-sheet={mode === 'sheet'}
     style={mode === 'popover' ? popoverStyle : undefined}
     class:dragging
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={handleKeydown}
+    use:focusBoundary={{ active: isOpen, initialFocus: initialFocusSelector }}
     ontouchstart={handleSheetTouchStart}
     ontouchend={handleSheetTouchEnd}
   >
@@ -224,15 +187,8 @@
     ></div>
 
     <div class="sheet-header">
-      <IconButton onclick={onClose} ariaLabel={closeAriaLabel}>
-        <svg class="mobile-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-        <svg class="desktop-close-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M6 6l12 12M18 6 6 18" />
-        </svg>
-      </IconButton>
       <span id={titleId} class="sheet-title">{title}</span>
+      <SurfaceControl kind="close" label={closeAriaLabel} onclick={onClose} />
     </div>
 
     {@render children()}
@@ -304,10 +260,6 @@
     background: var(--bg);
   }
 
-  .desktop-close-icon {
-    display: none;
-  }
-
   .sheet-title {
     font-size: 15px;
     font-weight: 700;
@@ -376,12 +328,5 @@
       padding-top: 16px;
     }
 
-    .mobile-close-icon {
-      display: none;
-    }
-
-    .desktop-close-icon {
-      display: block;
-    }
   }
 </style>

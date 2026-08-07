@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import gsap from 'gsap';
   import { getT } from '../stores/localeStore.svelte';
+  import SurfaceControl from './SurfaceControl.svelte';
 
   let t = $derived(getT());
 
@@ -90,11 +91,7 @@
       <button class="reload-btn" onclick={handleReload}>
         {t.reload}
       </button>
-      <button class="dismiss-btn" onclick={handleDismiss} aria-label={t.dismissHint}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M6 6l12 12M18 6 6 18" />
-        </svg>
-      </button>
+      <SurfaceControl class="dismiss-btn" kind="close" label={t.dismissHint} onclick={handleDismiss} />
     </div>
   </div>
 {/if}
@@ -154,23 +151,11 @@
     background: color-mix(in oklch, var(--accent) 75%, var(--text));
   }
 
-  .dismiss-btn {
-    background: none;
-    border: none;
+  :global(.surface-control.dismiss-btn) {
     color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 18px;
-    padding: 4px;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
   }
 
-  .dismiss-btn:hover {
+  :global(.surface-control.dismiss-btn:hover) {
     opacity: 0.8;
   }
 

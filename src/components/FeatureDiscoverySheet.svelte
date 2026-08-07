@@ -23,6 +23,7 @@
   import { getSunPosition } from '../lib/sunPosition';
   import { moodImagePath, resolveVenueMedia } from '../data/venueMoodImages';
   import { eventMoodImagePath, resolveEventMoodMedia } from '../data/eventMoodImages';
+  import SurfaceControl from './SurfaceControl.svelte';
 
   function dedupeById<T extends { id: string }>(items: T[]): T[] {
     const seen = new Set<string>();
@@ -335,9 +336,7 @@
         <p>{t.browseNearby}</p>
       </div>
     </div>
-    <button class="close-btn" type="button" onclick={closeAndAbort} aria-label={t.closePanel}>
-      ×
-    </button>
+    <SurfaceControl kind="close" label={t.closeDiscovery} onclick={closeAndAbort} />
   </header>
 
   <div class="tabs" role="tablist" aria-label={t.featureMode}>
@@ -678,23 +677,6 @@
     margin: 6px 0 0;
     color: var(--text-secondary);
     font-size: 13px;
-  }
-
-  .close-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 24px;
-    line-height: 1;
-    cursor: pointer;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-tap-highlight-color: transparent;
   }
 
   .tabs {

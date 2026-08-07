@@ -27,6 +27,8 @@
   import UpdateBanner from './components/UpdateBanner.svelte';
   import AddExperience from './components/AddExperience.svelte';
   import Snackbar from './components/Snackbar.svelte';
+  import SurfaceControl from './components/SurfaceControl.svelte';
+  import { focusBoundary } from './lib/focusBoundary';
   import type { SavedCardActionId } from './lib/savedCardActions';
   import type { Journey } from './types/journey';
   import {
@@ -868,7 +870,7 @@ function closeSettingsPanel() {
     {#if siteLookupError}
       <div class="warning-banner" bind:this={warningBannerEl}>
         <span>{siteLookupError}</span>
-        <button onclick={dismissWarning}>×</button>
+        <SurfaceControl class="warning-dismiss" kind="close" label={t.dismissHint} onclick={dismissWarning} />
       </div>
     {/if}
 
@@ -953,11 +955,12 @@ function closeSettingsPanel() {
         aria-label={t.addSegment}
         tabindex="0"
         onkeydown={(e) => { if (e.key === 'Escape') closeQuickAdd(); }}
+        use:focusBoundary={{ active: true, initialFocus: '[data-surface-control]' }}
       >
           <AddExperience
             idPrefix="quick-add"
             variant="drawer"
-            closeAriaLabel={t.closePanel}
+            closeAriaLabel={t.closeAdd}
             onClose={closeQuickAdd}
             mode={editingSegment ? 'edit' : 'add'}
             editSegment={editingSegment ?? undefined}
@@ -974,6 +977,7 @@ function closeSettingsPanel() {
         actionLabel={snackbar.snapshot ? (t.undo ?? 'Undo') : undefined}
         onAction={snackbar.snapshot ? undoRemoval : undefined}
         onClose={closeSnackbar}
+        closeLabel={t.dismissHint}
         closing={snackbarClosing}
       />
     {/if}
@@ -996,6 +1000,7 @@ function closeSettingsPanel() {
         onkeydown={(e) => {
           if (e.key === 'Escape') closeFeatureSheet();
         }}
+        use:focusBoundary={{ active: true, initialFocus: '[data-surface-control]' }}
       >
         <FeatureDiscoverySheet
           lat={activeFeatureContext.lat}
@@ -1417,14 +1422,8 @@ function closeSettingsPanel() {
     font-size: 13px;
   }
 
-  .warning-banner button {
-    background: none;
-    border: none;
+  :global(.surface-control.warning-dismiss) {
     color: var(--color-warning);
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    padding: 0 4px;
   }
 
   @keyframes hint-slide-in {

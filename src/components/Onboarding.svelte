@@ -67,6 +67,9 @@
         </div>
       {/if}
       <div class="stack">
+        <button type="button" class="previous" onclick={() => (step = 0)}>
+          {t.previousStep}
+        </button>
         <button class="primary" onclick={completeSetup}>
           {t.createFirstPage}
         </button>
@@ -123,6 +126,24 @@
     background: var(--accent);
     color: var(--bg);
     border-color: var(--accent);
+  }
+
+  .previous {
+    border: 0;
+    border-radius: var(--radius-sm);
+    min-height: 44px;
+    padding: 10px 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .previous:hover,
+  .previous:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--text);
   }
 
   .summary {

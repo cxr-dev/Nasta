@@ -4,7 +4,7 @@
   import type { Segment } from '../types/page';
   import { getT } from '../stores/localeStore.svelte';
   import { mapPinIconPaths, routeIconPaths } from '../icons/departureIcons';
-  import IconButton from './IconButton.svelte';
+  import SurfaceControl from './SurfaceControl.svelte';
   import SegmentSearch from './SegmentSearch.svelte';
   import JourneySearch from './JourneySearch.svelte';
 
@@ -47,7 +47,7 @@
   $effect(() => {
     if (mode === 'edit') activeTab = editKind === 'journey' ? 'route' : 'stop';
   });
-  let closeLabel = $derived(closeAriaLabel ?? t.closePanel);
+  let closeLabel = $derived(closeAriaLabel ?? t.closeAdd);
 
   let stopPanelId = $derived(`${idPrefix}-stop-panel`);
   let routePanelId = $derived(`${idPrefix}-route-panel`);
@@ -64,11 +64,7 @@
   <div class="add-experience-header">
     <div class="add-experience-title-row">
       <h2 class="add-experience-title">{mode === 'edit' ? (editKind === 'journey' ? (t.editJourney ?? 'Edit journey') : (t.editDeparture ?? 'Edit departure')) : t.addSegment}</h2>
-      <IconButton class="add-experience-close" onclick={onClose} ariaLabel={closeLabel}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M6 6l12 12M18 6 6 18" />
-        </svg>
-      </IconButton>
+      <SurfaceControl kind="close" label={closeLabel} onclick={onClose} />
     </div>
 
     {#if mode === 'add'}
@@ -183,12 +179,6 @@
     font-size: 16px;
     font-weight: 700;
     line-height: 1.2;
-  }
-
-  :global(.icon-btn.add-experience-close) {
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
   }
 
   .add-experience-tabs {

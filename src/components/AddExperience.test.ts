@@ -20,7 +20,8 @@ describe('AddExperience', () => {
 
     expect(container.querySelector('[data-testid="add-experience"]')).toBeTruthy();
     expect(container.querySelector('.add-experience-title')?.textContent?.trim()).toBe('+ Lägg till');
-    expect(getByRole('button', { name: 'Stäng panel' })).toBeTruthy();
+    const close = getByRole('button', { name: 'Stäng formuläret' });
+    expect(close.hasAttribute('data-surface-control')).toBe(true);
     expect(container.querySelector('[role="tablist"]')).toBeTruthy();
     expect(container.querySelector('.add-experience-tab:nth-child(1) svg')?.innerHTML).toContain('M20 10c0 4.993-5.539 10.193-7.399 11.799');
     expect(container.querySelector('.add-experience-tab:nth-child(1) svg circle')?.outerHTML).toContain('cx="12" cy="10" r="3"');

@@ -365,7 +365,7 @@
     </div>
   </header>
 
-  <MapViewer isOpen={showMap} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
+  <MapViewer isOpen={showMap} onOpen={() => showMap = true} onClose={() => showMap = false} mapSrc="{import.meta.env.BASE_URL}SL_railway_map.svg" />
 
   {#if (page.segments ?? []).length === 0}
     <div class="empty-segments">

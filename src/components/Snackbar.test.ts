@@ -22,4 +22,16 @@ describe('Snackbar', () => {
     await getByRole('button', { name: 'Undo' }).click();
     expect(onAction).toHaveBeenCalledOnce();
   });
+
+  it('uses the supplied localized dismissal label', () => {
+    const { getByRole } = render(Snackbar, {
+      props: {
+        message: 'Departure removed',
+        onClose: vi.fn(),
+        closeLabel: 'Dismiss notification',
+      },
+    });
+
+    expect(getByRole('button', { name: 'Dismiss notification' })).toBeTruthy();
+  });
 });

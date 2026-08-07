@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import type { Segment } from '../types/page';
 
 const maplibre = vi.hoisted(() => {
@@ -66,5 +66,32 @@ describe('MapPreview MapLibre module loading', () => {
       container: container.querySelector('.mini-map'),
     }));
     expect(maplibre.AttributionControl).toHaveBeenCalledWith({ compact: true });
+  });
+
+  it('presents fullscreen as a named history-backed view with Back', async () => {
+    history.replaceState({}, '', '/');
+    const before = history.length;
+    const { getByRole, queryByRole } = render(MapPreview, {
+      props: {
+        segment,
+        userLocation: null,
+        locationRequestInFlight: false,
+        walkingEtaEnabled: false,
+        t: {
+          expandMap: 'Expand map fullscreen',
+          minimizeMap: 'Minimize map',
+          back: 'Back',
+          stopLocation: 'Stop location',
+          navigateToStop: 'Navigate to stop',
+        },
+      },
+    });
+
+    await fireEvent.click(getByRole('button', { name: 'Expand map fullscreen' }));
+
+    expect(getByRole('dialog', { name: 'Stop location' })).toBeTruthy();
+    expect(getByRole('button', { name: 'Back' })).toBeTruthy();
+    expect(queryByRole('button', { name: 'Minimize map' })).toBeNull();
+    expect(history.length).toBe(before + 1);
   });
 });

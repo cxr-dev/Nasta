@@ -32,6 +32,12 @@ const sv = {
 
   // PageEditor
   closeEditor: "Stäng redigering",
+  closeSettings: "Stäng inställningar",
+  closeActions: "Stäng åtgärder",
+  closeAdd: "Stäng formuläret",
+  closeDiscovery: "Stäng upptäcktsvyn",
+  closeInfo: "Stäng information",
+  previousStep: "Föregående steg",
   editingPage: "Redigera",
   tabPages: "Sidor",
   tabSegments: "Avgångar",
@@ -164,7 +170,7 @@ const sv = {
   disruptionAffected: "Påverkad",
   disruptionNone: "Ingen aktiv störning",
   noDisruptionDetails: "Inga detaljer tillgängliga",
-  back: "← Tillbaka",
+  back: "Tillbaka",
   select: "Välj →",
   schedule: "Tidtabell",
   timetable: "Tidtabell",
@@ -226,7 +232,7 @@ const sv = {
   setupReviewDesc: "Skapa sidan och duplicera vid behov för retur",
   duplicateReturnPage: "Duplicera som retursida",
   createFirstPage: "Skapa första sida",
-  dismissHint: "Stäng",
+  dismissHint: "Avfärda",
 
   // Direction selector
   selectDirection: "Välj riktning",
@@ -464,6 +470,12 @@ const en: typeof sv = {
   movedToPage: "Moved to {page}",
 
   closeEditor: "Close editor",
+  closeSettings: "Close settings",
+  closeActions: "Close actions",
+  closeAdd: "Close add form",
+  closeDiscovery: "Close discovery",
+  closeInfo: "Close information",
+  previousStep: "Previous step",
   editingPage: "Editing",
   tabPages: "Pages",
   tabSegments: "Departures",
@@ -594,7 +606,7 @@ const en: typeof sv = {
   disruptionAffected: "Affected",
   disruptionNone: "No active disruption",
   noDisruptionDetails: "No details available",
-  back: "← Back",
+  back: "Back",
   select: "Select →",
   schedule: "Timetable",
   timetable: "Timetable",

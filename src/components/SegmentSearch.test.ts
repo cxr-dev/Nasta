@@ -232,7 +232,7 @@ describe("SegmentSearch", () => {
         ],
       });
 
-      const { getByPlaceholderText, findAllByText } = render(SegmentSearch, {
+      const { getByPlaceholderText, findAllByText, getByRole } = render(SegmentSearch, {
         props: { onSelect },
       });
 
@@ -248,6 +248,10 @@ describe("SegmentSearch", () => {
       const lineItems = await findAllByText(/^(19|17)$/);
       expect(lineItems.length).toBeGreaterThanOrEqual(2);
       expect(onSelect).not.toHaveBeenCalled();
+
+      const previous = getByRole('button', { name: 'Föregående steg' });
+      await fireEvent.click(previous);
+      expect(getByPlaceholderText('Sök hållplats...')).toBeTruthy();
     });
   });
 

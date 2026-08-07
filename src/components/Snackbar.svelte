@@ -1,15 +1,19 @@
 <script lang="ts">
+  import SurfaceControl from './SurfaceControl.svelte';
+
   let {
     message,
     actionLabel = '',
     onAction,
     onClose,
+    closeLabel = 'Dismiss',
     closing = false,
   }: {
     message: string;
     actionLabel?: string;
     onAction?: () => void;
     onClose?: () => void;
+    closeLabel?: string;
     closing?: boolean;
   } = $props();
 </script>
@@ -20,7 +24,7 @@
     <button type="button" onclick={onAction}>{actionLabel}</button>
   {/if}
   {#if onClose}
-    <button type="button" class="snackbar-close" aria-label="Close" onclick={onClose}>×</button>
+    <SurfaceControl class="snackbar-close" kind="close" label={closeLabel} onclick={onClose} />
   {/if}
 </div>
 
@@ -80,11 +84,8 @@
     outline-offset: 1px;
   }
 
-  .snackbar .snackbar-close {
-    min-width: 32px;
-    width: 32px;
+  .snackbar :global(.surface-control.snackbar-close) {
     color: var(--text-muted);
-    font-size: 20px;
   }
 
   @media (prefers-reduced-motion: reduce) {

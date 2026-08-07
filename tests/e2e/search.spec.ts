@@ -186,12 +186,12 @@ test.describe("Segment search", () => {
 
     await page.locator(".empty-cta").click();
     const addDialog = page.getByRole("dialog", { name: /Lägg till/ });
-    const titleRow = addDialog.locator(".add-experience-title-row");
+    const addHeading = addDialog.getByRole("heading", { name: "+ Lägg till" });
     const stopTab = page.getByRole("tab", { name: "Hållplats" });
     const routeTab = page.getByRole("tab", { name: "Resa" });
     await expect(addDialog).toBeVisible();
-    await expect(titleRow).toContainText("+ Lägg till");
-    const closeButton = titleRow.getByRole("button", { name: "Stäng panel" });
+    await expect(addHeading).toBeVisible();
+    const closeButton = addDialog.getByRole("button", { name: "Stäng formuläret" });
     await expect(closeButton).toBeVisible();
     const closeBox = await closeButton.boundingBox();
     expect(closeBox && closeBox.width >= 44 && closeBox.height >= 44).toBeTruthy();
@@ -255,7 +255,7 @@ test.describe("Segment search", () => {
     await expect(addDialog).toBeHidden();
     await page.locator(".empty-cta").click();
     await expect(addDialog).toBeVisible();
-    await addDialog.locator(".add-experience-title-row").getByRole("button", { name: "Stäng panel" }).click();
+    await closeButton.click();
     await expect(addDialog).toBeHidden();
     await page.locator(".empty-cta").click();
     await expect(addDialog).toBeVisible();

@@ -42,6 +42,13 @@ describe('FeatureDiscoverySheet shared session', () => {
     expect(loadMock).not.toHaveBeenCalled();
   });
 
+  it('uses the canonical surface Close control', () => {
+    const { getByRole } = render(FeatureDiscoverySheet, { props: { ...props, onClose: vi.fn() } });
+    const close = getByRole('button', { name: /Stäng upptäck|Close discovery/i });
+
+    expect(close.hasAttribute('data-surface-control')).toBe(true);
+  });
+
   it('loads without a component abort signal and ignores completion after unmount', async () => {
     let resolve: ((value: unknown[]) => void) | undefined;
     loadMock.mockReturnValue(new Promise((r) => { resolve = r; }));

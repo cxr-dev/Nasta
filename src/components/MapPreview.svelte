@@ -1,7 +1,11 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import type { Segment } from "../types/page";
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import { cleanStopName as stopLabel } from "../lib/stopName";
+  import SurfaceControl from './SurfaceControl.svelte';
+  import { focusBoundary } from '../lib/focusBoundary';
+  import { createHistoryView } from '../lib/historyView';
 
   const maplibreLoad = import('maplibre-gl');
   void import('maplibre-gl/dist/maplibre-gl.css');
@@ -35,6 +39,8 @@
   let isFullscreen = $state(false);
   let fullscreenVisible = $state(false);
   let isClosing = $state(false);
+  let expandButtonEl = $state<HTMLButtonElement | undefined>(undefined);
+  let historyView: ReturnType<typeof createHistoryView> | null = null;
 
   $effect(() => {
     maplibreLoad.then(m => {
@@ -141,38 +147,61 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && isFullscreen) toggleFullscreen();
+    if (e.key === 'Escape' && isFullscreen) requestBack();
   }
 
   $effect(() => {
     if (isFullscreen) {
       lockBodyScroll(true);
-      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       lockBodyScroll(false);
-      document.removeEventListener('keydown', handleKeyDown);
     };
   });
 
+  onMount(() => {
+    historyView = createHistoryView(`stop-map:${segment.id}`, {
+      onEnter: openFullscreen,
+      onExit: closeFullscreen,
+    });
+    return () => historyView?.destroy();
+  });
+
   function toggleFullscreen() {
-    if (isFullscreen) {
-      isClosing = true;
-      lockBodyScroll(false);
-      setTimeout(() => {
-        isFullscreen = false;
-        fullscreenVisible = false;
-        isClosing = false;
-        requestAnimationFrame(() => mapInstance?.resize());
-      }, prefersReducedMotion() ? 0 : 150);
-    } else {
-      isFullscreen = true;
-      fullscreenVisible = false;
-      requestAnimationFrame(() => {
-        if (isFullscreen) fullscreenVisible = true;
-        mapInstance?.resize();
-      });
+    if (isFullscreen) requestBack();
+    else {
+      openFullscreen();
+      historyView?.enter();
     }
+  }
+
+  function openFullscreen() {
+    if (isFullscreen) return;
+    isFullscreen = true;
+    fullscreenVisible = false;
+    requestAnimationFrame(() => {
+      if (isFullscreen) fullscreenVisible = true;
+      mapInstance?.resize();
+    });
+  }
+
+  function requestBack() {
+    if (isClosing) return;
+    if (historyView) historyView.back();
+    else closeFullscreen();
+  }
+
+  function closeFullscreen() {
+    if (!isFullscreen || isClosing) return;
+    isClosing = true;
+    lockBodyScroll(false);
+    setTimeout(() => {
+      isFullscreen = false;
+      fullscreenVisible = false;
+      isClosing = false;
+      requestAnimationFrame(() => mapInstance?.resize());
+      tick().then(() => expandButtonEl?.focus());
+    }, prefersReducedMotion() ? 0 : 150);
   }
 
   function prefersReducedMotion() {
@@ -197,12 +226,18 @@
         {/if}
       </div>
 
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div
         class="map-container"
         class:fullscreen={isFullscreen}
         class:visible={fullscreenVisible}
         class:closing={isClosing}
+        role={isFullscreen ? 'dialog' : undefined}
+        aria-modal={isFullscreen ? 'true' : undefined}
+        aria-label={isFullscreen ? (t.stopLocation ?? 'Stop location') : undefined}
+        tabindex={isFullscreen ? -1 : undefined}
+        onkeydown={handleKeyDown}
+        use:focusBoundary={{ active: isFullscreen, initialFocus: '[data-surface-control]' }}
         ontouchstart={isFullscreen ? stopTouchPropagation : undefined}
         ontouchmove={isFullscreen ? stopTouchPropagation : undefined}
         ontouchend={isFullscreen ? stopTouchPropagation : undefined}
@@ -211,22 +246,23 @@
           class="mini-map"
           bind:this={mapDiv}
         ></div>
-        <button
-          type="button"
-          class="map-expand-btn no-scale"
-          onclick={toggleFullscreen}
-          aria-label={isFullscreen ? t.minimizeMap : t.expandMap}
-        >
-          {#if isFullscreen}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          {:else}
+        {#if isFullscreen}
+          <div class="map-back-control">
+            <SurfaceControl kind="back" tone="overlay" label={t.back ?? 'Back'} onclick={requestBack} />
+          </div>
+        {:else}
+          <button
+            bind:this={expandButtonEl}
+            type="button"
+            class="map-expand-btn no-scale"
+            onclick={toggleFullscreen}
+            aria-label={t.expandMap}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-          {/if}
-        </button>
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -396,6 +432,12 @@
       transition: opacity 160ms ease;
       transform: none;
     }
+  }
+  .map-back-control {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    z-index: 10;
   }
   :global(.maplibregl-ctrl-attrib-button) {
     width: 20px !important;

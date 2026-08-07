@@ -1,14 +1,20 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { getT } from "../stores/localeStore.svelte";
+  import SurfaceControl from './SurfaceControl.svelte';
+  import { focusBoundary } from '../lib/focusBoundary';
+  import { createHistoryView } from '../lib/historyView';
 
   let t = $derived(getT());
 
   let {
     isOpen,
+    onOpen,
     onClose,
     mapSrc,
   }: {
     isOpen: boolean;
+    onOpen: () => void;
     onClose: () => void;
     mapSrc: string;
   } = $props();
@@ -17,6 +23,7 @@
   let mapLoaded = $state(false);
   let imgEl = $state<HTMLImageElement | undefined>(undefined);
   let containerEl = $state<HTMLDivElement | undefined>(undefined);
+  let historyView: ReturnType<typeof createHistoryView> | null = null;
 
   // Transform state — no rotation, only scale + translate
   let scale = $state(1);
@@ -66,20 +73,34 @@
       mapLoaded = false;
       fitToContainer();
       lockBodyScroll(true);
-      document.addEventListener('keydown', handleKeyDown);
+      historyView?.enter();
     }
     return () => {
       lockBodyScroll(false);
-      document.removeEventListener('keydown', handleKeyDown);
       cancelMomentum();
     };
   });
 
+  onMount(() => {
+    historyView = createHistoryView('railway-map', {
+      onEnter: () => onOpen(),
+      onExit: closeFromHistory,
+    });
+    if (isOpen) historyView.enter();
+    return () => historyView?.destroy();
+  });
+
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') handleClose();
+    if (e.key === 'Escape') requestBack();
   }
 
-  function handleClose() {
+  function requestBack() {
+    if (closing) return;
+    if (historyView) historyView.back();
+    else closeFromHistory();
+  }
+
+  function closeFromHistory() {
     if (closing) return;
     closing = true;
     lockBodyScroll(false);
@@ -333,21 +354,16 @@
     aria-modal="true"
     aria-label={t.mapViewerLabel}
     tabindex="-1"
+    onkeydown={handleKeyDown}
+    use:focusBoundary={{ active: isOpen, initialFocus: '[data-surface-control]' }}
     onpointerdown={onOverlayPointerDown}
     ontouchstart={stopTouchPropagation}
     ontouchmove={stopTouchPropagation}
     ontouchend={stopTouchPropagation}
   >
-    <button
-      type="button"
-      class="close-btn"
-      onclick={handleClose}
-      aria-label={t.closeMap}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    <div class="map-back-control">
+      <SurfaceControl kind="back" tone="overlay" label={t.back} onclick={requestBack} />
+    </div>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -404,34 +420,12 @@
     opacity: 0;
     transform: scale(0.96);
   }
-  .close-btn {
+  .map-back-control {
     position: absolute;
     top: calc(12px + env(safe-area-inset-top, 0px));
-    right: calc(12px + env(safe-area-inset-right, 0px));
+    left: calc(12px + env(safe-area-inset-left, 0px));
     z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    border: none;
-    border-radius: 8px;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(4px);
-    color: rgba(255,255,255,0.85);
-    cursor: pointer;
-    transition: background 160ms ease, transform 160ms ease;
     touch-action: auto;
-  }
-  .close-btn:active {
-    transform: scale(0.92);
-    background: rgba(0,0,0,0.7);
-  }
-  .close-btn svg {
-    width: 18px;
-    height: 18px;
   }
   .map-viewport {
     width: 100%;

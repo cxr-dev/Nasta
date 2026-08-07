@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { previewStyle } from '../themes';
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
   import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon } from '../icons/departureIcons';
   import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
+  import SurfaceControl from './SurfaceControl.svelte';
+  import { focusBoundary } from '../lib/focusBoundary';
   import { getSettings, subscribePersistence, retryPersistence, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
   import type { SortMode, GroupingMode } from '../types/page';
 
@@ -20,6 +23,7 @@
 
   let activeEditorTab = $state<'features' | 'theme'>('features');
   let infoOpen = $state(false);
+  let infoTriggerEl = $state<HTMLButtonElement>();
   let settings = $derived(getSettings());
   let activeLanguage = $derived(settings.language ?? 'auto');
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
@@ -82,13 +86,34 @@
     setWalkingEtaEnabled(enabled);
     if (enabled) void requestLocation();
   }
+
+  function handleInfoBackdrop(event: MouseEvent) {
+    if (event.target === event.currentTarget) void closeDisruptionInfo();
+  }
+
+  function handleInfoKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    event.stopPropagation();
+    void closeDisruptionInfo();
+  }
+
+  function openDisruptionInfo(event: MouseEvent) {
+    (event.currentTarget as HTMLButtonElement).focus();
+    infoOpen = true;
+  }
+
+  async function closeDisruptionInfo() {
+    infoOpen = false;
+    await tick();
+    infoTriggerEl?.focus();
+  }
 </script>
 
 <Sheet
   isOpen={isOpen}
   onClose={onClose}
   title={t.settings}
-  closeAriaLabel={t.closePanel}
+  closeAriaLabel={t.closeSettings}
   overlayClass="settings-overlay"
   sheetClass="settings-sheet"
 >
@@ -130,8 +155,9 @@
               <div class="nested-header">
                 <span class="nested-name">{t.disruptionThreshold}</span>
                 <button
+                  bind:this={infoTriggerEl}
                   class="info-btn"
-                  onclick={() => (infoOpen = !infoOpen)}
+                  onclick={openDisruptionInfo}
                   aria-label={t.disruptionThresholdInfoAria}
                 >
                   <svg viewBox="0 0 24 24" fill="none">{@html infoCircle}</svg>
@@ -170,10 +196,9 @@
           {/if}
 
           {#if infoOpen}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <div class="info-overlay" onclick={() => (infoOpen = false)} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="dialog" aria-label={t.disruptionThresholdInfoTitle} tabindex="-1">
-              <div class="info-card" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (infoOpen = false)} role="document" tabindex="-1">
-                <button class="info-card-close" onclick={() => (infoOpen = false)} aria-label={t.closePanel}>×</button>
+            <div class="info-overlay" onclick={handleInfoBackdrop} onkeydown={handleInfoKeydown} role="dialog" aria-label={t.disruptionThresholdInfoTitle} tabindex="-1">
+              <div class="info-card" role="document" tabindex="-1" use:focusBoundary={{ active: true, initialFocus: '[data-surface-control]' }}>
+                <SurfaceControl class="info-card-close" kind="close" label={t.closeInfo} onclick={closeDisruptionInfo} />
                 <h4 class="info-card-title">{t.disruptionThresholdInfoTitle}</h4>
 
                 <div class="info-level">
@@ -1012,24 +1037,11 @@
     box-shadow: 0 12px 40px rgba(0,0,0,0.15);
   }
 
-  .info-card-close {
+  :global(.surface-control.info-card-close) {
     position: absolute;
     top: 12px;
     right: 12px;
-    border: none;
-    background: none;
     color: var(--text-muted);
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: color 150ms ease, background 150ms ease;
-  }
-
-  .info-card-close:hover {
-    color: var(--text);
-    background: var(--accent-subtle);
   }
 
   .info-card-title {

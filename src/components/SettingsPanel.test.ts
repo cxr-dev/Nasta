@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import SettingsPanel from './SettingsPanel.svelte';
 import { getSettings, setLocationServicesEnabled, setWalkingEtaEnabled } from '../stores/settingsStore.svelte';
 import { setLocale } from '../stores/localeStore.svelte';
@@ -26,6 +26,43 @@ afterEach(() => {
 });
 
 describe('SettingsPanel location controls', () => {
+  it('renders one Close icon after the sheet title', () => {
+    const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    const dialog = getByRole('dialog');
+    const header = dialog.querySelector('.sheet-header')!;
+    const close = getByRole('button', { name: 'Stäng inställningar' });
+
+    expect(close.querySelectorAll('svg')).toHaveLength(1);
+    expect(close.querySelector('path')?.getAttribute('d')).toBe('M6 6l12 12M18 6 6 18');
+    expect(header.lastElementChild).toBe(close);
+  });
+
+  it('invokes Close once when Escape bubbles from sheet content', async () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose } });
+    const close = getByRole('button', { name: 'Stäng inställningar' });
+
+    close.focus();
+    await fireEvent.keyDown(close, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('contains focus in the disruption information dialog and restores its trigger', async () => {
+    const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+    const trigger = getByRole('button', { name: 'Förklaring av störningsnivåer' });
+    await fireEvent.click(trigger);
+
+    const dialog = getByRole('dialog', { name: 'Störningsnivåer — Förklaring' });
+    const close = getByRole('button', { name: 'Stäng information' });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    await fireEvent.click(close);
+    expect(dialog.isConnected).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
   it('requests location exactly once when Platsjänster is enabled', async () => {
     const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
 

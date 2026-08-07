@@ -637,7 +637,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
   {:else}
     <div class="departures-view">
       <button class="back" onclick={goBack}>
-        {t.back}
+        {t.previousStep}
       </button>
       <h3>{selectedStation?.name}</h3>
       

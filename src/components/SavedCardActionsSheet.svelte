@@ -30,7 +30,6 @@
 
   let t = $derived(getT());
   let showingPages = $state(false);
-  let actionListEl = $state<HTMLDivElement | undefined>();
   let pageListEl = $state<HTMLDivElement | undefined>();
   let presentationMode = $state<'sheet' | 'popover'>('sheet');
 
@@ -57,32 +56,25 @@
   }) : []);
   let title = $derived(showingPages ? (t.moveToPage ?? 'Move to page') : (t.moreActions ?? 'More actions'));
 
-  function focusInitial() {
+  function focusPageList() {
     tick().then(() => {
-      const list = showingPages ? pageListEl : actionListEl;
-      list?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+      pageListEl?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
     });
   }
 
   $effect(() => {
-    if (!isOpen) {
-      showingPages = false;
-      return;
-    }
-    focusInitial();
+    if (!isOpen) showingPages = false;
   });
 
   function close() {
-    const restoreTarget = trigger;
     showingPages = false;
     onClose();
-    tick().then(() => restoreTarget?.focus());
   }
 
   function chooseAction(action: SavedCardActionId) {
     if (action === 'move') {
       showingPages = true;
-      focusInitial();
+      focusPageList();
       return;
     }
     onAction(action);
@@ -100,11 +92,12 @@
 <Sheet
   {isOpen}
   title={title}
-  closeAriaLabel={t.closePanel ?? 'Close panel'}
+  closeAriaLabel={t.closeActions ?? 'Close actions'}
   onClose={close}
   sheetClass="saved-card-actions-sheet"
   mode={presentationMode}
   anchor={trigger}
+  initialFocusSelector=".action-list button:not([disabled])"
 >
   {#snippet children()}
     {#if showingPages}
@@ -137,7 +130,7 @@
             <span>{segment.fromStop.name} → {segment.direction.destination}</span>
           {/if}
         </div>
-        <div bind:this={actionListEl} class="action-list">
+        <div class="action-list">
           {#each actions as action (action.id)}
             <button
               type="button"
@@ -254,14 +247,6 @@
     border-radius: 22px 22px 0 0;
   }
 
-  :global(.sheet.saved-card-actions-sheet .mobile-close-icon) {
-    display: none;
-  }
-
-  :global(.sheet.saved-card-actions-sheet .desktop-close-icon) {
-    display: block;
-  }
-
   @media (max-width: 767px) {
     :global(.sheet.saved-card-actions-sheet) {
       left: 0 !important;
@@ -297,8 +282,7 @@
       opacity: 1 !important;
     }
 
-    :global(.sheet.saved-card-actions-sheet.popover .sheet-handle),
-    :global(.sheet.saved-card-actions-sheet.popover .sheet-header > .icon-btn) {
+    :global(.sheet.saved-card-actions-sheet.popover .sheet-handle) {
       display: none;
     }
 
