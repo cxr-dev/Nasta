@@ -7,6 +7,7 @@
   import gsap from 'gsap';
   import SurfaceControl from './SurfaceControl.svelte';
   import { focusBoundary } from '../lib/focusBoundary';
+  import { portal } from '../lib/portal';
 
   interface Props {
     isOpen: boolean;
@@ -46,6 +47,7 @@
   let dragStartY = $state(0);
   let popoverStyle = $state('');
   const titleId = `sheet-title-${++nextSheetId}`;
+  let portalEnabled = $derived(mode === 'popover');
 
   const SWIPE_THRESHOLD = 48;
 
@@ -159,6 +161,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   bind:this={overlayEl}
+  use:portal={portalEnabled}
   class="sheet-overlay {overlayClass}"
   class:open={isOpen}
   aria-hidden={!isOpen}
