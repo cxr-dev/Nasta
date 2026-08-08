@@ -3,6 +3,7 @@
   import gsap from 'gsap';
   import { initialize } from './stores/pageStore.svelte';
   import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment, moveSegment, removeSegmentWithSnapshot, restoreSegment, type RemovedSegmentSnapshot } from './stores/pageStore.svelte';
+  import { parseShareHash, type ShareIntent } from './lib/shareModel';
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
   import { getSettings, markSwiped } from './stores/settingsStore.svelte';
@@ -776,10 +777,57 @@ function closeSettingsPanel() {
     }
   }
 
+  function resolveShareIntentPage(intent: ShareIntent): string | null {
+    const allPages = getPages();
+    if (!allPages || allPages.length === 0) return null;
+    if (intent.kind === 'departure') {
+      for (const page of allPages) {
+        if (!page.segments) continue;
+        for (const segment of page.segments) {
+          if (segment.journeyMeta) continue;
+          if (
+            segment.fromStop.siteId === intent.siteId &&
+            segment.line === intent.line &&
+            segment.direction.destination === intent.direction
+          ) {
+            return page.id;
+          }
+        }
+      }
+    } else {
+      for (const page of allPages) {
+        if (!page.segments) continue;
+        for (const segment of page.segments) {
+          const meta = segment.journeyMeta;
+          if (!meta) continue;
+          const origin = meta.query?.origin ?? meta.originLabel;
+          const dest = meta.query?.destination ?? meta.destLabel;
+          if (origin === intent.origin && dest === intent.dest) return page.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  function consumeShareHash() {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash;
+    if (!hash) return;
+    const intent = parseShareHash(hash);
+    if (!intent) return;
+    const pageId = resolveShareIntentPage(intent);
+    if (pageId) pageSetActivePage(pageId);
+    // Strip consumed share hashes only; leave unrelated hashes untouched.
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
   onMount(() => {
     timeOfDayStart();
     initialize();
     initializeCacheLifecycle();
+    consumeShareHash();
+    const handleHashChange = () => consumeShareHash();
+    window.addEventListener('hashchange', handleHashChange);
     // pageStore.syncFromRoutes() is called automatically on creation
 
     // pageStore handles active page initialization; the page-id effect starts
@@ -813,6 +861,7 @@ function closeSettingsPanel() {
     });
 
     return () => {
+      window.removeEventListener('hashchange', handleHashChange);
       unsub();
       unsubDeviations();
       unsubscribeLifecycle();

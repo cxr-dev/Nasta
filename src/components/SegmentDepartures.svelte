@@ -29,6 +29,11 @@
   import SavedCardActionsSheet from './SavedCardActionsSheet.svelte';
   import { dismissedStore } from "../stores/dismissedStore.svelte";
   import { getWeatherForStations } from "../services/weatherCache";
+  import { resolveTheme, type ResolvedTheme } from "../themes";
+  import { getShareCard } from "../services/shareCard";
+  import { shareIntent, shareUrl, copyShareLink } from "../services/shareLink";
+  import { intentFromJourney, intentFromSegment, type ShareIntent } from "../lib/shareModel";
+  import type { ShareCardData, DepartureShareData, JourneyShareData, JourneyLegShareData, JourneyConnectionShareData } from "../lib/shareImageRenderer";
 
   let {
     page,
@@ -162,6 +167,7 @@
   function openSavedCardActions(segment: Segment, trigger?: HTMLElement) {
     activeActionSegment = segment;
     actionTrigger = trigger ?? null;
+    void warmShareCard(segment).catch(() => {});
   }
 
   function closeSavedCardActions() {
@@ -173,7 +179,118 @@
     if (!activeActionSegment) return;
     const segment = activeActionSegment;
     closeSavedCardActions();
+    if (action === 'share') {
+      void shareSegment(segment).catch(() => {});
+      return;
+    }
     onSavedCardAction?.(segment, action);
+  }
+
+  function currentShareTheme(): ResolvedTheme {
+    const preference = settings.theme ?? 'system';
+    const media = typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+    return resolveTheme(preference, media?.matches ?? false);
+  }
+
+  function buildDepartureShareData(segment: Segment, departure: Departure | undefined, nowMs: number): DepartureShareData | null {
+    const intent = intentFromSegment(segment);
+    if (!intent) return null;
+    return {
+      kind: 'departure',
+      line: intent.line,
+      lineName: departure?.lineName ?? segment.line,
+      destination: intent.direction,
+      stop: intent.stop,
+      transportType: intent.transportType,
+      timeLabel: departure?.time ?? '',
+      // expectedAt = SL-normalized absolute epoch (realtime expected, else scheduled), see slApi.ts getDepartures.
+      departureTime: departure?.expectedAt,
+      countdownLabel: departure ? formatDepartureTime(departure, nowMs) : undefined,
+      predicted: departure?.predicted,
+      labels: {
+        departs: t.shareDeparts ?? 'Departs',
+        predicted: t.sharePredicted ?? 'Predicted',
+        late: t.shareLate ?? '{n} min late',
+      },
+    };
+  }
+
+  function buildJourneyShareData(segment: Segment): JourneyShareData | null {
+    const meta = segment.journeyMeta;
+    if (!meta) return null;
+    const intent = intentFromJourney(meta);
+    if (!intent) return null;
+    const firstLeg = meta.legs[0];
+    const lastLeg = meta.legs[meta.legs.length - 1];
+    const legs: JourneyLegShareData[] = meta.legs.map((leg) => ({
+      transportType: leg.transportType,
+      line: leg.line,
+      platformPosition: leg.platformPosition,
+      directionName: leg.directionName,
+      originName: leg.originName,
+      destName: leg.destName,
+      departureTime: leg.departureTime,
+      arrivalTime: leg.arrivalTime,
+      durationMin: leg.durationMin,
+    }));
+    const connections: JourneyConnectionShareData[] | undefined = meta.connections?.map((c) => ({
+      kind: c.kind,
+      durationMin: c.durationMin,
+      beforeLegIndex: c.beforeLegIndex,
+    }));
+    return {
+      kind: 'journey',
+      originLabel: meta.originLabel,
+      destLabel: meta.destLabel,
+      departureTime: meta.departureTime ?? firstLeg?.departureTime ?? 0,
+      arrivalTime: meta.arrivalTime ?? lastLeg?.arrivalTime ?? 0,
+      durationMin: meta.totalDurationMin,
+      transfers: meta.transfers,
+      legs,
+      connections,
+      labels: {
+        duration: t.shareDuration ?? 'Duration {n} min',
+        transfer: t.transfer ?? 'transfer',
+        transfers: t.transfers ?? 'transfers',
+        direct: t.direct ?? 'Direct',
+        front: t.journeyPlatformFront ?? 'Front',
+        middle: t.journeyPlatformMiddle ?? 'Middle',
+        back: t.journeyPlatformBack ?? 'Back',
+        walk: t.shareWalk ?? 'Walk {n} min',
+        change: t.shareChange ?? 'Change {n} min',
+        arrives: t.shareArrives ?? 'Arrives',
+        andMore: t.shareAndMore ?? '+{n} more',
+        towards: t.shareTowards ?? 'towards {dir}',
+      },
+    };
+  }
+
+  function buildShareCardData(segment: Segment, departure: Departure | undefined): ShareCardData | null {
+    if (segment.journeyMeta) return buildJourneyShareData(segment);
+    return buildDepartureShareData(segment, departure, now);
+  }
+
+  function shareIntentFor(segment: Segment): ShareIntent | null {
+    if (segment.journeyMeta) return intentFromJourney(segment.journeyMeta);
+    return intentFromSegment(segment);
+  }
+
+  async function shareSegment(segment: Segment, departure?: Departure): Promise<void> {
+    const intent = shareIntentFor(segment);
+    const data = buildShareCardData(segment, departure);
+    if (!intent || !data) return;
+    const outcome = await shareIntent(intent, data, currentShareTheme());
+    if (outcome === 'unsupported') {
+      await copyShareLink(intent);
+    }
+  }
+
+  async function warmShareCard(segment: Segment): Promise<void> {
+    const data = buildShareCardData(segment, undefined);
+    if (!data) return;
+    await getShareCard(data, currentShareTheme());
   }
 
   function handleMoveSegment(pageId: string) {
@@ -465,6 +582,7 @@
               onAction={(action) => onJourneyAction?.(item.segment.id, action)}
               onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
               onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
+              onShare={() => shareSegment(item.segment)}
               moreActionsLabel={t.moreActionsForJourney?.replace('{destination}', item.segment.journeyMeta.destLabel) ?? `More actions for journey to ${item.segment.journeyMeta.destLabel}`}
             />
           {:else}
@@ -496,6 +614,7 @@
               groupingMode={settings.groupingMode}
               onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
               onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
+              onShare={() => shareSegment(item.segment, departure)}
               moreActionsLabel={(t.moreActionsForDeparture ?? 'More actions for departure {line} from {stop}')
                 .replace('{line}', item.segment.line)
                 .replace('{stop}', item.segment.fromStop.name)}

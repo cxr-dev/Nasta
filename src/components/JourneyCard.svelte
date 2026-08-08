@@ -8,6 +8,7 @@
   import type { JourneyConnection, JourneyMeta } from '../types/journey';
   import type { SavedJourneyAction } from '../lib/savedJourneyLifecycle';
   import { longPress } from '../lib/longPress';
+  import { shareGlyph } from '../icons/departureIcons';
 
   let {
     journeyMeta,
@@ -19,6 +20,7 @@
     onLongPress,
     onMoreActions,
     moreActionsLabel,
+    onShare,
   }: {
     journeyMeta: JourneyMeta;
     segmentId?: string;
@@ -29,6 +31,7 @@
     onLongPress?: (trigger?: HTMLElement) => void;
     onMoreActions?: (trigger: HTMLElement) => void;
     moreActionsLabel?: string;
+    onShare?: () => void;
   } = $props();
 
   let t = $derived(getT());
@@ -251,6 +254,15 @@
         {:else}
           <span></span>
         {/if}
+        <button
+          type="button"
+          class="share-button"
+          aria-label={t.shareJourney ?? 'Share journey'}
+          onpointerdown={(event) => event.stopPropagation()}
+          onclick={(event) => { event.stopPropagation(); onShare?.(); }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
+        </button>
         <button
           type="button"
           class="more-actions-button"
@@ -721,14 +733,43 @@
     letter-spacing: 2px;
   }
 
+  .share-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 auto;
+    margin-right: auto;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   @media (hover: hover) and (pointer: fine) {
     .more-actions-button:hover {
+      background: var(--accent-subtle);
+      color: var(--accent);
+    }
+    .share-button:hover {
       background: var(--accent-subtle);
       color: var(--accent);
     }
   }
 
   .more-actions-button:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .share-button:focus-visible {
     background: var(--accent-subtle);
     color: var(--accent);
     outline: 2px solid var(--accent);

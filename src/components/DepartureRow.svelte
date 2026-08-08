@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
   import type { Departure } from "../stores/departureStore.svelte";
-  import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon } from "../icons/departureIcons";
+  import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon, shareGlyph } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
   import MapPreview from "./MapPreview.svelte";
@@ -42,6 +42,7 @@
     onLongPress,
     onMoreActions,
     moreActionsLabel,
+    onShare,
   }: {
     segment: Segment;
     segmentId?: string;
@@ -71,6 +72,7 @@
     onLongPress?: (trigger?: HTMLElement) => void;
     onMoreActions?: (trigger: HTMLElement) => void;
     moreActionsLabel?: string;
+    onShare?: () => void;
   } = $props();
 
   function pillLabel(type: string, severity: string): string {
@@ -402,6 +404,15 @@
 
   {#if isExpanded || collapsing}
     <div class="card-secondary-actions">
+      <button
+        type="button"
+        class="share-button"
+        aria-label={t.shareDeparture ?? 'Share departure'}
+        onpointerdown={(event) => event.stopPropagation()}
+        onclick={(event) => { event.stopPropagation(); onShare?.(); }}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
+      </button>
       <button
         type="button"
         class="more-actions-button"
@@ -867,6 +878,29 @@
   }
   .more-actions-button:hover,
   .more-actions-button:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .share-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin-right: auto;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .share-button:hover,
+  .share-button:focus-visible {
     background: var(--accent-subtle);
     color: var(--accent);
     outline: 2px solid var(--accent);
