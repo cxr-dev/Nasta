@@ -451,6 +451,9 @@
     overflow: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   .departure-card.has-disruption {
     border-color: var(--border);

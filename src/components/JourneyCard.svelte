@@ -376,6 +376,9 @@
     overflow: hidden;
     position: relative;
     transition: box-shadow 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .journey-card:focus-within {

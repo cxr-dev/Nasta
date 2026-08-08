@@ -50,6 +50,7 @@
 
   let kind = $derived(segment ? getSavedCardKind(segment) : 'departure');
   let actions = $derived(segment ? getSavedCardActions(segment, pages, {
+    share: kind === 'journey' ? (t.shareJourney ?? 'Share journey') : (t.shareDeparture ?? 'Share departure'),
     edit: kind === 'journey' ? (t.editJourney ?? 'Edit journey') : (t.editDeparture ?? 'Edit departure'),
     move: t.moveToPage ?? 'Move to page',
     remove: kind === 'journey' ? (t.removeJourney ?? 'Remove journey') : (t.removeDeparture ?? 'Remove departure'),

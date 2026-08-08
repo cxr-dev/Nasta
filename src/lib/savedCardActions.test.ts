@@ -28,7 +28,7 @@ const journey: Segment = {
   },
 };
 
-const labels = { edit: 'Edit', move: 'Move', remove: 'Remove' };
+const labels = { share: 'Share', edit: 'Edit', move: 'Move', remove: 'Remove' };
 
 describe('saved card action resolver', () => {
   it('returns one shared action set for both entry points', () => {
@@ -36,13 +36,13 @@ describe('saved card action resolver', () => {
     const fromLongPress = getSavedCardActions(departure, pages, labels);
     const fromMoreButton = getSavedCardActions(departure, pages, labels);
     expect(fromLongPress).toEqual(fromMoreButton);
-    expect(fromLongPress.map((action) => action.id)).toEqual(['edit', 'move', 'remove']);
+    expect(fromLongPress.map((action) => action.id)).toEqual(['share', 'edit', 'move', 'remove']);
   });
 
   it('hides move on a one-page app and edit for active journeys', () => {
     const onePage: Page[] = [{ id: 'page-1', name: 'Home', segments: [departure] }];
-    expect(getSavedCardActions(departure, onePage, labels).map((action) => action.id)).toEqual(['edit', 'remove']);
+    expect(getSavedCardActions(departure, onePage, labels).map((action) => action.id)).toEqual(['share', 'edit', 'remove']);
     const activeJourney = { ...journey, journeyMeta: { ...journey.journeyMeta!, status: 'active' as const } };
-    expect(getSavedCardActions(activeJourney, [onePage[0], { id: 'page-2', name: 'Work', segments: [] }], labels).map((action) => action.id)).toEqual(['move', 'remove']);
+    expect(getSavedCardActions(activeJourney, [onePage[0], { id: 'page-2', name: 'Work', segments: [] }], labels).map((action) => action.id)).toEqual(['share', 'move', 'remove']);
   });
 });

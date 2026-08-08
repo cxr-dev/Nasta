@@ -18,7 +18,7 @@
   import { getSettings } from "../stores/settingsStore.svelte";
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import { prefetchFeatureDiscovery } from "../services/featureDiscoverySession";
-  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, cloudRain, cloudSnow, cloudLightning } from "../icons/departureIcons";
+  import { chevronLeft, chevronRight, settingsGear, mapIcon, editPencil, cloudRain, cloudSnow, cloudLightning, slLogo } from "../icons/departureIcons";
   import MapViewer from "./MapViewer.svelte";
   import { getDisruptionDisplay } from "./segmentUtils";
   import { getLocale } from "../stores/localeStore.svelte";
@@ -462,6 +462,18 @@
   <header class="page-chrome">
     <h1 class="page-title">{page.name}</h1>
     <div class="header-actions">
+      <!--
+        SL tickets. iOS: /privat/min-biljett is NOT a verified Universal Link (live AASA declares
+        only /privat/min-biljett/voucher-code + /lana/*) — it is a semantically correct web fallback
+        for the active-ticket/QR view. voucher-code is AASA-verified but promotes voucher redemption,
+        so it is deliberately not used. In-app ticket destination still pending physical-device evidence;
+        Android domain association exists but route handling is device-test pending.
+      -->
+      <button class="header-icon-btn sl-ticket-btn" onclick={() => window.open('https://sl.se/privat/min-biljett', '_blank', 'noopener')} aria-label={t.openTickets}>
+        <svg class="sl-logo" viewBox="0 0 470.42 372.62" fill="none">
+          {@html slLogo}
+        </svg>
+      </button>
       <button class="header-icon-btn" onclick={() => showMap = true} aria-label={t.networkMap ?? t.mapViewerLabel}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html mapIcon}
@@ -705,6 +717,22 @@
   .header-icon-btn svg {
     width: 24px;
     height: 24px;
+  }
+  .header-icon-btn .sl-logo {
+    width: 30.5px;
+    height: 24px;
+  }
+  /* SL ticket button is phone-only via Nästa's existing <768px breakpoint.
+     Known trade-off: an iPhone in landscape whose CSS viewport crosses 768px
+     (e.g. 932px) uses the tablet/desktop layout treatment, so the icon hides
+     there. Accepted — no UA sniffing, no second responsive system. */
+  .sl-ticket-btn {
+    display: none;
+  }
+  @media (max-width: 767px) {
+    .sl-ticket-btn {
+      display: flex;
+    }
   }
 
 

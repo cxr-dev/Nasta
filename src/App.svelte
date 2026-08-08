@@ -1221,7 +1221,7 @@ function closeSettingsPanel() {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    touch-action: pan-x pan-y; /* allow scroll + swipe; JS handles PTR */
+    touch-action: manipulation; /* pan + pinch-zoom; JS handles PTR + swipe */
     background: var(--bg);
   }
 

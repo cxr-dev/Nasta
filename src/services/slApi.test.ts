@@ -324,6 +324,103 @@ describe("slApi service", () => {
       expect(result.departures[0].minutes).toBe(3);
     });
 
+    it("prefers expected over scheduled for expectedAt", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            expected: "2024-01-01T09:10:00",
+            scheduled: "2024-01-01T09:00:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].expectedAt).toBe(
+        parseSlTimestamp("2024-01-01T09:10:00"),
+      );
+      expect(result.departures[0].minutes).toBe(10);
+    });
+
+    it("falls back to the scheduled epoch when expected is missing", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            scheduled: "2099-01-01T10:05:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].expectedAt).toBe(
+        parseSlTimestamp("2099-01-01T10:05:00"),
+      );
+    });
+
+    it("omits expectedAt and time when only relative minutes exist", async () => {
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            timeToDeparture: 3,
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].expectedAt).toBeUndefined();
+      expect(result.departures[0].time).toBe("");
+    });
+
+    it("keeps a departure whose scheduled time falls on the next day (midnight crossing)", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-01T22:55:00Z"));
+      const mockDepartures = {
+        departures: [
+          {
+            line: { designation: "76" },
+            destination: "Test",
+            direction_code: 1,
+            scheduled: "2024-01-02T00:10:00",
+          },
+        ],
+      };
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockDepartures,
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].expectedAt).toBe(
+        parseSlTimestamp("2024-01-02T00:10:00"),
+      );
+      expect(result.departures[0].minutes).toBe(15);
+    });
+
     it("rejects departures when both timestamp and timeToDeparture are missing", async () => {
       const mockDepartures = {
         departures: [

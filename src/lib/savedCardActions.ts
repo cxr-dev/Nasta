@@ -1,7 +1,7 @@
 import type { Page, Segment } from '../types/page';
 
 export type SavedCardKind = 'departure' | 'journey';
-export type SavedCardActionId = 'edit' | 'move' | 'remove';
+export type SavedCardActionId = 'share' | 'edit' | 'move' | 'remove';
 
 export interface SavedCardAction {
   id: SavedCardActionId;
@@ -16,10 +16,12 @@ export function getSavedCardKind(segment: Segment): SavedCardKind {
 export function getSavedCardActions(
   segment: Segment,
   pages: Page[],
-  labels: { edit: string; move: string; remove: string },
+  labels: { share: string; edit: string; move: string; remove: string },
 ): SavedCardAction[] {
   const kind = getSavedCardKind(segment);
   const actions: SavedCardAction[] = [];
+
+  actions.push({ id: 'share', label: labels.share });
 
   if (!(kind === 'journey' && segment.journeyMeta?.status === 'active')) {
     actions.push({ id: 'edit', label: labels.edit });
