@@ -463,11 +463,15 @@
     <h1 class="page-title">{page.name}</h1>
     <div class="header-actions">
       <!--
-        SL tickets. iOS: /privat/min-biljett is NOT a verified Universal Link (live AASA declares
-        only /privat/min-biljett/voucher-code + /lana/*) — it is a semantically correct web fallback
-        for the active-ticket/QR view. voucher-code is AASA-verified but promotes voucher redemption,
-        so it is deliberately not used. In-app ticket destination still pending physical-device evidence;
-        Android domain association exists but route handling is device-test pending.
+        SL tickets — https (Universal/App Links) is used instead of an sl:// custom scheme.
+        iOS: /privat/min-biljett is NOT a verified Universal Link (live AASA declares only
+        /privat/min-biljett/voucher-code + /lana/*), so iOS opens Safari — the correct web fallback.
+        voucher-code is AASA-verified but promotes voucher redemption, so it is deliberately not used.
+        Android: assetlinks.json for com.sl.SLBiljetter declares delegate_permission/common.handle_all_urls,
+        so this https://sl.se/… URL opens the SL app directly via App Links when installed
+        (/privat/min-biljett included), falling back to the browser when the app is missing.
+        sl:// would hard-error on both platforms when the app isn't installed and is unverifiable
+        (custom schemes live in the app binary, not in web-accessible files) — deliberately not used.
       -->
       <button class="header-icon-btn sl-ticket-btn" onclick={() => window.open('https://sl.se/privat/min-biljett', '_blank', 'noopener')} aria-label={t.openTickets}>
         <svg class="sl-logo" viewBox="0 0 470.42 372.62" fill="none">
