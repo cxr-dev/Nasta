@@ -231,7 +231,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-area-inset-bottom);
   }
 
   .sheet::-webkit-scrollbar {
@@ -262,7 +262,7 @@
     align-items: center;
     gap: 12px;
     padding: 16px 16px 12px;
-    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-top: calc(16px + var(--safe-area-inset-top));
     border-bottom: 1px solid var(--border);
     background: var(--bg);
   }

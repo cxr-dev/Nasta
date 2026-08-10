@@ -53,7 +53,15 @@ const routes = [{
   ],
 }];
 
-async function prepare(page: Page, viewport: { width: number; height: number }) {
+// Two pages so the saved-card sheet renders 4 actions (the genuine clip case)
+// and the page-actions-menu shows "Delete page" (pages.length > 1 gate).
+const twoPageRoutes = [
+  ...routes,
+  { id: 'second-page', name: 'Second', segments: [] },
+];
+
+async function prepare(page: Page, viewport: { width: number; height: number }, routesOverride?: typeof routes) {
+  const seededRoutes = routesOverride ?? routes;
   await page.setViewportSize(viewport);
   await page.route('**/*.integration.sl.se/**', async (route: any) => {
     const url = route.request().url();
@@ -71,7 +79,7 @@ async function prepare(page: Page, viewport: { width: number; height: number }) 
       await route.continue();
     }
   });
-  await page.addInitScript((value: typeof routes) => localStorage.setItem('nasta_routes', JSON.stringify(value)), routes);
+  await page.addInitScript((value: typeof routes) => localStorage.setItem('nasta_routes', JSON.stringify(value)), seededRoutes);
   await page.goto('/Nasta/', { waitUntil: 'domcontentloaded' });
   await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
   await expect(page.locator('.departure-card')).toBeVisible({ timeout: 15000 });
@@ -143,5 +151,64 @@ test.describe('saved card contextual actions', () => {
     await page.screenshot({ path: 'test-results/saved-card-actions-light.png', fullPage: true });
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.screenshot({ path: 'test-results/saved-card-actions-dark.png', fullPage: true });
+  });
+});
+
+async function assertLastActionReachable(sheet: ReturnType<Page['locator']>, actionText: string, actionSelector = '.action-button') {
+  // Guard 1: bottom inset actually consumed (old code: 50px).
+  // If this isn't 34px the injected override never reached the sheet
+  // (Chromium reports env()=0, so the test would pass vacuously otherwise).
+  expect(await sheet.evaluate((el) => getComputedStyle(el).paddingBottom)).toBe('34px');
+  // Guard 2: top inset suppressed on the bottom sheet even though :root says 47px
+  // (old code: 63px).
+  expect(await sheet.locator('.sheet-header').evaluate((el) => getComputedStyle(el).paddingTop)).toBe('16px');
+  // Reachability: last action is visible, within the sheet's bounds, and clickable.
+  const lastAction = sheet.locator(actionSelector, { hasText: actionText });
+  await expect(lastAction).toBeVisible();
+  const sheetBox = await sheet.boundingBox();
+  const actionBox = await lastAction.boundingBox();
+  expect(sheetBox).not.toBeNull();
+  expect(actionBox).not.toBeNull();
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(sheetBox!.y + sheetBox!.height + 1);
+  await lastAction.click({ trial: true });
+}
+
+test.describe('saved card safe-area PWA simulation', () => {
+  test('keeps the saved-card last action reachable with nonzero safe-area insets', async ({ page }) => {
+    await prepare(page, { width: 390, height: 844 }, twoPageRoutes);
+    // Simulate PWA standalone insets (Chromium always reports env()=0 — issue #23611).
+    await page.addStyleTag({ content: ':root { --safe-area-inset-top: 47px; --safe-area-inset-bottom: 34px; }' });
+    await page.locator('.departure-card .card-main').click();
+    await page.locator('.departure-card .more-actions-button').click();
+    const sheet = page.locator('.sheet.saved-card-actions-sheet');
+    await expect(sheet).toBeVisible();
+    await assertLastActionReachable(sheet, 'Remove departure');
+  });
+
+  test('keeps the page-menu last action reachable with nonzero safe-area insets', async ({ page }) => {
+    await prepare(page, { width: 390, height: 844 }, twoPageRoutes);
+    // Simulate PWA standalone insets.
+    await page.addStyleTag({ content: ':root { --safe-area-inset-top: 47px; --safe-area-inset-bottom: 34px; }' });
+    await page.getByRole('button', { name: 'Manage pages' }).click();
+    const editor = page.locator('.sheet.editor-sheet');
+    await expect(editor).toBeVisible();
+    await editor.locator('[data-page-more-btn]').first().click();
+    const menu = page.locator('.sheet.page-actions-menu');
+    await expect(menu).toBeVisible();
+    // Main view: direct reachability of its last action.
+    // PageEditor menu buttons use .page-menu-action (unlike .action-button).
+    await assertLastActionReachable(menu, 'Delete page', '.page-menu-action');
+    // Perform the single real click after reachability verification.
+    const deleteAction = menu.locator('.page-menu-action.destructive', { hasText: 'Delete page' });
+    await expect(deleteAction).toBeVisible();
+    await deleteAction.click();
+    const cancelAction = menu.locator('.page-menu-action', { hasText: 'Cancel' });
+    await expect(cancelAction).toBeVisible();
+    // Bounding box proof: the action fits within the sheet.
+    const confirmBox = await cancelAction.boundingBox();
+    const menuBox = await menu.boundingBox();
+    expect(confirmBox).not.toBeNull();
+    expect(menuBox).not.toBeNull();
+    expect(confirmBox!.y + confirmBox!.height).toBeLessThanOrEqual(menuBox!.y + menuBox!.height + 1);
   });
 });

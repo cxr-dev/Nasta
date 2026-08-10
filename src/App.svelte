@@ -1199,6 +1199,8 @@ function closeSettingsPanel() {
     --page-gutter: 16px;
     --transit-card-padding-inline: 14px;
     --sheet-padding-inline: 16px;
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 
     /* Border-radius scale */
     --radius-sm: 8px;

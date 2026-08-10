@@ -153,7 +153,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 12px 16px 16px;
     overflow-y: auto;
   }
 
@@ -243,9 +243,10 @@
   :global(.sheet.saved-card-actions-sheet) {
     bottom: 0;
     height: auto;
-    max-height: min(62dvh, 440px);
+    max-height: min(70dvh, 480px);
     min-height: 0;
     border-radius: 22px 22px 0 0;
+    --safe-area-inset-top: 0px;
   }
 
   @media (max-width: 767px) {
