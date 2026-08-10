@@ -54,7 +54,7 @@ async function openApp(page: Page) {
       sources: {
         mock: {
           type: 'vector',
-          tiles: ['http://localhost:5173/mock-tiles/{z}/{x}/{y}.pbf'],
+          tiles: ['/mock-tiles/{z}/{x}/{y}.pbf'],
         },
       },
       layers: [
@@ -105,16 +105,18 @@ test('MapPreview worker is bundled, fetched 200, and loads vector tiles', async 
   // Negative guard: the broken build requests an un-hashed worker.mjs the
   // bundle never emits. Track it so the failure mode is explicit.
   let unhashedWorkerRequested: string | null = null;
+
   page.on('request', (request) => {
     if (request.url().includes('/assets/maplibre-gl-worker.mjs')) {
       unhashedWorkerRequested = request.url();
     }
   });
 
-  const workerResponse = page.waitForResponse(
-    (response) => /\/maplibre-gl-worker-[A-Za-z0-9_-]+\.js$/.test(response.url()),
-    { timeout: 20_000 },
-  );
+  const workerPromise = page.waitForEvent('worker', {
+    predicate: (worker) =>
+      /\/maplibre-gl-worker-[A-Za-z0-9_-]+\.js(?:\?.*)?$/.test(worker.url()),
+    timeout: 20_000,
+  });
   const tileRequest = page.waitForRequest(
     (request) => request.url().includes('/mock-tiles/'),
     { timeout: 20_000 },
@@ -125,9 +127,12 @@ test('MapPreview worker is bundled, fetched 200, and loads vector tiles', async 
   // Expand the departure card to mount MapPreview.
   await page.locator('.card-main').first().click();
 
-  const workerResp = await workerResponse;
-  expect(workerResp.status()).toBe(200);
+  const worker = await workerPromise;
+  expect(worker.url()).toMatch(/\/maplibre-gl-worker-[A-Za-z0-9_-]+\.js(?:\?.*)?$/);
   expect(unhashedWorkerRequested).toBeNull();
+
+  const workerAssetResponse = await page.context().request.get(worker.url());
+  expect(workerAssetResponse.status()).toBe(200);
 
   // A live worker initiates at least one vector-tile request.
   await tileRequest;

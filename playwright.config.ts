@@ -9,7 +9,7 @@ export default defineConfig({
   outputDir: "test-results",
   reporter: "html",
   use: {
-    baseURL: "http://localhost:5173/Nasta/",
+    baseURL: "http://localhost:4173/Nasta/",
     trace: process.env.CI ? "on-first-retry" : "off",
     video: "off",
     screenshot: "only-on-failure",
@@ -33,8 +33,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite preview --host localhost --port 5173",
-    url: "http://localhost:5173/Nasta/",
-    reuseExistingServer: !process.env.CI,
+    command: "pnpm exec vite preview --host localhost --port 4173 --strictPort",
+    url: "http://localhost:4173/Nasta/",
+    reuseExistingServer: false,
   },
 });
