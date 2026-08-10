@@ -123,7 +123,7 @@ afterEach(() => {
 });
 
 describe("SegmentDepartures SL ticket button", () => {
-  it("opens the https://sl.se/privat/min-biljett web fallback rather than an sl:// custom scheme", async () => {
+  it("opens the https://sl.se/privat/min-biljett web fallback on non-iOS devices via openSlTickets", async () => {
     const view = render(SegmentDepartures, { props: { page } });
 
     const ticketButton = view.getByRole("button", { name: getT().openTickets });
@@ -131,6 +131,7 @@ describe("SegmentDepartures SL ticket button", () => {
 
     await fireEvent.click(ticketButton);
 
+    // jsdom's user agent is non-iOS, so openSlTickets takes the https window.open path.
     expect(window.open).toHaveBeenCalledTimes(1);
     expect(window.open).toHaveBeenCalledWith("https://sl.se/privat/min-biljett", "_blank", "noopener");
   });

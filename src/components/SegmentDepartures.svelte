@@ -34,6 +34,7 @@
   import { shareIntent, shareUrl, copyShareLink } from "../services/shareLink";
   import { intentFromJourney, intentFromSegment, type ShareIntent } from "../lib/shareModel";
   import type { ShareCardData, DepartureShareData, JourneyShareData, JourneyLegShareData, JourneyConnectionShareData } from "../lib/shareImageRenderer";
+  import { openSlTickets } from "../lib/openSlTickets";
 
   let {
     page,
@@ -463,17 +464,14 @@
     <h1 class="page-title">{page.name}</h1>
     <div class="header-actions">
       <!--
-        SL tickets — https (Universal/App Links) is used instead of an sl:// custom scheme.
-        iOS: /privat/min-biljett is NOT a verified Universal Link (live AASA declares only
-        /privat/min-biljett/voucher-code + /lana/*), so iOS opens Safari — the correct web fallback.
-        voucher-code is AASA-verified but promotes voucher redemption, so it is deliberately not used.
-        Android: assetlinks.json for com.sl.SLBiljetter declares delegate_permission/common.handle_all_urls,
-        so this https://sl.se/… URL opens the SL app directly via App Links when installed
-        (/privat/min-biljett included), falling back to the browser when the app is missing.
-        sl:// would hard-error on both platforms when the app isn't installed and is unverifiable
-        (custom schemes live in the app binary, not in web-accessible files) — deliberately not used.
+        SL tickets. iOS: SL registers the `sl://` custom scheme (confirmed by
+        testing on a physical iPhone). The active-ticket path /privat/min-biljett
+        is NOT a verified Universal Link (AASA only declares voucher-code + /lana/*),
+        so we use a custom-scheme attempt with a web fallback — see openSlTickets.ts
+        for details. Android: App Links handle https://sl.se/… directly, so no
+        custom scheme needed there.
       -->
-      <button class="header-icon-btn sl-ticket-btn" onclick={() => window.open('https://sl.se/privat/min-biljett', '_blank', 'noopener')} aria-label={t.openTickets}>
+      <button class="header-icon-btn sl-ticket-btn" onclick={() => openSlTickets()} aria-label={t.openTickets}>
         <svg class="sl-logo" viewBox="0 0 470.42 372.62" fill="none">
           {@html slLogo}
         </svg>
