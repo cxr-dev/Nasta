@@ -13,6 +13,27 @@
       name="description"
       content="Nästa - Swedish public transit commute tracker"
     />
+    <script>
+      (() => {
+        let preference = "system";
+        try {
+          const stored = JSON.parse(localStorage.getItem("nasta_settings") || "{}");
+          if (stored.theme === "light" || stored.theme === "dark" || stored.theme === "system") {
+            preference = stored.theme;
+          }
+        } catch {
+          // Keep the system default when saved settings cannot be read.
+        }
+
+        const theme = preference === "system"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : preference;
+        const root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        root.style.backgroundColor = theme === "dark" ? "#111211" : "#F7F7F5";
+      })();
+    </script>
 
     <!-- iOS home screen support -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -30,6 +51,7 @@
 
     <!-- Fonts: Neue Machina for display, Satoshi for body — async, non-blocking -->
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link rel="preload" as="image" href="./logosvg.svg" type="image/svg+xml" />
     <link
       rel="preload"
       as="style"
@@ -55,6 +77,23 @@
       html,
       body {
         overscroll-behavior: none;
+        margin: 0;
+        min-height: 100%;
+        background: var(--boot-bg, #f7f7f5);
+      }
+      html[data-theme="dark"] {
+        --boot-bg: #111211;
+        --boot-surface: #1b1c1a;
+        --boot-ink: #f5f5f0;
+        --boot-line: rgba(245, 245, 240, 0.24);
+        --boot-skeleton: rgba(245, 245, 240, 0.16);
+      }
+      html[data-theme="light"] {
+        --boot-bg: #f7f7f5;
+        --boot-surface: #ffffff;
+        --boot-ink: #171717;
+        --boot-line: rgba(23, 23, 23, 0.25);
+        --boot-skeleton: rgba(23, 23, 23, 0.13);
       }
       /* Ensure inputs don't zoom on iOS */
       input,
@@ -80,10 +119,162 @@
         top: 0;
       }
 
+      #nasta-launch {
+        position: fixed;
+        inset: 0;
+        z-index: 600;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: var(--boot-bg);
+        color: var(--boot-ink);
+        transition: opacity 120ms ease-out;
+      }
+      #nasta-launch.is-leaving {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .launch-content {
+        position: relative;
+        z-index: 1;
+        width: min(100% - 40px, 440px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .launch-route {
+        position: absolute;
+        top: -52px;
+        width: min(132vw, 620px);
+        height: 310px;
+        overflow: visible;
+        pointer-events: none;
+      }
+      .launch-route-path {
+        fill: none;
+        stroke: var(--boot-line);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-dasharray: 1 10;
+        animation: launch-route-travel 900ms linear infinite;
+      }
+      .launch-route-station {
+        fill: var(--boot-bg);
+        stroke: var(--boot-ink);
+        stroke-width: 2;
+        opacity: 0.45;
+      }
+      .launch-route-current {
+        fill: var(--boot-bg);
+        stroke: var(--boot-ink);
+        stroke-width: 2;
+        transform-origin: center;
+        animation: launch-route-pulse 800ms ease-in-out infinite;
+      }
+      .launch-route-current-core {
+        fill: var(--boot-ink);
+      }
+      .launch-brand {
+        margin-top: 6px;
+        text-align: center;
+        animation: launch-brand-settle 260ms ease-out both;
+      }
+      .launch-logo {
+        display: block;
+        width: 132px;
+        height: 132px;
+        margin: 0 auto;
+      }
+      html[data-theme="dark"] .launch-logo {
+        filter: invert(1) brightness(1.1);
+      }
+      .launch-name {
+        margin: 10px 0 0;
+        font-family: "Neue Machina", "Arial Narrow", sans-serif;
+        font-size: clamp(48px, 14vw, 64px);
+        font-weight: 800;
+        line-height: 0.92;
+        letter-spacing: -0.035em;
+      }
+      .launch-label {
+        margin: 11px 0 0;
+        font-family: "Satoshi", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: color-mix(in oklch, var(--boot-ink) 72%, var(--boot-bg));
+      }
+      .launch-skeletons {
+        width: 100%;
+        display: grid;
+        gap: 10px;
+        margin-top: 92px;
+      }
+      .launch-card {
+        height: 66px;
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) 52px;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border: 1px solid color-mix(in oklch, var(--boot-ink) 14%, var(--boot-bg));
+        border-radius: 12px;
+        background: var(--boot-surface);
+      }
+      .launch-block,
+      .launch-line {
+        display: block;
+        background: var(--boot-skeleton);
+      }
+      .launch-block { border-radius: 8px; }
+      .launch-icon { width: 32px; height: 32px; }
+      .launch-time { width: 52px; height: 30px; justify-self: end; border-radius: 5px; }
+      .launch-lines { display: grid; gap: 6px; }
+      .launch-line { height: 8px; border-radius: 999px; }
+      .launch-line.short { width: 52%; }
+      .launch-line.mid { width: 68%; }
+      @keyframes launch-route-travel {
+        to { stroke-dashoffset: -44; }
+      }
+      @keyframes launch-route-pulse {
+        50% { opacity: 0.35; transform: scale(1.35); }
+      }
+      @keyframes launch-brand-settle {
+        from { opacity: 0; transform: translateY(6px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #nasta-launch { transition: none; }
+        .launch-route-path,
+        .launch-route-current,
+        .launch-brand { animation: none; }
+      }
+
     </style>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div id="nasta-launch" aria-hidden="true">
+      <div class="launch-content">
+        <svg class="launch-route" viewBox="0 0 360 280" aria-hidden="true">
+          <path class="launch-route-path" d="M-24 158 C 30 99, 62 231, 126 168 S 213 78, 272 136 S 327 208, 391 81" />
+          <circle class="launch-route-station" cx="74" cy="192" r="4" />
+          <circle class="launch-route-station" cx="210" cy="103" r="4" />
+          <circle class="launch-route-station" cx="298" cy="173" r="4" />
+          <circle class="launch-route-current" cx="258" cy="124" r="7" />
+          <circle class="launch-route-current-core" cx="258" cy="124" r="3" />
+        </svg>
+        <div class="launch-brand">
+          <img class="launch-logo" src="./logosvg.svg" alt="" />
+          <p class="launch-name">Nästa</p>
+          <p class="launch-label">Hämtar avgångar</p>
+        </div>
+        <div class="launch-skeletons">
+          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
+          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
+          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
+        </div>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

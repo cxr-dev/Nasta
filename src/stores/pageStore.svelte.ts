@@ -1,7 +1,9 @@
 import type { Page, Segment } from "../types/page";
 import { clearPages, loadPages, savePages } from "../services/storage";
 
-let _pages = $state<Page[]>(loadPages());
+const initialPages = loadPages();
+let _pages = $state<Page[]>(initialPages);
+let _activePageId = $state<string | null>(initialPages[0]?.id ?? null);
 
 export interface RemovedSegmentSnapshot {
   segment: Segment;
@@ -193,8 +195,6 @@ export function clearAll(): boolean {
   notify();
   return true;
 }
-
-let _activePageId = $state<string | null>(null);
 
 let _activePage = $derived(
   _activePageId

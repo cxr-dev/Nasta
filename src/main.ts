@@ -7,6 +7,21 @@ import { checkVersion } from "./lib/checkVersion";
 let app;
 
 if (!import.meta.env.SSR && typeof window !== "undefined") {
+  const dismissLaunchScreen = () => {
+    const launchScreen = document.getElementById("nasta-launch");
+    if (!launchScreen) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      launchScreen.remove();
+      return;
+    }
+
+    launchScreen.addEventListener("transitionend", () => launchScreen.remove(), { once: true });
+    launchScreen.classList.add("is-leaving");
+  };
+
+  window.addEventListener("nasta-app-ready", dismissLaunchScreen, { once: true });
+
   app = mount(App, {
     target: document.getElementById("app")!,
   });

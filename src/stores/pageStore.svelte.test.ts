@@ -159,6 +159,19 @@ describe("segment CRUD", () => {
 
 
 describe("active page", () => {
+  it("selects the first persisted page during module initialization", async () => {
+    localStorage.setItem("nasta_routes", JSON.stringify([
+      { id: "persisted-first", name: "Work", segments: [] },
+      { id: "persisted-second", name: "Home", segments: [] },
+    ]));
+    vi.resetModules();
+
+    const store = await import("./pageStore.svelte");
+
+    expect(store.getActivePageId()).toBe("persisted-first");
+    expect(store.getActivePage()?.name).toBe("Work");
+  });
+
   it("setActivePage updates active page", () => {
     addPage("A");
     addPage("B");

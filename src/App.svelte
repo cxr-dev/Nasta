@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import gsap from 'gsap';
-  import { initialize } from './stores/pageStore.svelte';
   import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment, moveSegment, removeSegmentWithSnapshot, restoreSegment, type RemovedSegmentSnapshot } from './stores/pageStore.svelte';
   import { parseShareHash, type ShareIntent } from './lib/shareModel';
   import { departureStore } from './stores/departureStore.svelte';
@@ -108,6 +107,7 @@
   let deviationHealthBySegment = $state<Map<string, SegmentHealth>>(new Map());
   let deviationStationAlerts = $state<StationAlert[]>([]);
   let hour = $derived(getTimeOfDay().hour);
+  let startupReady = $state(false);
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -231,6 +231,7 @@
   // whole page here would make every segment/journey persistence update look
   // like a navigation and clear the visible departures mid-refresh.
   $effect(() => {
+    if (!startupReady) return;
     const pageId = getActivePageId();
     if (!pageId || pageId === previousPageId) return;
     const currentPage = getActivePage();
@@ -823,7 +824,6 @@ function closeSettingsPanel() {
 
   onMount(() => {
     timeOfDayStart();
-    initialize();
     initializeCacheLifecycle();
     consumeShareHash();
     const handleHashChange = () => consumeShareHash();
@@ -838,6 +838,11 @@ function closeSettingsPanel() {
     const unsubDeviations = deviationStore.subscribe(state => {
       deviationHealthBySegment = state.bySegmentId;
       deviationStationAlerts = state.stationAlerts;
+    });
+
+    startupReady = true;
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('nasta-app-ready'));
     });
 
     journeyRefreshInterval = setInterval(() => {
