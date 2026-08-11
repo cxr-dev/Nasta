@@ -39,6 +39,11 @@ import { persistentCache } from "./persistentCache";
 
 const venuesInflight = new Map<string, Promise<Venue[]>>();
 const _venuesCache = new Map<string, { expiry: number; data: Venue[] }>();
+
+export function clearVenueCache(): void {
+  _venuesCache.clear();
+  venuesInflight.clear();
+}
 const MAX_VENUE_RESULTS = 12;
 const OVERPASS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 

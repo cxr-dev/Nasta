@@ -20,6 +20,11 @@ const inFlight = new Map<string, Promise<Venue[] | EventItem[]>>();
 const VENUE_TTL = 30 * 60 * 1000;
 const EVENT_TTL = 60 * 60 * 1000;
 
+export function clearFeatureDiscoveryCache(): void {
+  resultCache.clear();
+  inFlight.clear();
+}
+
 function queryKey({ lat, lon, mode }: FeatureDiscoveryQuery): string {
   return `${lat.toFixed(4)}:${lon.toFixed(4)}:${mode}`;
 }

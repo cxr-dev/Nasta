@@ -44,6 +44,12 @@ type TimetableStore = Record<string, RouteSchedule>; // key = "siteId|line|direc
 let storeLoaded = false;
 let inMemoryStore: TimetableStore = {};
 
+export function clearTimetableCache(): void {
+  inMemoryStore = {};
+  storeLoaded = false;
+  void persistentCache.remove(CACHE_KEY);
+}
+
 async function ensureStoreLoaded(): Promise<void> {
   if (storeLoaded) return;
   await persistentCache.migrateFromLocalStorage(LOCAL_STORAGE_KEY, CACHE_KEY, CACHE_TTL_MS);

@@ -50,6 +50,10 @@ const defaultSettings: Settings = {
   groupSleeping: false,
 };
 
+export function getDefaultSettings(): Settings {
+  return { ...defaultSettings, enabledTransportTypes: [...defaultSettings.enabledTransportTypes], afterworkTypes: [] };
+}
+
 export function loadPages(): Page[] {
   try {
     const data = localStorage.getItem(ROUTES_KEY);
@@ -118,6 +122,10 @@ export function savePages(pages: Page[]): void {
   localStorage.setItem(ROUTES_KEY, JSON.stringify(pages));
 }
 
+export function clearPages(): void {
+  localStorage.removeItem(ROUTES_KEY);
+}
+
 export function loadSettings(): Settings {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
@@ -166,4 +174,8 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+export function clearSettings(): void {
+  localStorage.removeItem(SETTINGS_KEY);
 }

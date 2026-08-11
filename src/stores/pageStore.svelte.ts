@@ -1,5 +1,5 @@
 import type { Page, Segment } from "../types/page";
-import { loadPages, savePages } from "../services/storage";
+import { clearPages, loadPages, savePages } from "../services/storage";
 
 let _pages = $state<Page[]>(loadPages());
 
@@ -171,6 +171,29 @@ export function initialize(): void {
   notify();
 }
 
+export function replaceAll(pages: Page[]): boolean {
+  return commitPages(pages);
+}
+
+export function replaceInMemory(pages: Page[]): void {
+  _pages = pages;
+  _activePageId = pages[0]?.id ?? null;
+  notify();
+}
+
+export function clearAll(): boolean {
+  try {
+    clearPages();
+  } catch (error) {
+    console.error('[PageStore] Failed to clear pages:', error);
+    return false;
+  }
+  _pages = [];
+  _activePageId = null;
+  notify();
+  return true;
+}
+
 let _activePageId = $state<string | null>(null);
 
 let _activePage = $derived(
@@ -201,4 +224,3 @@ export function deletePage(id: string): void {
 export function setActivePage(id: string): void {
   _activePageId = id;
 }
-

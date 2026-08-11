@@ -8,7 +8,12 @@
   import Sheet from './Sheet.svelte';
   import SurfaceControl from './SurfaceControl.svelte';
   import { focusBoundary } from '../lib/focusBoundary';
-  import { getSettings, subscribePersistence, retryPersistence, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
+  import { getSettings, subscribePersistence, retryPersistence, replaceInMemory as replaceSettingsInMemory, clearAll as clearSettings, setDisruptionAlertsEnabled, setDisruptionSeverityThreshold, setWalkingEtaEnabled, setLocationServicesEnabled, setAfterworkVenuesEnabled, setAfterworkStartHour, setEventsEnabled, setGroupingMode, setSortMode, setLanguage, setTheme, setGroupSleeping } from '../stores/settingsStore.svelte';
+  import { clearAll as clearPages, getActivePageId, getPages, replaceInMemory as replacePagesInMemory, setActivePage } from '../stores/pageStore.svelte';
+  import { departureStore } from '../stores/departureStore.svelte';
+  import { deviationStore } from '../stores/deviationStore.svelte';
+  import { clearAppOwnedData } from '../services/appDataReset';
+  import { createBackupDocument, mergePages, normalizeRestoredPages, parseBackupDocument, persistRestoredData, summarizePages, type BackupDocument } from '../services/backup';
   import type { SortMode, GroupingMode } from '../types/page';
 
   let t = $derived(getT());
@@ -29,6 +34,13 @@
   let activeDisruptionThreshold = $derived(settings.disruptionSeverityThreshold ?? 'warning');
   let activeTheme = $derived(settings.theme ?? 'system');
   let persistenceFailed = $state(false);
+  let backupFileInput = $state<HTMLInputElement>();
+  let pendingBackup = $state<BackupDocument | null>(null);
+  let selectedImportMode = $state<'replace' | 'add' | null>(null);
+  let dataError = $state('');
+  let dataNotice = $state('');
+  let resetPhrase = $state('');
+  let resetDialogOpen = $state(false);
 
   const themeChoices: Array<{ id: ThemePreference; label: keyof typeof t; preview: ResolvedTheme; description?: keyof typeof t }> = [
     { id: 'system', label: 'themeSystem', preview: 'light', description: 'themeSystemDesc' },
@@ -106,6 +118,100 @@
     infoOpen = false;
     await tick();
     infoTriggerEl?.focus();
+  }
+
+  function backupText(key: keyof typeof t, values: Record<string, string | number>): string {
+    let text = String(t[key]);
+    for (const [name, value] of Object.entries(values)) text = text.replace(`{${name}}`, String(value));
+    return text;
+  }
+
+  function exportBackup() {
+    const backupDocument = createBackupDocument(getPages(), getSettings());
+    const blob = new Blob([JSON.stringify(backupDocument, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nasta-backup-${backupDocument.exportedAt.slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    dataNotice = t.backupExported;
+    dataError = '';
+  }
+
+  async function handleBackupFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    try {
+      pendingBackup = parseBackupDocument(JSON.parse(await file.text()));
+      selectedImportMode = null;
+      dataError = '';
+      dataNotice = '';
+    } catch {
+      pendingBackup = null;
+      dataError = t.backupInvalid;
+    }
+  }
+
+  function confirmImport() {
+    if (!pendingBackup || !selectedImportMode) return;
+    const currentPages = getPages();
+    const currentActivePageId = getActivePageId();
+    const merged = selectedImportMode === 'add' ? mergePages(currentPages, pendingBackup.pages) : null;
+    const nextPages = merged?.pages ?? normalizeRestoredPages(pendingBackup.pages);
+    const nextSettings = selectedImportMode === 'replace' ? pendingBackup.settings : getSettings();
+
+    try {
+      persistRestoredData(nextPages, nextSettings);
+      replacePagesInMemory(nextPages);
+      if (selectedImportMode === 'add' && currentActivePageId && nextPages.some((page) => page.id === currentActivePageId)) {
+        setActivePage(currentActivePageId);
+      }
+      if (selectedImportMode === 'replace') replaceSettingsInMemory(nextSettings);
+      departureStore.clear();
+      deviationStore.clear();
+      pendingBackup = null;
+      selectedImportMode = null;
+      dataNotice = merged
+        ? backupText('backupImportComplete', {
+            added: merged.summary.addedPages + merged.summary.addedSegments,
+            existing: merged.summary.alreadyPresent,
+            kept: merged.summary.keptCurrent,
+          })
+        : backupText('backupImportComplete', {
+            added: nextPages.length + summarizePages(nextPages).departures + summarizePages(nextPages).journeys,
+            existing: 0,
+            kept: 0,
+          });
+      dataError = '';
+    } catch {
+      dataError = t.persistenceFailed;
+    }
+  }
+
+  async function resetLocalData() {
+    if (resetPhrase !== 'RESET') return;
+    try {
+      departureStore.stopAutoRefresh();
+      deviationStore.stopAutoRefresh();
+      await clearAppOwnedData();
+      clearPages();
+      clearSettings();
+      departureStore.clear();
+      deviationStore.clear();
+      resetPhrase = '';
+      resetDialogOpen = false;
+      pendingBackup = null;
+      selectedImportMode = null;
+      dataNotice = t.resetDataComplete;
+      dataError = '';
+    } catch {
+      dataError = t.persistenceFailed;
+    }
   }
 </script>
 
@@ -463,6 +569,79 @@
               {t.languageSwedish}
             </button>
           </div>
+        </div>
+
+        <div class="feature-group data-group">
+          <h3 class="group-title">{t.dataBackup}</h3>
+          <p class="data-description">{t.dataBackupDesc}</p>
+          <div class="data-actions">
+            <button type="button" class="data-action" onclick={exportBackup}>{t.exportBackup}</button>
+            <button type="button" class="data-action" onclick={() => backupFileInput?.click()}>{t.importBackup}</button>
+            <input
+              bind:this={backupFileInput}
+              class="visually-hidden-input"
+              type="file"
+              accept="application/json,.json"
+              aria-label={t.backupFile}
+              onchange={handleBackupFile}
+            />
+          </div>
+
+          {#if dataNotice}
+            <p class="data-status" role="status" aria-live="polite">{dataNotice}</p>
+          {/if}
+          {#if dataError}
+            <p class="data-status data-status-error" role="alert">{dataError}</p>
+          {/if}
+
+          {#if pendingBackup}
+            <div class="data-dialog" role="dialog" aria-label={t.backupImportMode} use:focusBoundary={{ active: true, initialFocus: '.data-action' }}>
+              <p class="data-dialog-copy">
+                {backupText('backupPreview', {
+                  date: new Date(pendingBackup.exportedAt).toLocaleString(),
+                  ...summarizePages(pendingBackup.pages),
+                })}
+              </p>
+              {#if !selectedImportMode}
+                <p class="data-dialog-label">{t.backupImportMode}</p>
+                <div class="data-mode-list">
+                  <button type="button" class="data-mode" aria-label={t.backupReplace} onclick={() => selectedImportMode = 'replace'}>
+                    <span>{t.backupReplace}</span><small>{t.backupReplaceDesc}</small>
+                  </button>
+                  <button type="button" class="data-mode" aria-label={t.backupAdd} onclick={() => selectedImportMode = 'add'}>
+                    <span>{t.backupAdd}</span><small>{t.backupAddDesc}</small>
+                  </button>
+                </div>
+              {:else}
+                <p class="data-dialog-copy">{selectedImportMode === 'replace' ? t.backupReplaceDesc : t.backupAddDesc}</p>
+                <div class="data-dialog-actions">
+                  <button type="button" class="data-action secondary" onclick={() => selectedImportMode = null}>{t.cancel}</button>
+                  <button type="button" class="data-action" onclick={confirmImport}>{t.importBackup}</button>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <div class="danger-zone">
+            <h4>{t.resetData}</h4>
+            <p>{t.resetDataDesc}</p>
+            <button type="button" class="danger-action" onclick={() => { resetPhrase = ''; dataError = ''; resetDialogOpen = true; }} aria-haspopup="dialog">{t.resetData}</button>
+          </div>
+
+          {#if resetDialogOpen}
+            <div class="data-dialog danger-dialog" role="alertdialog" aria-label={t.resetDataDialogTitle} aria-describedby="reset-data-warning" use:focusBoundary={{ active: true, initialFocus: '.reset-input' }}>
+              <h4>{t.resetDataDialogTitle}</h4>
+              <p id="reset-data-warning">{t.resetDataWarning}</p>
+              <p>{t.resetDataDialogDesc}</p>
+              <button type="button" class="data-action secondary" onclick={exportBackup}>{t.exportBeforeReset}</button>
+              <label class="reset-label" for="reset-confirmation">{t.resetDataConfirmLabel}</label>
+              <input id="reset-confirmation" class="reset-input" type="text" autocomplete="off" value={resetPhrase} oninput={(event) => resetPhrase = (event.currentTarget as HTMLInputElement).value} />
+              <div class="data-dialog-actions">
+                <button type="button" class="data-action secondary" onclick={() => resetDialogOpen = false}>{t.cancel}</button>
+                <button type="button" class="danger-action" disabled={resetPhrase !== 'RESET'} onclick={resetLocalData}>{t.resetDataConfirmButton}</button>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -1128,6 +1307,115 @@
     .tab-bar {
       padding: 0 16px;
     }
+  }
+  .data-group {
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+  }
+  .data-description,
+  .data-dialog-copy,
+  .danger-zone p,
+  .danger-dialog p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
+  .data-actions,
+  .data-dialog-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .data-action,
+  .danger-action {
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--accent);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .data-action:hover { background: var(--surface-hover); }
+  .data-action.secondary { color: var(--text-secondary); }
+  .data-action:disabled,
+  .danger-action:disabled { opacity: 0.45; cursor: not-allowed; }
+  .danger-action {
+    border-color: var(--color-critical);
+    color: var(--color-critical);
+    background: transparent;
+  }
+  .data-status {
+    color: var(--accent);
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 10px 0 0;
+  }
+  .data-status-error { color: var(--color-critical); }
+  .visually-hidden-input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .data-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+  }
+  .data-dialog-label,
+  .reset-label {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .data-mode-list { display: grid; gap: 8px; }
+  .data-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .data-mode span { color: var(--accent); font-size: 12px; font-weight: 700; }
+  .data-mode small { color: var(--text-secondary); font-size: 11px; line-height: 1.35; }
+  .danger-zone {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid color-mix(in srgb, var(--color-critical) 35%, var(--border));
+  }
+  .danger-zone h4,
+  .danger-dialog h4 { color: var(--text); font-size: 13px; margin: 0; }
+  .danger-dialog { border-color: var(--color-critical); }
+  .reset-input {
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
   }
   .persistence-notice {
     display: flex;

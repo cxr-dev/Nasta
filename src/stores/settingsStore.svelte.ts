@@ -1,7 +1,7 @@
 import type { Settings } from '../services/storage';
 import type { TransportType } from '../types/page';
 import type { ThemePreference } from '../themes';
-import { loadSettings, saveSettings } from '../services/storage';
+import { clearSettings, getDefaultSettings, loadSettings, saveSettings } from '../services/storage';
 
 let _settings = $state<Settings>(loadSettings());
 let _persistenceFailed = $state(false);
@@ -24,6 +24,30 @@ function persistSettings(next: Settings): boolean {
 
 export function retryPersistence(): boolean {
   return _pendingSettings ? persistSettings(_pendingSettings) : true;
+}
+
+export function replaceSettings(settings: Settings): boolean {
+  return persistSettings(settings);
+}
+
+export function replaceInMemory(settings: Settings): void {
+  _settings = settings;
+  _pendingSettings = null;
+  _persistenceFailed = false;
+  for (const subscriber of persistenceSubscribers) subscriber(false);
+}
+
+export function clearAll(): boolean {
+  try {
+    clearSettings();
+  } catch {
+    return false;
+  }
+  _settings = getDefaultSettings();
+  _pendingSettings = null;
+  _persistenceFailed = false;
+  for (const subscriber of persistenceSubscribers) subscriber(false);
+  return true;
 }
 
 export function subscribePersistence(fn: (failed: boolean) => void): () => void {

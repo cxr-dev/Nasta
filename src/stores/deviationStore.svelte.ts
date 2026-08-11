@@ -356,9 +356,23 @@ export function stopAutoRefresh() {
   }
 }
 
+export function clear() {
+  refreshGeneration += 1;
+  inFlightRequest = null;
+  _state = {
+    bySegmentId: new Map(),
+    stationAlerts: [],
+    lastUpdatedAt: 0,
+    isLoading: false,
+    usedCache: false,
+  };
+  notify();
+}
+
 export const deviationStore = {
   subscribe,
   refresh,
   startAutoRefresh,
   stopAutoRefresh,
+  clear,
 };

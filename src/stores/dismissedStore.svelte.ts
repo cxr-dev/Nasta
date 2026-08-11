@@ -79,10 +79,21 @@ function isMessageDismissed(text: string): boolean {
   return isDismissed(messageKey(text));
 }
 
+function clear(): void {
+  _dismissed = new Set();
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage failures
+  }
+  notify();
+}
+
 export const dismissedStore = {
   subscribe,
   dismiss,
   isDismissed,
   dismissMessage,
   isMessageDismissed,
+  clear,
 };

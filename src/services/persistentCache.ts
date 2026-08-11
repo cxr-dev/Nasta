@@ -181,5 +181,23 @@ export const persistentCache = {
     } catch {
       return Object.keys(inMemoryStore);
     }
+  },
+
+  async clearAll(): Promise<void> {
+    inMemoryStore = {};
+
+    if (typeof indexedDB === 'undefined') return;
+
+    try {
+      const db = await openDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction("cache", "readwrite");
+        const req = tx.objectStore("cache").clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      // In-memory state is already cleared; ignore unavailable IndexedDB.
+    }
   }
 };
