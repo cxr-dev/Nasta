@@ -259,6 +259,76 @@ test.describe("Departure skeleton loader", () => {
   });
 });
 
+test.describe("Station notice width", () => {
+  test("matches the page header width when collapsed and expanded", async ({ page }) => {
+    await page.route("**/*.integration.sl.se/**", mockSlApi);
+    await page.route("**/deviations.integration.sl.se/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            deviation_case_id: "station-info-width",
+            priority: { importance_level: 3, influence_level: 1, urgency_level: 1 },
+            message_variants: [{ language: "sv", header: "T-Centralen: Hiss avstängd" }],
+            scope: {
+              stop_areas: [{ id: "100", name: "T-Centralen" }],
+              lines: [{ id: "14", designation: "14", transport_mode: "METRO" }],
+            },
+          },
+        ]),
+      });
+    });
+
+    await page.addInitScript(() => {
+      localStorage.setItem("nasta_routes", JSON.stringify([
+        {
+          id: "station-info-width-route",
+          name: "Station info width",
+          segments: [{
+            id: "station-info-width-segment",
+            line: "14",
+            lineName: "14",
+            direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+            fromStop: { id: "from-1", name: "T-Centralen", siteId: "100" },
+            toStop: { id: "to-1", name: "Mörby centrum", siteId: "456" },
+            transportType: "metro",
+          }],
+        },
+      ]));
+    });
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+
+      const notice = page.locator(".notice-bar");
+      const header = page.locator(".page-chrome");
+      await expect(notice).toBeVisible({ timeout: 15000 });
+      await expect(header).toBeVisible();
+
+      const noticeBox = await notice.boundingBox();
+      const headerBox = await header.boundingBox();
+      expect(noticeBox).not.toBeNull();
+      expect(headerBox).not.toBeNull();
+      expect(Math.abs(noticeBox!.x - headerBox!.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(noticeBox!.width - headerBox!.width)).toBeLessThanOrEqual(1);
+
+      await notice.locator(".notice-row").click();
+      const panel = page.locator(".notice-panel");
+      await expect(panel).toBeVisible();
+      const panelBox = await panel.boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(Math.abs(panelBox!.x - (noticeBox!.x + 1))).toBeLessThanOrEqual(1);
+      expect(Math.abs(panelBox!.width - (noticeBox!.width - 2))).toBeLessThanOrEqual(1);
+      expect(await page.locator("body").evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    }
+  });
+});
+
 // ─────────────────────────────────────────────
 // 2. JOURNEY CARD
 // ─────────────────────────────────────────────

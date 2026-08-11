@@ -156,7 +156,8 @@
 
 <style>
   .notice-bar {
-    margin: 0 14px 8px;
+    width: 100%;
+    margin: 0 0 8px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--surface);
