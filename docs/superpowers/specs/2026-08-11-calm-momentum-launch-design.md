@@ -57,20 +57,23 @@ The implementation viewport is full-screen and square-cornered. Rounded phone ch
 | Light logo filter | `drop-shadow(0 10px 18px rgba(18,23,18,0.12))` |
 | Dark logo filter | `invert(1) brightness(1.12) drop-shadow(0 12px 20px rgba(0,0,0,0.26))` |
 | Wordmark | margin-top `14px`; Bricolage Grotesque 800; `72px/0.84`; letter-spacing `-0.05em` |
-| Loading row | margin-top `18px`; inline-flex; gap `8px`; DM Sans/system stack `12px`, weight 600 |
+| Loading row | margin-top `18px`; inline-flex; gap `8px`; DM Sans Launch `12px/1.2`, weight 600 |
 | Loading mark | `18px × 4px`; pill radius; 50% ink shuttle on soft track |
-| Route SVG | `position: absolute; inset: 0; width/height: 100%`; `viewBox="0 0 390 844"`; `preserveAspectRatio="xMidYMid slice"` |
+| Route SVG | `position: absolute; inset: 0; width/height: 100%`; `viewBox="0 0 390 844"`; `preserveAspectRatio="xMidYMid meet"` |
 | Base path | width `4px`; round cap; route-base token |
 | Active path | width `5px`; round cap; ink token |
 | Slussen halo/ring/core | center `(54,650)`; radii `16/9/3`; ring width `4px` |
 | T-Centralen halo/ring | center `(340,570)`; radii `16/9`; ring width `4px` |
+| Destination muted stroke | `color-mix(in srgb, var(--launch-ink) 38%, transparent)` |
 | Slussen label | SVG `(30,678)`; `9px` 700; letter-spacing `0.075em` |
 | T-Centralen label | SVG `(286,598)`; `9px` 700; letter-spacing `0.075em` |
 | Traveler halo/ring | radii `17/10`; ring width `4px` |
 | Traveler arrow | path `M-3 -4 L4 0 L-3 4 Z`; ink fill; automatic tangent rotation |
-| Bottom readout | left/right `34px`; bottom `calc(62px + env(safe-area-inset-bottom, 0px))`; grid columns `auto 1fr auto`; gap `12px`; padding-top `13px`; `1px` top rule |
-| Readout label | `9px` 700; letter-spacing `0.08em` |
-| Readout destination | `10px` 700; letter-spacing `0.025em` |
+| Traveler shadow | `drop-shadow(0 2px 4px rgba(0,0,0,0.18))` on the ring |
+| Bottom readout | left/right `34px`; bottom `calc(62px + var(--launch-safe-bottom))`; grid columns `auto 1fr auto`; gap `12px`; padding-top `13px`; `1px` top rule |
+| Readout separator | height `1px`; route-base token background |
+| Readout label | DM Sans Launch `9px/1.2` 700; letter-spacing `0.08em` |
+| Readout destination | DM Sans Launch `10px/1.2` 700; letter-spacing `0.025em` |
 
 The visible strings are exactly:
 
@@ -121,29 +124,42 @@ No visible content depends on an animation firing or completing.
 
 ## Font and Asset Contract
 
-The approved wordmark uses a checked-in, OFL-licensed file:
+The approved typography uses two checked-in, OFL-licensed files:
 
 `public/fonts/bricolage-grotesque-latin-800.woff2`
+
+`public/fonts/dm-sans-latin-500-700.woff2`
 
 Declare it before launch styles:
 
 ```css
 @font-face {
   font-family: "Bricolage Grotesque Launch";
-  src: url("./fonts/bricolage-grotesque-latin-800.woff2") format("woff2");
+  src: url("%BASE_URL%fonts/bricolage-grotesque-latin-800.woff2") format("woff2");
   font-style: normal;
   font-weight: 800;
-  font-display: block;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DM Sans Launch";
+  src: url("%BASE_URL%fonts/dm-sans-latin-500-700.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
 }
 ```
 
-The wordmark uses `"Bricolage Grotesque Launch", "Arial Black", sans-serif`. Preload the WOFF2 with `as="font" type="font/woff2" crossorigin` and preload `./logosvg.svg`. Relative `./` paths are mandatory because they resolve under both `/` in development and `/Nasta/` in production.
+The wordmark uses `"Bricolage Grotesque Launch", "Arial Black", sans-serif`. Secondary launch text uses `"DM Sans Launch", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`. The system fallback is deliberately reserved and shares the declared line height so the layout does not collapse before the preloaded faces resolve. `font-display: swap` keeps every string visible during a slow first load; the capture contract waits for the exact faces before judging pixel fidelity.
 
-The production build and PWA manifest must contain both assets. A warm-installed offline check must prove:
+Preload both WOFF2 files with `as="font" type="font/woff2" crossorigin`, preload `%BASE_URL%logosvg.svg`, and use `%BASE_URL%logosvg.svg` as the launch image source. Every launch asset reference in `index.html` uses `%BASE_URL%`, which Vite resolves to `/` in development and `/Nasta/` in production.
+
+The production build and Workbox/service-worker precache manifest must contain all three assets. A warm-installed offline check in a separate Playwright context with service workers explicitly allowed must prove:
 
 - the logo request under `/Nasta/` succeeds and `img.decode()` resolves;
-- the font request under `/Nasta/` succeeds;
+- both font requests under `/Nasta/` succeed;
 - `document.fonts.check('800 72px "Bricolage Grotesque Launch"')` is true;
+- `document.fonts.check('600 12px "DM Sans Launch"')` is true;
 - launch typography makes no remote request.
 
 The existing remote Fontshare stylesheet may continue serving the application, but the launch wordmark cannot depend on it.
@@ -152,14 +168,15 @@ The existing remote Fontshare stylesheet may continue serving the application, b
 
 The 390 × 844 composition is normative for portrait heights of at least `700px`.
 
-- Logo width is `min(57vw, 222.3px)` and never comes within `16px` of a side inset.
-- Identity top is `max(19.5svh, calc(env(safe-area-inset-top, 0px) + 16px))`.
-- Bottom readout is at least `28px` above `env(safe-area-inset-bottom)`.
+- Define `--launch-safe-top: env(safe-area-inset-top, 0px)`, `--launch-safe-right`, `--launch-safe-bottom`, and `--launch-safe-left` on the veil. Tests override these variables to emulate non-zero insets.
+- Logo width is `min(57vw, 222.3px)` and never comes within `16px` of the left/right safe variables.
+- Identity top is `max(19.5svh, calc(var(--launch-safe-top) + 16px))`.
+- Bottom readout is at least `28px` above `var(--launch-safe-bottom)`.
 - The route may crop beyond the left and right edges; both station circles and labels remain visible.
-- At `max-height: 699px` in portrait, cap the logo at `168px`, use a `56px` wordmark, move the identity top to `max(12svh, safe-top + 16px)`, translate the route upward by `72px`, and place the readout `16px + safe-bottom` from the bottom.
-- In landscape (`orientation: landscape` and `max-height: 520px`), cap the logo at `128px`, use a `46px` wordmark, position the identity at `safe-top + 16px`, hide station labels and the bottom readout, and retain the base path plus static/animated traveler without overlap.
+- At `max-height: 699px` in portrait, cap the logo at `168px`, use a `56px` wordmark, move the identity top to `max(12svh, var(--launch-safe-top) + 16px)`, translate the route upward by `72px`, and place the readout `28px + var(--launch-safe-bottom)` from the bottom.
+- In landscape (`orientation: landscape` and `max-height: 520px`), use a split composition. The identity occupies the left half, with logo capped at `128px`, `46px` wordmark, and top `var(--launch-safe-top) + 16px`. The route SVG occupies the right half at `195px × 422px`, vertically centered, with `preserveAspectRatio="xMidYMid meet"`; hide station labels and the readout. This explicit SVG window retains the base path and traveler without the portrait artboard being cropped offscreen or crossing the identity.
 
-Evidence must include 390 × 844, 579 × 1250, 390 × 664, and 844 × 390 viewports. Browser emulation with injected inset test variables proves the CSS fallback contract; a physical iOS standalone-PWA pass is still required to validate real `env(safe-area-inset-*)` behavior.
+Evidence must include 390 × 844, 579 × 1250, 390 × 664, and 844 × 390 viewports. Browser emulation with injected safe variables proves the CSS fallback contract. A physical iOS standalone-PWA pass is required to validate real `env(safe-area-inset-*)` behavior before validation is complete.
 
 ## Service Worker Constraint
 
@@ -171,7 +188,7 @@ Create or use a Playwright capture harness that prevents the application module 
 
 1. Wait for `document.fonts.ready` and `img.decode()`.
 2. Freeze launch animations at 0% and 68% with negative delays plus `animation-play-state: paused`.
-3. Capture light and dark at 390 × 844 and DPR 1; compare bounding boxes against the normative table with ±1 CSS-pixel tolerance.
+3. Capture frozen light and dark states at 390 × 844 at DPR 1, DPR 2, and DPR 3; compare CSS-pixel bounding boxes against the normative table with ±1 CSS-pixel tolerance and inspect raster crispness at each DPR.
 4. Capture 579 × 1250, 390 × 664, and 844 × 390 in both themes to prove responsive rules and non-overlap.
 5. Capture reduced motion and assert the exact terminal computed styles.
 6. Assert the normalized SVG path, station coordinates, radii, labels, and traveler arrow directly from the DOM.
@@ -179,4 +196,4 @@ Create or use a Playwright capture harness that prevents the application module 
 8. Run type checking, unit tests, production build, and `verify:build`.
 9. Inspect the production precache and warm-installed offline network log for the local logo and font contract.
 
-Implementation is complete only when the automated evidence passes, rendered light/dark captures match the approved v3 composition, and the remaining physical iOS standalone check is explicitly reported as passed or outstanding.
+Implementation and validation are complete only when the automated evidence passes, rendered light/dark captures match the approved v3 composition, and the physical iOS standalone check has passed. If that physical check has not run, implementation may be code-complete but validation remains incomplete.
