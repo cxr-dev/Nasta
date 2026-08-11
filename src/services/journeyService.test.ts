@@ -146,4 +146,35 @@ describe('journey connection parsing', () => {
       expect.objectContaining({ beforeLegIndex: 2, kind: 'walk', durationMin: 3 }),
     ]));
   });
+
+  it('keeps the fastest results first and appends a distinct direct alternative', async () => {
+    const transit = (line: string, from: string, to: string, departure: string, arrival: string) => ({
+      duration: 600,
+      transportation: { name: `Buss ${line}`, disassembledName: line, product: { name: 'BUS', class: 5 } },
+      origin: { name: from, disassembledName: from, departureTimePlanned: departure },
+      destination: { name: to, disassembledName: to, arrivalTimePlanned: arrival },
+      direction: 1,
+      directionName: 'Centrum',
+    });
+    const fastest = {
+      journeys: [{ legs: [
+        transit('1', 'Start', 'Byte', '2026-08-06T10:00:00', '2026-08-06T10:10:00'),
+        transit('2', 'Byte', 'Mål', '2026-08-06T10:12:00', '2026-08-06T10:22:00'),
+      ] }],
+    };
+    const direct = {
+      journeys: [{ legs: [
+        transit('6', 'Drevergatan', 'Odenplan', '2026-08-06T10:05:00', '2026-08-06T10:30:00'),
+      ] }],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(
+      new URL(url).searchParams.get('max_changes') === '0' ? direct : fastest,
+    ), { status: 200 })) as any);
+
+    const journeys = await searchJourneys({ origin: 'Home', dest: 'Work', originCoord: [59.33, 18.06], destCoord: [59.34, 18.07] });
+
+    expect(journeys).toHaveLength(2);
+    expect(journeys.map((journey) => journey.transfers)).toEqual([1, 0]);
+    expect(journeys.at(-1)?.legs[0].originName).toBe('Drevergatan');
+  });
 });

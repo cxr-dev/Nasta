@@ -62,6 +62,7 @@ async function openApp(page: Page) {
           mock: {
             type: "vector",
             tiles: ["/mock-tiles/{z}/{x}/{y}.pbf"],
+            attribution: "© CARTO, © OpenStreetMap contributors",
           },
         },
         layers: [
@@ -171,5 +172,33 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
   await tileRequest;
 
   await expect(page.locator("canvas.maplibregl-canvas")).toBeAttached();
+  const attribution = page.locator(".maplibregl-ctrl-attrib");
+  await expect(attribution).toBeVisible();
+  await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
+  await page.screenshot({
+    path: "test-results/map-preview-mobile.png",
+    fullPage: true,
+  });
+  await attribution.locator(".maplibregl-ctrl-attrib-button").click();
+  await expect(attribution).toHaveClass(/maplibregl-compact-show/);
   expect(pageErrors).toEqual([]);
+});
+
+test("keeps route stops and map in one vertical reading flow at desktop width", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 844 });
+  await openApp(page);
+  await page.locator(".card-main").first().click();
+
+  const expandedActions = page.locator(".departure-card .expanded-actions");
+  const routeStops = expandedActions.locator("> .route-stops");
+  const mapSection = expandedActions.locator("> .map-preview");
+  await expect(expandedActions).toHaveCSS("display", "flex");
+  await expect(expandedActions).toHaveCSS("flex-direction", "column");
+  await expect(routeStops).toBeVisible();
+  await expect(mapSection).toBeVisible();
+  await expect(routeStops.locator(".stop-list li").first()).toBeVisible();
+  await page.screenshot({
+    path: "test-results/map-preview-wide-single-column.png",
+    fullPage: true,
+  });
 });

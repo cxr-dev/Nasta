@@ -162,4 +162,43 @@ describe('JourneySearch', () => {
       routeType: 'leastwalking',
     }));
   });
+
+  it('makes a direct result actionable before its details are opened', async () => {
+    const now = 1_700_000_000_000;
+    mockSearchJourneys.mockResolvedValue([{
+      id: 'direct-6',
+      originLabel: 'Bobergsgatan',
+      destLabel: 'Tegnerlunden 6',
+      totalDurationMin: 26,
+      departureTime: now + 60_000,
+      arrivalTime: now + 27 * 60_000,
+      transfers: 0,
+      connections: [
+        { beforeLegIndex: 0, kind: 'walk', durationMin: 1, walkDistanceMeters: 80, originName: 'Bobergsgatan', destName: 'Drevergatan' },
+        { beforeLegIndex: 1, kind: 'walk', durationMin: 11, walkDistanceMeters: 700, originName: 'Odenplan', destName: 'Tegnerlunden 6' },
+      ],
+      legs: [{
+        originName: 'Drevergatan',
+        destName: 'Odenplan',
+        transportType: 'bus',
+        line: '6',
+        lineName: '6',
+        directionCode: 1,
+        directionName: 'Karolinska institutet',
+        departureTime: now + 60_000,
+        arrivalTime: now + 16 * 60_000,
+        durationMin: 15,
+        platformPosition: 'middle',
+      }],
+    }]);
+    const { getByLabelText, getByRole, container } = render(JourneySearch);
+
+    await fireEvent.input(getByLabelText('från'), { target: { value: 'Bobergsgatan' } });
+    await fireEvent.input(getByLabelText('Till'), { target: { value: 'Tegnerlunden 6' } });
+    await fireEvent.click(getByRole('button', { name: 'Hitta resa' }));
+
+    await waitFor(() => expect(container.querySelector('.result-card')?.textContent).toContain('Direkt · Inga byten'));
+    expect(container.querySelector('.result-card')?.textContent).toContain('Gå 1m · 80 m till Drevergatan');
+    expect(container.querySelector('.result-card')?.textContent).toContain('På Drevergatan → Gå av vid Odenplan');
+  });
 });

@@ -274,6 +274,11 @@ const sv = {
   journeyBestPosition: "Bäst plats i tåget",
   journeyViaStops: "Via",
   journeyMoreStops: "hållplatser",
+  journeyWalkTo: "Gå {duration} · {distance} till {stop}",
+  journeyBoardAt: "På {stop}",
+  journeyGetOffAt: "Gå av vid {stop}",
+  journeyTowards: "mot {destination}",
+  journeyNoTransfers: "Inga byten",
 
   // No departures
   noDeparturesAvailable: "Inga avgångar hittades",
@@ -724,6 +729,11 @@ const en: typeof sv = {
   journeyBestPosition: "Best place on the train",
   journeyViaStops: "Via",
   journeyMoreStops: "stops",
+  journeyWalkTo: "Walk {duration} · {distance} to {stop}",
+  journeyBoardAt: "Board at {stop}",
+  journeyGetOffAt: "Get off at {stop}",
+  journeyTowards: "toward {destination}",
+  journeyNoTransfers: "No transfers",
 
   // No departures
   noDeparturesAvailable: "No departures found",

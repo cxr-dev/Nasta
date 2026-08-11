@@ -38,6 +38,8 @@
     weatherSymbol = null,
     ontoggle,
     onprefetch,
+    showAllStops = false,
+    onShowAllStopsChange,
     groupingMode,
     onLongPress,
     onMoreActions,
@@ -68,6 +70,8 @@
     weatherSymbol?: string | null;
     ontoggle?: () => void;
     onprefetch?: () => void;
+    showAllStops?: boolean;
+    onShowAllStopsChange?: (showAll: boolean) => void;
     groupingMode?: string;
     onLongPress?: (trigger?: HTMLElement) => void;
     onMoreActions?: (trigger: HTMLElement) => void;
@@ -348,6 +352,30 @@
     {/if}
   </button>
 
+  {#if isExpanded}
+    <div class="card-controls" role="group" aria-label={t.cardControls ?? 'Card actions'}>
+      <button
+        type="button"
+        class="inline-action share-inline"
+        aria-label={t.shareDeparture ?? 'Share departure'}
+        onpointerdown={(event) => event.stopPropagation()}
+        onclick={(event) => { event.stopPropagation(); onShare?.(); }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
+      </button>
+      <button
+        type="button"
+        class="inline-action more-inline"
+        aria-label={moreActionsLabel ?? `${t.moreActions ?? 'More actions'} for ${segment.line}`}
+        onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" />
+        </svg>
+      </button>
+    </div>
+  {/if}
+
   {#if siteDevs.length > 0}
     <div
       class="disrupt-strip"
@@ -402,43 +430,21 @@
     </div>
   {/if}
 
-  {#if isExpanded || collapsing}
-    <div class="card-secondary-actions">
-      <button
-        type="button"
-        class="share-button"
-        aria-label={t.shareDeparture ?? 'Share departure'}
-        onpointerdown={(event) => event.stopPropagation()}
-        onclick={(event) => { event.stopPropagation(); onShare?.(); }}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
-      </button>
-      <button
-        type="button"
-        class="more-actions-button"
-        aria-label={moreActionsLabel ?? `${t.moreActions ?? 'More actions'} for ${segment.line}`}
-        onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" />
-        </svg>
-      </button>
-    </div>
-  {/if}
+  <!-- toolbar moved inside expanded panel to avoid overlapping collapsed content -->
 
   {#if isExpanded || collapsing}
     <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
-      <div class="expanded-actions">
-        <RouteStopsPreview {segment} />
-        <MapPreview
-          {segment}
-          {userLocation}
-          {locationRequestInFlight}
-          {walkingEtaEnabled}
-          {openFeatureSheet}
-          {t}
-        />
-      </div>
+        <div class="expanded-actions">
+          <RouteStopsPreview {segment} showAll={showAllStops} onShowAllChange={onShowAllStopsChange} />
+          <MapPreview
+            {segment}
+            {userLocation}
+            {locationRequestInFlight}
+            {walkingEtaEnabled}
+            {openFeatureSheet}
+            {t}
+          />
+        </div>
     </div>
   {/if}
 </div>
@@ -450,6 +456,7 @@
     border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--surface);
+    position: relative;
     border: 1px solid var(--border);
     user-select: none;
     -webkit-user-select: none;
@@ -856,64 +863,45 @@
   .expanded-panel.collapsing {
     pointer-events: none;
   }
-  .card-secondary-actions {
+  .inline-action {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+  }
+  .inline-action:hover,
+  .inline-action:focus-visible {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .expanded-panel {
+    overflow: hidden;
+    position: relative;
+  }
+  .card-controls {
     display: flex;
-    align-items: center;
     justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
     min-height: 48px;
-    padding: 2px 8px 0;
-    border-top: 1px solid var(--border);
-  }
-  .more-actions-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font: inherit;
-    font-size: 18px;
-    letter-spacing: 2px;
-  }
-  .more-actions-button:hover,
-  .more-actions-button:focus-visible {
-    background: var(--accent-subtle);
-    color: var(--accent);
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
-  .share-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
-    margin-right: auto;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font: inherit;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .share-button:hover,
-  .share-button:focus-visible {
-    background: var(--accent-subtle);
-    color: var(--accent);
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    padding: 0 var(--transit-card-padding-inline) 4px;
+    box-sizing: border-box;
   }
   .expanded-panel > .expanded-actions {
-    padding: 0 var(--transit-card-padding-inline) var(--transit-card-padding-inline);
-  }
-  .expanded-actions {
-    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+    padding: 10px var(--transit-card-padding-inline) 14px;
   }
 
   /* ── Tablet: larger type for distance viewing ── */

@@ -70,14 +70,36 @@ describe('JourneyCard unified action seam', () => {
     expect(container.textContent).toContain('4 min');
   });
 
-  it('folds a facility transfer into the final walking interval', () => {
+  it('keeps a facility transfer separate from the walk that follows it', () => {
     const { container } = render(JourneyCard, {
       props: { journeyMeta: { ...meta(), connections: [{ beforeLegIndex: 1, kind: 'transfer', durationMin: 3 }, { beforeLegIndex: 1, kind: 'walk', durationMin: 8, walkDistanceMeters: 727 }] }, isExpanded: true, now: 1_700_000_000_000 },
     });
-    expect(container.querySelectorAll('.connection-row')).toHaveLength(1);
-    expect(container.textContent).toContain('11 min');
+    expect(container.querySelectorAll('.connection-row')).toHaveLength(2);
+    expect(container.textContent).toContain('8 min');
     expect(container.textContent).toContain('727 m');
-    expect(container.textContent).not.toContain('byte · 3 min');
+    expect(container.textContent).toContain('3 min');
+  });
+
+  it('keeps searched addresses out of vehicle stop instructions', () => {
+    const journey = {
+      ...meta(),
+      originLabel: 'Bobergsgatan',
+      destLabel: 'Tegnerlunden 6',
+      legs: [{ ...leg, originName: 'Drevergatan', destName: 'Odenplan' }],
+      connections: [
+        { beforeLegIndex: 0, kind: 'walk' as const, durationMin: 1, walkDistanceMeters: 80, originName: 'Bobergsgatan', destName: 'Drevergatan' },
+        { beforeLegIndex: 1, kind: 'walk' as const, durationMin: 7, walkDistanceMeters: 500, originName: 'Odenplan', destName: 'Tegnerlunden 6' },
+      ],
+    };
+    const { container } = render(JourneyCard, {
+      props: { journeyMeta: journey, isExpanded: true, now: 1_700_000_000_000 },
+    });
+
+    expect(container.querySelectorAll('.connection-row')).toHaveLength(2);
+    expect(container.querySelector('.leg-route')?.textContent).toContain('Drevergatan');
+    expect(container.querySelector('.leg-route')?.textContent).toContain('Odenplan');
+    expect(container.querySelector('.leg-route')?.textContent).not.toContain('Bobergsgatan');
+    expect(container.textContent).toContain('80 m');
   });
 
   it('emits start for a planned journey', async () => {

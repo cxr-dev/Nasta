@@ -335,6 +335,23 @@ function connectionForLeg(
   };
 }
 
+async function fetchTripJourneys(params: URLSearchParams, signal?: AbortSignal): Promise<TripJourney[]> {
+  try {
+    const res = await fetch(`${TRIP_URL}?${params.toString()}`, { signal });
+    if (!res.ok) return [];
+    const data = (await res.json()) as TripData;
+    return Array.isArray(data.journeys) ? data.journeys : [];
+  } catch {
+    return [];
+  }
+}
+
+function journeyFingerprint(journey: Journey): string {
+  return journey.legs
+    .map((leg) => `${leg.line}|${leg.originName}|${leg.destName}|${leg.departureTime}|${leg.arrivalTime}`)
+    .join('>');
+}
+
 // --- Main ---
 
 /**
@@ -361,7 +378,6 @@ export async function searchJourneys(
   }
 
   // Build trip URL: coordinate-based or stop ID-based
-  let tripUrl: string;
   const params = new URLSearchParams();
   if (oCoord && dCoord) {
     // Coordinate-based: no stop-finder needed
@@ -384,28 +400,29 @@ export async function searchJourneys(
 
   params.set('calc_number_of_trips', '3');
   appendJourneyOptions(params, req);
-  tripUrl = `${TRIP_URL}?${params.toString()}`;
 
-  // Fetch trip options
-  let tripData: TripData;
-  try {
-    const res = await fetch(tripUrl, { signal });
-    if (!res.ok) return [];
-    tripData = (await res.json()) as TripData;
-  } catch {
-    return [];
-  }
+  const routeType = req.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE;
+  const wantsDirectAlternative = routeType === 'leasttime' && req.maxChanges !== 0;
+  const directParams = new URLSearchParams(params);
+  directParams.set('calc_number_of_trips', '1');
+  directParams.set('max_changes', '0');
+  directParams.set('route_type', 'leastinterchange');
 
-  const journeys = Array.isArray(tripData.journeys)
-    ? tripData.journeys
-    : [];
-  if (journeys.length === 0) return [];
+  const [fastestJourneys, directJourneys] = await Promise.all([
+    fetchTripJourneys(params, signal),
+    wantsDirectAlternative ? fetchTripJourneys(directParams, signal) : Promise.resolve([]),
+  ]);
+  if (fastestJourneys.length === 0 && directJourneys.length === 0) return [];
 
   // Parse into Journey objects
   const results: Journey[] = [];
+  const directJourneyIds = new Set<string>();
 
-  for (let ji = 0; ji < journeys.length; ji++) {
-    const raw = journeys[ji];
+  const rawJourneys = [
+    ...fastestJourneys.map((raw) => ({ raw, isDirectAlternative: false })),
+    ...directJourneys.map((raw) => ({ raw, isDirectAlternative: true })),
+  ];
+  for (const { raw, isDirectAlternative } of rawJourneys) {
     const rawLegs = Array.isArray(raw.legs) ? raw.legs : [];
 
     const legs: JourneyLeg[] = [];
@@ -502,7 +519,7 @@ export async function searchJourneys(
     const transfers = Math.max(0, legs.length - 1);
     const totalDuration = Math.max(1, Math.ceil((lastArrival - firstDeparture) / 60_000));
 
-    results.push({
+    const parsedJourney: Journey = {
       id: `journey-${crypto.randomUUID()}`,
       originLabel: origin,
       destLabel: dest,
@@ -524,10 +541,23 @@ export async function searchJourneys(
         maxChanges: req.maxChanges,
         routeType: req.routeType,
       },
-    });
+    };
+    results.push(parsedJourney);
+    if (isDirectAlternative) directJourneyIds.add(parsedJourney.id);
   }
 
-  return prioritizeJourneys(results, req.routeType ?? DEFAULT_JOURNEY_ROUTE_TYPE);
+  if (!wantsDirectAlternative) return prioritizeJourneys(results, routeType);
+
+  const fastestResults = results.filter((journey) => !directJourneyIds.has(journey.id));
+  const directAlternative = prioritizeJourneys(
+    results.filter((journey) => directJourneyIds.has(journey.id) && journey.transfers === 0),
+    'leastinterchange',
+  )[0];
+  const prioritizedFastest = prioritizeJourneys(fastestResults, routeType);
+  if (!directAlternative || prioritizedFastest.some((journey) => journeyFingerprint(journey) === journeyFingerprint(directAlternative))) {
+    return prioritizedFastest;
+  }
+  return [...prioritizedFastest, directAlternative];
 }
 
 function compareJourneyFallback(a: Journey, b: Journey): number {

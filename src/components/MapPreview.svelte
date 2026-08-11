@@ -72,7 +72,7 @@
       container: div,
       style: MAP_STYLE,
       center,
-      zoom: 14.5,
+      zoom: 15.5,
       attributionControl: false,
       dragPan: true,
       scrollZoom: true,
@@ -83,9 +83,22 @@
     });
 
     mapInstance.addControl(new mgl.AttributionControl({ compact: true }), "bottom-right");
+    let attributionClosed = false;
+    const closeInitialAttribution = () => {
+      if (attributionClosed) return;
+      const container = mapInstance.getContainer?.();
+      const attribution = container?.querySelector('.maplibregl-ctrl-attrib');
+      if (!attribution) return;
+      attribution.classList.remove('maplibregl-compact-show');
+      if (attribution instanceof HTMLDetailsElement) attribution.open = false;
+      attributionClosed = attribution.classList.contains('maplibregl-compact');
+    };
+    mapInstance.on('styledata', closeInitialAttribution);
+    mapInstance.on('sourcedata', closeInitialAttribution);
     mapInstance.touchZoomRotate?.disableRotation();
 
     mapInstance.on("load", () => {
+      closeInitialAttribution();
       new mgl.Marker({ color: "#FF4757" }).setLngLat(center).addTo(mapInstance);
       if (loc) {
         new mgl.Marker({ color: "#2f80ed" }).setLngLat(loc).addTo(mapInstance);
@@ -220,7 +233,7 @@
   {@const dist = userLocation ? getMemoizedDistance(segment.fromStop.siteId, segment.fromStop.coord[0], segment.fromStop.coord[1], userLocation[0], userLocation[1]) : null}
   {@const stopLat = segment.fromStop.coord[0]}
   {@const stopLon = segment.fromStop.coord[1]}
-  <section class="journey-card">
+  <section class="map-preview">
     <div class="journey-map-shell">
       <div class="journey-map-label">
         <span>{t.stopLocation ?? 'Stop location'}</span>
@@ -304,20 +317,16 @@
 {/if}
 
 <style>
-  .journey-card {
+  .map-preview {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 16px 0 6px;
+    gap: 12px;
+    padding: 2px 0 4px;
   }
   .journey-map-shell {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 22px;
-    background: var(--surface);
+    gap: 8px;
   }
   .journey-map-label {
     display: flex;
@@ -334,7 +343,7 @@
   }
   .mini-map {
     width: 100%;
-    height: 120px;
+    height: 132px;
     display: block;
     border-radius: 12px;
     overflow: hidden;
@@ -352,6 +361,7 @@
     justify-content: center;
     gap: 8px; 
     padding: 10px 12px; 
+    min-height: 44px;
     font-size: 13px; 
     font-weight: 700;
     border-radius: 12px;

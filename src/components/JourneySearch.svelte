@@ -4,7 +4,6 @@
   import { DEFAULT_JOURNEY_ROUTE_TYPE, searchJourneys, searchLocations } from '../services/journeyService';
   import { getT } from '../stores/localeStore.svelte';
   import TransportIcon from './TransportIcon.svelte';
-  import TrainPosition from './TrainPosition.svelte';
   import JourneyCard from './JourneyCard.svelte';
   import { arrowDownUp, chevronDown } from '../icons/departureIcons';
   import gsap from 'gsap';
@@ -119,6 +118,48 @@
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  function formatDistance(distance: number | undefined): string {
+    if (!distance) return '';
+    return distance >= 1000 ? `${(distance / 1000).toFixed(1)} km` : `${distance} m`;
+  }
+
+  function connectionsBefore(journey: Journey, index: number) {
+    return journey.connections?.filter((connection) => connection.beforeLegIndex === index) ?? [];
+  }
+
+  function walkInstruction(durationMin: number, distanceMeters: number | undefined, stop: string | undefined): string {
+    const template = t.journeyWalkTo ?? 'Walk {duration} · {distance} to {stop}';
+    const distance = formatDistance(distanceMeters);
+    return template
+      .replace(distance ? '{distance}' : ' · {distance}', distance)
+      .replace('{duration}', formatDuration(durationMin))
+      .replace('{stop}', stop ?? '');
+  }
+
+  function connectionInstruction(connection: ReturnType<typeof connectionsBefore>[number]): string {
+    if (connection.kind === 'walk') {
+      return walkInstruction(connection.walkDurationMin ?? connection.durationMin, connection.walkDistanceMeters, connection.destName);
+    }
+    return `${t.transfer ?? 'Transfer'}${connection.durationMin > 0 ? ` · ${formatDuration(connection.durationMin)}` : ''}${connection.destName ? ` · ${connection.destName}` : ''}`;
+  }
+
+  function boardAt(stop: string): string {
+    return (t.journeyBoardAt ?? 'Board at {stop}').replace('{stop}', stop);
+  }
+
+  function getOffAt(stop: string): string {
+    return (t.journeyGetOffAt ?? 'Get off at {stop}').replace('{stop}', stop);
+  }
+
+  function towards(destination: string): string {
+    return (t.journeyTowards ?? 'toward {destination}').replace('{destination}', destination);
+  }
+
+  function transferSummary(journey: Journey): string {
+    if (journey.transfers === 0) return `${t.journeyDirect ?? 'Direct'} · ${t.journeyNoTransfers ?? 'No transfers'}`;
+    return `${journey.transfers} ${journey.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`;
   }
 
   function localDateValue(date = new Date()): string {
@@ -647,24 +688,24 @@
           <div class="result-time">
             {formatTime(journey.departureTime)} – {formatTime(journey.arrivalTime)}
           </div>
-          <div class="result-legs">
+          <div class="result-instructions">
             {#each journey.legs as leg, i (`${leg.departureTime}-${leg.line}-${leg.originSiteId ?? leg.originName}`)}
-              {#if i > 0}
-                <span class="leg-sep">→</span>
-              {/if}
-              <span class="leg-chip">
-                <TransportIcon type={leg.transportType} size={11} />
-                {leg.lineName}
+              {#each connectionsBefore(journey, i) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
+                <span class="result-connection" class:walk={connection.kind === 'walk'}>{connectionInstruction(connection)}</span>
+              {/each}
+              <span class="result-ride">
+                <TransportIcon type={leg.transportType} size={12} />
+                <strong>{leg.lineName}</strong>
+                <span>{towards(leg.directionName)}</span>
               </span>
+              <span class="result-stops">{boardAt(leg.originName)} → {getOffAt(leg.destName)}</span>
+            {/each}
+            {#each connectionsBefore(journey, journey.legs.length) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
+              <span class="result-connection" class:walk={connection.kind === 'walk'}>{connectionInstruction(connection)}</span>
             {/each}
           </div>
-          <div class="result-pos">
-            {#if journey.legs[0]}
-              <TrainPosition position={journey.legs[0].platformPosition} />
-            {/if}
-            {#if journey.transfers > 0}
-              <span class="transfer-note">{journey.transfers} transfer{journey.transfers > 1 ? 's' : ''}</span>
-            {/if}
+          <div class="result-status" class:direct={journey.transfers === 0}>
+            {transferSummary(journey)}
           </div>
         </button>
         {#if previewJourneyId === journey.id}
@@ -1262,41 +1303,45 @@
     margin-bottom: 6px;
   }
 
-  .result-legs {
+  .result-instructions {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 3px;
     margin-bottom: 6px;
   }
 
-  .leg-sep {
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
-  .leg-chip {
+  .result-ride {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 5px;
     font-size: 11px;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: var(--radius-full, 999px);
-    background: var(--accent-subtle);
-    color: var(--accent);
+    color: var(--text);
   }
 
-  .result-pos {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .result-ride > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .transfer-note {
+  .result-stops,
+  .result-connection {
     font-size: 11px;
     color: var(--text-muted);
   }
+
+  .result-connection.walk { color: var(--text-secondary); }
+
+  .result-status {
+    display: inline-flex;
+    width: fit-content;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .result-status.direct { color: var(--accent); }
 
   /* Step progress */
   .step-progress {

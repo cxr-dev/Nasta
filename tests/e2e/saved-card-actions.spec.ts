@@ -117,7 +117,41 @@ async function prepare(
   await expect(page.locator(".departure-card")).toBeVisible({ timeout: 15000 });
 }
 
+async function expectJourneyActionsOnRight(page: Page) {
+  const card = page.locator(".journey-card");
+  await card.locator(".card-main").click();
+
+  const share = card.getByRole("button", { name: "Share journey" });
+  const more = card.getByRole("button", { name: /more actions/i });
+  await expect(share).toBeVisible();
+  await expect(more).toBeVisible();
+
+  const [cardBox, shareBox, moreBox] = await Promise.all([
+    card.boundingBox(),
+    share.boundingBox(),
+    more.boundingBox(),
+  ]);
+  expect(cardBox).not.toBeNull();
+  expect(shareBox).not.toBeNull();
+  expect(moreBox).not.toBeNull();
+
+  const cardRight = cardBox!.x + cardBox!.width;
+  expect(shareBox!.x).toBeGreaterThanOrEqual(cardBox!.x + cardBox!.width / 2);
+  expect(moreBox!.x).toBeGreaterThan(shareBox!.x);
+  expect(moreBox!.x + moreBox!.width).toBeLessThanOrEqual(cardRight + 1);
+}
+
 test.describe("saved card contextual actions", () => {
+  for (const [name, viewport] of [
+    ["phone", { width: 390, height: 844 }],
+    ["tablet", { width: 768, height: 1024 }],
+  ] as const) {
+    test(`keeps journey Share and More grouped on the right at ${name} size`, async ({ page }) => {
+      await prepare(page, viewport);
+      await expectJourneyActionsOnRight(page);
+    });
+  }
+
   test("uses a content-height mobile surface and clear departure identity", async ({
     page,
   }) => {
@@ -127,7 +161,18 @@ test.describe("saved card contextual actions", () => {
       path: "test-results/saved-card-mobile-expanded-departure.png",
       fullPage: true,
     });
-    await page.locator(".departure-card .more-actions-button").click();
+    const departureCard = page.locator(".departure-card");
+    const share = departureCard.getByRole("button", { name: "Share departure" });
+    const more = departureCard.getByRole("button", { name: /more actions/i });
+    await expect(share).toBeVisible();
+    await expect(more).toBeVisible();
+    const shareBox = await share.boundingBox();
+    const moreBox = await more.boundingBox();
+    expect(shareBox?.width).toBeGreaterThanOrEqual(44);
+    expect(shareBox?.height).toBeGreaterThanOrEqual(44);
+    expect(moreBox?.width).toBeGreaterThanOrEqual(44);
+    expect(moreBox?.height).toBeGreaterThanOrEqual(44);
+    await more.click();
     const sheet = page.locator(".sheet.saved-card-actions-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet.locator(".action-context")).toContainText("Line 6");
@@ -151,7 +196,7 @@ test.describe("saved card contextual actions", () => {
       path: "test-results/saved-card-tablet-expanded-departure.png",
       fullPage: true,
     });
-    await page.locator(".departure-card .more-actions-button").click();
+    await page.locator(".departure-card").getByRole("button", { name: /more actions/i }).click();
     await expect(page.locator(".sheet.saved-card-actions-sheet")).toBeVisible();
     await page.keyboard.press("Escape");
     await page.locator(".journey-card .card-main").click();
@@ -215,8 +260,9 @@ test.describe("saved card contextual actions", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(card).toBeVisible();
     await card.locator(".card-main").click();
-    await expect(card.locator(".more-actions-button")).toBeVisible();
-    await card.locator(".more-actions-button").click();
+    const more = card.getByRole("button", { name: /more actions/i });
+    await expect(more).toBeVisible();
+    await more.click();
     const moreActions = await sheet.locator(".action-button").allTextContents();
     expect(longPressActions).toEqual(moreActions);
   });
@@ -282,7 +328,7 @@ test.describe("saved card safe-area PWA simulation", () => {
         ":root { --safe-area-inset-top: 47px; --safe-area-inset-bottom: 34px; }",
     });
     await page.locator(".departure-card .card-main").click();
-    await page.locator(".departure-card .more-actions-button").click();
+    await page.locator(".departure-card").getByRole("button", { name: /more actions/i }).click();
     const sheet = page.locator(".sheet.saved-card-actions-sheet");
     await expect(sheet).toBeVisible();
     await assertLastActionReachable(sheet, "Remove departure");

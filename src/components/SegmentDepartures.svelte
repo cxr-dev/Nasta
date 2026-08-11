@@ -76,6 +76,7 @@
   let now = $state(Date.now());
   let expandedSegmentId = $state<string | null>(null);
   let expandedPageId = $state<string | null>(null);
+  let expandedStopLists = $state<Set<string>>(new Set());
   let isLoading = $state(false);
   let userLocation = $state<[number, number] | null>(null);
   let locationRequestInFlight = $state(false);
@@ -147,6 +148,7 @@
     const nextPageId = page.id;
     if (expandedPageId !== null && expandedPageId !== nextPageId) {
       expandedSegmentId = null;
+      expandedStopLists = new Set();
     }
     expandedPageId = nextPageId;
   });
@@ -154,7 +156,12 @@
   function toggleExpanded(segmentId: string) {
     const opening = expandedSegmentId !== segmentId;
     expandedSegmentId = opening ? segmentId : null;
-    if (!opening) return;
+    if (!opening) {
+      const nextExpandedStopLists = new Set(expandedStopLists);
+      nextExpandedStopLists.delete(segmentId);
+      expandedStopLists = nextExpandedStopLists;
+      return;
+    }
 
     void tick().then(() => {
       const card = Array.from(depListEl?.querySelectorAll<HTMLElement>('[data-segment-id]') ?? [])
@@ -163,6 +170,13 @@
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
+  }
+
+  function setStopsExpanded(segmentId: string, showAll: boolean) {
+    const nextExpandedStopLists = new Set(expandedStopLists);
+    if (showAll) nextExpandedStopLists.add(segmentId);
+    else nextExpandedStopLists.delete(segmentId);
+    expandedStopLists = nextExpandedStopLists;
   }
 
   function openSavedCardActions(segment: Segment, trigger?: HTMLElement) {
@@ -625,6 +639,8 @@
               weatherSymbol={segmentWeather.get(item.segment.id) ?? null}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
+              showAllStops={expandedStopLists.has(item.segment.id)}
+              onShowAllStopsChange={(showAll) => setStopsExpanded(item.segment.id, showAll)}
               groupingMode={settings.groupingMode}
               onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
               onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}

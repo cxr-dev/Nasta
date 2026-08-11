@@ -867,6 +867,9 @@ test.describe("Route stops preview", () => {
                   { name: "Slussen", parent: { disassembledName: "Slussen" } },
                   { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
                   { name: "T-Centralen", parent: { disassembledName: "T-Centralen" } },
+                  { name: "Östermalmstorg", parent: { disassembledName: "Östermalmstorg" } },
+                  { name: "Stadion", parent: { disassembledName: "Stadion" } },
+                  { name: "Tekniska högskolan", parent: { disassembledName: "Tekniska högskolan" } },
                   { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
                 ],
               }],
@@ -881,10 +884,10 @@ test.describe("Route stops preview", () => {
     return { tripStarted, get releaseTrip() { return releaseTrip; }, get stopFinderCalls() { return stopFinderCalls; }, get tripCalls() { return tripCalls; } };
   }
 
-  async function seedPage(page: any) {
+  async function seedPage(page: any, pageData = routes) {
     await page.addInitScript((data) => {
       localStorage.setItem("nasta_routes", JSON.stringify(data));
-    }, routes);
+    }, pageData);
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await disableAnimations(page);
     await expect(page.getByTestId("segment-row")).toBeVisible({ timeout: 15000 });
@@ -904,6 +907,20 @@ test.describe("Route stops preview", () => {
     await expect(card.locator(".route-stops")).toBeVisible({ timeout: 5000 });
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
     await expect(card.locator(".stop-list li")).toHaveCount(4);
+    const railAlignment = await card.locator(".stop-list").evaluate((list) => {
+      const rect = list.getBoundingClientRect();
+      const rail = getComputedStyle(list, "::before");
+      const railCenter = rect.left + Number.parseFloat(rail.left) + Number.parseFloat(rail.width) / 2;
+      return [...list.querySelectorAll<HTMLElement>(".stop-node")].map((node) => {
+        const nodeRect = node.getBoundingClientRect();
+        return Math.abs(nodeRect.left + nodeRect.width / 2 - railCenter);
+      });
+    });
+    expect(railAlignment.every((difference) => difference < 0.01)).toBe(true);
+    await page.screenshot({
+      path: "test-results/route-stops-rail-alignment.png",
+      fullPage: true,
+    });
 
     await card.locator(".card-main").click();
     await expect(card.locator(".expanded-panel")).not.toBeVisible({ timeout: 5000 });
@@ -913,6 +930,54 @@ test.describe("Route stops preview", () => {
 
     expect(requestInfo.stopFinderCalls).toBe(1);
     expect(requestInfo.tripCalls).toBe(1);
+  });
+
+  test("keeps all stops visible through a clock refresh and resets only after an explicit card collapse", async ({ page }) => {
+    const requestInfo = await installRoutes(page);
+    await seedPage(page);
+    await requestInfo.tripStarted;
+
+    const card = page.getByTestId("segment-row");
+    await card.locator(".card-main").click();
+    await expect(card.locator(".route-stops-loading")).not.toBeVisible();
+
+    await card.getByRole("button", { name: /show all stops/i }).click();
+    await expect(card.locator(".stop-list li")).toHaveCount(7);
+    await expect(card.getByRole("button", { name: /show less/i })).toBeVisible();
+
+    await page.waitForTimeout(5_200);
+    await expect(card.locator(".expanded-panel")).toBeVisible();
+    await expect(card.locator(".stop-list li")).toHaveCount(7);
+
+    await card.locator(".card-main").click();
+    await expect(card.locator(".expanded-panel")).not.toBeVisible();
+    await card.locator(".card-main").click();
+    await expect(card.locator(".stop-list li")).toHaveCount(4);
+    expect(requestInfo.stopFinderCalls).toBe(1);
+    expect(requestInfo.tripCalls).toBe(1);
+  });
+
+  test("resets the stop disclosure after switching pages", async ({ page }) => {
+    const requestInfo = await installRoutes(page);
+    await seedPage(page, [...routes, { id: "second-page", name: "Second", segments: [] }]);
+    await requestInfo.tripStarted;
+
+    const card = page.getByTestId("segment-row");
+    await card.locator(".card-main").click();
+    await expect(card.locator(".route-stops-loading")).not.toBeVisible();
+    await card.getByRole("button", { name: /show all stops/i }).click();
+    await expect(card.locator(".stop-list li")).toHaveCount(7);
+
+    await page.getByRole("button", { name: "Manage pages" }).click();
+    const editor = page.locator(".editor-sheet");
+    await editor.getByRole("button", { name: "Second" }).click();
+    await expect(page.getByRole("heading", { name: "Second" })).toBeVisible();
+    await editor.getByRole("button", { name: "Route stops test" }).click();
+    await expect(card).toBeVisible();
+    await editor.getByRole("button", { name: "Close editor" }).click();
+
+    await card.locator(".card-main").click();
+    await expect(card.locator(".stop-list li")).toHaveCount(4);
   });
 
   test("keeps the expanded panel height stable while a prefetched response finishes", async ({ page }) => {

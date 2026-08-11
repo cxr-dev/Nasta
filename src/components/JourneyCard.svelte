@@ -79,15 +79,6 @@
 
   function connectionsBefore(index: number): JourneyConnection[] {
     const supplied = displayConnections.filter((connection) => connection.beforeLegIndex === index);
-    const walking = supplied.filter((connection) => connection.kind === 'walk');
-    if (walking.length > 0) {
-      const walk = walking[0];
-      const connectionDuration = supplied
-        .filter((connection) => connection.kind === 'transfer')
-        .reduce((total, connection) => total + connection.durationMin, 0);
-      const durationMin = walk.durationMin + connectionDuration;
-      return [{ ...walk, durationMin, walkDurationMin: durationMin }];
-    }
     if (supplied.length > 0 || index === 0 || index >= displayLegs.length) return supplied;
     const previous = displayLegs[index - 1];
     const next = displayLegs[index];
@@ -95,31 +86,44 @@
     return [{ beforeLegIndex: index, kind: 'transfer', durationMin }];
   }
 
-  function showConnection(connection: JourneyConnection): boolean {
-    return connection.beforeLegIndex > 0 && connection.beforeLegIndex < displayLegs.length
-      ? true
-      : connection.durationMin >= 2;
+  function showConnection(): boolean {
+    return true;
   }
 
   function connectionLabel(connection: JourneyConnection): string {
     const duration = formatDuration(connection.walkDurationMin ?? connection.durationMin);
     if (connection.kind === 'walk') {
       const distance = formatDistance(connection.walkDistanceMeters);
-      return `${t.walking ?? 'Walk'} · ${duration}${distance ? ` · ${distance}` : ''}`;
+      const template = t.journeyWalkTo ?? 'Walk {duration} · {distance} to {stop}';
+      return template
+        .replace(distance ? '{distance}' : ' · {distance}', distance)
+        .replace('{duration}', duration)
+        .replace('{stop}', connection.destName ?? '');
     }
-    return `${t.transfer ?? 'Transfer'}${connection.durationMin > 0 ? ` · ${duration}` : ''}`;
+    return `${t.transfer ?? 'Transfer'}${connection.durationMin > 0 ? ` · ${duration}` : ''}${connection.destName ? ` · ${connection.destName}` : ''}`;
+  }
+
+  function transferSummary(): string {
+    if (journeyMeta.transfers === 0) {
+      return `${t.journeyDirect ?? 'Direct'} · ${t.journeyNoTransfers ?? 'No transfers'}`;
+    }
+    return `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`;
+  }
+
+  function boardAt(stop: string): string {
+    return (t.journeyBoardAt ?? 'Board at {stop}').replace('{stop}', stop);
+  }
+
+  function getOffAt(stop: string): string {
+    return (t.journeyGetOffAt ?? 'Get off at {stop}').replace('{stop}', stop);
+  }
+
+  function towards(destination: string): string {
+    return (t.journeyTowards ?? 'toward {destination}').replace('{destination}', destination);
   }
 
   function hasTrainPosition(transportType: TransportType): boolean {
     return transportType === 'metro' || transportType === 'train' || transportType === 'tram';
-  }
-
-  function legOriginName(index: number, name: string): string {
-    return index === 0 ? journeyMeta.originLabel : name;
-  }
-
-  function legDestName(index: number, name: string): string {
-    return index === displayLegs.length - 1 ? journeyMeta.destLabel : name;
   }
 
   let panelEl: HTMLDivElement | undefined = $state();
@@ -184,7 +188,7 @@
     type="button"
     aria-expanded={isExpanded}
     aria-controls={panelId}
-    aria-label={`${journeyMeta.originLabel} → ${journeyMeta.destLabel}, ${formatTime(depTime)} – ${formatTime(arrTime)}, ${formatDuration(journeyDuration)}, ${journeyMeta.transfers === 0 ? (t.direct ?? 'Direct') : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}`}
+    aria-label={`${journeyMeta.originLabel} → ${journeyMeta.destLabel}, ${formatTime(depTime)} – ${formatTime(arrTime)}, ${formatDuration(journeyDuration)}, ${transferSummary()}`}
     onclick={() => handleToggle()}
   >
     <div class="card-body">
@@ -216,9 +220,7 @@
               <circle cx="6" cy="18" r="3" />
               <path d="M18 9a9 9 0 0 1-9 9" />
             </svg>
-            {journeyMeta.transfers === 0
-              ? (t.direct ?? 'Direct')
-              : `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`}
+            {transferSummary()}
           </span>
         </span>
       </div>
@@ -251,28 +253,28 @@
       <div class="journey-detail-header">
         {#if journeyMeta.status === 'active'}
           <span class="active-now">{t.journeyCurrentLeg ?? 'Nuvarande del'}</span>
-        {:else}
-          <span></span>
         {/if}
-        <button
-          type="button"
-          class="share-button"
-          aria-label={t.shareJourney ?? 'Share journey'}
-          onpointerdown={(event) => event.stopPropagation()}
-          onclick={(event) => { event.stopPropagation(); onShare?.(); }}
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
-        </button>
-        <button
-          type="button"
-          class="more-actions-button"
-          aria-label={moreActionsLabel ?? `More actions for journey to ${journeyMeta.destLabel}`}
-          onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" />
-          </svg>
-        </button>
+        <div class="journey-detail-actions">
+          <button
+            type="button"
+            class="share-button"
+            aria-label={t.shareJourney ?? 'Share journey'}
+            onpointerdown={(event) => event.stopPropagation()}
+            onclick={(event) => { event.stopPropagation(); onShare?.(); }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">{@html shareGlyph}</svg>
+          </button>
+          <button
+            type="button"
+            class="more-actions-button"
+            aria-label={moreActionsLabel ?? `More actions for journey to ${journeyMeta.destLabel}`}
+            onclick={(event) => { event.stopPropagation(); onMoreActions?.(event.currentTarget as HTMLElement); }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" />
+            </svg>
+          </button>
+        </div>
       </div>
       <ol class="timeline">
         {#each displayLegs as leg, i (leg.departureTime + '-' + i)}
@@ -297,12 +299,12 @@
               <div class="leg-header">
                 <TransportIcon type={leg.transportType} size={12} />
                 <span class="leg-line-name">{leg.lineName}</span>
-                <span class="leg-direction-name">{leg.directionName}</span>
+                <span class="leg-direction-name">{towards(leg.directionName)}</span>
               </div>
               <div class="leg-route">
-                <span class="route-from">{legOriginName(i, leg.originName)}</span>
+                <span class="route-from">{boardAt(leg.originName)}</span>
                 <span class="route-arrow" aria-hidden="true">→</span>
-                <span>{legDestName(i, leg.destName)}</span>
+                <span>{getOffAt(leg.destName)}</span>
               </div>
               {#if leg.stops && leg.stops.length > 0}
                 <div class="stop-preview">
@@ -712,11 +714,17 @@
   .journey-detail-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     margin: -8px -8px 4px 0;
     color: var(--text);
     font-size: 13px;
+  }
+
+  .journey-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
   }
 
   .more-actions-button {
@@ -743,7 +751,6 @@
     min-width: 44px;
     min-height: 44px;
     flex: 0 0 auto;
-    margin-right: auto;
     border: 0;
     border-radius: 10px;
     background: transparent;
