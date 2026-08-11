@@ -25,6 +25,25 @@ export interface MergeSummary {
   keptCurrent: number;
 }
 
+export type BackupExportOutcome = 'saved' | 'shared' | 'downloaded' | 'cancelled' | 'failed';
+
+interface BackupFileHandle {
+  createWritable(): Promise<{
+    write(data: Blob): Promise<void>;
+    close(): Promise<void>;
+  }>;
+}
+
+interface BackupWindow extends Window {
+  showSaveFilePicker?: (options: {
+    suggestedName: string;
+    types: Array<{
+      description: string;
+      accept: Record<string, string[]>;
+    }>;
+  }) => Promise<BackupFileHandle>;
+}
+
 export class BackupFormatError extends Error {
   constructor(message: string) {
     super(message);
@@ -103,6 +122,64 @@ export function createBackupDocument(pages: Page[], settings: Settings, exported
     pages: clone(pages),
     settings: clone(settings),
   };
+}
+
+function backupFilename(document: BackupDocument): string {
+  return `nasta-backup-${document.exportedAt.slice(0, 10)}.json`;
+}
+
+function exportFailureOutcome(error: unknown): BackupExportOutcome {
+  return error instanceof DOMException && error.name === 'AbortError' ? 'cancelled' : 'failed';
+}
+
+/**
+ * Starts the browser export flow immediately, preserving click activation for
+ * the picker and native share sheet. The returned promise reports its result.
+ */
+export function exportBackupDocument(backup: BackupDocument): Promise<BackupExportOutcome> {
+  const filename = backupFilename(backup);
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const picker = (window as BackupWindow).showSaveFilePicker;
+
+  try {
+    if (picker) {
+      return picker.call(window, {
+        suggestedName: filename,
+        types: [{
+          description: 'JSON file',
+          accept: { 'application/json': ['.json'] },
+        }],
+      })
+        .then(async (handle) => {
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return 'saved' as const;
+        })
+        .catch(exportFailureOutcome);
+    }
+
+    if (navigator.share && navigator.canShare) {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file] })
+          .then(() => 'shared' as const)
+          .catch(exportFailureOutcome);
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    return Promise.resolve('downloaded');
+  } catch (error) {
+    return Promise.resolve(exportFailureOutcome(error));
+  }
 }
 
 export function persistRestoredData(pages: Page[], settings: Settings): void {

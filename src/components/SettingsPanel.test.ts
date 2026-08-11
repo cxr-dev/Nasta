@@ -5,8 +5,17 @@ import { getSettings, setLocationServicesEnabled, setWalkingEtaEnabled } from '.
 import { createBackupDocument } from '../services/backup';
 import { setLocale } from '../stores/localeStore.svelte';
 
+const { mockExportBackupDocument } = vi.hoisted(() => ({ mockExportBackupDocument: vi.fn() }));
 const mockRequestLocation = vi.fn();
 const mockClearLocationSession = vi.fn();
+
+vi.mock('../services/backup', async () => {
+  const actual = await vi.importActual<typeof import('../services/backup')>('../services/backup');
+  return {
+    ...actual,
+    exportBackupDocument: (...args: Parameters<typeof actual.exportBackupDocument>) => mockExportBackupDocument(...args),
+  };
+});
 
 vi.mock('../services/geo', () => ({
   requestLocation: (...args: unknown[]) => mockRequestLocation(...args),
@@ -17,6 +26,7 @@ beforeEach(() => {
   setLocale('sv');
   setLocationServicesEnabled(false);
   setWalkingEtaEnabled(false);
+  mockExportBackupDocument.mockResolvedValue('downloaded');
   mockRequestLocation.mockResolvedValue(null);
 });
 
@@ -103,6 +113,17 @@ describe('SettingsPanel location controls', () => {
     expect(importButton.textContent?.trim()).toBe('Importera');
     expect(exportButton.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     expect(importButton.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('uses the export helper and shows its native-share outcome', async () => {
+    mockExportBackupDocument.mockResolvedValueOnce('shared');
+    const { getByRole, getByText } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    expect(getByText('Välj ”Spara i Filer” för att välja en plats, eller dela säkerhetskopian.')).toBeTruthy();
+    await fireEvent.click(getByRole('button', { name: 'Exportera säkerhetskopia' }));
+
+    await waitFor(() => expect(mockExportBackupDocument).toHaveBeenCalledOnce());
+    await waitFor(() => expect(getByRole('status').textContent).toBe('Säkerhetskopian skickades till vald app.'));
   });
 
   it('visually marks the selected language', async () => {

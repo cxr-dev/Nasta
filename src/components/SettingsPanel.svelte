@@ -13,7 +13,7 @@
   import { departureStore } from '../stores/departureStore.svelte';
   import { deviationStore } from '../stores/deviationStore.svelte';
   import { clearAppOwnedData } from '../services/appDataReset';
-  import { createBackupDocument, mergePages, normalizeRestoredPages, parseBackupDocument, persistRestoredData, summarizePages, type BackupDocument } from '../services/backup';
+  import { createBackupDocument, exportBackupDocument, mergePages, normalizeRestoredPages, parseBackupDocument, persistRestoredData, summarizePages, type BackupDocument } from '../services/backup';
   import type { SortMode, GroupingMode } from '../types/page';
 
   let t = $derived(getT());
@@ -130,19 +130,21 @@
     return text;
   }
 
-  function exportBackup() {
+  async function exportBackup() {
     const backupDocument = createBackupDocument(getPages(), getSettings());
-    const blob = new Blob([JSON.stringify(backupDocument, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nasta-backup-${backupDocument.exportedAt.slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    dataNotice = t.backupExported;
+    const outcome = await exportBackupDocument(backupDocument);
+    if (outcome === 'cancelled') return;
+    if (outcome === 'failed') {
+      dataNotice = '';
+      dataError = t.backupExportFailed;
+      return;
+    }
     dataError = '';
+    dataNotice = outcome === 'saved'
+      ? t.backupExported
+      : outcome === 'shared'
+        ? t.backupShared
+        : t.backupDownloaded;
   }
 
   async function handleBackupFile(event: Event) {
@@ -613,6 +615,7 @@
         <div class="feature-group data-group">
           <h3 class="group-title">{t.dataBackup}</h3>
           <p class="data-description">{t.dataBackupDesc}</p>
+          <p class="data-export-hint">{t.backupExportHint}</p>
           <div class="backup-actions">
             <button type="button" class="data-action backup-action" aria-label={t.exportBackup} onclick={exportBackup}>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
@@ -1388,6 +1391,12 @@
     font-size: 12px;
     line-height: 1.45;
     margin: 0 0 10px;
+  }
+  .data-export-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.4;
+    margin: -4px 0 10px;
   }
   .backup-actions,
   .data-dialog-actions {

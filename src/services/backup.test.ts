@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '../types/page';
 import type { Settings } from './storage';
 import {
   BACKUP_SCHEMA_VERSION,
   createBackupDocument,
+  exportBackupDocument,
   mergePages,
   normalizeRestoredPages,
   parseBackupDocument,
@@ -49,6 +50,16 @@ function page(id: string, segmentIds: string[] = []): Page {
     })),
   };
 }
+
+function backupDocument() {
+  return createBackupDocument([page('work')], settings, new Date('2026-08-11T10:00:00.000Z'));
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('backup service', () => {
   it('creates and parses a versioned document with useful counts', () => {
@@ -137,5 +148,78 @@ describe('backup service', () => {
     expect(localStorage.getItem('nasta_routes')).toBe('old-routes');
     expect(localStorage.getItem('nasta_settings')).toBe('old-settings');
     setItem.mockRestore();
+  });
+
+  it('saves through the file picker with the native window receiver', async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const close = vi.fn().mockResolvedValue(undefined);
+    const createWritable = vi.fn().mockResolvedValue({ write, close });
+    const showSaveFilePicker = vi.fn(function (this: Window) {
+      if (this !== window) throw new TypeError('Illegal invocation');
+      return Promise.resolve({ createWritable });
+    });
+    vi.stubGlobal('showSaveFilePicker', showSaveFilePicker);
+
+    const result = exportBackupDocument(backupDocument());
+
+    expect(showSaveFilePicker).toHaveBeenCalledWith({
+      suggestedName: 'nasta-backup-2026-08-11.json',
+      types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
+    });
+    expect(await result).toBe('saved');
+    expect(createWritable).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
+  it('shares the JSON file when file sharing is supported', async () => {
+    const canShare = vi.fn().mockReturnValue(true);
+    const share = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { canShare, share });
+
+    const result = exportBackupDocument(backupDocument());
+
+    expect(canShare).toHaveBeenCalledOnce();
+    expect(share).toHaveBeenCalledOnce();
+    expect(Object.keys(share.mock.calls[0][0])).toEqual(['files']);
+    expect(await result).toBe('shared');
+    vi.unstubAllGlobals();
+  });
+
+  it('downloads with an anchor when picker and file sharing are unavailable', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:nasta-backup');
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    vi.stubGlobal('navigator', {});
+    vi.useFakeTimers();
+
+    const result = exportBackupDocument(backupDocument());
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    await expect(result).resolves.toBe('downloaded');
+    vi.runAllTimers();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:nasta-backup');
+  });
+
+  it('returns cancelled when the picker is dismissed', async () => {
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockRejectedValue(new DOMException('Dismissed', 'AbortError')));
+
+    await expect(exportBackupDocument(backupDocument())).resolves.toBe('cancelled');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('returns failed when native sharing fails', async () => {
+    vi.stubGlobal('navigator', {
+      canShare: vi.fn().mockReturnValue(true),
+      share: vi.fn().mockRejectedValue(new Error('share failed')),
+    });
+
+    await expect(exportBackupDocument(backupDocument())).resolves.toBe('failed');
+
+    vi.unstubAllGlobals();
   });
 });
