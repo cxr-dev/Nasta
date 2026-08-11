@@ -3,7 +3,7 @@
   import { previewStyle } from '../themes';
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
-  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon } from '../icons/departureIcons';
+  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, downloadIcon, uploadIcon, trash2Icon } from '../icons/departureIcons';
   import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
   import SurfaceControl from './SurfaceControl.svelte';
@@ -35,6 +35,10 @@
   let activeTheme = $derived(settings.theme ?? 'system');
   let persistenceFailed = $state(false);
   let backupFileInput = $state<HTMLInputElement>();
+  let backupImportTriggerEl = $state<HTMLButtonElement>();
+  let backupPanelEl = $state<HTMLElement>();
+  let resetTriggerEl = $state<HTMLButtonElement>();
+  let resetInputEl = $state<HTMLInputElement>();
   let pendingBackup = $state<BackupDocument | null>(null);
   let selectedImportMode = $state<'replace' | 'add' | null>(null);
   let dataError = $state('');
@@ -151,10 +155,45 @@
       selectedImportMode = null;
       dataError = '';
       dataNotice = '';
+      await tick();
+      await Promise.resolve();
+      backupPanelEl?.focus();
     } catch {
       pendingBackup = null;
       dataError = t.backupInvalid;
     }
+  }
+
+  async function closeBackupPreview() {
+    pendingBackup = null;
+    selectedImportMode = null;
+    await tick();
+    await Promise.resolve();
+    backupImportTriggerEl?.focus();
+  }
+
+  async function selectImportMode(mode: 'replace' | 'add') {
+    selectedImportMode = mode;
+    await tick();
+    await Promise.resolve();
+    backupPanelEl?.focus();
+  }
+
+  async function openResetConfirmation() {
+    resetPhrase = '';
+    dataError = '';
+    resetDialogOpen = true;
+    await tick();
+    await Promise.resolve();
+    resetInputEl?.focus();
+  }
+
+  async function closeResetConfirmation() {
+    resetPhrase = '';
+    resetDialogOpen = false;
+    await tick();
+    await Promise.resolve();
+    resetTriggerEl?.focus();
   }
 
   function confirmImport() {
@@ -574,9 +613,15 @@
         <div class="feature-group data-group">
           <h3 class="group-title">{t.dataBackup}</h3>
           <p class="data-description">{t.dataBackupDesc}</p>
-          <div class="data-actions">
-            <button type="button" class="data-action" onclick={exportBackup}>{t.exportBackup}</button>
-            <button type="button" class="data-action" onclick={() => backupFileInput?.click()}>{t.importBackup}</button>
+          <div class="backup-actions">
+            <button type="button" class="data-action backup-action" aria-label={t.exportBackup} onclick={exportBackup}>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
+              <span>{t.exportAction}</span>
+            </button>
+            <button bind:this={backupImportTriggerEl} type="button" class="data-action backup-action" aria-label={t.importBackup} onclick={() => backupFileInput?.click()}>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html uploadIcon}</svg>
+              <span>{t.importAction}</span>
+            </button>
             <input
               bind:this={backupFileInput}
               class="visually-hidden-input"
@@ -595,7 +640,7 @@
           {/if}
 
           {#if pendingBackup}
-            <div class="data-dialog" role="dialog" aria-label={t.backupImportMode} use:focusBoundary={{ active: true, initialFocus: '.data-action' }}>
+            <section bind:this={backupPanelEl} class="data-dialog" aria-labelledby="backup-import-title" tabindex="-1">
               <p class="data-dialog-copy">
                 {backupText('backupPreview', {
                   date: new Date(pendingBackup.exportedAt).toLocaleString(),
@@ -603,44 +648,58 @@
                 })}
               </p>
               {#if !selectedImportMode}
-                <p class="data-dialog-label">{t.backupImportMode}</p>
+                <h4 id="backup-import-title" class="data-dialog-label">{t.backupImportMode}</h4>
                 <div class="data-mode-list">
-                  <button type="button" class="data-mode" aria-label={t.backupReplace} onclick={() => selectedImportMode = 'replace'}>
+                  <button type="button" class="data-mode" aria-label={t.backupReplace} onclick={() => void selectImportMode('replace')}>
                     <span>{t.backupReplace}</span><small>{t.backupReplaceDesc}</small>
                   </button>
-                  <button type="button" class="data-mode" aria-label={t.backupAdd} onclick={() => selectedImportMode = 'add'}>
+                  <button type="button" class="data-mode" aria-label={t.backupAdd} onclick={() => void selectImportMode('add')}>
                     <span>{t.backupAdd}</span><small>{t.backupAddDesc}</small>
                   </button>
                 </div>
+                <button type="button" class="data-action secondary data-dialog-dismiss" onclick={() => void closeBackupPreview()}>{t.cancel}</button>
               {:else}
+                <h4 id="backup-import-title" class="data-dialog-label">{t.backupImportMode}</h4>
                 <p class="data-dialog-copy">{selectedImportMode === 'replace' ? t.backupReplaceDesc : t.backupAddDesc}</p>
                 <div class="data-dialog-actions">
-                  <button type="button" class="data-action secondary" onclick={() => selectedImportMode = null}>{t.cancel}</button>
-                  <button type="button" class="data-action" onclick={confirmImport}>{t.importBackup}</button>
+                  <button type="button" class="data-action secondary" onclick={() => void closeBackupPreview()}>{t.cancel}</button>
+                  <button type="button" class="data-action" onclick={confirmImport}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html uploadIcon}</svg>
+                    <span>{t.importAction}</span>
+                  </button>
                 </div>
               {/if}
-            </div>
+            </section>
           {/if}
 
           <div class="danger-zone">
             <h4>{t.resetData}</h4>
             <p>{t.resetDataDesc}</p>
-            <button type="button" class="danger-action" onclick={() => { resetPhrase = ''; dataError = ''; resetDialogOpen = true; }} aria-haspopup="dialog">{t.resetData}</button>
+            <button bind:this={resetTriggerEl} type="button" class="danger-action" onclick={() => void openResetConfirmation()}>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html trash2Icon}</svg>
+              <span>{t.resetData}</span>
+            </button>
           </div>
 
           {#if resetDialogOpen}
-            <div class="data-dialog danger-dialog" role="alertdialog" aria-label={t.resetDataDialogTitle} aria-describedby="reset-data-warning" use:focusBoundary={{ active: true, initialFocus: '.reset-input' }}>
-              <h4>{t.resetDataDialogTitle}</h4>
+            <section class="data-dialog danger-dialog" aria-labelledby="reset-data-title" aria-describedby="reset-data-warning">
+              <h4 id="reset-data-title">{t.resetDataDialogTitle}</h4>
               <p id="reset-data-warning">{t.resetDataWarning}</p>
               <p>{t.resetDataDialogDesc}</p>
-              <button type="button" class="data-action secondary" onclick={exportBackup}>{t.exportBeforeReset}</button>
+              <button type="button" class="data-action secondary" onclick={exportBackup}>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
+                <span>{t.exportBeforeReset}</span>
+              </button>
               <label class="reset-label" for="reset-confirmation">{t.resetDataConfirmLabel}</label>
-              <input id="reset-confirmation" class="reset-input" type="text" autocomplete="off" value={resetPhrase} oninput={(event) => resetPhrase = (event.currentTarget as HTMLInputElement).value} />
+              <input bind:this={resetInputEl} id="reset-confirmation" class="reset-input" type="text" autocomplete="off" value={resetPhrase} oninput={(event) => resetPhrase = (event.currentTarget as HTMLInputElement).value} />
               <div class="data-dialog-actions">
-                <button type="button" class="data-action secondary" onclick={() => resetDialogOpen = false}>{t.cancel}</button>
-                <button type="button" class="danger-action" disabled={resetPhrase !== 'RESET'} onclick={resetLocalData}>{t.resetDataConfirmButton}</button>
+                <button type="button" class="data-action secondary" onclick={() => void closeResetConfirmation()}>{t.cancel}</button>
+                <button type="button" class="danger-action" aria-label={t.resetDataConfirmButton} disabled={resetPhrase !== 'RESET'} onclick={resetLocalData}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html trash2Icon}</svg>
+                  <span>{t.deleteAction}</span>
+                </button>
               </div>
-            </div>
+            </section>
           {/if}
         </div>
       </div>
@@ -890,6 +949,15 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .language-control .segment-choice {
+    min-height: 44px;
+  }
+
+  .language-control .segment-choice.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-subtle);
+  }
 
 
   .segment-choice {
@@ -1321,15 +1389,19 @@
     line-height: 1.45;
     margin: 0 0 10px;
   }
-  .data-actions,
+  .backup-actions,
   .data-dialog-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
-    flex-wrap: wrap;
   }
   .data-action,
   .danger-action {
-    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
     padding: 8px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -1342,6 +1414,23 @@
   }
   .data-action:hover { background: var(--surface-hover); }
   .data-action.secondary { color: var(--text-secondary); }
+  .backup-action {
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .backup-action svg,
+  .data-action svg,
+  .danger-action svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .data-dialog-dismiss {
+    justify-self: start;
+  }
   .data-action:disabled,
   .danger-action:disabled { opacity: 0.45; cursor: not-allowed; }
   .danger-action {
@@ -1378,6 +1467,9 @@
     color: var(--text);
     font-size: 12px;
     font-weight: 700;
+  }
+  .data-dialog-label {
+    margin: 0;
   }
   .data-mode-list { display: grid; gap: 8px; }
   .data-mode {

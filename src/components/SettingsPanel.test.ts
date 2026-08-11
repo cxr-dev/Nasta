@@ -93,7 +93,28 @@ describe('SettingsPanel location controls', () => {
     expect(mockRequestLocation).toHaveBeenCalledTimes(1);
   });
 
-  it('previews a valid backup before offering import modes', async () => {
+  it('renders compact backup actions with full accessible names and decorative icons', () => {
+    const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    const exportButton = getByRole('button', { name: 'Exportera säkerhetskopia' });
+    const importButton = getByRole('button', { name: 'Importera säkerhetskopia' });
+
+    expect(exportButton.textContent?.trim()).toBe('Exportera');
+    expect(importButton.textContent?.trim()).toBe('Importera');
+    expect(exportButton.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(importButton.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('visually marks the selected language', async () => {
+    const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+    const swedish = getByRole('button', { name: 'Svenska' });
+
+    await fireEvent.click(swedish);
+
+    expect(swedish.classList.contains('active')).toBe(true);
+  });
+
+  it('previews a valid backup in an inline labelled region with a safe cancel action', async () => {
     const { container, getByRole, getByText } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
     const backup = new File([
       JSON.stringify(createBackupDocument([], getSettings(), new Date('2026-08-11T10:00:00.000Z'))),
@@ -102,21 +123,34 @@ describe('SettingsPanel location controls', () => {
 
     await fireEvent.change(input, { target: { files: [backup] } });
 
-    expect(getByRole('dialog', { name: 'Hur vill du importera säkerhetskopian?' })).toBeTruthy();
+    const preview = getByRole('region', { name: 'Hur vill du importera säkerhetskopian?' });
+    await waitFor(() => expect(document.activeElement).toBe(preview));
     expect(getByText(/säkerhetskopia från/i)).toBeTruthy();
     expect(getByRole('button', { name: 'Ersätt nuvarande data' })).toBeTruthy();
     expect(getByRole('button', { name: 'Lägg till i nuvarande data' })).toBeTruthy();
+
+    await fireEvent.click(getByRole('button', { name: 'Avbryt' }));
+
+    expect(preview.isConnected).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(getByRole('button', { name: 'Importera säkerhetskopia' })));
   });
 
-  it('keeps reset disabled until RESET is typed', async () => {
+  it('focuses reset confirmation input and restores the trigger when cancelled', async () => {
     const { getByRole, getByLabelText } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
-    await fireEvent.click(getByRole('button', { name: 'Radera lokal appdata' }));
+    const trigger = getByRole('button', { name: 'Radera lokal appdata' });
+    await fireEvent.click(trigger);
 
     const reset = getByRole('button', { name: 'Radera all data' }) as HTMLButtonElement;
     const input = getByLabelText('Skriv RESET för att bekräfta') as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    expect(reset.textContent?.trim()).toBe('Radera');
     expect(reset.disabled).toBe(true);
 
     await fireEvent.input(input, { target: { value: 'RESET' } });
     expect(reset.disabled).toBe(false);
+
+    await fireEvent.click(getByRole('button', { name: 'Avbryt' }));
+
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
