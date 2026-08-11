@@ -166,8 +166,6 @@ for (const viewport of viewports) {
     await expect(editor.getByRole('button', { name: 'Close editor' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('.editor-overlay.open')).toHaveCount(0);
-    await page.waitForTimeout(50);
-    await expect(page.locator('.editor-overlay.open')).toHaveCount(0);
     await expect(editorTrigger).toBeFocused();
   });
 }

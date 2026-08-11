@@ -27,6 +27,9 @@ const locations = {
 
 test.describe("mobile Safari compatibility", () => {
   test.beforeEach(async ({ page }) => {
+    const journeyDeparture = new Date(Date.now() + 5 * 60000).toISOString();
+    const journeyArrival = new Date(Date.now() + 35 * 60000).toISOString();
+
     await page.addInitScript(() => {
       localStorage.clear();
       localStorage.setItem("nasta_settings", JSON.stringify({ language: "sv" }));
@@ -43,15 +46,14 @@ test.describe("mobile Safari compatibility", () => {
         return;
       }
       if (url.includes("/trips")) {
-        const now = Date.now();
         await route.fulfill({
           status: 200,
           contentType: "application/json",
           body: JSON.stringify({
             journeys: [{
               legs: [{
-                origin: { name: "Odenplan", disassembledName: "Odenplan", departureTimePlanned: new Date(now + 5 * 60000).toISOString() },
-                destination: { name: "Slussen", disassembledName: "Slussen", arrivalTimePlanned: new Date(now + 35 * 60000).toISOString() },
+                origin: { name: "Odenplan", disassembledName: "Odenplan", departureTimePlanned: journeyDeparture },
+                destination: { name: "Slussen", disassembledName: "Slussen", arrivalTimePlanned: journeyArrival },
                 transportation: { name: "Buss 40", disassembledName: "40", product: { name: "BUS" } },
                 duration: 30 * 60,
                 direction: 1,

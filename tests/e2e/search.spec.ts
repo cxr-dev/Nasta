@@ -126,6 +126,7 @@ test.describe("Segment search", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    const now = Date.now();
     await page.route(
       "https://journeyplanner.integration.sl.se/**",
       async (route) => {
@@ -140,7 +141,6 @@ test.describe("Segment search", () => {
         }
 
         if (url.includes("/trips")) {
-          const now = Date.now();
           const trip = (departureMinutes: number, arrivalMinutes: number, durationMinutes: number) => ({
             legs: [{
               origin: {
