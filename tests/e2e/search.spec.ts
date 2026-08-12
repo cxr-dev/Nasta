@@ -116,10 +116,15 @@ test.describe("Segment search", () => {
     );
     await firstResult.click();
 
-    // Single line + single direction in mock → auto-completes, drawer closes, segment added.
-    // The route page title shows the page name ("Min rutt"), not the stop.
-    // Verify the departure card appears with the stop name.
-    await expect(page.locator("text=Lindarängsvägen")).toBeVisible({ timeout: 10000 });
+    // One line and one direction auto-completes the flow and saves the segment.
+    const addDialog = page.getByRole("dialog", { name: /\+ Lägg till/i });
+    await expect(addDialog).toBeHidden();
+
+    const savedCard = page.getByTestId("segment-row").filter({ hasText: "Lindarängsvägen" });
+    await expect(savedCard).toBeVisible({ timeout: 10000 });
+    await expect(savedCard.getByTestId("segment-line")).toHaveText("76");
+    await expect(savedCard).toContainText("Norra Hammarbyhamnen");
+    await expect(savedCard.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
   });
 
   test("uses the Lucide swap control, refined filters, and earliest-arrival priority", async ({

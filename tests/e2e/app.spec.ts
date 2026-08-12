@@ -21,7 +21,15 @@ test.describe("Nästa App", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ departures: [] }),
+          body: JSON.stringify({
+            departures: [{
+              line: { designation: "76" },
+              direction_code: 1,
+              destination: "Norra Hammarbyhamnen",
+              display: "5 min",
+              expected: new Date(Date.now() + 5 * 60_000).toISOString(),
+            }],
+          }),
         });
       } else if (url.includes("deviations") || url.includes("messages")) {
         await route.fulfill({
@@ -95,7 +103,7 @@ test.describe("Nästa App", () => {
   test.afterEach(async ({ page }, testInfo) => {
     // Filter out expected network errors from intentional route aborts in tests
     const unexpectedErrors = runtimeErrors.filter(
-      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED") && !msg.includes("Failed to fetch"),
+      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED"),
     );
     expect(
       unexpectedErrors,
@@ -176,20 +184,11 @@ test.describe("Nästa App", () => {
   test("should display countdown with visible departure times", async ({
     page,
   }) => {
-    // Wait for initial UI to load
-    const routeHeader = page.locator("h1.page-title");
-    await routeHeader.waitFor({ state: "visible", timeout: 10000 });
-
-    // Look for any visible time display elements
-    const timeElements = page
-      .locator("span")
-      .filter({ has: page.locator("text=/\\d{1,2}:\\d{2}|Now|Nu/") });
-    const count = await timeElements.count();
-
-    // If we have any time elements, verify they're visible
-    if (count > 0) {
-      await expect(timeElements.first()).toBeVisible();
-    }
+    const card = page.getByTestId("segment-row").filter({ hasText: "Lindarängsvägen" });
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    await expect(card.getByTestId("segment-line")).toHaveText("76");
+    await expect(card).toContainText("Norra Hammarbyhamnen");
+    await expect(card.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
   });
 
   test("should open and close quick-add drawer via inline add button", async ({ page }) => {

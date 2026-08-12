@@ -24,12 +24,21 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: /(?:pwa|mobile-(?:compat|critical))\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "mobile-safari",
-      testMatch: /mobile-compat\.spec\.ts/,
-      use: { ...devices["iPhone 13"], browserName: "webkit" },
+      testMatch: /mobile-(?:compat|critical)\.spec\.ts/,
+      use: { ...devices["iPhone 17"], browserName: "webkit" },
+    },
+    {
+      name: "pwa-chromium",
+      testMatch: /pwa\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        serviceWorkers: "allow",
+      },
     },
   ],
   webServer: {

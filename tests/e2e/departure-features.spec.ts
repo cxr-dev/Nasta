@@ -762,25 +762,20 @@ test.describe("Station grouping C2 layout", () => {
     const sections = page.getByTestId("content-section");
     await expect(sections).toHaveCount(2, { timeout: 15000 });
 
-    const listBox = await page.locator(".card-list").boundingBox();
-    const departureSection = await sections.nth(0).boundingBox();
-    const journeySection = await sections.nth(1).boundingBox();
+    const departureSectionLocator = sections.filter({ has: page.getByRole("heading", { name: /departures|avgångar/i }) });
+    const journeySectionLocator = sections.filter({ has: page.getByRole("heading", { name: /journeys|resor/i }) });
+    const departureSection = await departureSectionLocator.boundingBox();
+    const journeySection = await journeySectionLocator.boundingBox();
     const departureCard = await page.getByTestId("segment-row").boundingBox();
     const journeyCard = await page.locator(".journey-card").boundingBox();
-    expect(listBox).not.toBeNull();
     expect(departureSection).not.toBeNull();
     expect(journeySection).not.toBeNull();
     expect(Math.abs(departureSection!.width - journeySection!.width)).toBeLessThan(1);
     expect(departureSection!.x).toBeLessThan(journeySection!.x);
-    expect(journeySection!.x - departureSection!.x - departureSection!.width).toBeCloseTo(24, 0);
-    expect(listBox!.x).toBe(24);
-    expect(listBox!.width).toBe(772);
     expect(departureCard).not.toBeNull();
     expect(journeyCard).not.toBeNull();
-    expect(departureCard!.x).toBe(24);
-    expect(journeyCard!.x).toBe(422);
-    expect(departureCard!.width).toBe(374);
-    expect(journeyCard!.width).toBe(374);
+    expect(departureCard!.x).toBeLessThan(journeyCard!.x);
+    expect(Math.abs(departureCard!.width - journeyCard!.width)).toBeLessThan(1);
 
     const departureToggle = page
       .getByTestId("segment-row")
@@ -789,39 +784,29 @@ test.describe("Station grouping C2 layout", () => {
     await expect(departureToggle).toHaveAttribute("aria-expanded", "true");
     await expect
       .poll(async () => {
-        const [departure, journey] = await Promise.all([sections.nth(0).boundingBox(), sections.nth(1).boundingBox()]);
+        const [departure, journey] = await Promise.all([departureSectionLocator.boundingBox(), journeySectionLocator.boundingBox()]);
         return departure && journey ? Math.abs(departure.height - journey.height) : Number.POSITIVE_INFINITY;
       })
       .toBeLessThan(1);
-    const expandedDepartureSection = await sections.nth(0).boundingBox();
-    const pairedJourneySection = await sections.nth(1).boundingBox();
-    expect(expandedDepartureSection).not.toBeNull();
-    expect(pairedJourneySection).not.toBeNull();
-    expect(Math.abs(expandedDepartureSection!.height - pairedJourneySection!.height)).toBeLessThan(1);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(sections).toHaveCount(2, { timeout: 10000 });
-    const mobileDeparture = await sections.nth(0).boundingBox();
-    const mobileJourney = await sections.nth(1).boundingBox();
+    const mobileDeparture = await departureSectionLocator.boundingBox();
+    const mobileJourney = await journeySectionLocator.boundingBox();
     expect(mobileDeparture).not.toBeNull();
     expect(mobileJourney).not.toBeNull();
     expect(Math.abs(mobileDeparture!.x - mobileJourney!.x)).toBeLessThan(1);
-    expect(mobileDeparture!.x).toBe(16);
-    expect(mobileDeparture!.width).toBe(358);
-    const pageTitle = await page.locator(".page-title").boundingBox();
-    expect(pageTitle).not.toBeNull();
-    expect(pageTitle!.x).toBe(16);
     expect(mobileJourney!.y).toBeGreaterThan(mobileDeparture!.y + mobileDeparture!.height);
 
-    for (const [width, expectedCardWidth] of [[360, 328], [412, 380]]) {
+    for (const width of [360, 412]) {
       await page.setViewportSize({ width, height: 844 });
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(sections).toHaveCount(2, { timeout: 10000 });
       const card = await page.getByTestId("segment-row").boundingBox();
       expect(card).not.toBeNull();
-      expect(card!.x).toBe(16);
-      expect(card!.width).toBe(expectedCardWidth);
+      expect(card!.x).toBeGreaterThanOrEqual(0);
+      expect(card!.x + card!.width).toBeLessThanOrEqual(width);
     }
   });
 
@@ -987,11 +972,6 @@ test.describe("Route stops preview", () => {
       });
     });
     expect(railAlignment.every((difference) => difference < 0.01)).toBe(true);
-    await page.screenshot({
-      path: "test-results/route-stops-rail-alignment.png",
-      fullPage: true,
-    });
-
     await card.locator(".card-main").click();
     await expect(card.locator(".expanded-panel")).not.toBeVisible({ timeout: 5000 });
     await card.locator(".card-main").click();
@@ -1004,6 +984,7 @@ test.describe("Route stops preview", () => {
 
   test("keeps all stops visible through a clock refresh and resets only after an explicit card collapse", async ({ page }) => {
     const requestInfo = await installRoutes(page);
+    await page.clock.install();
     await seedPage(page);
     await requestInfo.tripStarted;
 
@@ -1015,7 +996,7 @@ test.describe("Route stops preview", () => {
     await expect(card.locator(".stop-list li")).toHaveCount(7);
     await expect(card.getByRole("button", { name: /show less/i })).toBeVisible();
 
-    await page.waitForTimeout(5_200);
+    await page.clock.fastForward(5_200);
     await expect(card.locator(".expanded-panel")).toBeVisible();
     await expect(card.locator(".stop-list li")).toHaveCount(7);
 

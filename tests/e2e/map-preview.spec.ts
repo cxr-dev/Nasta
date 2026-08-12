@@ -175,10 +175,6 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
   const attribution = page.locator(".maplibregl-ctrl-attrib");
   await expect(attribution).toBeVisible();
   await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
-  await page.screenshot({
-    path: "test-results/map-preview-mobile.png",
-    fullPage: true,
-  });
   await attribution.locator(".maplibregl-ctrl-attrib-button").click();
   await expect(attribution).toHaveClass(/maplibregl-compact-show/);
   expect(pageErrors).toEqual([]);
@@ -197,8 +193,4 @@ test("keeps route stops and map in one vertical reading flow at desktop width", 
   await expect(routeStops).toBeVisible();
   await expect(mapSection).toBeVisible();
   await expect(routeStops.locator(".stop-list li").first()).toBeVisible();
-  await page.screenshot({
-    path: "test-results/map-preview-wide-single-column.png",
-    fullPage: true,
-  });
 });

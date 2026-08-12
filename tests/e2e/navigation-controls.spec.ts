@@ -95,10 +95,6 @@ for (const viewport of viewports) {
     expect(await page.evaluate(() => history.length)).toBe(historyBeforeRailway + 1);
     await page.keyboard.press('Tab');
     expect(await railwayDialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-    await page.screenshot({
-      path: `test-results/navigation-controls-railway-${viewport.name}-light.png`,
-    });
-
     await page.evaluate(() => history.back());
     await expect(railwayDialog).toHaveCount(0);
     await expect(railwayTrigger).toBeFocused();
@@ -125,9 +121,6 @@ for (const viewport of viewports) {
     expect(await page.evaluate(() => history.length)).toBe(historyBeforeStopMap + 1);
     for (let index = 0; index < 4; index += 1) await page.keyboard.press('Tab');
     expect(await stopDialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-    await page.screenshot({
-      path: `test-results/navigation-controls-stop-map-${viewport.name}-light.png`,
-    });
     await stopDialog.getByRole('button', { name: 'Back' }).click();
     await expect(stopDialog).toHaveCount(0);
     await expect(expandMap).toBeFocused();
@@ -153,9 +146,6 @@ for (const viewport of viewports) {
     expect(closeBox!.width).toBe(44);
     expect(closeBox!.height).toBe(44);
     expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(sheetBox!.x + sheetBox!.width - 12);
-    await page.screenshot({
-      path: `test-results/navigation-controls-settings-${viewport.name}-dark.png`,
-    });
     await settingsClose.click();
     await expect(settings).not.toHaveClass(/\bopen\b/);
     await expect(settingsTrigger).toBeFocused();
