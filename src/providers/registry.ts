@@ -30,7 +30,7 @@ export class ProviderRegistry {
 
   /** All providers that support a given feature. */
   withFeature(feature: keyof ProviderCapabilities["features"]): TransitProvider[] {
-    return this.getAll().filter((p) => p.capabilities.features[feature]);
+    return this.getAll().filter((p) => Boolean(p.capabilities.features[feature]));
   }
 }
 

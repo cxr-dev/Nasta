@@ -22,6 +22,7 @@
   import PageEditor from './components/PageEditor.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
+  import NearbySurface from './components/NearbySurface.svelte';
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
@@ -109,6 +110,7 @@
   let deviationStationAlerts = $state<StationAlert[]>([]);
   let hour = $derived(getTimeOfDay().hour);
   let startupReady = $state(false);
+  let showNearby = $state(false);
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -489,6 +491,18 @@
     await performPageTransition(pageId);
   }
 
+  function openNearby() {
+    if (hasNoRoutes) return;
+    showNearby = true;
+    departureStore.stopAutoRefresh();
+    deviationStore.stopAutoRefresh();
+  }
+
+  function closeNearby() {
+    showNearby = false;
+    void loadDepartures();
+  }
+
   function showPageIndicator() {
     if (getPages().length < 2) return;
     pageIndicatorVisible = true;
@@ -717,6 +731,7 @@ function closeSettingsPanel() {
 
   async function handleTouchEnd(e: TouchEvent) {
     if (editing) return;
+    if (showNearby) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
 
@@ -739,10 +754,12 @@ function closeSettingsPanel() {
     if (Math.abs(dx) < 48) return;
 
     const allPages = getPages();
-    if (allPages.length < 2) return;
+    if (allPages.length === 0) return;
     const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
     if (dx < 0 && currentIdx < allPages.length - 1) {
       handlePageSwitch(allPages[currentIdx + 1].id);
+    } else if (dx < 0 && currentIdx === allPages.length - 1) {
+      openNearby();
     } else if (dx > 0 && currentIdx > 0) {
       handlePageSwitch(allPages[currentIdx - 1].id);
     }
@@ -878,6 +895,10 @@ function closeSettingsPanel() {
   function handleKeyDown(e: KeyboardEvent) {
     if (editing) return;
 
+    if (showNearby) {
+      return;
+    }
+
     // Ignore if typing in an input, textarea, or contenteditable
     const activeEl = document.activeElement;
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
@@ -886,13 +907,15 @@ function closeSettingsPanel() {
 
     if (isTransitioning) return;
     const allPages = getPages();
-    if (allPages.length < 2) return;
+    if (allPages.length === 0) return;
 
     const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
 
     if (e.key === 'ArrowRight') {
       if (currentIdx < allPages.length - 1) {
         handlePageSwitch(allPages[currentIdx + 1].id);
+      } else if (currentIdx === allPages.length - 1) {
+        openNearby();
       }
     } else if (e.key === 'ArrowLeft') {
       if (currentIdx > 0) {
@@ -979,12 +1002,16 @@ function closeSettingsPanel() {
               </button>
             </div>
           {:else if page}
+            {#if showNearby}
+              <NearbySurface onBack={closeNearby} />
+            {:else}
             <SegmentDepartures
               page={page}
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
+              onOpenNearby={openNearby}
               onEditToggle={toggleEdit}
               onOpenSettings={openSettingsPanel}
               onQuickAdd={() => showQuickAdd = true}
@@ -993,14 +1020,15 @@ function closeSettingsPanel() {
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
             />
+            {/if}
           {/if}
         </div>
       {/key}
 
     </div>
 
-    {#if pages.length > 1 && !editing && !hasNoRoutes}
-            <div class="page-dot-indicator" class:visible={pageIndicatorVisible} aria-hidden="true">
+    {#if pages.length >= 1 && !editing && !hasNoRoutes}
+            <div class="page-dot-indicator" class:visible={pageIndicatorVisible || showNearby} aria-hidden="true">
               <div class="page-dots">
                 {#each pages as p, i (p.id)}
                   <span
@@ -1009,6 +1037,9 @@ function closeSettingsPanel() {
                     aria-hidden="true"
                   ></span>
                 {/each}
+                <span class="nearby-dot" class:active={showNearby} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5 10 3l4 2.5L20 3v15.5L14 21l-4-2.5-6 2.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 3v15.5M14 5.5V21" stroke="currentColor" stroke-width="1.8"/></svg>
+                </span>
               </div>
             </div>
     {/if}
@@ -1410,6 +1441,23 @@ function closeSettingsPanel() {
       transform: translateY(8px);
     }
   }
+
+  .nearby-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    color: var(--text-ghost);
+    transition: color 0.15s ease, transform 0.15s ease;
+  }
+
+  .nearby-dot.active {
+    color: var(--text);
+    transform: scale(1.08);
+  }
+
+  .nearby-dot svg { width: 100%; height: 100%; }
 
   .empty-page-chrome {
     display: flex;

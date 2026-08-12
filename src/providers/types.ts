@@ -3,6 +3,8 @@
  */
 export type {
   EntityId,
+  Coord,
+  NearbyStopQuery,
   StopId,
   RouteId,
   TripId,

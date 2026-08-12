@@ -1,6 +1,7 @@
 import type {
   TransitProvider,
   TransitStopSearchResult,
+  NearbyStopQuery,
   TransitDeparture,
   TransportMode,
   EntityId,
@@ -12,6 +13,7 @@ import {
   getStopKey,
 } from "../services/staticTimetable.js";
 import type { Departure } from "../types/departure.js";
+import { distanceMeters } from "../services/geo";
 
 const PROVIDER_ID = "sjostad";
 const STOP_PREFIX = `${PROVIDER_ID}:`;
@@ -74,6 +76,7 @@ export const sjostadProvider: TransitProvider = {
     displayName: "Sjöstadstrafiken",
     features: {
       search: true,
+      nearbyStops: true,
       realtime: false,
       schedules: true,
       predictions: true,
@@ -107,6 +110,21 @@ export const sjostadProvider: TransitProvider = {
       }
     }
     return results;
+  },
+
+  async getNearbyStops(query: NearbyStopQuery, _signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
+    return Object.entries(STOP_METADATA)
+      .flatMap(([key, info]) => {
+        if (!info.coord) return [];
+        const distance = distanceMeters(query.origin[0], query.origin[1], info.coord[0], info.coord[1]);
+        if (distance > query.radiusMeters) return [];
+        return [{
+          id: toStopEntityId(key), name: info.name, coord: info.coord, modes: ['boat' as TransportMode], relevance: 0,
+          distance, locationType: 'stop' as const,
+        }];
+      })
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+      .slice(0, query.limit);
   },
 
   async getDepartures(

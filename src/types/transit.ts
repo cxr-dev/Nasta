@@ -32,6 +32,12 @@ export function parseEntityId(id: EntityId): { providerId: string; localId: stri
 /** WGS84 coordinate pair [latitude, longitude] */
 export type Coord = [number, number];
 
+export interface NearbyStopQuery {
+  origin: Coord;
+  radiusMeters: number;
+  limit: number;
+}
+
 // ─── Enums ─────────────────────────────────────────────────────
 
 /** Canonical transport mode taxonomy, priority-ordered by display prominence.
@@ -721,6 +727,8 @@ export interface ProviderCapabilities {
   features: {
     /** Stop search (text → results) */
     search: boolean;
+    /** Nearby stop discovery from a coordinate. */
+    nearbyStops?: boolean;
     /** Real-time departures (live data) */
     realtime: boolean;
     /** Static schedule (timetable) */
@@ -774,6 +782,11 @@ export interface TransitProvider {
   /** Search stops matching query text. */
   searchStops?(
     query: string,
+    signal?: AbortSignal,
+  ): Promise<TransitStopSearchResult[]>;
+
+  getNearbyStops?(
+    query: NearbyStopQuery,
     signal?: AbortSignal,
   ): Promise<TransitStopSearchResult[]>;
 
@@ -910,6 +923,8 @@ export interface ProviderRegistry {
 export interface TransitService {
   // Search
   searchStops(query: string, signal?: AbortSignal): Promise<TransitStopSearchResult[]>;
+
+  getNearbyStops(query: NearbyStopQuery, signal?: AbortSignal): Promise<TransitStopSearchResult[]>;
 
   // Departures
   getDepartures(

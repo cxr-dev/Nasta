@@ -4,6 +4,7 @@ import type {
   TransitDeparture,
   TransitDisruption,
   TransitStopSearchResult,
+  NearbyStopQuery,
   TransitStopSequence,
   TransitRealtimeUpdate,
   TransitVehiclePosition,
@@ -34,6 +35,20 @@ export class TransitServiceImpl implements TransitService {
       if (batch.status === "fulfilled") results.push(...batch.value);
     }
     return results;
+  }
+
+  async getNearbyStops(query: NearbyStopQuery, signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
+    const providers = this.registry.withFeature("nearbyStops");
+    const batches = await Promise.allSettled(
+      providers.map((provider) => provider.getNearbyStops!(query, signal)),
+    );
+    const results: TransitStopSearchResult[] = [];
+    for (const batch of batches) {
+      if (batch.status === "fulfilled") results.push(...batch.value);
+    }
+    return results
+      .sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY))
+      .slice(0, query.limit);
   }
 
   // ─── Departures — resolve provider from stopId ───────────────

@@ -31,6 +31,15 @@ test.describe("Nästa App", () => {
             }],
           }),
         });
+      } else if (url.includes("/v1/sites")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            { id: 100, name: "Lindarängsvägen", lat: 59.33, lon: 18.06 },
+            { id: 200, name: "Kungsträdgården", lat: 59.33, lon: 18.07 },
+          ]),
+        });
       } else if (url.includes("deviations") || url.includes("messages")) {
         await route.fulfill({
           status: 200,
@@ -189,6 +198,17 @@ test.describe("Nästa App", () => {
     await expect(card.getByTestId("segment-line")).toHaveText("76");
     await expect(card).toContainText("Norra Hammarbyhamnen");
     await expect(card.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
+  });
+
+  test("should open the permanent Nearby surface after the last saved page", async ({ page }) => {
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
+    await page.getByRole("button", { name: "Nearby" }).click();
+    await expect(page.locator(".nearby-surface")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Enable location|Use my location|Aktivera plats/i })).toBeVisible();
+    await page.getByRole("button", { name: "Back to pages" }).click();
+    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
   });
 
   test("should open and close quick-add drawer via inline add button", async ({ page }) => {

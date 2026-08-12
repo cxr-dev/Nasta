@@ -1,6 +1,7 @@
 import type {
   TransitProvider,
   TransitStopSearchResult,
+  NearbyStopQuery,
   TransitDeparture,
   TransitDisruption,
   TransitStopSequence,
@@ -10,6 +11,7 @@ import type {
   DepartureDataSource,
 } from "./types.js";
 import { SL_PRODUCT_TO_MODE } from "../types/transit.js";
+import { getNearbyStops as getNearbySlStops } from "../services/nearbyStops";
 import { searchSites as slSearchSites, getDepartures as slGetDepartures } from "../services/slApi.js";
 import { getDeviations as slGetDeviations, pickPreferredMessageText } from "../services/slDeviations.js";
 import { resolveStopSequence } from "../services/routeStops.js";
@@ -136,6 +138,7 @@ export const slProvider: TransitProvider = {
     displayName: "SL (Storstockholms Lokaltrafik)",
     features: {
       search: true,
+      nearbyStops: true,
       realtime: true,
       schedules: true,
       predictions: true,
@@ -157,6 +160,10 @@ export const slProvider: TransitProvider = {
   async searchStops(query: string, signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
     const results = await slSearchSites(query, signal);
     return toSearchResults(results);
+  },
+
+  async getNearbyStops(query: NearbyStopQuery, signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
+    return getNearbySlStops(query, signal);
   },
 
   async getDepartures(

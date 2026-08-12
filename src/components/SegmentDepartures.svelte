@@ -42,6 +42,7 @@
     deviationStationAlerts = [] as StationAlert[],
     openFeatureSheet = null,
     onSwitchPage,
+    onOpenNearby,
     onEditToggle,
     onOpenSettings,
     onQuickAdd,
@@ -55,6 +56,7 @@
     deviationStationAlerts?: StationAlert[];
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
+    onOpenNearby?: () => void;
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
     onQuickAdd?: () => void;
@@ -506,6 +508,13 @@
       <button class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html settingsGear}
+        </svg>
+      </button>
+      {/if}
+      {#if onOpenNearby && !hasNext}
+      <button class="header-icon-btn" onclick={onOpenNearby} aria-label={t.nearby ?? 'Nearby'}>
+        <svg viewBox="0 0 24 24" fill="none">
+          {@html mapIcon}
         </svg>
       </button>
       {/if}
