@@ -11,12 +11,21 @@ if (!import.meta.env.SSR && typeof window !== "undefined") {
     const launchScreen = document.getElementById("nasta-launch");
     if (!launchScreen) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    let removed = false;
+    const removeLaunchScreen = () => {
+      if (removed) return;
+      removed = true;
       launchScreen.remove();
+    };
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      removeLaunchScreen();
       return;
     }
 
-    launchScreen.addEventListener("transitionend", () => launchScreen.remove(), { once: true });
+    launchScreen.style.pointerEvents = "none";
+    launchScreen.addEventListener("transitionend", removeLaunchScreen, { once: true });
+    window.setTimeout(removeLaunchScreen, 200);
     launchScreen.classList.add("is-leaving");
   };
 

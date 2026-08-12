@@ -31,7 +31,7 @@
         const root = document.documentElement;
         root.dataset.theme = theme;
         root.style.colorScheme = theme;
-        root.style.backgroundColor = theme === "dark" ? "#111211" : "#F7F7F5";
+        root.style.backgroundColor = theme === "dark" ? "#111311" : "#F7F7F5";
       })();
     </script>
 
@@ -51,7 +51,21 @@
 
     <!-- Fonts: Neue Machina for display, Satoshi for body — async, non-blocking -->
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
-    <link rel="preload" as="image" href="./logosvg.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="%BASE_URL%logosvg.svg" type="image/svg+xml" />
+    <link
+      rel="preload"
+      as="font"
+      href="%BASE_URL%fonts/bricolage-grotesque-latin-800.woff2"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="font"
+      href="%BASE_URL%fonts/dm-sans-latin-500-700.woff2"
+      type="font/woff2"
+      crossorigin
+    />
     <link
       rel="preload"
       as="style"
@@ -81,19 +95,34 @@
         min-height: 100%;
         background: var(--boot-bg, #f7f7f5);
       }
+      @font-face {
+        font-family: "Bricolage Grotesque Launch";
+        src: url("%BASE_URL%fonts/bricolage-grotesque-latin-800.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 800;
+        font-stretch: 75% 100%;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "DM Sans Launch";
+        src: url("%BASE_URL%fonts/dm-sans-latin-500-700.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 500 700;
+        font-display: swap;
+      }
       html[data-theme="dark"] {
-        --boot-bg: #111211;
-        --boot-surface: #1b1c1a;
-        --boot-ink: #f5f5f0;
-        --boot-line: rgba(245, 245, 240, 0.24);
-        --boot-skeleton: rgba(245, 245, 240, 0.16);
+        --boot-bg: #111311;
+        --launch-ink: #f5f5ef;
+        --launch-muted: rgba(245, 245, 239, 0.66);
+        --launch-route-base: rgba(245, 245, 239, 0.21);
+        --launch-soft: rgba(245, 245, 239, 0.11);
       }
       html[data-theme="light"] {
         --boot-bg: #f7f7f5;
-        --boot-surface: #ffffff;
-        --boot-ink: #171717;
-        --boot-line: rgba(23, 23, 23, 0.25);
-        --boot-skeleton: rgba(23, 23, 23, 0.13);
+        --launch-ink: #171b18;
+        --launch-muted: #555b55;
+        --launch-route-base: rgba(23, 27, 24, 0.18);
+        --launch-soft: rgba(23, 27, 24, 0.1);
       }
       /* Ensure inputs don't zoom on iOS */
       input,
@@ -120,133 +149,238 @@
       }
 
       #nasta-launch {
+        --launch-safe-top: env(safe-area-inset-top, 0px);
+        --launch-safe-right: env(safe-area-inset-right, 0px);
+        --launch-safe-bottom: env(safe-area-inset-bottom, 0px);
+        --launch-safe-left: env(safe-area-inset-left, 0px);
         position: fixed;
         inset: 0;
         z-index: 600;
-        display: grid;
-        place-items: center;
         overflow: hidden;
         background: var(--boot-bg);
-        color: var(--boot-ink);
-        transition: opacity 120ms ease-out;
+        color: var(--launch-ink);
+        transition: opacity 120ms cubic-bezier(0.25, 1, 0.5, 1);
       }
       #nasta-launch.is-leaving {
         opacity: 0;
         pointer-events: none;
       }
-      .launch-content {
-        position: relative;
-        z-index: 1;
-        width: min(100% - 40px, 440px);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
       .launch-route {
         position: absolute;
-        top: -52px;
-        width: min(132vw, 620px);
-        height: 310px;
-        overflow: visible;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
       }
-      .launch-route-path {
+      .launch-route-base,
+      .launch-route-active {
         fill: none;
-        stroke: var(--boot-line);
-        stroke-width: 2;
         stroke-linecap: round;
-        stroke-dasharray: 1 10;
-        animation: launch-route-travel 900ms linear infinite;
       }
-      .launch-route-station {
-        fill: var(--boot-bg);
-        stroke: var(--boot-ink);
-        stroke-width: 2;
-        opacity: 0.45;
+      .launch-route-base {
+        stroke: var(--launch-route-base);
+        stroke-width: 4;
       }
-      .launch-route-current {
+      .launch-route-active {
+        stroke: var(--launch-ink);
+        stroke-width: 5;
+        stroke-dasharray: 0 1000;
+        animation: launch-route-draw 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .launch-station-halo,
+      .launch-traveller-halo {
+        fill: var(--launch-soft);
+      }
+      .launch-station-ring,
+      .launch-traveller-ring {
         fill: var(--boot-bg);
-        stroke: var(--boot-ink);
-        stroke-width: 2;
+        stroke: var(--launch-ink);
+        stroke-width: 4;
+      }
+      .launch-station-destination {
+        stroke: color-mix(in srgb, var(--launch-ink) 38%, transparent);
+        transform-box: fill-box;
         transform-origin: center;
-        animation: launch-route-pulse 800ms ease-in-out infinite;
+        animation: launch-destination-arrival 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
       }
-      .launch-route-current-core {
-        fill: var(--boot-ink);
+      .launch-station-core,
+      .launch-traveller-arrow {
+        fill: var(--launch-ink);
+      }
+      .launch-station-label {
+        fill: var(--launch-muted);
+        font-family: "DM Sans Launch", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.075em;
+      }
+      .launch-traveller {
+        offset-path: path("M -25 686 C 5 676 29 663 54 650 C 120 595 189 687 250 620 C 286 578 316 559 340 570 C 366 581 391 594 420 586");
+        offset-rotate: auto;
+        animation: launch-travel 4.8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+      }
+      .launch-traveller-ring {
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
       }
       .launch-brand {
-        margin-top: 6px;
+        position: absolute;
+        top: 19.5%;
+        top: max(19.5svh, calc(var(--launch-safe-top) + 16px));
+        left: var(--launch-safe-left);
+        right: var(--launch-safe-right);
+        z-index: 5;
         text-align: center;
-        animation: launch-brand-settle 260ms ease-out both;
       }
       .launch-logo {
         display: block;
-        width: 132px;
-        height: 132px;
+        width: min(57vw, 222.3px);
+        height: auto;
         margin: 0 auto;
+        filter: drop-shadow(0 10px 18px rgba(18, 23, 18, 0.12));
       }
       html[data-theme="dark"] .launch-logo {
-        filter: invert(1) brightness(1.1);
+        filter: invert(1) brightness(1.12) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.26));
       }
       .launch-name {
-        margin: 10px 0 0;
-        font-family: "Neue Machina", "Arial Narrow", sans-serif;
-        font-size: clamp(48px, 14vw, 64px);
+        margin: 14px 0 0;
+        font-family: "Bricolage Grotesque Launch", "Arial Black", sans-serif;
+        font-size: clamp(60px, 18.46vw, 72px);
         font-weight: 800;
-        line-height: 0.92;
-        letter-spacing: -0.035em;
+        line-height: 0.84;
+        letter-spacing: -0.05em;
       }
       .launch-label {
-        margin: 11px 0 0;
-        font-family: "Satoshi", -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 14px;
-        font-weight: 600;
-        color: color-mix(in oklch, var(--boot-ink) 72%, var(--boot-bg));
-      }
-      .launch-skeletons {
-        width: 100%;
-        display: grid;
-        gap: 10px;
-        margin-top: 92px;
-      }
-      .launch-card {
-        height: 66px;
-        display: grid;
-        grid-template-columns: 32px minmax(0, 1fr) 52px;
+        display: inline-flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border: 1px solid color-mix(in oklch, var(--boot-ink) 14%, var(--boot-bg));
-        border-radius: 12px;
-        background: var(--boot-surface);
+        gap: 8px;
+        margin: 18px 0 0;
+        font-family: "DM Sans Launch", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.2;
+        color: var(--launch-muted);
       }
-      .launch-block,
-      .launch-line {
-        display: block;
-        background: var(--boot-skeleton);
+      .launch-loading-mark {
+        position: relative;
+        width: 18px;
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--launch-soft);
       }
-      .launch-block { border-radius: 8px; }
-      .launch-icon { width: 32px; height: 32px; }
-      .launch-time { width: 52px; height: 30px; justify-self: end; border-radius: 5px; }
-      .launch-lines { display: grid; gap: 6px; }
-      .launch-line { height: 8px; border-radius: 999px; }
-      .launch-line.short { width: 52%; }
-      .launch-line.mid { width: 68%; }
-      @keyframes launch-route-travel {
-        to { stroke-dashoffset: -44; }
+      .launch-loading-mark::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 50%;
+        border-radius: inherit;
+        background: var(--launch-ink);
+        animation: launch-loading-shuttle 1.35s cubic-bezier(0.45, 0, 0.2, 1) infinite alternate;
       }
-      @keyframes launch-route-pulse {
-        50% { opacity: 0.35; transform: scale(1.35); }
+      .launch-readout {
+        position: absolute;
+        left: max(34px, calc(var(--launch-safe-left) + 16px));
+        right: max(34px, calc(var(--launch-safe-right) + 16px));
+        bottom: calc(62px + var(--launch-safe-bottom));
+        z-index: 5;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding-top: 13px;
+        border-top: 1px solid var(--launch-route-base);
+        font-family: "DM Sans Launch", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
-      @keyframes launch-brand-settle {
-        from { opacity: 0; transform: translateY(6px) scale(0.98); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
+      .launch-readout-label {
+        color: var(--launch-muted);
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: 0.08em;
+      }
+      .launch-readout-line {
+        height: 1px;
+        background: var(--launch-route-base);
+      }
+      .launch-readout-destination {
+        color: var(--launch-ink);
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: 0.025em;
+      }
+      @keyframes launch-route-draw {
+        0% { stroke-dasharray: 0 1000; }
+        68%, 100% { stroke-dasharray: 1000 0; }
+      }
+      @keyframes launch-travel {
+        0% { offset-distance: 17.76%; }
+        68%, 100% { offset-distance: 82.95%; }
+      }
+      @keyframes launch-destination-arrival {
+        0%, 58% {
+          stroke: color-mix(in srgb, var(--launch-ink) 38%, transparent);
+          transform: scale(1);
+        }
+        68% {
+          stroke: var(--launch-ink);
+          transform: scale(1.28);
+        }
+        78%, 100% {
+          stroke: var(--launch-ink);
+          transform: scale(1);
+        }
+      }
+      @keyframes launch-loading-shuttle {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(200%); }
+      }
+      @media (orientation: portrait) and (max-height: 699px) {
+        .launch-brand {
+          top: 12%;
+          top: max(12svh, calc(var(--launch-safe-top) + 16px));
+        }
+        .launch-logo { width: min(52vw, 168px); }
+        .launch-name { font-size: 56px; }
+        .launch-route { transform: translateY(-72px); }
+        .launch-readout { bottom: calc(28px + var(--launch-safe-bottom)); }
+      }
+      @media (orientation: landscape) and (max-height: 520px) {
+        .launch-brand {
+          top: calc(var(--launch-safe-top) + 16px);
+          left: var(--launch-safe-left);
+          right: 50%;
+        }
+        .launch-logo { width: min(29vw, 128px); }
+        .launch-name {
+          margin-top: 8px;
+          font-size: 46px;
+        }
+        .launch-label { margin-top: 10px; }
+        .launch-route {
+          inset: auto 0 auto auto;
+          top: 50%;
+          width: 195px;
+          height: 422px;
+          transform: translateY(-50%);
+        }
+        .launch-station-label,
+        .launch-readout { display: none; }
       }
       @media (prefers-reduced-motion: reduce) {
         #nasta-launch { transition: none; }
-        .launch-route-path,
-        .launch-route-current,
-        .launch-brand { animation: none; }
+        .launch-route-active,
+        .launch-station-destination,
+        .launch-traveller,
+        .launch-loading-mark::after { animation: none; }
+        .launch-route-active { stroke-dasharray: 1000 0; }
+        .launch-station-destination {
+          stroke: var(--launch-ink);
+          transform: scale(1);
+        }
+        .launch-traveller { offset-distance: 55%; }
+        .launch-loading-mark::after { transform: translateX(50%); }
       }
 
     </style>
@@ -254,25 +388,43 @@
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div id="nasta-launch" aria-hidden="true">
-      <div class="launch-content">
-        <svg class="launch-route" viewBox="0 0 360 280" aria-hidden="true">
-          <path class="launch-route-path" d="M-24 158 C 30 99, 62 231, 126 168 S 213 78, 272 136 S 327 208, 391 81" />
-          <circle class="launch-route-station" cx="74" cy="192" r="4" />
-          <circle class="launch-route-station" cx="210" cy="103" r="4" />
-          <circle class="launch-route-station" cx="298" cy="173" r="4" />
-          <circle class="launch-route-current" cx="258" cy="124" r="7" />
-          <circle class="launch-route-current-core" cx="258" cy="124" r="3" />
-        </svg>
-        <div class="launch-brand">
-          <img class="launch-logo" src="./logosvg.svg" alt="" />
-          <p class="launch-name">Nästa</p>
-          <p class="launch-label">Hämtar avgångar</p>
-        </div>
-        <div class="launch-skeletons">
-          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
-          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
-          <div class="launch-card"><i class="launch-block launch-icon"></i><span class="launch-lines"><i class="launch-line"></i><i class="launch-line short"></i><i class="launch-line mid"></i></span><i class="launch-block launch-time"></i></div>
-        </div>
+      <div class="launch-brand">
+        <img class="launch-logo" src="%BASE_URL%logosvg.svg" alt="" />
+        <p class="launch-name">Nästa</p>
+        <p class="launch-label"><i class="launch-loading-mark"></i>Hämtar avgångar</p>
+      </div>
+      <svg
+        class="launch-route"
+        viewBox="0 0 390 844"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <path
+          class="launch-route-base"
+          d="M -25 686 C 5 676 29 663 54 650 C 120 595 189 687 250 620 C 286 578 316 559 340 570 C 366 581 391 594 420 586"
+        />
+        <path
+          class="launch-route-active"
+          pathLength="1000"
+          d="M -25 686 C 5 676 29 663 54 650 C 120 595 189 687 250 620 C 286 578 316 559 340 570 C 366 581 391 594 420 586"
+        />
+        <circle class="launch-station-halo" cx="54" cy="650" r="16" />
+        <circle class="launch-station-ring launch-station-origin" cx="54" cy="650" r="9" />
+        <circle class="launch-station-core" cx="54" cy="650" r="3" />
+        <circle class="launch-station-halo" cx="340" cy="570" r="16" />
+        <circle class="launch-station-ring launch-station-destination" cx="340" cy="570" r="9" />
+        <text class="launch-station-label" x="30" y="678">SLUSSEN</text>
+        <text class="launch-station-label" x="286" y="598">T-CENTRALEN</text>
+        <g class="launch-traveller">
+          <circle class="launch-traveller-halo" r="17" />
+          <circle class="launch-traveller-ring" r="10" />
+          <path class="launch-traveller-arrow" d="M-3 -4 L4 0 L-3 4 Z" />
+        </g>
+      </svg>
+      <div class="launch-readout">
+        <span class="launch-readout-label">NÄSTA STOPP</span>
+        <i class="launch-readout-line"></i>
+        <strong class="launch-readout-destination">T-CENTRALEN</strong>
       </div>
     </div>
     <div id="app"></div>
