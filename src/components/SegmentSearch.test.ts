@@ -11,7 +11,7 @@ const mockLoadGrantedLocation = vi.fn();
 const mockRequestLocation = vi.fn();
 const mockGetMemoizedDistance = vi.fn();
 const mockFormatDistance = vi.fn((km: number) => `${km.toFixed(1)} km`);
-let locationListener: ((snapshot: { position: [number, number] | null; isLoading: boolean; access: 'granted' | 'denied' | 'prompt' | 'unknown' | 'unsupported' }) => void) | null = null;
+let locationListener: ((snapshot: { position: [number, number] | null; accuracy: number | null; isLoading: boolean; access: 'granted' | 'denied' | 'prompt' | 'unknown' | 'unsupported' }) => void) | null = null;
 
 vi.mock("../providers/init", () => ({
   transitService: {
@@ -27,11 +27,12 @@ vi.mock("../services/geo", () => ({
   requestLocation: (...args: any[]) => mockRequestLocation(...args),
   subscribeToLocation: (listener: typeof locationListener) => {
     locationListener = listener;
-    listener?.({ position: null, isLoading: false, access: 'prompt' });
+    listener?.({ position: null, accuracy: null, isLoading: false, access: 'prompt' });
     return () => { locationListener = null; };
   },
   getMemoizedDistance: (...args: any[]) => mockGetMemoizedDistance(...args),
   formatDistance: (km: number) => mockFormatDistance(km),
+  isDistanceReliable: () => true,
 }));
 
 const stationCentralen = {
@@ -273,7 +274,7 @@ describe("SegmentSearch", () => {
       await fireEvent.click(action);
       expect(mockRequestLocation).toHaveBeenCalledTimes(1);
 
-      locationListener?.({ position: [59.33, 18.06], isLoading: false, access: 'granted' });
+      locationListener?.({ position: [59.33, 18.06], accuracy: null, isLoading: false, access: 'granted' });
       expect(await findByText("Nära dig:")).toBeTruthy();
     });
   });

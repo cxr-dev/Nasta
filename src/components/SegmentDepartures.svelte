@@ -8,7 +8,7 @@
   import { formatDepartureTime } from "../lib/departureDisplay";
   import { buildDepartureBoardGroups, resolveDepartureBoardSnapshot } from "../lib/departureBoardModel";
   import { onMount, onDestroy, tick } from "svelte";
-  import { loadGrantedLocation, subscribeToLocation } from "../services/geo";
+  import { isDistanceReliable, loadGrantedLocation, subscribeToLocation } from "../services/geo";
   import { getT } from "../stores/localeStore.svelte";
   import gsap from 'gsap';
 
@@ -437,7 +437,9 @@
   onMount(() => {
     UNSUBSCRIBERS.push(
       subscribeToLocation((snapshot) => {
-        userLocation = walkingEtaActive ? snapshot.position : null;
+        userLocation = walkingEtaActive && isDistanceReliable(200, snapshot.accuracy)
+          ? snapshot.position
+          : null;
         locationRequestInFlight = walkingEtaActive && snapshot.isLoading;
       }),
     );

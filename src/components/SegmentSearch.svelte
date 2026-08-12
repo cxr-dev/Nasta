@@ -1,6 +1,6 @@
 <script lang="ts">
   import { transitService } from '../providers/init';
-  import { loadGrantedLocation, requestLocation, subscribeToLocation, getMemoizedDistance, formatDistance, type LocationAccessState } from '../services/geo';
+  import { loadGrantedLocation, requestLocation, subscribeToLocation, getMemoizedDistance, formatDistance, isDistanceReliable, type LocationAccessState } from '../services/geo';
 import type { TransitStopSearchResult, TransitDeparture } from '../providers/types';
 import type { TransportType, Stop, SegmentDirection, Segment } from '../types/page';
 import { getT } from '../stores/localeStore.svelte';
@@ -62,6 +62,10 @@ function getDistanceSortValue(station: TransitStopSearchResult): number {
   return getMemoizedDistance(station.id, station.coord[0], station.coord[1], userLocation[0], userLocation[1]);
 }
 
+function showDistance(distanceInKm: number): boolean {
+  return isDistanceReliable(distanceInKm * 1000, locationAccuracy);
+}
+
 function getPrimaryType(station: TransitStopSearchResult): TransportType {
   const m = station.modes ?? (station.providerMetadata?.modes as string[] | undefined);
   if (m && m.length > 0) return m[0] as TransportType;
@@ -72,6 +76,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   let stations = $state<TransitStopSearchResult[]>([]);
   let allDepartures = $state<TransitDeparture[]>([]);
   let userLocation = $state<[number, number] | null>(null);
+  let locationAccuracy = $state<number | null>(null);
   let isLoadingLocation = $state(false);
   let locationAccess = $state<LocationAccessState>('unknown');
   let recentStops = $state<TransitStopSearchResult[]>([]);
@@ -469,6 +474,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
       locationAccess = snapshot.access;
       const locationEnabled = settings.locationServicesEnabled ?? false;
       userLocation = locationEnabled ? snapshot.position : null;
+      locationAccuracy = locationEnabled ? snapshot.accuracy : null;
       isLoadingLocation = locationEnabled && snapshot.isLoading;
     });
     loadRecentStops();
@@ -558,7 +564,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
           <div class="nearby-label">{t.nearby}:</div>
           {#each nearbyStops as stop (stop.id)}
              <button class="anchor-btn nearby-btn" onclick={() => selectStation(stop)}>
-              {stop.name} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>
+              {stop.name}{#if showDistance(stop.distance as number)} <span class="dist-mini">{formatDistance(stop.distance as number)}</span>{/if}
             </button>
           {/each}
         {/if}
@@ -578,7 +584,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
               <div class="item-right">
                 {#if userLocation && stop.coord}
                   {@const dist = getMemoizedDistance(stop.id, stop.coord[0], stop.coord[1], userLocation[0], userLocation[1])}
-                  <span class="distance">{formatDistance(dist)}</span>
+                  {#if showDistance(dist)}<span class="distance">{formatDistance(dist)}</span>{/if}
                 {/if}
                 <span class="arrow">→</span>
               </div>
@@ -606,7 +612,7 @@ function filterIconType(type: TransportFilterOption): TransportType {
               <div class="item-right">
                 {#if userLocation && station.coord}
                   {@const dist = getMemoizedDistance(station.id, station.coord[0], station.coord[1], userLocation[0], userLocation[1])}
-                  <span class="distance">{formatDistance(dist)}</span>
+                  {#if showDistance(dist)}<span class="distance">{formatDistance(dist)}</span>{/if}
                 {/if}
                 <span class="arrow">→</span>
               </div>

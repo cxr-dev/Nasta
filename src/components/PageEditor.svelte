@@ -156,9 +156,11 @@
   function handlePageTouchMove(e: TouchEvent) {
     if (pageDraggingIndex === null) return;
     e.preventDefault();
-    clearTimeout(pageLongPressTimer);
-    if (pageIsLongPressing) pageIsLongPressing = false;
     const touch = e.touches[0];
+    if (Math.hypot(touch.clientX - pageDragStartX, touch.clientY - pageDragStartY) > 8) {
+      clearTimeout(pageLongPressTimer);
+    }
+    if (pageIsLongPressing) pageIsLongPressing = false;
     const el = document.querySelector(`[data-page-drag-index="${pageDraggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, {
@@ -184,7 +186,7 @@
     }
   }
 
-  function handlePageTouchEnd() {
+  function finishPageTouchDrag(commit: boolean) {
     if (pageDraggingIndex === null) return;
     clearTimeout(pageLongPressTimer);
     pageIsLongPressing = false;
@@ -193,12 +195,20 @@
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
       el.style.pointerEvents = '';
     }
-    if (pageDragOverIndex !== null && pageDraggingIndex !== pageDragOverIndex) {
+    if (commit && pageDragOverIndex !== null && pageDraggingIndex !== pageDragOverIndex) {
       handleReorderPage(pageDraggingIndex, pageDragOverIndex);
     }
     pageDraggingIndex = null;
     pageDragOverIndex = null;
     pageDropInsertIndex = null;
+  }
+
+  function handlePageTouchEnd() {
+    finishPageTouchDrag(true);
+  }
+
+  function handlePageTouchCancel() {
+    finishPageTouchDrag(false);
   }
 
   $effect(() => {
@@ -343,6 +353,7 @@
         class="tab-content pages-tab"
         bind:this={pagesTabEl}
         ontouchend={handlePageTouchEnd}
+        ontouchcancel={handlePageTouchCancel}
         role="region"
         aria-label={t.pages}
       >

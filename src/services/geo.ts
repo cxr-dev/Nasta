@@ -7,12 +7,15 @@ export type LocationAccessState = 'granted' | 'denied' | 'prompt' | 'unknown' | 
 
 export interface LocationSnapshot {
   position: [number, number] | null;
+  /** Browser-reported horizontal accuracy in meters, when available. */
+  accuracy: number | null;
   isLoading: boolean;
   access: LocationAccessState;
 }
 
 let locationSnapshot: LocationSnapshot = {
   position: null,
+  accuracy: null,
   isLoading: false,
   access: 'unknown',
 };
@@ -44,11 +47,17 @@ async function getBrowserLocationAccess(): Promise<LocationAccessState> {
 function startLocationRequest(): Promise<[number, number] | null> {
   const requestGeneration = sessionGeneration;
   let failureAccess: LocationAccessState = 'unknown';
+  let requestAccuracy: number | null = null;
 
   publishLocationSnapshot({ ...locationSnapshot, isLoading: true });
   const request = new Promise<[number, number] | null>((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve([position.coords.latitude, position.coords.longitude]),
+      (position) => {
+        requestAccuracy = Number.isFinite(position.coords.accuracy) && position.coords.accuracy >= 0
+          ? position.coords.accuracy
+          : null;
+        resolve([position.coords.latitude, position.coords.longitude]);
+      },
       (error) => {
         failureAccess = error.code === 1 ? 'denied' : 'unknown';
         resolve(null);
@@ -62,6 +71,7 @@ function startLocationRequest(): Promise<[number, number] | null> {
     if (requestGeneration !== sessionGeneration) return;
     publishLocationSnapshot({
       position,
+      accuracy: position ? requestAccuracy : null,
       isLoading: false,
       access: position ? 'granted' : failureAccess,
     });
@@ -92,7 +102,7 @@ export function requestLocation(): Promise<[number, number] | null> {
   if (locationSnapshot.position) return Promise.resolve(locationSnapshot.position);
   if (locationRequest) return locationRequest;
   if (!hasGeolocation()) {
-    publishLocationSnapshot({ position: null, isLoading: false, access: 'unsupported' });
+    publishLocationSnapshot({ position: null, accuracy: null, isLoading: false, access: 'unsupported' });
     return Promise.resolve(null);
   }
   return startLocationRequest();
@@ -117,7 +127,7 @@ export async function loadGrantedLocation(): Promise<[number, number] | null> {
 export function clearLocationSession() {
   sessionGeneration += 1;
   locationRequest = null;
-  publishLocationSnapshot({ position: null, isLoading: false, access: 'unknown' });
+  publishLocationSnapshot({ position: null, accuracy: null, isLoading: false, access: 'unknown' });
 }
 
 /**
@@ -142,6 +152,18 @@ function calculateHaversine(lat1: number, lon1: number, lat2: number, lon2: numb
  */
 export function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   return Math.round(calculateHaversine(lat1, lon1, lat2, lon2) * 1000);
+}
+
+/**
+ * Returns whether a displayed distance is meaningful relative to the browser's
+ * reported location uncertainty. A missing accuracy value keeps legacy/browser
+ * fallback behavior because the platform did not provide enough information to
+ * make a stronger decision.
+ */
+export function isDistanceReliable(distanceInMeters: number, accuracyInMeters: number | null): boolean {
+  if (!Number.isFinite(distanceInMeters) || distanceInMeters < 0) return false;
+  if (accuracyInMeters == null || !Number.isFinite(accuracyInMeters) || accuracyInMeters < 0) return true;
+  return accuracyInMeters < distanceInMeters * 0.5;
 }
 
 /**

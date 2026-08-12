@@ -254,9 +254,27 @@ describe('SegmentList touch drag', () => {
         await fireEvent(listEl, makeTouchEvent('touchend', 100, 200));
         await tick();
 
-        expect(clearTimeoutSpy).toHaveBeenCalled();
-        clearTimeoutSpy.mockRestore();
-      });
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+      clearTimeoutSpy.mockRestore();
+    });
+
+    it('restores the dragged segment when the OS cancels the touch gesture', async () => {
+      const page = makePage(3);
+      const { container } = render(SegmentList, { props: { page } });
+      await tick();
+
+      const items = container.querySelectorAll('[data-drag-index]');
+      const dragHandle = items[0].querySelector('.drag-handle')!;
+      const listEl = container.querySelector('.segment-list')!;
+
+      await fireEvent(dragHandle, makeTouchEvent('touchstart', 100, 200));
+      expect((items[0] as HTMLElement).style.pointerEvents).toBe('none');
+      await fireEvent(listEl, makeTouchEvent('touchcancel', 100, 200));
+      await tick();
+
+      expect((items[0] as HTMLElement).style.pointerEvents).toBe('');
+      expect(items[0].classList.contains('dragging')).toBe(false);
     });
   });
+});
 });

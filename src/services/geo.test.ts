@@ -127,17 +127,18 @@ describe('shared location session', () => {
     const second = requestLocation();
     expect(getCurrentPosition).toHaveBeenCalledTimes(1);
 
-    resolvePosition?.({ coords: { latitude: 59.33, longitude: 18.06 } } as GeolocationPosition);
+    resolvePosition?.({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 42 } } as GeolocationPosition);
     await expect(first).resolves.toEqual([59.33, 18.06]);
     await expect(second).resolves.toEqual([59.33, 18.06]);
     expect(getLocationSnapshot().position).toEqual([59.33, 18.06]);
+    expect(getLocationSnapshot().accuracy).toBe(42);
   });
 
   it('publishes completed state to subscribers', async () => {
     const snapshots: Array<ReturnType<typeof getLocationSnapshot>> = [];
     const unsubscribe = subscribeToLocation((snapshot) => snapshots.push(snapshot));
     setGeolocation(vi.fn((success: PositionCallback) => {
-      success({ coords: { latitude: 59.33, longitude: 18.06 } } as GeolocationPosition);
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 55 } } as GeolocationPosition);
     }));
 
     await requestLocation();
@@ -145,6 +146,7 @@ describe('shared location session', () => {
 
     expect(snapshots.at(-1)).toEqual({
       position: [59.33, 18.06],
+      accuracy: 55,
       isLoading: false,
       access: 'granted',
     });
@@ -170,7 +172,7 @@ describe('shared location session', () => {
   it('loads silently when the platform has already granted permission', async () => {
     setPermission('granted');
     const getCurrentPosition = vi.fn((success: PositionCallback) => {
-      success({ coords: { latitude: 59.33, longitude: 18.06 } } as GeolocationPosition);
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 80 } } as GeolocationPosition);
     });
     setGeolocation(getCurrentPosition);
 
@@ -184,6 +186,20 @@ describe('shared location session', () => {
     }));
 
     await expect(requestLocation()).resolves.toBeNull();
-    expect(getLocationSnapshot()).toEqual({ position: null, isLoading: false, access: 'denied' });
+    expect(getLocationSnapshot()).toEqual({ position: null, accuracy: null, isLoading: false, access: 'denied' });
+  });
+});
+
+describe('location accuracy', () => {
+  it('treats distances as unreliable when accuracy is at least half the distance', async () => {
+    const { isDistanceReliable } = await import('./geo');
+    expect(isDistanceReliable(180, 90)).toBe(false);
+    expect(isDistanceReliable(180, 80)).toBe(true);
+    expect(isDistanceReliable(1_000, 100)).toBe(true);
+  });
+
+  it('keeps distances usable when the browser omits accuracy', async () => {
+    const { isDistanceReliable } = await import('./geo');
+    expect(isDistanceReliable(180, null)).toBe(true);
   });
 });

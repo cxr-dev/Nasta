@@ -225,9 +225,11 @@ let listEl = $state<HTMLDivElement>();
   function handleTouchMove(e: TouchEvent) {
     if (draggingIndex === null) return;
     e.preventDefault(); // prevent scroll while dragging
-    clearTimeout(longPressTimer);
-    if (isLongPressing) isLongPressing = false;
     const touch = e.touches[0];
+    if (Math.hypot(touch.clientX - dragStartX, touch.clientY - dragStartY) > 8) {
+      clearTimeout(longPressTimer);
+    }
+    if (isLongPressing) isLongPressing = false;
     const el = document.querySelector(`[data-drag-index="${draggingIndex}"]`) as HTMLElement | null;
     if (el) {
       gsap.to(el, {
@@ -253,7 +255,7 @@ let listEl = $state<HTMLDivElement>();
     }
   }
 
-  function handleTouchEnd() {
+  function finishTouchDrag(commit: boolean) {
     if (draggingIndex === null) return;
     clearTimeout(longPressTimer);
     isLongPressing = false;
@@ -262,12 +264,20 @@ let listEl = $state<HTMLDivElement>();
       gsap.to(el, { x: 0, y: 0, duration: 0.2, ease: 'power2.out', clearProps: 'transform' });
       el.style.pointerEvents = '';
     }
-    if (dragOverIndex !== null && draggingIndex !== dragOverIndex) {
+    if (commit && dragOverIndex !== null && draggingIndex !== dragOverIndex) {
       reorderSegments(page.id, draggingIndex, dragOverIndex);
     }
     draggingIndex = null;
     dragOverIndex = null;
     dropInsertIndex = null;
+  }
+
+  function handleTouchEnd() {
+    finishTouchDrag(true);
+  }
+
+  function handleTouchCancel() {
+    finishTouchDrag(false);
   }
 
   $effect(() => {
@@ -301,6 +311,7 @@ let listEl = $state<HTMLDivElement>();
   role="list"
   bind:this={listEl}
   ontouchend={handleTouchEnd}
+  ontouchcancel={handleTouchCancel}
 >
   {#if !page.segments || page.segments.length === 0}
     {#if onAddSegment}

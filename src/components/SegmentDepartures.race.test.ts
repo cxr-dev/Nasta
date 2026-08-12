@@ -25,8 +25,9 @@ const mocks = vi.hoisted(() => {
   };
   const geo = {
     loadGrantedLocation: vi.fn().mockResolvedValue(null),
+    isDistanceReliable: vi.fn(() => true),
     subscribeToLocation: (listener: (snapshot: unknown) => void) => {
-      listener({ position: null, isLoading: false, access: 'unknown' });
+      listener({ position: null, accuracy: null, isLoading: false, access: 'unknown' });
       return () => {};
     },
   };

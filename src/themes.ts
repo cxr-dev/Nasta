@@ -119,6 +119,7 @@ export function applyTheme(theme: ResolvedTheme): void {
   const resolved = theme === 'dark' ? 'dark' : 'light';
   const root = document.documentElement;
   root.dataset.theme = resolved;
+  root.style.colorScheme = resolved;
 
   for (const [name, value] of Object.entries(TOKENS[resolved])) {
     root.style.setProperty(name, value);

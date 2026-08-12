@@ -54,6 +54,13 @@ describe('static theme tokens', () => {
     meta.remove();
   });
 
+  it('updates the native color scheme when the preference changes at runtime', () => {
+    applyTheme('dark');
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+    applyTheme('light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+  });
+
   it('creates a compact preview style for the picker', () => {
     expect(previewStyle('light')).toContain('--preview-bg:#F7F7F5');
     expect(previewStyle('dark')).toContain('--preview-bg:#111211');

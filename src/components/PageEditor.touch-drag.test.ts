@@ -337,7 +337,7 @@ describe('PageEditor page drag', () => {
         clearTimeoutSpy.mockRestore();
       });
 
-      it('calls clearTimeout on touch end', async () => {
+    it('calls clearTimeout on touch end', async () => {
         const pages = makePages(3);
         const { getByText, container } = render(PageEditor, {
           props: {
@@ -363,10 +363,35 @@ describe('PageEditor page drag', () => {
         await tick();
 
         expect(clearTimeoutSpy).toHaveBeenCalled();
-        clearTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    });
+
+    it('restores the dragged page when the OS cancels the touch gesture', async () => {
+      const { getByText, container } = render(PageEditor, {
+        props: {
+          pages: makePages(3),
+          activePageId: 'p0',
+          isOpen: true,
+          onClose: vi.fn(),
+          onSwitchPage: vi.fn(),
+        },
       });
+      await fireEvent.click(getByText('Pages'));
+      await tick();
+      const row = container.querySelector('[data-page-drag-index="0"]') as HTMLElement;
+      const handle = row.querySelector('.page-drag-handle')!;
+      const pages = container.querySelector('.pages-tab')!;
+
+      await fireEvent(handle, makeTouchEvent('touchstart', 100, 200));
+      expect(row.style.pointerEvents).toBe('none');
+      await fireEvent(pages, makeTouchEvent('touchcancel', 100, 200));
+      await tick();
+
+      expect(row.style.pointerEvents).toBe('');
+      expect(row.classList.contains('dragging')).toBe(false);
     });
   });
+});
 
   describe('page actions and swipe isolation', () => {
     function setup(pages: Page[] = makePages(3), onSwitchPage: (id: string) => void = vi.fn()) {
