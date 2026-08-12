@@ -79,4 +79,35 @@ test.describe("mobile critical commuter flow", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(dialog.getByRole("button", { name: "Close add form" })).toBeVisible();
   });
+
+  test("opens the utility map and swipes back from its left-to-right surface", async ({ page }) => {
+    const app = new CommuterApp(page);
+    await app.mockDepartures();
+    await page.route("**/v1/sites", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{ id: 100, name: "T-Centralen", lat: 59.33, lon: 18.06 }]),
+    }));
+    await app.open();
+
+    await page.getByRole("button", { name: "Nearby" }).click();
+    const surface = page.locator(".nearby-surface");
+    await expect(surface).toBeVisible();
+
+    await surface.evaluate((element) => {
+      const emit = (type: string, x: number, y: number) => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        const touch = { clientX: x, clientY: y };
+        Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [touch] });
+        Object.defineProperty(event, "changedTouches", { value: [touch] });
+        element.dispatchEvent(event);
+      };
+      emit("touchstart", 40, 300);
+      emit("touchmove", 210, 304);
+      emit("touchend", 330, 304);
+    });
+
+    await expect(page.locator("h1.page-title")).toContainText(/Commuter test/i);
+    await expect(page.locator(".nearby-surface")).toHaveCount(0);
+  });
 });

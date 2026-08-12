@@ -1,9 +1,18 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { TransitDeparture, TransitStopSearchResult } from '../providers/types';
   import { transitService } from '../providers/init';
-  import { formatDistance, getWalkingTime, loadGrantedLocation, requestLocation, subscribeToLocation, type LocationSnapshot } from '../services/geo';
-  import { getSettings } from '../stores/settingsStore.svelte';
+  import {
+    clearLocationSession,
+    formatDistance,
+    getWalkingTime,
+    isDistanceReliable,
+    loadGrantedLocation,
+    requestLocation,
+    subscribeToLocation,
+    type LocationSnapshot,
+  } from '../services/geo';
+  import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
   import { resolveTheme } from '../themes';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -11,18 +20,31 @@
   const maplibreLoad = import('maplibre-gl');
   void import('maplibre-gl/dist/maplibre-gl.css');
 
-  let { onBack }: { onBack: () => void } = $props();
+  type SwipeMove = (deltaX: number) => void;
+  type SwipeEnd = (deltaX: number, velocityX: number) => void;
+
+  let {
+    onBack,
+    onSwipeMove,
+    onSwipeEnd,
+  }: {
+    onBack: () => void;
+    onSwipeMove?: SwipeMove;
+    onSwipeEnd?: SwipeEnd;
+  } = $props();
+
   let t = $derived(getT());
   let settings = $derived(getSettings());
-  let location = $state<LocationSnapshot>({ position: null, isLoading: false, access: 'unknown' });
+  let location = $state<LocationSnapshot>({ position: null, accuracy: null, isLoading: false, access: 'unknown' });
   let nearbyStops = $state<TransitStopSearchResult[]>([]);
   let searchResults = $state<TransitStopSearchResult[]>([]);
   let query = $state('');
   let loading = $state(false);
   let searching = $state(false);
   let error = $state<string | null>(null);
+  let locationActionMessage = $state<string | null>(null);
+  let searchError = $state<string | null>(null);
   let mapError = $state(false);
-  let mapCompact = $state(false);
   let selectedId = $state<string | null>(null);
   let boardStop = $state<TransitStopSearchResult | null>(null);
   let boardDepartures = $state<TransitDeparture[]>([]);
@@ -31,6 +53,8 @@
   let previews = $state<Map<string, TransitDeparture[]>>(new Map());
   let catalogGeneration = 0;
   let previewGeneration = 0;
+  let searchGeneration = 0;
+  let boardGeneration = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let boardTimer: ReturnType<typeof setInterval> | null = null;
   let boardHistoryActive = false;
@@ -38,25 +62,41 @@
   let mapEl = $state<HTMLDivElement | undefined>(undefined);
   let maplibregl: any = $state(null);
   let mapInstance: any = null;
+  let mapReady = $state(false);
   let markers: any[] = [];
+  let mapHost: HTMLElement | null = null;
   let locationUnsubscribe: (() => void) | null = null;
+  let gestureStartX = 0;
+  let gestureStartY = 0;
+  let gestureStartedAt = 0;
+  let gestureIntent = false;
 
   let displayedStops = $derived(query.trim().length >= 2 ? searchResults : nearbyStops);
   let hasLocation = $derived(Boolean(location.position));
+  let locationEnabled = $derived(Boolean(settings.locationServicesEnabled));
 
   function stopDistance(stop: TransitStopSearchResult): string {
-    if (stop.distance == null) return '';
+    if (stop.distance == null || !isDistanceReliable(stop.distance, location.accuracy)) return '';
     return formatDistance(stop.distance / 1000);
   }
 
   function walkingLabel(stop: TransitStopSearchResult): string {
-    if (!settings.walkingEtaEnabled || stop.distance == null) return '';
+    if (!settings.walkingEtaEnabled || stop.distance == null || !isDistanceReliable(stop.distance, location.accuracy)) return '';
     return `${getWalkingTime(stop.distance / 1000)} min`;
   }
 
   function departureLabel(departure: TransitDeparture): string {
-    if (departure.minutes <= 0) return t.departureNow ?? 'Now';
+    if (departure.minutes <= 0) return t.departureNow ?? 'Nu';
     return `${departure.minutes} ${t.minutesShort ?? 'min'}`;
+  }
+
+  function modeLabel(stop: TransitStopSearchResult): string {
+    const mode = stop.modes[0];
+    if (mode === 'metro') return 'T';
+    if (mode === 'train') return 'J';
+    if (mode === 'tram') return 'Sp';
+    if (mode === 'boat' || mode === 'ferry') return 'B';
+    return 'B';
   }
 
   function isSearchMode(): boolean {
@@ -72,10 +112,10 @@
       if (generation !== catalogGeneration) return;
       nearbyStops = stops;
       selectedId = stops[0]?.id ?? null;
-      if (stops.length === 0) error = t.noNearbyStops ?? 'No stops found within 2 km.';
+      if (stops.length === 0) error = t.noNearbyStops ?? 'Inga hållplatser hittades inom 2 km.';
     } catch {
       if (generation !== catalogGeneration) return;
-      error = t.nearbyLoadError ?? t.loadError ?? "Couldn't load nearby stops.";
+      error = t.nearbyLoadError ?? t.loadError ?? 'Kunde inte läsa in hållplatser.';
       nearbyStops = [];
     } finally {
       if (generation === catalogGeneration) loading = false;
@@ -83,21 +123,36 @@
   }
 
   async function useLocation() {
-    await requestLocation();
+    locationActionMessage = null;
+    setLocationServicesEnabled(true);
+    const position = await requestLocation();
+    if (!position && location.access === 'denied') {
+      locationActionMessage = 'Allow site in browser settings.';
+    }
   }
 
   async function runSearch() {
     const value = query.trim();
+    const generation = ++searchGeneration;
     if (value.length < 2) {
       searchResults = [];
+      searchError = null;
       return;
     }
     searching = true;
+    searchError = null;
     try {
-      searchResults = await transitService.searchStops(value);
-      selectedId = searchResults[0]?.id ?? null;
+      const results = await transitService.searchStops(value);
+      if (generation !== searchGeneration) return;
+      searchResults = results;
+      selectedId = results[0]?.id ?? null;
+    } catch {
+      if (generation === searchGeneration) {
+        searchResults = [];
+        searchError = t.nearbyLoadError ?? t.loadError ?? 'Kunde inte söka hållplatser.';
+      }
     } finally {
-      searching = false;
+      if (generation === searchGeneration) searching = false;
     }
   }
 
@@ -107,22 +162,25 @@
   }
 
   async function loadDepartures(stop: TransitStopSearchResult, forBoard = false) {
-    if (forBoard) boardLoading = true;
+    const generation = forBoard ? ++boardGeneration : boardGeneration;
+    if (forBoard) {
+      boardLoading = true;
+      boardError = false;
+    }
     try {
       const result = await transitService.getDepartures(stop.id, stop.name);
       const departures = result.departures
         .filter((departure) => departure.minutes >= 0)
         .sort((a, b) => a.minutes - b.minutes);
-      if (forBoard) {
+      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) {
         boardDepartures = departures;
-        boardError = false;
       }
       return departures.slice(0, 2);
     } catch {
-      if (forBoard) boardError = true;
+      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) boardError = true;
       return [];
     } finally {
-      if (forBoard) boardLoading = false;
+      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) boardLoading = false;
     }
   }
 
@@ -150,7 +208,8 @@
     boardTimer = setInterval(() => {
       if (boardStop) void loadDepartures(boardStop, true);
     }, 30000);
-    history.pushState({ nastaNearbyBoard: stop.id }, '', window.location.href);
+    const state = history.state && typeof history.state === 'object' ? history.state : {};
+    history.pushState({ ...state, nastaNearbyBoard: stop.id }, '', window.location.href);
     boardHistoryActive = true;
   }
 
@@ -158,6 +217,7 @@
     if (!boardStop) return;
     boardStop = null;
     boardDepartures = [];
+    boardGeneration += 1;
     if (boardTimer) clearInterval(boardTimer);
     boardTimer = null;
     boardHistoryActive = false;
@@ -168,15 +228,24 @@
     else closeBoard();
   }
 
-  function handlePopState() {
-    if (boardStop) closeBoard();
-    else onBack();
+  function openDirections() {
+    const coord = boardStop?.coord;
+    if (!coord) return;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${coord[0]},${coord[1]}&travelmode=walking`, '_blank', 'noopener,noreferrer');
+  }
+
+  function handlePopState(event: PopStateEvent) {
+    if (boardStop) {
+      if (!(event.state as { nastaNearbyBoard?: string } | null)?.nastaNearbyBoard) closeBoard();
+      return;
+    }
   }
 
   function handleNearbyKeyDown(event: KeyboardEvent) {
     if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
     event.preventDefault();
-    requestBoardBack();
+    if (boardStop) requestBoardBack();
+    else onBack();
   }
 
   function selectStop(stop: TransitStopSearchResult) {
@@ -189,62 +258,184 @@
     listEl?.querySelector<HTMLElement>(`[data-stop-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
-  function setupMap() {
-    const mgl = maplibregl;
-    const el = mapEl;
-    const position = location.position;
-    if (!mgl || !el || !position) return;
-    mapInstance?.remove();
-    markers.forEach((marker) => marker.remove());
-    markers = [];
-    const dark = resolveTheme(settings.theme ?? 'system', window.matchMedia('(prefers-color-scheme: dark)').matches) === 'dark';
-    mapInstance = new mgl.Map({
-      container: el,
-      style: dark ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-      center: [position[1], position[0]], zoom: 14.2, attributionControl: true, dragRotate: false, keyboard: false,
-    });
-    mapInstance.on('error', () => { mapError = true; });
-    mapInstance.on('load', () => {
-      mapError = false;
-      const userMarker = new mgl.Marker({ color: '#2563EB' }).setLngLat([position[1], position[0]]).addTo(mapInstance);
-      markers.push(userMarker);
-      for (const stop of displayedStops) {
-        if (!stop.coord) continue;
-        const marker = new mgl.Marker({ color: stop.id === selectedId ? '#171717' : '#2563EB' })
-          .setLngLat([stop.coord[1], stop.coord[0]])
-          .setPopup(new mgl.Popup({ offset: 14 }).setText(stop.name))
-          .addTo(mapInstance);
-        marker.getElement().addEventListener('click', () => scrollToStop(stop.id));
-        markers.push(marker);
-      }
+  function updateLine() {
+    if (!mapInstance || !mapReady) return;
+    const source = mapInstance.getSource?.('nearby-walk-line');
+    const user = location.position;
+    const stop = boardStop?.coord;
+    if (!source) return;
+    source.setData({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: user && stop ? [[user[1], user[0]], [stop[1], stop[0]]] : [] },
+      properties: {},
     });
   }
 
+  function updateMarkers() {
+    if (!mapInstance || !mapReady || !maplibregl) return;
+    try {
+      markers.forEach((marker) => marker.remove());
+      markers = [];
+      if (location.position) {
+        markers.push(new maplibregl.Marker({ color: '#2563EB' }).setLngLat([location.position[1], location.position[0]]).addTo(mapInstance));
+      }
+      for (const stop of displayedStops) {
+        if (!stop.coord) continue;
+        const marker = new maplibregl.Marker({ color: stop.id === selectedId ? '#171717' : '#6B7280' })
+          .setLngLat([stop.coord[1], stop.coord[0]])
+          .setPopup(new maplibregl.Popup({ offset: 14 }).setText(stop.name))
+          .addTo(mapInstance);
+        marker.getElement?.().addEventListener('click', () => scrollToStop(stop.id));
+        markers.push(marker);
+      }
+      if (boardStop?.coord) {
+        markers.push(new maplibregl.Marker({ color: '#171717' }).setLngLat([boardStop.coord[1], boardStop.coord[0]]).addTo(mapInstance));
+      }
+      if (boardStop?.coord && location.position && mapInstance.fitBounds) {
+          mapInstance.fitBounds(
+            [[location.position[1], location.position[0]], [boardStop.coord[1], boardStop.coord[0]]],
+            { padding: 42 },
+          );
+      }
+      updateLine();
+    } catch {
+      mapError = true;
+    }
+  }
+
+  function setupMap() {
+    const mgl = maplibregl;
+    const el = mapEl;
+    const centerStop = boardStop?.coord;
+    const centerPosition = centerStop ?? (settings.locationServicesEnabled ? location.position : null);
+    if (!mgl || !el || !centerPosition) return;
+    if (mapInstance && mapHost !== el) {
+      try { mapInstance.remove(); } catch { /* best effort */ }
+      mapInstance = null;
+      mapReady = false;
+      markers = [];
+    }
+    if (mapInstance) return;
+    try {
+      const dark = resolveTheme(settings.theme ?? 'system', window.matchMedia('(prefers-color-scheme: dark)').matches) === 'dark';
+      mapInstance = new mgl.Map({
+        container: el,
+        style: dark ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+        center: [centerPosition[1], centerPosition[0]],
+        zoom: 14.2,
+        attributionControl: false,
+        dragRotate: false,
+        keyboard: false,
+      });
+      mapHost = el;
+      mapInstance.addControl(new mgl.AttributionControl({ compact: true }), 'bottom-right');
+      const closeAttribution = () => {
+        try {
+          const attrib = mapInstance?.getContainer?.().querySelector('.maplibregl-ctrl-attrib');
+          if (attrib instanceof HTMLDetailsElement) attrib.open = false;
+          attrib?.classList.remove('maplibregl-compact-show');
+        } catch {
+          // Attribution is non-essential; the map remains usable if its DOM changes.
+        }
+      };
+      mapInstance.on('error', () => { mapError = true; });
+      mapInstance.on('load', () => {
+        try {
+          mapInstance.addSource('nearby-walk-line', {
+            type: 'geojson',
+            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: {} },
+          });
+          mapInstance.addLayer({
+            id: 'nearby-walk-line',
+            type: 'line',
+            source: 'nearby-walk-line',
+            paint: { 'line-color': '#2563EB', 'line-width': 3, 'line-dasharray': [1, 1.5], 'line-opacity': 0.75 },
+          });
+          mapReady = true;
+          closeAttribution();
+          updateMarkers();
+        } catch {
+          mapError = true;
+        }
+      });
+      mapInstance.on('styledata', closeAttribution);
+    } catch {
+      mapError = true;
+      mapInstance = null;
+      mapReady = false;
+    }
+  }
+
+  function stopMapGesture(event: TouchEvent) {
+    event.stopPropagation();
+  }
+
+  function handleTouchStart(event: TouchEvent) {
+    if (event.touches.length !== 1) return;
+    gestureStartX = event.touches[0].clientX;
+    gestureStartY = event.touches[0].clientY;
+    gestureStartedAt = performance.now();
+    gestureIntent = false;
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (event.touches.length !== 1) return;
+    const dx = event.touches[0].clientX - gestureStartX;
+    const dy = event.touches[0].clientY - gestureStartY;
+    if (!gestureIntent) {
+      if (Math.abs(dy) > Math.abs(dx) + 4 || Math.abs(dx) < 10) return;
+      if (dx <= 0) return;
+      gestureIntent = true;
+    }
+    event.preventDefault();
+    onSwipeMove?.(dx);
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    if (!gestureIntent) return;
+    const dx = event.changedTouches[0].clientX - gestureStartX;
+    const elapsed = Math.max(1, performance.now() - gestureStartedAt);
+    onSwipeEnd?.(dx, dx / elapsed);
+    gestureIntent = false;
+  }
+
+  $effect(() => {
+    if (settings.locationServicesEnabled) void loadGrantedLocation();
+    else {
+      nearbyStops = [];
+      selectedId = null;
+      clearLocationSession();
+    }
+  });
+
   $effect(() => {
     const position = location.position;
-    if (position) void loadNearby(position);
+    if (position && settings.locationServicesEnabled) void loadNearby(position);
   });
 
   $effect(() => {
     const stops = displayedStops;
-    if (stops.length > 0 && !isSearchMode()) void loadPreviews(stops);
+    if (stops.length > 0) void loadPreviews(stops);
   });
 
   $effect(() => {
-    if (mapCompact) return;
-    displayedStops.length;
-    selectedId;
-    location.position;
     maplibregl;
+    mapEl;
+    location.position;
     setupMap();
   });
 
+  $effect(() => {
+    displayedStops;
+    selectedId;
+    boardStop;
+    location.position;
+    mapReady;
+    updateMarkers();
+  });
+
   onMount(() => {
-    locationUnsubscribe = subscribeToLocation((snapshot) => {
-      location = snapshot;
-      if (snapshot.position) void loadNearby(snapshot.position);
-    });
-    void loadGrantedLocation();
+    locationUnsubscribe = subscribeToLocation((snapshot) => { location = snapshot; });
     maplibreLoad.then((module) => {
       module.setWorkerUrl(workerUrl);
       maplibregl = module;
@@ -257,103 +448,131 @@
     locationUnsubscribe?.();
     if (searchTimer) clearTimeout(searchTimer);
     if (boardTimer) clearInterval(boardTimer);
-    mapInstance?.remove();
+    try { mapInstance?.remove(); } catch { /* MapLibre cleanup is best effort. */ }
+    mapInstance = null;
   });
 </script>
 
 <svelte:window onkeydown={handleNearbyKeyDown} />
 
-<section class="nearby-surface" aria-label={t.nearby ?? 'Nearby'}>
+<section
+  class="nearby-surface"
+  aria-label={t.nearby ?? 'Nära dig'}
+  ontouchstart={handleTouchStart}
+  ontouchmove={handleTouchMove}
+  ontouchend={handleTouchEnd}
+>
   {#if boardStop}
-    <header class="nearby-header board-header">
-      <button type="button" class="back-button" onclick={requestBoardBack} aria-label={t.back ?? 'Back'}>←</button>
-      <div>
-        <p class="eyebrow">{t.nearby ?? 'Nearby'}</p>
-        <h1>{boardStop.name}</h1>
-      </div>
+    <header class="nearby-topbar">
+      <button type="button" class="icon-button" onclick={requestBoardBack} aria-label={t.back ?? 'Tillbaka'}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{boardStop.name}</h1></div>
     </header>
-    <div class="board-meta">
-      <span>{stopDistance(boardStop)}</span>
-      {#if walkingLabel(boardStop)}<span>· {walkingLabel(boardStop)}</span>{/if}
-      <span class="freshness">{t.live ?? 'Live'}</span>
-    </div>
-    {#if boardLoading}
-      <div class="board-list" aria-busy="true">{#each Array(4) as _, i}<div class="board-skeleton" aria-hidden="true" style={`--i:${i}`}></div>{/each}</div>
-    {:else if boardError}
-      <div class="inline-message"><p>{t.departuresUnavailable ?? 'Departures unavailable'}</p><button type="button" onclick={() => void loadDepartures(boardStop!, true)}>{t.retry ?? 'Retry'}</button></div>
-    {:else if boardDepartures.length === 0}
-      <div class="inline-message"><p>{t.noDeparturesAvailable ?? 'No departures found'}</p></div>
-    {:else}
-      <div class="board-list" aria-label={t.departures ?? 'Departures'}>
-        {#each boardDepartures as departure (departure.id)}
-          <div class="board-row">
-            <span class="line-badge">{departure.line}</span>
-            <div class="board-destination"><strong>{departure.destination}</strong><span>{departure.lineName}</span></div>
-            <div class="board-time"><strong>{departureLabel(departure)}</strong><span>{departure.scheduledTime}</span></div>
-          </div>
-        {/each}
+    <div class="board-content">
+      <div class="board-summary">
+        <div><span class="summary-label">{t.stopLocation ?? 'Hållplats'}</span><strong>{stopDistance(boardStop) || (t.nearby ?? 'Nära dig')}</strong></div>
+        {#if walkingLabel(boardStop)}<div><span class="summary-label">{t.walking ?? 'Gå'}</span><strong>{walkingLabel(boardStop)}</strong></div>{/if}
       </div>
-    {/if}
+      {#if boardStop.coord}
+        <div class="detail-map-shell">
+          <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatsen'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
+          {#if location.position}<div class="map-route-label"><span class="route-dot user-dot"></span><span>{t.walkToStop ?? 'Gå till hållplats'}</span><strong>{walkingLabel(boardStop) || stopDistance(boardStop)}</strong></div>{:else}<div class="map-route-label"><span class="route-dot stop-dot"></span><span>{t.stopLocation ?? 'Hållplatsens läge'}</span></div>{/if}
+        </div>
+        <button type="button" class="directions-action" onclick={openDirections}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V5M12 5 6 11M12 5l6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>{t.navigateToStop ?? t.openInMaps ?? 'Vägbeskrivning'}</button>
+      {:else}
+        <div class="detail-map-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>{t.mapUnavailable ?? 'Kartan är inte tillgänglig för den här hållplatsen.'}</span></div>
+      {/if}
+      {#if boardLoading}
+        <div class="departure-list" aria-busy="true">{#each Array(4) as _, i (i)}<div class="departure-skeleton" style={`--i:${i}`} aria-hidden="true"></div>{/each}</div>
+      {:else if boardError}
+        <div class="state-panel"><strong>{t.departuresUnavailable ?? 'Avgångar kunde inte läsas in'}</strong><button type="button" onclick={() => void loadDepartures(boardStop!, true)}>{t.retry ?? 'Försök igen'}</button></div>
+      {:else if boardDepartures.length === 0}
+        <div class="state-panel"><strong>{t.noDeparturesAvailable ?? 'Inga kommande avgångar'}</strong></div>
+      {:else}
+        <div class="departure-list" aria-label={t.departures ?? 'Avgångar'}>
+          {#each boardDepartures as departure (departure.id)}
+            <div class="departure-card">
+              <span class="mode-badge" aria-hidden="true">{departure.line}</span>
+              <div class="departure-main"><strong>{departure.destination}</strong><span><b class="departure-line">{departure.line}</b> · {departure.lineName}</span></div>
+              <div class="departure-time"><strong>{departureLabel(departure)}</strong><span>{departure.scheduledTime}</span></div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   {:else}
-    <div class:map-compact={mapCompact} class="map-wrap">
-      <div class="map-copy"><p class="eyebrow">{t.nearby ?? 'Nearby'}</p><h1>{t.nearbyTitle ?? 'Nära dig'}</h1><span>{location.position ? (t.defaultCity ?? 'Stockholm') : (t.locationPromptTitle ?? 'Find nearby stops')}</span></div>
-      <div class="map-container" bind:this={mapEl} aria-label={t.nearbyMap ?? 'Nearby stops map'}></div>
-      {#if mapError}<div class="map-fallback">{t.mapUnavailable ?? 'Map unavailable. The stop list is still available.'}</div>{/if}
+    <header class="nearby-topbar">
+      <button type="button" class="icon-button" onclick={onBack} aria-label={t.backToPages ?? 'Tillbaka till sidorna'}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
+      <span class="live-dot" class:enabled={locationEnabled}></span>
+    </header>
+    <div class="map-wrap">
+      <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatser i närheten'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
+      {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
+      {#if mapError}<div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>{/if}
     </div>
     <div class="nearby-content">
-      <div class="nearby-search-wrap">
-        <label for="nearby-search">{t.searchStops ?? 'Search stops'}</label>
-        <input id="nearby-search" bind:value={query} oninput={handleSearchInput} placeholder={t.searchPlaceholder ?? 'Search stop...'} autocomplete="off" enterkeyhint="search" />
+      <div class="search-wrap">
+        <label for="nearby-search">{t.searchStops ?? 'Sök hållplats'}</label>
+        <div class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5" stroke-linecap="round"/></svg><input id="nearby-search" bind:value={query} oninput={handleSearchInput} placeholder={t.searchPlaceholder ?? 'Sök hållplats'} autocomplete="off" enterkeyhint="search" /></div>
       </div>
-      {#if !hasLocation && !isSearchMode()}
-        <div class="location-prompt"><div><strong>{t.locationPromptTitle ?? 'Find nearby stops'}</strong><p>{t.locationPromptDesc ?? 'Allow location to show nearby stops.'}</p></div><button type="button" onclick={useLocation}>{t.locationEnableBtn ?? 'Use my location'}</button></div>
+      {#if !locationEnabled || !hasLocation}
+        <div class="location-prompt">
+          <div class="prompt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2" stroke-linecap="round"/></svg></div>
+          <div class="prompt-copy"><strong>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</strong><span>{locationActionMessage ?? (locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera plats för att sortera efter avstånd.'))}</span></div>
+          <button type="button" class="primary-action" onclick={useLocation}>{locationEnabled ? (t.retry ?? 'Försök igen') : (t.locationEnableBtn ?? 'Aktivera plats')}</button>
+        </div>
       {/if}
-      {#if loading || searching}
-        <div class="stop-list" aria-busy="true">{#each Array(4) as _, i}<div class="stop-skeleton" aria-hidden="true" style={`--i:${i}`}></div>{/each}</div>
-      {:else if error && !isSearchMode()}
-        <div class="inline-message"><p>{error}</p><button type="button" onclick={() => location.position && loadNearby(location.position)}>{t.retry ?? 'Retry'}</button></div>
+      {#if searching || loading}
+        <div class="station-list" aria-busy="true">{#each Array(4) as _, i (i)}<div class="station-skeleton" style={`--i:${i}`} aria-hidden="true"></div>{/each}</div>
+      {:else if searchError || (error && !isSearchMode())}
+        <div class="state-panel"><strong>{searchError ?? error}</strong><button type="button" onclick={() => isSearchMode() ? void runSearch() : location.position && void loadNearby(location.position)}>{t.retry ?? 'Försök igen'}</button></div>
       {:else if displayedStops.length === 0}
-        <div class="inline-message"><p>{isSearchMode() ? (t.noStops ?? 'No stop found') : (t.noNearbyStops ?? 'No stops nearby')}</p></div>
+        <div class="state-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.5 10 3l4 2.5L20 3v15.5L14 21l-4-2.5-6 2.5V5.5Z" stroke-linejoin="round"/><path d="M10 3v15.5M14 5.5V21"/></svg><strong>{isSearchMode() ? (t.noStops ?? 'Ingen hållplats hittades') : (t.noNearbyStops ?? 'Inga hållplatser nära dig')}</strong></div>
       {:else}
-        <div class="stop-list" bind:this={listEl} onscroll={(event) => { mapCompact = (event.currentTarget as HTMLElement).scrollTop > 32; }}>
+        <div class="station-section-heading"><h2>{isSearchMode() ? (t.searchStops ?? 'Sökresultat') : (t.nearbyTitle ?? 'Nära dig')}</h2><span>{displayedStops.length}</span></div>
+        <div class="station-list" bind:this={listEl}>
           {#each displayedStops as stop (stop.id)}
-            <button type="button" class:selected={selectedId === stop.id} class="stop-row" data-stop-id={stop.id} onclick={() => selectStop(stop)}>
-              <span class="mode-dot" aria-hidden="true">{stop.modes[0] === 'metro' ? 'T' : stop.modes[0] === 'train' ? 'J' : stop.modes[0] === 'boat' ? '⌁' : '●'}</span>
-              <span class="stop-main"><strong>{stop.name}</strong><span>{stopDistance(stop)}{walkingLabel(stop) ? ` · ${walkingLabel(stop)}` : ''}</span>{#if previews.has(stop.id)}<span class="preview-line">{#each previews.get(stop.id) ?? [] as departure, i (departure.id)}{#if i > 0} · {/if}{departure.line} {departure.destination} {departureLabel(departure)}{/each}</span>{:else}<span class="preview-line muted">{t.loadingDepartures ?? 'Loading departures...'}</span>{/if}</span>
-              <span class="stop-arrow" aria-hidden="true">›</span>
+            <button type="button" class="station-card" class:selected={selectedId === stop.id} data-stop-id={stop.id} onclick={() => selectStop(stop)}>
+              <span class="station-mode" aria-hidden="true">{modeLabel(stop)}</span>
+              <span class="station-main"><strong>{stop.name}</strong><span class="station-meta">{stopDistance(stop)}{walkingLabel(stop) ? ` · ${walkingLabel(stop)}` : ''}</span>{#if previews.has(stop.id)}<span class="station-preview">{#each previews.get(stop.id) ?? [] as departure (departure.id)}<span class="preview-departure"><span class="preview-line">{departure.line}</span><strong>{departureLabel(departure)}</strong><span>{departure.destination}</span></span>{/each}</span>{:else}<span class="station-preview muted">{t.loadingDepartures ?? 'Läser in avgångar…'}</span>{/if}</span>
+              <svg class="station-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           {/each}
         </div>
       {/if}
     </div>
   {/if}
-  <button type="button" class="nearby-back" onclick={boardStop ? requestBoardBack : onBack}>{t.backToPages ?? 'Back to pages'}</button>
 </section>
 
 <style>
-  .nearby-surface { height: 100%; min-height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
-  .map-wrap { position: relative; height: 42dvh; min-height: 250px; max-height: 410px; overflow: hidden; background: var(--surface-emphasis); transition: height 220ms ease; }
-  .map-wrap.map-compact { height: 110px; min-height: 110px; }
+  .nearby-surface { height: 100%; min-height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text); }
+  .nearby-topbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .icon-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+  .icon-button svg { width: 21px; height: 21px; }
+  .topbar-copy { min-width: 0; flex: 1; }
+  .topbar-kicker { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .topbar-copy h1 { margin: 2px 0 0; overflow: hidden; font-size: 21px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+  .live-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: var(--border-strong); }
+  .live-dot.enabled { background: #2563EB; }
+  .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }
   .map-container { position: absolute; inset: 0; }
-  .map-copy { position: absolute; z-index: 2; left: 18px; top: calc(16px + env(safe-area-inset-top)); color: #171717; pointer-events: none; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
-  .map-copy h1 { font: 800 30px/1 'Neue Machina', sans-serif; letter-spacing: -.03em; }
-  .map-copy span { font-size: 13px; font-weight: 700; }
-  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
-  .map-fallback { position: absolute; inset: auto 12px 12px; z-index: 3; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }
-  .nearby-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; margin-top: -1px; }
-  .nearby-search-wrap { position: sticky; top: 0; z-index: 4; padding: 10px 14px; background: var(--bg); border-top: 1px solid var(--border); }
-  .nearby-search-wrap label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .nearby-search-wrap input { width: 100%; height: 46px; padding: 0 14px 0 42px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: 500 16px/1.2 inherit; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%236b6b66' stroke-width='2'%3E%3Ccircle cx='8' cy='8' r='5.5'/%3E%3Cpath d='m12 12 4 4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: 14px center; }
-  .location-prompt { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin: 0 14px 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-  .location-prompt strong { font-size: 14px; }.location-prompt p { margin-top: 3px; color: var(--text-secondary); font-size: 12px; }
-  .location-prompt button, .inline-message button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; white-space: nowrap; }
-  .stop-list, .board-list { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow-y: auto; padding: 0 14px 18px; }
-  .stop-row { display: grid; grid-template-columns: 34px 1fr 20px; gap: 10px; align-items: center; min-height: 74px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; }
-  .stop-row.selected { background: var(--accent-subtle); }.mode-dot { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 800; }
-  .stop-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }.stop-main strong { font-size: 16px; }.stop-main span { color: var(--text-secondary); font-size: 12px; }.stop-main .preview-line { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.stop-main .preview-line.muted { color: var(--text-muted); }.stop-arrow { font-size: 28px; color: var(--text-muted); }
-  .inline-message { margin: 10px 14px; padding: 18px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 14px; }.inline-message button { margin-top: 12px; }
-  .stop-skeleton, .board-skeleton { height: 62px; margin-bottom: 1px; border-bottom: 1px solid var(--border); background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }
-  .nearby-header { display: flex; align-items: center; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) 16px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }.nearby-header h1 { font: 700 24px/1.1 'Neue Machina', sans-serif; }.back-button { width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 22px; }.board-meta { display: flex; gap: 8px; padding: 12px 16px; color: var(--text-secondary); font-size: 13px; }.freshness { margin-left: auto; color: var(--color-success, var(--text-secondary)); font-weight: 700; }.board-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; min-height: 70px; padding: 10px 4px; border-bottom: 1px solid var(--border); }.line-badge { display: grid; place-items: center; min-height: 32px; border-radius: 7px; background: var(--accent); color: var(--text-on-accent); font-weight: 800; }.board-destination, .board-time { display: flex; flex-direction: column; gap: 3px; }.board-destination span, .board-time span { color: var(--text-secondary); font-size: 12px; }.board-time { text-align: right; }.board-time strong { font-size: 17px; }.nearby-back { align-self: center; margin: auto 0 16px; min-height: 40px; border: 0; background: transparent; color: var(--text-secondary); font-weight: 700; }
+  .map-overlay-copy { position: absolute; left: 16px; right: 16px; bottom: 16px; display: grid; gap: 4px; max-width: 250px; padding: 10px 12px; border: 1px solid rgba(23,23,23,.12); border-radius: 10px; background: rgba(255,255,255,.9); color: #171717; }
+  .map-overlay-copy span { font-size: 12px; font-weight: 650; }.map-overlay-copy strong { font-size: 13px; line-height: 1.3; }
+  .map-fallback { position: absolute; inset: auto 12px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }
+  .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .search-wrap { padding: 12px 16px 8px; }.search-wrap label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .search-field { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }.search-field svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--text-secondary); }.search-field input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
+  .location-prompt { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; margin: 0 16px 10px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--accent-subtle); color: var(--accent); }.prompt-icon svg { width: 20px; height: 20px; }.prompt-copy { display: grid; gap: 2px; min-width: 0; }.prompt-copy strong { font-size: 13px; }.prompt-copy span { color: var(--text-secondary); font-size: 11px; line-height: 1.3; }.primary-action { grid-column: 2; justify-self: start; min-height: 38px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-size: 13px; font-weight: 700; }
+  .station-section-heading { display: flex; align-items: baseline; gap: 8px; padding: 4px 16px 8px; }.station-section-heading h2 { margin: 0; font-size: 15px; font-weight: 750; }.station-section-heading span { color: var(--text-secondary); font-size: 12px; }
+  .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 78px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode, .mode-badge { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main, .departure-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong, .departure-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main span, .departure-main span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: flex; gap: 8px; min-width: 0; color: var(--text); font-size: 11px; }.preview-departure { display: inline-flex; min-width: 0; align-items: center; gap: 4px; }.preview-departure > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.preview-line, .departure-line { color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .03em; }.preview-departure strong { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }.station-main .muted { color: var(--text-muted); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
+  .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 14px; }.state-panel button { min-height: 40px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
+  .board-summary { display: flex; align-items: end; gap: 18px; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.detail-map-shell .map-container { position: absolute; inset: 0; }.map-route-label { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 20px); padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-route-label strong { margin-left: auto; color: var(--text); font-size: 12px; }.route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }.user-dot { background: #2563EB; }.stop-dot { background: var(--text); }.departure-line { margin-right: 2px; }
+  .departure-card { min-height: 68px; }.departure-time { display: grid; gap: 3px; min-width: 58px; text-align: right; }.departure-time strong { font-size: 17px; font-variant-numeric: tabular-nums; }.departure-time span { color: var(--text-secondary); font-size: 11px; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }
+  .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }
   @keyframes nearby-shimmer { 50% { opacity: .45; } }
-  @media (prefers-reduced-motion: reduce) { .map-wrap { transition: none; }.stop-skeleton, .board-skeleton { animation: none; opacity: .7; } }
+  @media (prefers-reduced-motion: reduce) { .departure-skeleton, .station-skeleton { animation: none; opacity: .7; } }
 </style>

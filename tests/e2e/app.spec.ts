@@ -207,6 +207,10 @@ test.describe("Nästa App", () => {
     await expect(page.locator(".nearby-surface")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Enable location|Use my location|Aktivera plats/i })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
+    await page.getByRole("button", { name: "Nearby" }).click();
+    await expect(page.locator(".nearby-surface")).toBeVisible();
     await page.getByRole("button", { name: "Back to pages" }).click();
     await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
   });

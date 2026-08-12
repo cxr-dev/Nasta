@@ -41,6 +41,7 @@
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
   import { plusIcon, settingsGear } from './icons/departureIcons';
+  import { nearbyDragProgress, shouldCompleteNearbySwipe } from './lib/nearbyNavigation';
 
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
@@ -91,6 +92,14 @@
   const PAGE_INDICATOR_DURATION = 1400;
   let pageIndicatorVisible = $state(false);
   let pageIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
+  let nearbyCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  let nearbyOffset = $state(100);
+  let nearbyDragging = $state(false);
+  let nearbyEntryActive = false;
+  let nearbyGestureStartedAt = 0;
+  let nearbyHistoryActive = false;
+  let nearbyClosingFromHistory = false;
+  let mainEl = $state<HTMLElement | null>(null);
   // PTR icon spring entrance
   let ptrSpinnerEl = $state<HTMLDivElement | undefined>();
   let ptrIconEl = $state<SVGSVGElement | undefined>();
@@ -493,14 +502,69 @@
 
   function openNearby() {
     if (hasNoRoutes) return;
+    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
     showNearby = true;
+    if (!nearbyHistoryActive) {
+      const state = history.state && typeof history.state === 'object' ? history.state : {};
+      history.pushState({ ...state, nastaNearby: true }, '', window.location.href);
+      nearbyHistoryActive = true;
+    }
+    nearbyDragging = false;
+    nearbyOffset = 100;
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
+    requestAnimationFrame(() => {
+      if (showNearby && !nearbyDragging) nearbyOffset = 0;
+    });
   }
 
-  function closeNearby() {
+  function finishNearbyClose(skipHistory = false) {
     showNearby = false;
+    nearbyCloseTimer = null;
+    if (!skipHistory && nearbyHistoryActive) {
+      nearbyHistoryActive = false;
+      history.back();
+    }
     void loadDepartures();
+  }
+
+  function closeNearby(fromHistory = false) {
+    if (!showNearby) return;
+    nearbyClosingFromHistory = fromHistory;
+    nearbyDragging = false;
+    nearbyOffset = 100;
+    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
+    nearbyCloseTimer = setTimeout(() => {
+      finishNearbyClose(nearbyClosingFromHistory);
+      nearbyClosingFromHistory = false;
+    }, 190);
+  }
+
+  function handleNearbyPopState(event: PopStateEvent) {
+    if (!showNearby || !nearbyHistoryActive) return;
+    const state = event.state as { nastaNearby?: boolean; nastaNearbyBoard?: string } | null;
+    if (state?.nastaNearby || state?.nastaNearbyBoard) return;
+    nearbyHistoryActive = false;
+    closeNearby(true);
+  }
+
+  function nearbyWidth() {
+    return mainEl?.clientWidth || 480;
+  }
+
+  function handleNearbySwipeMove(deltaX: number) {
+    if (!showNearby) return;
+    nearbyDragging = true;
+    nearbyOffset = Math.min(100, Math.max(0, (Math.max(0, deltaX) / nearbyWidth()) * 100));
+  }
+
+  function handleNearbySwipeEnd(deltaX: number, velocityX: number) {
+    if (!showNearby) return;
+    if (shouldCompleteNearbySwipe(-deltaX, -velocityX, nearbyWidth())) closeNearby();
+    else {
+      nearbyDragging = false;
+      nearbyOffset = 0;
+    }
   }
 
   function showPageIndicator() {
@@ -707,13 +771,30 @@ function closeSettingsPanel() {
     if (e.touches.length !== 1) return;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
+    nearbyGestureStartedAt = performance.now();
+    nearbyEntryActive = false;
     pullTriggered = false;
   }
 
   function handleTouchMove(e: TouchEvent) {
     if (editing || isRefreshing) return;
+    if (showNearby) return;
     const dy = e.touches[0].clientY - swipeStartY;
     const dx = e.touches[0].clientX - swipeStartX;
+    if (!showNearby && getPages().length > 0) {
+      const currentIdx = getPages().findIndex((item) => item.id === getActivePageId());
+      const isLastPage = currentIdx === getPages().length - 1;
+      if (isLastPage && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+        nearbyEntryActive = true;
+        if (!showNearby) {
+          openNearby();
+          nearbyDragging = true;
+          nearbyOffset = 100;
+        }
+        nearbyOffset = (1 - nearbyDragProgress(dx, nearbyWidth())) * 100;
+        return;
+      }
+    }
     const atTop = !scrollContainer || scrollContainer.scrollTop === 0;
     if (atTop && dy > 0 && dy > Math.abs(dx) * 1.2) {
       pullDistance = Math.min(dy * 0.55, PULL_MAX);
@@ -727,13 +808,31 @@ function closeSettingsPanel() {
     swipeStartY = 0;
     pullDistance = 0;
     pullTriggered = false;
+    if (nearbyEntryActive) {
+      nearbyEntryActive = false;
+      closeNearby();
+    }
   }
 
   async function handleTouchEnd(e: TouchEvent) {
     if (editing) return;
-    if (showNearby) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
+    const elapsed = Math.max(1, performance.now() - nearbyGestureStartedAt);
+    const velocityX = dx / elapsed;
+
+    if (nearbyEntryActive) {
+      nearbyEntryActive = false;
+      if (shouldCompleteNearbySwipe(dx, velocityX, nearbyWidth())) {
+        nearbyDragging = false;
+        nearbyOffset = 0;
+      } else {
+        closeNearby();
+      }
+      return;
+    }
+
+    if (showNearby) return;
 
     // Pull-to-refresh takes priority over horizontal swipe
     if (pullDistance >= PULL_THRESHOLD) {
@@ -846,6 +945,7 @@ function closeSettingsPanel() {
     consumeShareHash();
     const handleHashChange = () => consumeShareHash();
     window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleNearbyPopState);
     // pageStore.syncFromRoutes() is called automatically on creation
 
     // pageStore handles active page initialization; the page-id effect starts
@@ -885,6 +985,7 @@ function closeSettingsPanel() {
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleNearbyPopState);
       unsub();
       unsubDeviations();
       unsubscribeLifecycle();
@@ -932,6 +1033,8 @@ function closeSettingsPanel() {
     if (snackbarTimer) clearTimeout(snackbarTimer);
     if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
     if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
+    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
+    window.removeEventListener('popstate', handleNearbyPopState);
   });
 </script>
 
@@ -940,6 +1043,7 @@ function closeSettingsPanel() {
 <ErrorBoundary>
   <main
     id="main-content"
+    bind:this={mainEl}
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
@@ -1002,9 +1106,6 @@ function closeSettingsPanel() {
               </button>
             </div>
           {:else if page}
-            {#if showNearby}
-              <NearbySurface onBack={closeNearby} />
-            {:else}
             <SegmentDepartures
               page={page}
               deviationHealthBySegment={deviationHealthBySegment}
@@ -1020,12 +1121,26 @@ function closeSettingsPanel() {
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
             />
-            {/if}
           {/if}
         </div>
       {/key}
 
     </div>
+
+    {#if showNearby}
+      <div
+        class="nearby-viewport"
+        class:dragging={nearbyDragging}
+        style={`transform: translate3d(${nearbyOffset}%, 0, 0)`}
+        aria-hidden={nearbyOffset >= 100}
+      >
+        <NearbySurface
+          onBack={() => closeNearby()}
+          onSwipeMove={handleNearbySwipeMove}
+          onSwipeEnd={handleNearbySwipeEnd}
+        />
+      </div>
+    {/if}
 
     {#if pages.length >= 1 && !editing && !hasNoRoutes}
             <div class="page-dot-indicator" class:visible={pageIndicatorVisible || showNearby} aria-hidden="true">
@@ -1306,7 +1421,7 @@ function closeSettingsPanel() {
     color: var(--accent);
   }
 
-.scroll-container {
+  .scroll-container {
     position: relative;
     flex: 1;
     min-height: 0;
@@ -1439,6 +1554,27 @@ function closeSettingsPanel() {
     @starting-style {
       opacity: 0;
       transform: translateY(8px);
+    }
+  }
+
+  .nearby-viewport {
+    position: absolute;
+    inset: 0;
+    z-index: var(--z-overlay);
+    width: 100%;
+    background: var(--bg);
+    transform: translate3d(100%, 0, 0);
+    transition: transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  .nearby-viewport.dragging {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nearby-viewport {
+      transition: none;
     }
   }
 
