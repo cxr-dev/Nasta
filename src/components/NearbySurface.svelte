@@ -271,6 +271,13 @@
     });
   }
 
+  function getWalkingMapBounds(user: [number, number], stop: [number, number]): [[number, number], [number, number]] {
+    return [
+      [Math.min(user[1], stop[1]), Math.min(user[0], stop[0])],
+      [Math.max(user[1], stop[1]), Math.max(user[0], stop[0])],
+    ];
+  }
+
   function updateMarkers() {
     if (!mapInstance || !mapReady || !maplibregl) return;
     try {
@@ -292,10 +299,10 @@
         markers.push(new maplibregl.Marker({ color: '#171717' }).setLngLat([boardStop.coord[1], boardStop.coord[0]]).addTo(mapInstance));
       }
       if (boardStop?.coord && location.position && mapInstance.fitBounds) {
-          mapInstance.fitBounds(
-            [[location.position[1], location.position[0]], [boardStop.coord[1], boardStop.coord[0]]],
-            { padding: 42 },
-          );
+        mapInstance.fitBounds(
+          getWalkingMapBounds(location.position, boardStop.coord),
+          { padding: 42, maxZoom: 15.5 },
+        );
       }
       updateLine();
     } catch {

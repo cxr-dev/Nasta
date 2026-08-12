@@ -7,6 +7,7 @@ const maplibre = vi.hoisted(() => {
     addControl: vi.fn(),
     addLayer: vi.fn(),
     addSource: vi.fn(),
+    fitBounds: vi.fn(),
     getSource: vi.fn(() => ({ setData: vi.fn() })),
     getContainer: vi.fn(() => document.createElement('div')),
     on: vi.fn((event: string, callback: () => void) => {
@@ -85,6 +86,27 @@ describe('NearbySurface', () => {
     await waitFor(() => expect(getByRole('heading', { name: 'Centralen' })).toBeTruthy());
     expect(getByRole('application', { name: /map/i })).toBeTruthy();
     expect(getByText('Hässelby')).toBeTruthy();
+  });
+
+  it('normalizes walking-map bounds when the stop is southwest of the user', async () => {
+    nearbyStops.mockResolvedValueOnce([{
+      id: 'sl:southwest',
+      name: 'Södermalm',
+      coord: [59.329, 18.059],
+      modes: ['metro'],
+      distance: 130,
+      locationType: 'station',
+    }]);
+    setLocationServicesEnabled(true);
+    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const station = await waitFor(() => getByRole('button', { name: /Södermalm/i }));
+    await fireEvent.click(station);
+
+    await waitFor(() => expect(maplibre.Map.mock.results[0]?.value.fitBounds).toHaveBeenCalled());
+    expect(maplibre.Map.mock.results[0].value.fitBounds).toHaveBeenCalledWith(
+      [[18.059, 59.329], [18.06, 59.33]],
+      { padding: 42, maxZoom: 15.5 },
+    );
   });
 
   it('loads departure previews for searched stations', async () => {
