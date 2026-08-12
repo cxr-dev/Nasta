@@ -18,7 +18,7 @@ pnpm run verify:build     # post-build verification (checks /Nasta/ base path, n
 pnpm run preview          # preview production build locally
 ```
 
-CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` (with `VITE_COMMIT_SHA`) → write `version.json` → `verify:build` → `test:e2e` → deploy to Pages. CI also runs on cron (06:00 + 10:00 UTC) to refresh events-data.json.
+Deployment validation runs in `.github/workflows/deploy.yml`: the `validate` job runs check, unit tests, build, and Playwright E2E; the `build` job creates and verifies the Pages artifact; deployment is followed by a smoke test. Scheduled runs refresh `events-data.json` at 06:17 and 10:47 UTC.
 
 ## Quirks & conventions
 
@@ -33,7 +33,7 @@ CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` (with 
 - **Request ID routing** — route changes generate `requestId` values; stale API responses from earlier routes silently dropped (prevents race conditions on fast route switching).
 - **CSP is a `<meta>` tag in `index.html`** (not an HTTP header). Update `connect-src` when adding new API origins (Supabase, Overpass, Visit Stockholm, corsproxy.io).
 - **No `<svelte:head>`** — all meta tags live in `index.html`.
-- **Dark mode default.** `defaultSettings.darkMode = true`.
+- **Theme default.** `defaultSettings.theme = 'system'`; the resolved palette follows the operating-system preference unless the user chooses Light or Dark.
 - **Env vars all optional** (`VITE_*`). No `.env` file needed. `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_DEFAULT_CITY_ID`, `VITE_USE_CORS_PROXY`, `VITE_CORS_PROXY_BASE` exist but optional.
 - **`maplibre-gl`** dynamically imported in `MapPreview.svelte` — code-split automatically.
 - **`opening_hours`** dependency used for venue hours parsing in feature discovery.
@@ -44,7 +44,7 @@ CI order (`.github/workflows/deploy.yml`): `check` → `test` → `build` (with 
 ## Testing
 
 - **Unit tests** (`pnpm test`): vitest with jsdom, `resolve.conditions: ['browser']`. Setup in `vitest.setup.ts` mocks `globalThis.localStorage` with a `vi.fn()` object. Tests are `*.test.ts` co-located with source. `@testing-library/svelte` available for component tests.
-- **E2E tests** (`pnpm run test:e2e`): Playwright in `tests/e2e/`. `fullyParallel: false`, `workers: 1` (CI) / `2` (local). Service workers blocked (`serviceWorkers: "block"`) so `page.route()` mocks work. Timezone: `Europe/Stockholm`, locale: `en-US`. CSS animations disabled in `beforeEach`. LocalStorage seeded via `page.addInitScript()` (bypasses onboarding). Web server: `vite preview` on port 5173. Mock pattern: `**/*.integration.sl.se/**` for SL API, also stub `izrgqxgsuhogrukisfrd.supabase.co` for venue prefetches.
+- **E2E tests** (`pnpm run test:e2e`): Playwright in `tests/e2e/`. `fullyParallel: false`, `workers: 1` (CI) / `2` (local). Service workers blocked (`serviceWorkers: "block"`) so `page.route()` mocks work. Timezone: `Europe/Stockholm`, locale: `en-US`. CSS animations disabled in `beforeEach`. LocalStorage seeded via `page.addInitScript()` (bypasses onboarding). Web server: `vite preview` on port 4173. Mock pattern: `**/*.integration.sl.se/**` for SL API, also stub `izrgqxgsuhogrukisfrd.supabase.co` for venue prefetches.
 
 ## Design constraints
 

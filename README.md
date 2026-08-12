@@ -1,503 +1,127 @@
 # Nästa
 
-![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat&logo=pwa&logoColor=white)
-![MIT License](https://img.shields.io/badge/License-MIT-007EC7.svg?style=flat)
+Nästa is a glanceable, mobile-first PWA for Stockholm SL departures. It shows configured journeys, live departures, disruptions, arrival estimates, and optional nearby places and events.
 
-> A minimalist commute dashboard for Stockholm public transport
+**Live app:** [cxr-dev.github.io/nasta](https://cxr-dev.github.io/nasta)
 
-Nästa helps Stockholm commuters track their daily routes by showing real-time departures from configured stops, calculating arrival times, and providing a simple, mobile-first interface optimized for quick glances while walking or waiting at stops.
+## What it does
 
-**Live → [cxr-dev.github.io/nasta](https://cxr-dev.github.io/nasta)**
+- Live SL departures with configurable refresh intervals.
+- Saved pages containing ordered journey segments.
+- Disruption and station-facility notices with Swedish and English text.
+- Cached schedules and a static Sjöstadstrafiken ferry timetable.
+- Optional nearby-stop ranking, walking estimates, maps, venues, and events.
+- Swedish and English UI, light/dark/system themes, and offline-safe PWA behavior.
+- No account or app-owned backend required; no app-store installation needed.
 
----
+## Stack
 
-## Features
+- Svelte 5 with runes and TypeScript strict mode.
+- Vite and `vite-plugin-pwa`/Workbox.
+- LocalStorage for user settings and saved pages.
+- IndexedDB for persistent caches and generated share cards.
+- Vitest for unit/component tests and Playwright for browser tests.
+- GitHub Pages for deployment.
 
-- **Real-time departures** — Auto-refreshing SL data every 30 seconds (configurable)
-- **Page management** — Multiple pages with drag-to-reorder segments and auto-save to LocalStorage
-- **Disruption alerts** — Real-time transit disruptions and alerts by severity (info/warning/critical)
-- **Station notices** — Facility alerts (elevator/escalator) shown as station-level notices filtered to relevant stops
-- **Hybrid ferry support** — Static timetable fallback for Sjöstadstrafiken ferries when API unavailable
-- **PWA installable** — Works offline with cached data, no app store required
-- **Arrival calculation** — Sums segment travel times to show expected arrival time
-- **Pull-to-refresh** — Manual refresh on mobile with freshness indicator
-- **Swipe navigation** — Horizontal swipe to switch between routes on mobile
-- **Guided first run** — In-app hint points users to Settings for adding segments
-- **Dark mode & themes** — 18 color palettes with two variants each, auto contrast adjustment
-- **Bilingual** — Swedish and English with automatic locale detection and language-specific disruption text
-- **Transport filtering** — Filter by transport mode (bus/metro/train/tram/boat) with single-mode focus
-- **Location-aware commute tools** — Optional nearby-stop ranking, walking distance, and walking-time estimates using the browser Geolocation API
-- **Feature discovery** — Afterwork venues (beer/wine/cocktail) and nearby events via Visit Stockholm, Supabase, and Overpass APIs
-- **Map preview** — Interactive map of segment stops with user location using MapLibre GL
+The repository uses Node.js 24 from `.node-version` and pnpm 11.9.0 from `package.json`.
 
----
-
-## Tech Stack
-
-| Category    | Technology                                                                      |
-| ----------- | ------------------------------------------------------------------------------- |
-| Framework   | [Svelte 5](https://svelte.dev) (Runes)                                          |
-| Language    | [TypeScript](https://typescriptlang.org)                                        |
-| Build Tool  | [Vite](https://vitejs.dev)                                                      |
-| PWA         | [vite-plugin-pwa](https://vite-plugin-pwa.netlify.app) + Workbox                |
-| Testing     | [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e) |
-| Hosting     | [GitHub Pages](https://pages.github.com)                                        |
-| API         | [SL Transport API](https://trafiklab.se/api/sl-public-transport/) (Trafiklab)   |
-| Persistence | LocalStorage                                                                    |
-
-### Supported Toolchain Matrix
-
-| Package                        | Supported Version |
-| ------------------------------ | ----------------- |
-| Node.js                        | 20+               |
-| `svelte`                       | `^5.56.0`         |
-| `vite`                         | `^8.1.0`          |
-| `@sveltejs/vite-plugin-svelte` | `^7.1.0`          |
-| `vite-plugin-pwa`              | `^1.3.0`          |
-
-Keep these versions in a compatible range when upgrading. If a major changes, validate with `pnpm run build` and `pnpm run verify:build` before deploy.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20 or higher
-
-### Installation
+## Development
 
 ```bash
 pnpm install
-```
-
-### Development
-
-```bash
 pnpm run dev
 ```
 
-Runs the dev server at `http://localhost:5173` (or next available port).
+The development server uses `/` as its base path and normally runs at `http://localhost:5173`.
 
-### Build
-
-```bash
-pnpm run build
-pnpm run verify:build
-```
-
-Creates a production-ready static build in the `dist/` directory.
-
-### Testing
+Useful commands:
 
 ```bash
-pnpm test              # Run unit tests (Vitest)
-pnpm run test:watch    # Watch mode
-pnpm run test:e2e      # End-to-end tests (Playwright)
+pnpm run check          # Svelte and TypeScript checks
+pnpm run test           # Unit and component tests
+pnpm run test:watch     # Watch mode
+pnpm run build          # Production build at /Nasta/
+pnpm run verify:build   # Validate the production artifact
+pnpm run test:e2e       # Build, preview, and run Playwright
+pnpm run preview        # Preview the production build
 ```
 
-### Type Check
+`pnpm run build` also refreshes the generated event snapshot and PNG icons. The E2E preview runs at `http://localhost:4173/Nasta/`.
 
-```bash
-pnpm run check     # Run svelte-check
-```
+## Using the app
 
----
+Open Settings to create pages and add journey segments. A segment contains an origin stop, destination stop, line, direction, transport type, and optional travel time. Changes are saved locally.
 
-## Configuration
+Settings include:
 
-### Routes & Segments
+- refresh interval, language, and theme preference;
+- disruption visibility, severity, and language;
+- transport filtering and departure sorting/grouping;
+- location services and walking ETA;
+- afterwork venues, event discovery, backup/import, and app-data reset.
 
-Pages are stored in LocalStorage under `nasta_routes`. Each page contains:
+Location services are opt-in. Nästa only requests a platform location permission after an explicit action and continues to work without it. Browser and installed-PWA permissions are separate and require HTTPS or localhost.
 
-- `id` — unique identifier
-- `name` — display name (e.g., "Arbete")
-- `segments` — ordered array of travel segments
+## Data sources
 
-Each segment defines:
+| Source | Use |
+| --- | --- |
+| SL Transport API | Live departures and stop-level deviations |
+| SL Journey Planner API | Stop search, direction lookup, and planned journeys |
+| SL Deviations API | Active disruptions and station notices |
+| Sjöstadstrafiken timetable | Static ferry departures for supported piers |
+| Visit Stockholm | Nearby event data |
+| Supabase Edge Function | Curated beer venues |
+| Overpass / OpenStreetMap | Wine and cocktail venues |
 
-- `fromStop` / `toStop` — with `id`, `name`, `siteId` (SL stop ID)
-- `line` — transit line number (e.g., `"76"`)
-- `direction` — object: `{ code, destination, stopPointId }`
-- `transportType` — `"bus"`, `"train"`, `"metro"`, `"tram"`, or `"boat"`
-- `travelTimeMinutes` — estimated travel duration
-
-**To edit routes:**
-
-1. Tap the **"Inställningar"/"Settings"** button (bottom bar)
-2. Search for stops using the debounced search input
-3. Add segments between stops and set travel time
-4. Drag to reorder segments on mobile
-5. Changes save automatically to LocalStorage
-
-### Settings
-
-Available in the Settings panel (tap **"Inställningar"**):
-
-| Setting                         | Options                                                     | Default      | Purpose                                        |
-| ------------------------------- | ----------------------------------------------------------- | ------------ | ---------------------------------------------- |
-| **Theme**                       | 18 color palettes × 2 variants                              | "default"    | Visual appearance and colors                   |
-| **Theme variant**               | A / B                                                       | "A"          | Flips background/accent colors                 |
-| **Language**                    | Auto, Swedish, English                                      | "auto"       | App UI language                                |
-| **Refresh interval**            | 10-60 seconds                                               | 30 seconds   | How often to fetch departures                  |
-| **Disruption alerts**           | On/Off                                                      | On           | Show transit disruptions and alerts            |
-| **Disruption level**            | All, Important + critical, Critical only                    | "warning"    | Filter disruptions by severity                 |
-| **Disruption language**         | Auto, Swedish, English                                      | "auto"       | Language for disruption text                   |
-| **Transport filter mode**       | Multi / Single                                              | "multi"      | Multi-mode or focus single transport mode      |
-| **Active transport type**       | bus/train/metro/tram/boat or null                           | null         | Single-mode focus transport                    |
-| **Location services**           | On/Off                                                      | Off          | Required before location-aware features can use your position |
-| **Walking ETA**                 | On/Off                                                      | Off          | Show walking distance and time to stops        |
-| **Afterwork venues**            | On/Off                                                      | Off          | Show nearby beer/wine/cocktail venues          |
-| **Afterwork start hour**        | 0-23                                                        | 15           | Hour to start showing afterwork venues         |
-| **Afterwork types**             | beer, wine, cocktail (multi-select)                         | []           | Which venue types to show                      |
-| **Events**                      | On/Off                                                      | Off          | Show nearby events from Visit Stockholm        |
-| **Group disrupted segments**    | On/Off                                                      | Off          | Collapse disrupted segments together           |
-
-#### Location services
-
-**Platsjänster / Location services** is the master switch for features that use your device position. Enable it in Settings before choosing closest-first sorting or using the **Nära dig / Nearby** stops in stop search. **Walking ETA** is a separate display preference that also requires Platsjänster. The location toggle does not change the browser or operating-system permission; it controls whether Nästa is allowed to use a permission that you have granted.
-
-Location access works in desktop Chrome and Safari, regular mobile browsers, and the installed PWA on iOS, Android, and tablets. The page must be served from a secure origin (`https` or local development on `localhost`). You may need to allow location in both the browser/site permission and the device operating system. An installed PWA can have a separate operating-system permission from the browser tab, so check the permission for the installed app if location works in the browser but not in the PWA.
-
-Nästa never opens a native location prompt simply because the app reloaded. It silently refreshes only when the platform has already granted permission. Prompts happen after an explicit action: enabling Platsjänster, enabling Walking ETA, or selecting **Use nearby stops**. If location is unavailable, denied, or disabled, the core departure and stop-search features continue to work; walking estimates, distance-based ordering, and nearby-stop suggestions are simply omitted. Browser and operating-system permission choices are managed outside `nasta_settings` and can be reset independently by the user or the platform.
-
----
-
-## API Integration
-
-### SL Transport API (Trafiklab)
-
-```
-Base URL: https://transport.integration.sl.se/v1
-
-GET /sites/{siteId}/departures         → Get real-time departures
-```
-
-### SL Journey Planner API (Trafiklab)
-
-```
-Base URL: https://journeyplanner.integration.sl.se/v2
-
-GET /stop-finder?name_sf={query}&...   → Search stops & stations
-GET /trips?originId={id}&destId={id}   → Planned trip fallback / direction lookup
-```
-
-### SL Deviations API
-
-```
-Base URL: https://deviations.integration.sl.se/v1
-
-GET /messages                          → Get all active disruptions/alerts
-```
-
-Departures are enriched with real-time disruptions, severity levels (info/warning/critical), and text in both Swedish and English. Disruptions are cached locally and can be filtered by severity threshold.
-
-### Static Timetable (Sjöstadstrafiken Ferries)
-
-For the Barnängsbryggan → Lumabryggan → Henriksdalsbryggan → (back to Barnängsbryggan) ferry line, the SL API does not return data. Nästa falls back to a hardcoded weekday/weekend schedule defined in `src/services/staticTimetable.ts`. Ferry stops are automatically detected by name and the static schedule is used instead of the live API.
-
----
+The browser calls public transit endpoints directly. Event data is also fetched into `public/events-data.json` during builds and refreshed by the scheduled deployment workflow.
 
 ## Architecture
 
-### Data Flow
-
-```
-User Action → Svelte Store → Service → API/Storage
-                    ↓
-              UI Update ← Store Subscribe
-```
-
-### Core Modules
-
-| Module                                   | Responsibility                                                                     |
-| ---------------------------------------- | ---------------------------------------------------------------------------------- |
-| `src/stores/pageStore.svelte.ts`         | Page & segment CRUD, reordering, persistence                                       |
-| `src/stores/departureStore.svelte.ts`    | Departure fetching, hybrid cache+API strategy, auto-refresh with request ID routing|
-| `src/stores/deviationStore.svelte.ts`    | Disruption fetching, segment health tracking, severity thresholding                |
-| `src/stores/localeStore.svelte.ts`       | Automatic locale detection, i18n translation store                                 |
-| `src/stores/settingsStore.svelte.ts`     | User preferences: refresh interval, theme, language, disruption display            |
-| `src/stores/stopAreaStore.svelte.ts`     | SiteId→stopAreaId mapping for disruption matching                                  |
-| `src/lib/stores/timeOfDay.svelte.ts`      | Time-of-day state (morning/afternoon/evening/night)                                |
-| `src/providers/registry.ts`              | O(1) prefix-hash provider registry, register/resolve/withFeature                   |
-| `src/providers/init.ts`                  | Singleton ProviderRegistry + TransitService instantiation                          |
-| `src/providers/slProvider.ts`            | SL provider wrapping slApi + slDeviations + timetableCache behind TransitProvider  |
-| `src/providers/sjostadProvider.ts`       | Sjöstadstrafiken ferry provider wrapping staticTimetable                           |
-| `src/services/transitService.ts`         | Aggregation layer — delegates to owning provider by EntityId prefix                |
-| `src/services/slApi.ts`                  | SL Transport API client (wrapped by slProvider)                                    |
-| `src/services/slDeviations.ts`           | SL Deviations API client (wrapped by slProvider)                                   |
-| `src/services/staticTimetable.ts`        | Sjöstadstrafiken ferry static schedule (wrapped by sjostadProvider)                |
-| `src/services/deviationCache.ts`         | IndexedDB persistence for disruption data (fallback when API unavailable)          |
-| `src/services/storage.ts`               | LocalStorage persistence for routes and settings                                   |
-| `src/services/scheduleCache.ts`          | Predicted departure caching from SL API responses                                  |
-| `src/services/timetableCache.ts`         | Timetable cache learning and management                                            |
-| `src/services/geo.ts`                    | Geolocation utilities, distance calculation, walking time estimates                |
-| `src/services/eventService.ts`           | Visit Stockholm events API client                                                  |
-| `src/services/venueService.ts`           | Supabase/Overpass venue API client (beer/wine/cocktail)                            |
-| `src/services/featureDiscoverySession.ts` | Shares venue/event prefetches, foreground requests, and cached results              |
-| `src/lib/departureBoardModel.ts`          | Resolves and groups departure-board state                                          |
-| `src/lib/savedJourneyLifecycle.ts`        | Applies saved-journey actions and refresh rules                                     |
-| `src/services/persistentCache.ts`        | Generic persistent cache layer                                                     |
-| `src/services/routeStops.ts`             | Stop-finder + trip planning with persistent cache                                  |
-| `src/lib/departureDisplay.ts`            | Merges live and predicted departures, computes minutes remaining                   |
-| `src/lib/departureDeduplication.ts`      | Deduplicates arrivals by stable key (avoids double-counting)                       |
-| `src/lib/sourceClassification.ts`        | Detects external timetable sources (ferries, etc.)                                 |
-| `src/lib/cacheLifecycle.ts`              | Manages cache eviction and cleanup lifecycle                                       |
-| `src/lib/i18n.ts`                        | Internationalization strings (~550 keys, Swedish & English)                        |
-| `src/lib/disruptionType.ts`              | Classifies disruption text into types (protest, weather, technical, etc.)          |
-| `src/lib/stopName.ts`                    | Clean stop name normalization                                                      |
-| `src/lib/sw.ts`                          | Service worker URL helper                                                          |
-| `src/lib/departureConverter.ts`          | TransitDeparture → legacy Departure conversion                                     |
-| `src/lib/getTransportType.ts`            | Transport mode classification helper                                               |
-| `src/lib/sunPosition.ts`                 | Sun position calculation for auto theme                                            |
-| `src/lib/checkVersion.ts`                | PWA version check against deployed version.json                                    |
-| `src/lib/departureIcons.ts`              | Departure icon mapping for transport modes                                         |
-| `src/themes.ts`                          | 18 theme palettes with two variants, automatic contrast calculation                |
-
-### PWA & Caching
-
-- Service worker auto-registers on load (`src/main.ts` + `vite-plugin-pwa`)
-- **Runtime caching:**
-  - Navigation requests — Network First (30-entry cache)
-  - SL `/sites` endpoint — Stale-While-Revalidate (50-entry, 24h TTL)
-  - SL `/departures` endpoint — Network First (20-entry, 60s TTL)
-- Static assets aggressively cached with `workbox-window`
-- Cache-busting via hashed filenames in build output
-- Update flow: `controllerchange` listener triggers page reload
-
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for deeper dive.
-
----
-
-## Design
-
-### UI Principles
-
-- **Glanceable:** Largest number on screen is minutes until departure
-- **Minimalist:** Zero ads, no account required, single-screen dashboard
-- **Mobile-first:** Touch-friendly targets, pull-to-refresh, swipe gestures, safe-area insets
-- **Offline-ready:** Works in tunnels or areas with poor signal (ferry timetable always cached)
-
-### Typography
-
-- **Display:** [Neue Machina](https://fontshare.com/neue-machina) (bold, condensed, for headings and numbers)
-- **Body:** [Satoshi](https://fontshare.com/satoshi) (clean, readable, for labels and UI)
-
-Both loaded asynchronously from [Fontshare](https://fontshare.com) to avoid render-blocking.
-
-### Themes
-
-18 built-in color palettes toggle via settings (toggle in-app). Themes dynamically compute light/dark contrast and update CSS custom properties on `:root`. Border, text, and surface colors automatically adapt to background luminance.
-
-See [`src/themes.ts`](src/themes.ts) for the full palette list.
-
----
-
-## Testing
-
-- **Unit tests:** Vitest +Testing Library for Svelte (`*.test.ts`)
-- **E2E tests:** Playwright tests run against built app (`pnpm run test:e2e`)
-- **Type safety:** `pnpm run check` runs `svelte-check` with `tsconfig.json`
-- **Build smoke:** `pnpm run verify:build` fails if server-only Svelte runtime markers are present in production JS bundles
-- **Stable E2E selectors:** Test IDs used by Playwright include `segment-row`, `segment-line`, `countdown-minutes`, and `planned-badge`
-
----
-
-## Development Notes
-
-### Why Svelte 5?
-
-Runes (`$state`, `$derived`, `$effect`, `$props`) provide fine-grained reactivity without boilerplate, smaller bundles, and excellent TypeScript support. The app leverages Svelte 5's component model for clean separation: stores drive state, components are dumb renderers, services encapsulate side effects.
-
-### Hybrid Fetch Strategy
-
-Departure fetching uses a **Network-first with intelligent deduplication** pattern:
-
-1. Route change generates new `requestId` to prevent stale responses
-2. Fetch live departures from SL API for all configured stops
-3. Fetch cached schedule predictions in parallel
-4. Merge results: live data takes priority, cached provides instant display
-5. Deduplicate arrivals by stable key (line + destination + time) to avoid double-counting
-6. Enrich with deviation minutes and source metadata (live/cached/predicted)
-7. Drop responses with mismatched `requestId` to prevent race conditions
-
-This ensures:
-
-- Instant display of cached data even on poor connections
-- Fresh live data as soon as available
-- No stale data overwrites when switching routes rapidly
-- Accurate arrival counts even when live and cached overlap
-
-### Disruption Fetching
-
-Disruptions are fetched from the SL Deviations API:
-
-1. Request active disruptions for the current route's lines and stops
-2. Filter by user's severity threshold (info/warning/critical)
-3. Compute segment health state (ok/affected/critical)
-4. Cache locally; fallback to cached copy if API unavailable
-5. Auto-refresh every 60+ seconds during active viewing
-
-Language-specific disruption text is returned based on app locale setting.
-
-### Request ID Routing
-
-To prevent race conditions when users rapidly switch routes:
-
-1. Each route change assigns a new `requestId = route-${id}-${timestamp}`
-2. Pending requests pass this ID alongside API calls
-3. Store only applies responses with current `requestId`
-4. Responses from old requests are silently dropped
-
-This is critical because fetches can take several seconds; without routing, a fast route switcher would see departures from the wrong route overlay on the correct one.
-
-### Ferry Detection
-
-Stops matching `lumabryggan`, `barnängsbryggan`, or `henriksdalsbryggan` are routed to the static timetable. Detection is case-insensitive and name-based (`isExternalTimetableSource()`).
-
----
-
-## Deployment
-
-**Host:** GitHub Pages  
-**URL:** https://cxr-dev.github.io/nasta  
-**Branch:** `main` (auto-deploy via GitHub Actions)
-
-Workflow: `.github/workflows/deploy.yml`
-
-```
-push to main → CI runs type check + tests → vite build → Upload Pages artifact → Deploy
+```text
+App.svelte
+  → Svelte stores
+  → services and TransitService
+  → SL/Sjöstad providers, caches, and browser APIs
+  → components
 ```
 
-The app is served as a static SPA from the `/Nasta/` base path.
+Transit providers return canonical domain types from `src/types/transit.ts`. Provider resolution uses the `provider:local-id` format, for example `sl:1234` and `sjostad:luma`.
 
-### GitHub Pages Deployment Invariants
+Read the deeper documentation when you need to change the system:
 
-- `vite.config.ts` production `base` must remain `"/Nasta/"`.
-- Service worker paths must be base-aware (`import.meta.env.BASE_URL`) and must not hardcode root paths like `/sw.js`.
-- Asset references should remain base-safe and resolve under `/Nasta/` in production output.
-- Treat `vite.config.ts` as source of truth for base path behavior.
+- [Documentation index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API and persistence reference](docs/API.md)
+- [Adding a data source](docs/guides/adding-data-sources.md)
+- [Design system](DESIGN.md)
+- [Product principles](PRODUCT.md)
+- [Image credits](CREDITS.md)
 
-### Release Checklist
+## PWA and deployment
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm run check`
-3. `pnpm run test`
-4. `pnpm run build`
-5. `pnpm run verify:build`
-6. `pnpm run test:e2e`
-7. `pnpm run preview` and verify `http://localhost:5173/Nasta/` renders correctly
+Production builds use the `/Nasta/` base path and deploy to GitHub Pages from `main` through `.github/workflows/deploy.yml`.
 
-### Troubleshooting: `lifecycle_function_unavailable`
+Workbox caches navigation, SL transport responses, the event snapshot, mood images, and optional map/venue assets. The update flow is intentionally prompted: a new service worker waits until the user chooses to reload.
 
-**Symptom**
+Before a release, run:
 
-- White screen in production
-- Console error: `mount(...) is not available on the server`
+```bash
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run test
+pnpm run build
+pnpm run verify:build
+pnpm run test:e2e
+```
 
-**Likely cause**
+## Known limits
 
-- Client bundle resolved to Svelte server runtime due to incompatible toolchain versions.
+- Transit support is currently limited to Stockholm SL and the supported Sjöstadstrafiken ferry timetable.
+- Ferry departures are static and have no live delay adjustments.
+- Live disruptions and most nearby-data features require network access.
+- Location-dependent features are unavailable when the browser or device denies location access.
 
-**Fix path**
+## License and credits
 
-1. Verify `svelte`, `vite`, and `@sveltejs/vite-plugin-svelte` are in the supported matrix.
-2. Reinstall and rebuild: `pnpm install --frozen-lockfile && pnpm run build`.
-3. Run `pnpm run verify:build` to ensure server-only markers are absent.
-4. If a stale service worker was previously installed, clear site data and reload.
-
----
-
-## Known Limitations
-
-- **SL API only:** Only supports Stockholm public transport (SL). Other agencies/cities not supported.
-- **Rate limiting:** SL API rate limits at ~10 req/s (not an issue for typical 2-4 routes, 4-8 stops usage)
-- **Transfer complexity:** Routes limited to 2 transfers max (current UI design assumption)
-- **Ferry times:** Sjöstadstrafiken times are static; no real-time delay adjustments
-- **Departure count:** Shows next 3-5 departures (to keep UI glanceable); does not show all departures
-- **Vehicle tracking:** Vehicle position estimation is approximate; based on schedule vs. actual times
-- **Browser support:** Requires modern browsers with ES2023, WebWorker, and PWA support (Safari 16.4+, Chrome 90+, Edge 90+, Firefox 91+)
-- **Offline limitation:** Ferry timetable cached offline, but live disruptions require network connectivity
-
----
-
-## Acknowledgements
-
-- Transit data provided by [Trafiklab](https://trafiklab.se) — SL API
-- Icons from curated transit-style SVG paths in `src/icons/transport.ts`
-- Fonts from [Fontshare](https://fontshare.com) — Neue Machina & Satoshi
-- Built with ❤️ using Svelte & TypeScript
-
-## Image credits
-
-After-work mood images are locally hosted under the [Unsplash License](https://unsplash.com/license). They are intentionally labelled `Stämningsbild` in the app: they describe an atmosphere, not the pictured venue.
-
-### Beer
-
-- [Daniel](https://unsplash.com/@unsplashbydan) — [photo](https://unsplash.com/photos/c3YF1RU1tis)
-- [Bohdan Stocek](https://unsplash.com/@bohdans) — [photo](https://unsplash.com/photos/Pjdv-RjOmGs)
-- [Akaki Khotcholava](https://unsplash.com/@khotcholava1) — [photo](https://unsplash.com/photos/JDC13vBkDv0)
-- [Haberdoedas](https://unsplash.com/@haberdoedas) — [photos](https://unsplash.com/photos/hlzE8sd6Anc), [2](https://unsplash.com/photos/WXKune1m3oM), [3](https://unsplash.com/photos/hwAVIsqJQBA)
-- [Aleksey Cherenkevich](https://unsplash.com/@cherenkevich) — [photo](https://unsplash.com/photos/ktGhPU_eBV8)
-- [Boris Izmaylov](https://unsplash.com/@borisizmaylov) — [photo](https://unsplash.com/photos/GKAtssAFJM8)
-
-### Wine
-
-- [Hai Nguyen](https://unsplash.com/@hai_nguyen) — [photo](https://unsplash.com/photos/ctzU0vk2hqk)
-- [Yaxuan Liu](https://unsplash.com/@seeulater) — [photo](https://unsplash.com/photos/5b7Tmar2-Ig)
-- [Dima Solomin](https://unsplash.com/@solomin_d) — [photo](https://unsplash.com/photos/cXhLFvFfi6U)
-- [Romain HUNEAU](https://unsplash.com/@honni) — [photo](https://unsplash.com/photos/Dopd4VCYQjM)
-- [María Del Mar García](https://unsplash.com/@photo_mdgr) — [photo](https://unsplash.com/photos/uln7leAbXUI)
-- [Yanhao Fang](https://unsplash.com/@alamanga) — [photo](https://unsplash.com/photos/5PSEDvGlTXc)
-- [Shawn DENG](https://unsplash.com/@dzshawn) — [photo](https://unsplash.com/photos/nsgzQHsxbXE)
-- [Franco Debartolo](https://unsplash.com/@francotheshooter) — [photo](https://unsplash.com/photos/HkybwP2PorY)
-
-### Cocktails
-
-- [Ambitious Studio | Rick Barrett](https://unsplash.com/@weareambitious) — [photos](https://unsplash.com/photos/QjUY7auDzUQ), [2](https://unsplash.com/photos/8faBJjLhWoo), [3](https://unsplash.com/photos/L-VilLa6n_I), [4](https://unsplash.com/photos/RgugaEqIFAI), [5](https://unsplash.com/photos/SirIM8Pv1Rs)
-- [Anastasiia Krutota](https://unsplash.com/@krutota) — [photo](https://unsplash.com/photos/EX8UtPjOFhY)
-- [Laure Noverraz](https://unsplash.com/@lornov) — [photo](https://unsplash.com/photos/3Dh2KgJHLZc)
-- [Durenne Loris](https://unsplash.com/@abstra_be) — [photo](https://unsplash.com/photos/vJAOEbcCr8o)
-
-### Event editorial images
-
-Event editorial images are locally hosted under the [Unsplash License](https://unsplash.com/license). They are labelled `Editorial image` in the app and describe only a category, never the pictured event.
-
-#### Concert and festival
-
-- [Nainoa Shizuru](https://unsplash.com/@nainoa) — [photo](https://unsplash.com/photos/NcdG9mK3PBY)
-- [Muneeb S](https://unsplash.com/@muneebs) — [photo](https://unsplash.com/photos/4_M8uIfPEZw)
-- [Danny Howe](https://unsplash.com/@dannyhowe) — [photo](https://unsplash.com/photos/bn-D2bCvpik)
-- [Yvette de Wit](https://unsplash.com/@yvettedewit) — [photo](https://unsplash.com/photos/NYrVisodQ2M)
-
-#### Theatre
-
-- [Rob Laughter](https://unsplash.com/@roblaughter) — [photo](https://unsplash.com/photos/WW1jsInXgwM)
-- [Kyle Head](https://unsplash.com/@kyleunderscorehead) — [photo](https://unsplash.com/photos/p6rNTdAPbuk)
-- [nooooodles](https://unsplash.com/@nooooodles) — [photo](https://unsplash.com/photos/m3th3rIQ9-w)
-- [team voyas](https://unsplash.com/@voyas) — [photo](https://unsplash.com/photos/bvHWrljtz8U)
-
-#### Exhibition
-
-- [Zalfa Imani](https://unsplash.com/@zalfaimani) — [photo](https://unsplash.com/photos/1xp5VxvyKL0)
-- [Jessica Pamp](https://unsplash.com/@yessijes) — [photo](https://unsplash.com/photos/JNTSoyb_bbw)
-- [Klaudia Piaskowska](https://unsplash.com/@cloudyaaa) — [photo](https://unsplash.com/photos/g55bG1O5Lf0)
-- [Mike Von](https://unsplash.com/@thevoncomplex) — [photo](https://unsplash.com/photos/v9-ZW3VONcw)
-
-#### Food and nightlife
-
-- [Thomas Le](https://unsplash.com/@thomasble) — [photo](https://unsplash.com/photos/pRJhn4MbsMM)
-- [Christian Mackie](https://unsplash.com/@mackiec) — [photo](https://unsplash.com/photos/PBvFpF3f624)
-- [nrd](https://unsplash.com/@nicotitto) — [photo](https://unsplash.com/photos/D6Tu_L3chLE)
-- [Jacopo Maiarelli](https://unsplash.com/@ja_ma) — [photo](https://unsplash.com/photos/-gOUx23DNks)
-- [Yiran Ding](https://unsplash.com/@yiranding) — [photo](https://unsplash.com/photos/JQRyYCC2OIM)
-- [Zac Ong](https://unsplash.com/@zacong) — [photo](https://unsplash.com/photos/JHN1-mpgXjo)
-- [Henry Chen](https://unsplash.com/@chentianlu) — [photo](https://unsplash.com/photos/x7clQSWhlfE)
-- [Katherine Gu](https://unsplash.com/@katherine_xx11) — [photo](https://unsplash.com/photos/2CotQSBTcjI)
-
-#### Sport
-
-- [Igor Batista](https://unsplash.com/@igorvw) — [photo](https://unsplash.com/photos/MPhf5gE1qrI)
-- [Anna Sullivan](https://unsplash.com/@aesullivan2010) — [photo](https://unsplash.com/photos/DioLM8ViiO8)
-- [Piero Huerto Gago](https://unsplash.com/@piero_hg) — [photo](https://unsplash.com/photos/2rjjnfdlwGY)
-- [Jake Weirick](https://unsplash.com/@weirick) — [photo](https://unsplash.com/photos/o9h6KJG52eU)
+The repository is MIT licensed. Transit data is provided through Trafiklab. See [CREDITS.md](CREDITS.md) for locally hosted editorial imagery.

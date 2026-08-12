@@ -379,12 +379,12 @@ Nästa uses a **flat-by-default** elevation model. Depth is conveyed through ton
 - **Dismissible.** 12px message.
 
 ### Settings Panel (SettingsPanel)
-- **Full-height drawer** from right. `--z-dialog`.
+- **Responsive sheet** with `--z-dialog`: full-height and touch-oriented on mobile, centered modal on larger screens.
 - **Shape:** `--radius-lg` top corners. `--surface` bg.
 - **Layout:** Single-column list. Row: icon + label + control. Divider: `--border`.
 - **Typography:** Row label 15px, `--text`. Row description 12px, `--text-secondary`.
 - **Theme picker:** Three accessible choices: System, Light, and Dark, each with a compact departure-row preview.
-- **Close:** IconButton (X icon).
+- **Close:** `SurfaceControl` close control with an accessible label.
 
 ### Page Editor (PageEditor)
 - **Full-screen overlay** for managing route pages. `--z-dialog`.

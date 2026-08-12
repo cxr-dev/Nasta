@@ -13,11 +13,11 @@ describe('resolveVenueMedia', () => {
     expect(venueMoodImages).toHaveLength(24);
   });
 
-  it('keeps every curated source and photographer profile in the README credits', () => {
-    const readme = readFileSync('README.md', 'utf8');
+  it('keeps every curated source and photographer profile in the credits', () => {
+    const credits = readFileSync('CREDITS.md', 'utf8');
     for (const image of venueMoodImages) {
-      expect(readme).toContain(image.originalPhotoUrl);
-      expect(readme).toContain(image.photographerProfileUrl);
+      expect(credits).toContain(image.originalPhotoUrl);
+      expect(credits).toContain(image.photographerProfileUrl);
     }
   });
 });
