@@ -146,6 +146,29 @@ describe('SettingsPanel location controls', () => {
     expect(swedish.classList.contains('active')).toBe(true);
   });
 
+  it('uses the Lucide language and wine icons in the feature settings', () => {
+    const { container, getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    const languageIcon = container.querySelector('.language-control')?.parentElement?.querySelector('.group-title svg');
+    const afterworkIcon = getByRole('switch', { name: 'Afterwork' }).closest('.toggle-row')?.querySelector('svg');
+
+    expect(languageIcon?.innerHTML).toContain('m5 8 6 6');
+    expect(languageIcon?.innerHTML).toContain('m22 22-5-10-5 10');
+    expect(afterworkIcon?.innerHTML).toContain('M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5Z');
+    expect(afterworkIcon?.querySelectorAll('[stroke-width="2"]')).toHaveLength(4);
+  });
+
+  it('keeps the system theme description on its card without duplicate copy', async () => {
+    const { container, getByRole, getByText } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    await fireEvent.click(getByRole('tab', { name: 'Teman' }));
+
+    expect(getByRole('heading', { name: 'Temainställningar' })).toBeTruthy();
+    expect(getByText('Följ enhetens inställning')).toBeTruthy();
+    expect(container.querySelectorAll('.theme-choice-description')).toHaveLength(1);
+    expect(container.querySelectorAll('.theme-description')).toHaveLength(0);
+  });
+
   it('previews a valid backup in an inline labelled region with a safe cancel action', async () => {
     const { container, getByRole, getByText } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
     const backup = new File([

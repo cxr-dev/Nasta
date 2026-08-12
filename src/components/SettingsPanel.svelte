@@ -3,7 +3,7 @@
   import { previewStyle } from '../themes';
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
-  import { infoCircle, alertTriangle, bellIcon, locateIcon, arrowUpDown, martiniIcon, calendarDaysIcon, languagesIcon, databaseBackupIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, downloadIcon, uploadIcon, trash2Icon } from '../icons/departureIcons';
+  import { infoCircle, alertTriangle, bellIcon, locateIcon, arrowUpDown, wineIcon, calendarDaysIcon, languagesIcon, databaseBackupIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, downloadIcon, uploadIcon, trash2Icon } from '../icons/departureIcons';
   import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
   import SurfaceControl from './SurfaceControl.svelte';
@@ -535,7 +535,7 @@
 
         <div class="feature-group">
           <label class="toggle-row">
-            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html martiniIcon}</svg></span>
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html wineIcon}</svg></span>
             <div class="toggle-label">
               <span class="toggle-name">{t.afterwork}</span>
               <span class="toggle-desc">{t.afterworkVenuesDesc}</span>
@@ -714,8 +714,7 @@
 
     {:else if activeEditorTab === 'theme'}
       <div class="tab-content theme-tab">
-        <h3 class="section-title">{t.appSettings}</h3>
-        <p class="theme-description">{t.themeSystemDesc}</p>
+        <h3 class="section-title">{t.themeSettings}</h3>
         <div class="theme-list" role="group" aria-label={t.theme}>
           {#each themeChoices as choice (choice.id)}
             {@const isActive = activeTheme === choice.id}
@@ -1170,13 +1169,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .theme-description {
-    margin: -8px 0 14px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    line-height: 1.4;
   }
 
   .theme-choice {
