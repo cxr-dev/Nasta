@@ -31,12 +31,15 @@ describe('static theme tokens', () => {
     const secondary = root.getPropertyValue('--text-secondary').trim();
     const accent = root.getPropertyValue('--accent').trim();
     const onAccent = root.getPropertyValue('--text-on-accent').trim();
+    const journeyPrimary = root.getPropertyValue('--journey-primary').trim();
+    const journeyOnPrimary = root.getPropertyValue('--journey-on-primary').trim();
 
     expect(element.dataset.theme).toBe(theme);
     expect(wcagContrast(bg, text)).toBeGreaterThanOrEqual(4.5);
     expect(wcagContrast(surface, text)).toBeGreaterThanOrEqual(4.5);
     expect(wcagContrast(surface, secondary)).toBeGreaterThanOrEqual(4.5);
     expect(wcagContrast(accent, onAccent)).toBeGreaterThanOrEqual(4.5);
+    expect(wcagContrast(journeyPrimary, journeyOnPrimary)).toBeGreaterThanOrEqual(4.5);
     expect(wcagContrast(bg, surface)).toBeGreaterThanOrEqual(1.05);
   });
 

@@ -53,6 +53,13 @@ const LIGHT_TOKENS: ThemeTokens = {
   '--status-cancelled-bg': '#FFF0EF',
   '--status-info': '#356A86',
   '--status-info-bg': '#EEF7FA',
+  '--journey-primary': '#2563EB',
+  '--journey-on-primary': '#FFFFFF',
+  '--journey-map-bg': '#EEF2F3',
+  '--journey-map-water': '#DCECF4',
+  '--journey-map-road': '#C7D0D1',
+  '--journey-map-quiet': '#AAB6B8',
+  '--journey-secondary': '#16815A',
 };
 
 const DARK_TOKENS: ThemeTokens = {
@@ -85,6 +92,13 @@ const DARK_TOKENS: ThemeTokens = {
   '--status-cancelled-bg': '#321F1E',
   '--status-info': '#8DB8CC',
   '--status-info-bg': '#1E2B30',
+  '--journey-primary': '#78A9FF',
+  '--journey-on-primary': '#111211',
+  '--journey-map-bg': '#202522',
+  '--journey-map-water': '#253C45',
+  '--journey-map-road': '#454B45',
+  '--journey-map-quiet': '#69716A',
+  '--journey-secondary': '#7AC9A4',
 };
 
 const TOKENS: Record<ResolvedTheme, ThemeTokens> = {

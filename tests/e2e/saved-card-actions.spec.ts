@@ -152,6 +152,23 @@ test.describe("saved card contextual actions", () => {
     });
   }
 
+  test("keeps the collapsed journey compact and expands into a route overview", async ({
+    page,
+  }) => {
+    await prepare(page, { width: 390, height: 844 });
+    const card = page.locator(".journey-card");
+    await expect(card.locator(".journey-summary-top")).toBeVisible();
+    await expect(card.locator(".timeline")).toHaveCount(0);
+    const collapsedBox = await card.boundingBox();
+    expect(collapsedBox?.height ?? 999).toBeLessThan(160);
+
+    await card.locator(".card-main").click();
+    await expect(card.locator('[data-testid="journey-route-overview"]')).toBeVisible();
+    await expect(card.locator(".journey-detail-summary")).toBeVisible();
+    await expect(card.locator(".timeline")).toBeVisible();
+    await expect(card.locator(".journey-next-step")).toBeVisible();
+  });
+
   test("uses a content-height mobile surface and clear departure identity", async ({
     page,
   }) => {

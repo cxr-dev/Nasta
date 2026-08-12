@@ -317,6 +317,16 @@ const sv = {
   journeyGetOffAt: "Gå av vid {stop}",
   journeyTowards: "mot {destination}",
   journeyNoTransfers: "Inga byten",
+  journeyOverview: "Reseöversikt",
+  journeyTapLeg: "Tryck på en del för att fokusera",
+  journeyDepart: "avgår",
+  journeyArrive: "framme",
+  journeyDuration: "restid",
+  journeyChange: "byte",
+  journeyNextStep: "Nästa steg",
+  journeyShowStops: "Visa hållplatser",
+  journeyHideStops: "Dölj hållplatser",
+  journeyStopsCount: "{count} hållplatser",
 
   // No departures
   noDeparturesAvailable: "Inga avgångar hittades",
@@ -810,6 +820,16 @@ const en: typeof sv = {
   journeyGetOffAt: "Get off at {stop}",
   journeyTowards: "toward {destination}",
   journeyNoTransfers: "No transfers",
+  journeyOverview: "Journey overview",
+  journeyTapLeg: "Tap a leg to focus it",
+  journeyDepart: "departs",
+  journeyArrive: "arrives",
+  journeyDuration: "duration",
+  journeyChange: "change",
+  journeyNextStep: "Next step",
+  journeyShowStops: "Show stops",
+  journeyHideStops: "Hide stops",
+  journeyStopsCount: "{count} stops",
 
   // No departures
   noDeparturesAvailable: "No departures found",

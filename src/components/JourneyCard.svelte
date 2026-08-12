@@ -9,6 +9,7 @@
   import type { SavedJourneyAction } from '../lib/savedJourneyLifecycle';
   import { longPress } from '../lib/longPress';
   import { shareGlyph } from '../icons/departureIcons';
+  import JourneyRouteOverview from './JourneyRouteOverview.svelte';
 
   let {
     journeyMeta,
@@ -47,11 +48,14 @@
   let departureMinutes = $derived(Math.max(0, Math.ceil((depTime - now) / 60000)));
   let departureCountdown = $derived(depTime <= now + 45000 ? 'Nu' : `${departureMinutes} min`);
   let isPlannedExpired = $derived(journeyMeta.status === 'planned' && depTime > 0 && depTime <= now);
+  let selectedLegIndex = $state(-1);
+  let expandedStopsLegIndex = $state<number | null>(null);
   let activeLegIndex = $derived.by(() => {
     if (journeyMeta.status !== 'active') return -1;
     const index = displayLegs.findIndex((leg) => now < leg.arrivalTime);
     return index === -1 ? Math.max(0, displayLegs.length - 1) : index;
   });
+  let focusedLegIndex = $derived(selectedLegIndex >= 0 ? selectedLegIndex : activeLegIndex >= 0 ? activeLegIndex : 0);
   let isMissedNoticeVisible = $derived(Boolean(journeyMeta.lastMissedAt && now - journeyMeta.lastMissedAt < 120000));
   let statusLabel = $derived(
     journeyMeta.status === 'active'
@@ -108,6 +112,31 @@
       return `${t.journeyDirect ?? 'Direct'} · ${t.journeyNoTransfers ?? 'No transfers'}`;
     }
     return `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`;
+  }
+
+  function transferShortLabel(): string {
+    if (journeyMeta.transfers === 0) return t.journeyDirect ?? 'Direct';
+    return `${journeyMeta.transfers} ${journeyMeta.transfers > 1 ? (t.transfers ?? 'transfers') : (t.transfer ?? 'transfer')}`;
+  }
+
+  function nextStepLabel(): string {
+    const index = activeLegIndex >= 0 ? activeLegIndex : 0;
+    const connection = connectionsBefore(index)[0];
+    if (connection) return connectionLabel(connection);
+    const leg = displayLegs[index];
+    if (!leg) return t.journeyNextAction ?? 'Follow the next part of the journey';
+    return `${boardAt(leg.originName)} · ${leg.lineName}`;
+  }
+
+  let nextStep = $derived.by(() => nextStepLabel());
+
+  function selectLeg(index: number) {
+    selectedLegIndex = selectedLegIndex === index ? -1 : index;
+    if (selectedLegIndex !== index) expandedStopsLegIndex = null;
+  }
+
+  function toggleStops(index: number) {
+    expandedStopsLegIndex = expandedStopsLegIndex === index ? null : index;
   }
 
   function boardAt(stop: string): string {
@@ -194,34 +223,29 @@
     <div class="card-body">
       {#if statusLabel}<div class="card-top"><span class="card-kicker">{statusLabel}</span></div>{/if}
 
-      <div class="journey-endpoints">
-        <span>{journeyMeta.originLabel}</span>
-        <span class="endpoint-arrow" aria-hidden="true">→</span>
-        <span class="dest-label">{journeyMeta.destLabel}</span>
+      <div class="journey-summary-top">
+        <div class="journey-route-identity">
+          {#if displayLegs[0]}
+            <span class="line-badge" aria-label={displayLegs[0].lineName}>
+              <TransportIcon type={displayLegs[0].transportType} size={13} />
+              <span>{displayLegs[0].line}</span>
+            </span>
+          {/if}
+          <div class="journey-endpoints">
+            <span>{journeyMeta.originLabel}</span>
+            <span class="endpoint-arrow" aria-hidden="true">→</span>
+            <span class="dest-label">{journeyMeta.destLabel}</span>
+          </div>
+        </div>
+        <span class="summary-chevron" aria-hidden="true">›</span>
       </div>
 
-      <div class="card-meta">
-        <span class="countdown">{departureCountdown}</span>
-        <span class="time-range">
-          {formatTime(depTime)} – {formatTime(arrTime)}
-        </span>
+      <div class="journey-summary-bottom">
+        <span class="countdown">{departureCountdown}<small>{t.journeyDepart ?? 'departs'}</small></span>
+        <span class="time-range">{formatTime(depTime)} – {formatTime(arrTime)}</span>
         <span class="journey-stats" aria-hidden="true">
-          <span class="journey-stat duration">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            {formatDuration(journeyDuration)}
-          </span>
-          <span class="journey-stat transfers">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" x2="6" y1="3" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 1-9 9" />
-            </svg>
-            {transferSummary()}
-          </span>
+          <span class="journey-stat duration">{formatDuration(journeyDuration)}</span>
+          <span class="journey-stat transfers">{transferShortLabel()}</span>
         </span>
       </div>
 
@@ -231,20 +255,6 @@
         </div>
       {/if}
 
-      {#if displayLegs[0]}
-        <div class="primary-leg">
-          <TransportIcon type={displayLegs[0].transportType} size={14} />
-          <span class="leg-line">{displayLegs[0].lineName}</span>
-          <span class="leg-direction">{displayLegs[0].directionName}</span>
-          {#if hasTrainPosition(displayLegs[0].transportType)}
-            <svg class="train-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect width="16" height="16" x="4" y="3" rx="2" />
-              <path d="M4 11h16M8 19l-2 2M16 19l2 2M8 7h.01M16 7h.01" />
-            </svg>
-            <TrainPosition position={displayLegs[0].platformPosition} />
-          {/if}
-        </div>
-      {/if}
     </div>
   </button>
 
@@ -276,6 +286,19 @@
           </button>
         </div>
       </div>
+      <div class="journey-detail-summary" aria-label={t.journeyOverview ?? 'Journey overview'}>
+        <span><strong>{formatTime(depTime)}</strong><small>{t.journeyDepart ?? 'departs'}</small></span>
+        <span><strong>{formatTime(arrTime)}</strong><small>{t.journeyArrive ?? 'arrives'}</small></span>
+        <span><strong>{formatDuration(journeyDuration)}</strong><small>{t.journeyDuration ?? 'duration'}</small></span>
+        <span><strong>{journeyMeta.transfers}</strong><small>{t.journeyChange ?? 'change'}</small></span>
+      </div>
+      <JourneyRouteOverview
+        legs={displayLegs}
+        focusedLegIndex={focusedLegIndex}
+        onSelectLeg={selectLeg}
+        overviewLabel={t.journeyOverview ?? 'Journey overview'}
+        tapLegLabel={t.journeyTapLeg ?? 'Tap a leg to focus it'}
+      />
       <ol class="timeline">
         {#each displayLegs as leg, i (leg.departureTime + '-' + i)}
           {#each connectionsBefore(i).filter(showConnection) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
@@ -292,36 +315,59 @@
               </span>
             </li>
           {/each}
-          <li class="leg-row" class:current={i === activeLegIndex} aria-current={i === activeLegIndex ? 'step' : undefined}>
-            <div class="leg-times"><time>{formatTime(leg.departureTime)}</time><time>{formatTime(leg.arrivalTime)}</time></div>
-            <span class="leg-track"><span class="leg-dot"></span></span>
-            <div class="leg-info">
-              <div class="leg-header">
-                <TransportIcon type={leg.transportType} size={12} />
-                <span class="leg-line-name">{leg.lineName}</span>
-                <span class="leg-direction-name">{towards(leg.directionName)}</span>
-              </div>
-              <div class="leg-route">
-                <span class="route-from">{boardAt(leg.originName)}</span>
-                <span class="route-arrow" aria-hidden="true">→</span>
-                <span>{getOffAt(leg.destName)}</span>
-              </div>
-              {#if leg.stops && leg.stops.length > 0}
-                <div class="stop-preview">
-                  <span class="stop-preview-label">{t.journeyViaStops ?? 'Via'}</span>
-                  <span class="stop-preview-names">{leg.stops.slice(0, 3).join(' → ')}</span>
-                  {#if leg.stops.length > 3}
-                    <span class="stop-preview-more">+{leg.stops.length - 3} {t.journeyMoreStops ?? 'hållplatser'}</span>
-                  {/if}
+          <li class="leg-row" class:current={i === activeLegIndex} class:selected={i === focusedLegIndex} aria-current={i === activeLegIndex ? 'step' : undefined}>
+            <button
+              type="button"
+              class="leg-select"
+              aria-pressed={i === focusedLegIndex}
+              onclick={() => selectLeg(i)}
+            >
+              <div class="leg-times"><time>{formatTime(leg.departureTime)}</time><time>{formatTime(leg.arrivalTime)}</time></div>
+              <span class="leg-track"><span class="leg-dot"></span></span>
+              <div class="leg-info">
+                <div class="leg-header">
+                  <TransportIcon type={leg.transportType} size={12} />
+                  <span class="leg-line-name">{leg.lineName}</span>
+                  <span class="leg-direction-name">{towards(leg.directionName)}</span>
+                  <span class="leg-open" aria-hidden="true">{i === focusedLegIndex ? '⌃' : '⌄'}</span>
                 </div>
-              {/if}
-              {#if hasTrainPosition(leg.transportType)}
-                <div class="leg-position">
-                  <span>{t.journeyBestPosition ?? 'Best place on the train'}</span>
-                  <TrainPosition position={leg.platformPosition} />
+                <div class="leg-route">
+                  <span class="route-from">{boardAt(leg.originName)}</span>
+                  <span class="route-arrow" aria-hidden="true">→</span>
+                  <span>{getOffAt(leg.destName)}</span>
                 </div>
-              {/if}
-            </div>
+                {#if leg.stops && leg.stops.length > 0 && i !== focusedLegIndex}
+                  <div class="stop-preview">
+                    <span class="stop-preview-label">{t.journeyViaStops ?? 'Via'}</span>
+                    <span class="stop-preview-names">{leg.stops.slice(0, 3).join(' → ')}</span>
+                    {#if leg.stops.length > 3}
+                      <span class="stop-preview-more">+{leg.stops.length - 3} {t.journeyMoreStops ?? 'stops'}</span>
+                    {/if}
+                  </div>
+                {/if}
+                {#if hasTrainPosition(leg.transportType)}
+                  <div class="leg-position">
+                    <span>{t.journeyBestPosition ?? 'Best place on the train'}</span>
+                    <TrainPosition position={leg.platformPosition} />
+                  </div>
+                {/if}
+              </div>
+            </button>
+            {#if i === focusedLegIndex && leg.stops && leg.stops.length > 0}
+              <div class="stop-sequence">
+                <span class="stop-sequence-label">{(t.journeyStopsCount ?? '{count} stops').replace('{count}', String(leg.stops.length))}</span>
+                <div class="stop-sequence-list">
+                  {#each (expandedStopsLegIndex === i ? leg.stops : leg.stops.slice(0, 3)) as stop, stopIndex (stop + stopIndex)}
+                    <span class="stop-sequence-stop"><span aria-hidden="true"></span>{stop}</span>
+                  {/each}
+                </div>
+                {#if leg.stops.length > 3}
+                  <button type="button" class="stop-sequence-toggle" onclick={(event) => { event.stopPropagation(); toggleStops(i); }}>
+                    {expandedStopsLegIndex === i ? (t.journeyHideStops ?? 'Hide stops') : (t.journeyShowStops ?? 'Show stops')}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </li>
         {/each}
         {#each connectionsBefore(displayLegs.length).filter(showConnection) as connection, connectionIndex (`${connection.beforeLegIndex}-${connection.kind}-${connectionIndex}`)}
@@ -340,6 +386,10 @@
         {/each}
       </ol>
       <div class="journey-actions">
+        <div class="journey-next-step">
+          <span class="next-step-label">{t.journeyNextStep ?? 'Next step'}</span>
+          <strong>{nextStep}</strong>
+        </div>
         {#if journeyMeta.status === 'active'}
           <p class="next-action">{t.journeyNextAction ?? 'Följ nästa del av resan'}</p>
           <button type="button" class="journey-action primary" onclick={(event) => { event.stopPropagation(); onAction?.('complete'); }}>
@@ -418,7 +468,7 @@
 
   .card-body {
     flex: 1;
-    padding: 12px var(--transit-card-padding-inline);
+    padding: 12px var(--transit-card-padding-inline) 11px;
     min-width: 0;
   }
 
@@ -433,18 +483,59 @@
     color: var(--text-muted);
     font-size: 11px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     flex-shrink: 0;
+  }
+
+  .journey-summary-top,
+  .journey-summary-bottom {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .journey-summary-top {
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .journey-route-identity {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .line-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 34px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--journey-primary, var(--accent));
+    color: var(--journey-on-primary, var(--text-on-accent));
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .summary-chevron {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: 24px;
+    font-weight: 400;
+    line-height: 1;
   }
 
   .journey-endpoints {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 2px 0 8px;
-    color: var(--text-secondary);
-    font-size: 12px;
+    gap: 5px;
+    min-width: 0;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 750;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -457,69 +548,58 @@
   }
 
   .endpoint-arrow {
-    color: var(--accent);
+    color: var(--journey-primary, var(--accent));
     font-weight: 800;
     flex-shrink: 0;
   }
 
-  .card-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    flex-wrap: wrap;
+  .journey-summary-bottom {
+    gap: 10px;
+    margin-top: 10px;
   }
 
-  .time-range {
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
+  .journey-summary-bottom .time-range {
+    flex: 0 0 auto;
+    font-size: 15px;
+  }
+
+  .journey-summary-bottom .journey-stats {
+    margin-left: auto;
   }
 
   .countdown {
-    color: var(--accent);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    color: var(--journey-primary, var(--accent));
     font-family: 'Neue Machina', sans-serif;
-    font-size: 19px;
+    font-size: 22px;
     font-weight: 900;
     letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
-  }
-
-  .journey-stats {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    color: var(--text-muted);
-  }
-
-  .journey-stat {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
     white-space: nowrap;
   }
 
-  .journey-stat svg,
-  .train-icon {
-    flex: 0 0 auto;
-  }
-
-  .primary-leg {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    min-width: 0;
-  }
-
-  .primary-leg .train-icon {
+  .countdown small {
     color: var(--text-muted);
-    margin-left: auto;
+    font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0;
+  }
+
+  .journey-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .journey-stat {
+    white-space: nowrap;
   }
 
   .missed-notice {
@@ -533,18 +613,6 @@
     line-height: 1.3;
   }
 
-  .leg-line {
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .leg-direction {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-  }
-
   .expanded-panel {
     border-top: 1px solid var(--border);
     padding: 12px var(--transit-card-padding-inline);
@@ -553,6 +621,43 @@
 
   .expanded-panel.collapsing {
     pointer-events: none;
+  }
+
+  .journey-detail-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin: 4px 0 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 12px);
+    background: var(--surface);
+  }
+
+  .journey-detail-summary span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 6px;
+    text-align: center;
+  }
+
+  .journey-detail-summary span + span {
+    border-left: 1px solid var(--border);
+  }
+
+  .journey-detail-summary strong {
+    color: var(--text);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .journey-detail-summary small {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .timeline {
@@ -565,15 +670,42 @@
   }
 
   .leg-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--radius-sm, 8px);
+  }
+
+  .leg-row.selected {
+    background: color-mix(in oklch, var(--journey-primary, var(--accent)) 8%, var(--surface));
+  }
+
+  .leg-select {
     display: grid;
     grid-template-columns: 44px 14px minmax(0, 1fr);
     column-gap: 8px;
-    position: relative;
+    width: 100%;
+    min-height: 58px;
+    padding: 5px 6px;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .leg-select:focus-visible,
+  .stop-sequence-toggle:focus-visible {
+    outline: 2px solid var(--journey-primary, var(--accent));
+    outline-offset: -2px;
   }
 
   .leg-row.current .leg-dot {
-    background: var(--accent);
-    box-shadow: 0 0 0 4px var(--accent-subtle);
+    background: var(--journey-primary, var(--accent));
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--journey-primary, var(--accent)) 18%, transparent);
   }
 
   .leg-row.current .leg-info {
@@ -602,7 +734,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--journey-primary, var(--accent));
     flex-shrink: 0;
     margin-top: 3px;
     position: relative;
@@ -616,6 +748,14 @@
     flex-direction: column;
     gap: 2px;
     font-size: 12px;
+  }
+
+  .leg-open {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
   }
 
   .leg-header {
@@ -711,6 +851,55 @@
     white-space: nowrap;
   }
 
+  .stop-sequence {
+    margin: 0 8px 8px 58px;
+    padding: 8px 10px 9px;
+    border-top: 1px solid var(--border);
+  }
+
+  .stop-sequence-label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .stop-sequence-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .stop-sequence-stop {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .stop-sequence-stop span {
+    width: 5px;
+    height: 5px;
+    border: 1px solid var(--journey-primary, var(--accent));
+    border-radius: 50%;
+    background: var(--surface);
+  }
+
+  .stop-sequence-toggle {
+    min-height: 32px;
+    margin-top: 4px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--journey-primary, var(--accent));
+    font: inherit;
+    font-size: 11px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
   .journey-detail-header {
     display: flex;
     align-items: center;
@@ -802,6 +991,34 @@
     margin-top: 16px;
   }
 
+  .journey-next-step {
+    display: flex;
+    flex: 1 1 100%;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md, 12px);
+    background: var(--journey-primary, var(--accent));
+    color: var(--journey-on-primary, var(--text-on-accent));
+  }
+
+  .next-step-label {
+    color: color-mix(in oklch, var(--journey-on-primary, var(--text-on-accent)) 72%, transparent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .journey-next-step strong {
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .next-action {
     flex: 1 1 100%;
     margin: 0 0 2px;
@@ -834,15 +1051,22 @@
   }
 
   @media (max-width: 420px) {
-    .card-meta {
-      gap: 6px;
+    .journey-summary-bottom {
+      gap: 7px;
     }
 
-    .journey-stats {
-      flex-basis: 100%;
+    .journey-summary-bottom .time-range {
+      font-size: 13px;
     }
 
-    .leg-row,
+    .journey-summary-bottom .journey-stats {
+      gap: 4px;
+      font-size: 10px;
+    }
+
+    .leg-select,
     .connection-row { grid-template-columns: 42px 12px minmax(0, 1fr); column-gap: 7px; }
+
+    .stop-sequence { margin-left: 52px; }
   }
 </style>

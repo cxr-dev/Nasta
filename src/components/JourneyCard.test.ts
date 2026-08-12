@@ -46,6 +46,11 @@ describe('JourneyCard unified action seam', () => {
     expect(summary?.getAttribute('aria-controls')).toMatch(/^journey-details-/);
     expect(container.querySelector('.countdown')).toBeTruthy();
     expect(container.querySelectorAll('.journey-stat')).toHaveLength(2);
+    expect(container.querySelector('.journey-summary-top')).toBeTruthy();
+    expect(container.querySelector('.journey-summary-bottom')).toBeTruthy();
+    expect(container.querySelector('.summary-chevron')).toBeTruthy();
+    expect(container.querySelector('.timeline')).toBeNull();
+    expect(container.querySelector('.primary-leg')).toBeNull();
     expect(container.textContent).not.toContain('Nästa resa');
   });
 
@@ -59,6 +64,39 @@ describe('JourneyCard unified action seam', () => {
     expect(container.querySelector('.leg-times')).toBeTruthy();
     expect(container.querySelector('.more-actions-button svg')).toBeTruthy();
     expect(container.querySelector('.more-actions-button')?.textContent).not.toContain('•••');
+    expect(container.querySelector('[data-testid="journey-route-overview"]')).toBeTruthy();
+    expect(container.querySelector('.journey-detail-summary')).toBeTruthy();
+  });
+
+  it('focuses a leg and reveals its stops without turning the collapsed card into a timeline', async () => {
+    const secondLeg = {
+      ...leg,
+      originName: 'Work',
+      destName: 'Home',
+      line: '4',
+      lineName: '4',
+      departureTime: 1_700_001_060_000,
+      arrivalTime: 1_700_001_420_000,
+      stops: ['Station A', 'Station B', 'Station C', 'Station D'],
+    };
+    const journey = {
+      ...meta(),
+      legs: [leg, secondLeg],
+      arrivalTime: secondLeg.arrivalTime,
+      totalDurationMin: 14,
+      transfers: 1,
+    };
+    const { container } = render(JourneyCard, {
+      props: { journeyMeta: journey, isExpanded: true, now: 1_700_000_000_000 },
+    });
+
+    expect(container.querySelectorAll('.leg-select')).toHaveLength(2);
+    await fireEvent.click(container.querySelectorAll('.leg-select')[1] as HTMLElement);
+
+    expect(container.querySelectorAll('.leg-row.selected')).toHaveLength(1);
+    expect(container.querySelector('.stop-sequence')).toBeTruthy();
+    expect(container.textContent).toContain('Station A');
+    expect(container.textContent).toContain('Show stops');
   });
 
   it('shows supplied walking and interchange time in the expanded route', () => {
