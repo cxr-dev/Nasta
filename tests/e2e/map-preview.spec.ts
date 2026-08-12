@@ -180,6 +180,31 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
   expect(pageErrors).toEqual([]);
 });
 
+test("keeps the embedded map scrollable and reserves gestures for fullscreen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 420 });
+  await openApp(page);
+  await page.locator(".card-main").first().click();
+
+  const canvas = page.locator("canvas.maplibregl-canvas");
+  const expandButton = page.getByRole("button", { name: "Expand map fullscreen" });
+  const scrollContainer = page.locator(".scroll-container");
+
+  await expect(canvas).toHaveCSS("touch-action", "auto");
+  const expandBox = await expandButton.boundingBox();
+  expect(expandBox?.width).toBeGreaterThanOrEqual(44);
+  expect(expandBox?.height).toBeGreaterThanOrEqual(44);
+
+  await scrollContainer.evaluate((element) => { element.scrollTop = 0; });
+  await canvas.hover({ position: { x: 20, y: 110 } });
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => scrollContainer.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await expandButton.scrollIntoViewIfNeeded();
+  await expandButton.click();
+  await expect(page.getByRole("dialog", { name: "Stop location" })).toBeVisible();
+  await expect(canvas).toHaveCSS("touch-action", "none");
+});
+
 test("keeps route stops and map in one vertical reading flow at desktop width", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 844 });
   await openApp(page);

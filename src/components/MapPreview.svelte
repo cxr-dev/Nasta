@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import type { Segment } from "../types/page";
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import { cleanStopName as stopLabel } from "../lib/stopName";
@@ -48,6 +48,22 @@
   let expandButtonEl = $state<HTMLButtonElement | undefined>(undefined);
   let historyView: ReturnType<typeof createHistoryView> | null = null;
 
+  function setMapInteractionMode(fullscreen: boolean) {
+    if (!mapInstance) return;
+
+    const handlers = [mapInstance.dragPan, mapInstance.scrollZoom, mapInstance.touchZoomRotate];
+    for (const handler of handlers) {
+      if (fullscreen) handler?.enable();
+      else handler?.disable();
+    }
+    mapInstance.touchZoomRotate?.disableRotation();
+
+    const coord = segment.fromStop.coord;
+    if (!fullscreen && coord) {
+      mapInstance.jumpTo({ center: [coord[1], coord[0]], zoom: 15.5 });
+    }
+  }
+
   $effect(() => {
     maplibreLoad.then(m => {
       m.setWorkerUrl(workerUrl);
@@ -74,10 +90,10 @@
       center,
       zoom: 15.5,
       attributionControl: false,
-      dragPan: true,
-      scrollZoom: true,
+      dragPan: false,
+      scrollZoom: false,
       doubleClickZoom: false,
-      touchZoomRotate: true,
+      touchZoomRotate: false,
       dragRotate: false,
       keyboard: false,
     });
@@ -95,7 +111,7 @@
     };
     mapInstance.on('styledata', closeInitialAttribution);
     mapInstance.on('sourcedata', closeInitialAttribution);
-    mapInstance.touchZoomRotate?.disableRotation();
+    setMapInteractionMode(untrack(() => isFullscreen));
 
     mapInstance.on("load", () => {
       closeInitialAttribution();
@@ -199,6 +215,7 @@
     if (isFullscreen) return;
     isFullscreen = true;
     fullscreenVisible = false;
+    setMapInteractionMode(true);
     requestAnimationFrame(() => {
       if (isFullscreen) fullscreenVisible = true;
       mapInstance?.resize();
@@ -214,6 +231,7 @@
   function closeFullscreen() {
     if (!isFullscreen || isClosing) return;
     isClosing = true;
+    setMapInteractionMode(false);
     lockBodyScroll(false);
     setTimeout(() => {
       isFullscreen = false;
@@ -421,10 +439,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border: none;
     border-radius: 8px;
     background: rgba(0,0,0,0.55);

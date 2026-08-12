@@ -1,14 +1,17 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import type { Segment } from '../types/page';
 
 const maplibre = vi.hoisted(() => {
   const mapInstance = {
     addControl: vi.fn(),
+    dragPan: { enable: vi.fn(), disable: vi.fn() },
+    scrollZoom: { enable: vi.fn(), disable: vi.fn() },
     on: vi.fn((event: string, callback: () => void) => {
       if (event === 'load') callback();
     }),
-    touchZoomRotate: { disableRotation: vi.fn() },
+    touchZoomRotate: { enable: vi.fn(), disable: vi.fn(), disableRotation: vi.fn() },
+    jumpTo: vi.fn(),
     remove: vi.fn(),
     resize: vi.fn(),
   };
@@ -23,6 +26,7 @@ const maplibre = vi.hoisted(() => {
       };
     }),
     setWorkerUrl: vi.fn(),
+    mapInstance,
   };
 });
 
@@ -31,6 +35,7 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
 
 import MapPreview from './MapPreview.svelte';
 
+beforeEach(() => vi.clearAllMocks());
 afterEach(() => cleanup());
 
 const segment: Segment = {
@@ -65,8 +70,48 @@ describe('MapPreview MapLibre module loading', () => {
     expect(maplibre.Map).toHaveBeenCalledWith(expect.objectContaining({
       center: [18.12, 59.31],
       container: container.querySelector('.mini-map'),
+      dragPan: false,
+      scrollZoom: false,
+      touchZoomRotate: false,
+      doubleClickZoom: false,
+      keyboard: false,
     }));
     expect(maplibre.AttributionControl).toHaveBeenCalledWith({ compact: true });
+  });
+
+  it('enables pan and zoom only in fullscreen, then restores the stop preview', async () => {
+    history.replaceState({}, '', '/');
+    const { getByRole } = render(MapPreview, {
+      props: {
+        segment,
+        userLocation: null,
+        locationRequestInFlight: false,
+        walkingEtaEnabled: false,
+        t: {
+          expandMap: 'Expand map fullscreen',
+          back: 'Back',
+          stopLocation: 'Stop location',
+        },
+      },
+    });
+
+    await waitFor(() => expect(maplibre.Map).toHaveBeenCalledTimes(1));
+    await fireEvent.click(getByRole('button', { name: 'Expand map fullscreen' }));
+
+    expect(maplibre.mapInstance.dragPan.enable).toHaveBeenCalledTimes(1);
+    expect(maplibre.mapInstance.scrollZoom.enable).toHaveBeenCalledTimes(1);
+    expect(maplibre.mapInstance.touchZoomRotate.enable).toHaveBeenCalledTimes(1);
+    expect(maplibre.mapInstance.touchZoomRotate.disableRotation).toHaveBeenCalled();
+
+    await fireEvent.click(getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(maplibre.mapInstance.dragPan.disable).toHaveBeenCalled());
+
+    expect(maplibre.mapInstance.scrollZoom.disable).toHaveBeenCalled();
+    expect(maplibre.mapInstance.touchZoomRotate.disable).toHaveBeenCalled();
+    expect(maplibre.mapInstance.jumpTo).toHaveBeenCalledWith({
+      center: [18.12, 59.31],
+      zoom: 15.5,
+    });
   });
 
   it('presents fullscreen as a named history-backed view with Back', async () => {
