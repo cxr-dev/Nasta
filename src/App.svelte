@@ -22,7 +22,6 @@
   import PageEditor from './components/PageEditor.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
-  import NearbySurface from './components/NearbySurface.svelte';
   import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
@@ -1134,11 +1133,13 @@ function closeSettingsPanel() {
         style={`transform: translate3d(${nearbyOffset}%, 0, 0)`}
         aria-hidden={nearbyOffset >= 100}
       >
-        <NearbySurface
-          onBack={() => closeNearby()}
-          onSwipeMove={handleNearbySwipeMove}
-          onSwipeEnd={handleNearbySwipeEnd}
-        />
+        {#await import('./components/NearbySurface.svelte') then { default: NearbySurface }}
+          <NearbySurface
+            onBack={() => closeNearby()}
+            onSwipeMove={handleNearbySwipeMove}
+            onSwipeEnd={handleNearbySwipeEnd}
+          />
+        {/await}
       </div>
     {/if}
 

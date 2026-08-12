@@ -882,7 +882,7 @@ test.describe("Route stops preview", () => {
     }],
   }];
 
-  async function installRoutes(page: any, options: { delayTrip?: boolean } = {}) {
+  async function installRoutes(page: Page, options: { delayTrip?: boolean } = {}) {
     let releaseTrip: (() => void) | undefined;
     let tripStartedResolve: (() => void) | undefined;
     const tripStarted = new Promise<void>((resolve) => {
@@ -939,7 +939,7 @@ test.describe("Route stops preview", () => {
     return { tripStarted, get releaseTrip() { return releaseTrip; }, get stopFinderCalls() { return stopFinderCalls; }, get tripCalls() { return tripCalls; } };
   }
 
-  async function seedPage(page: any, pageData = routes) {
+  async function seedPage(page: Page, pageData = routes) {
     await page.addInitScript((data) => {
       localStorage.setItem("nasta_routes", JSON.stringify(data));
     }, pageData);
