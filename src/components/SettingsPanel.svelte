@@ -3,7 +3,7 @@
   import { previewStyle } from '../themes';
   import type { ThemePreference, ResolvedTheme } from '../themes';
   import { getT } from '../stores/localeStore.svelte';
-  import { infoCircle, arrowUpDown, layersIcon, checkIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, downloadIcon, uploadIcon, trash2Icon } from '../icons/departureIcons';
+  import { infoCircle, alertTriangle, bellIcon, locateIcon, arrowUpDown, martiniIcon, calendarDaysIcon, languagesIcon, databaseBackupIcon, clockIcon, sortAlphaIcon, sortNumericIcon, busFrontIcon, mapPinIcon, downloadIcon, uploadIcon, trash2Icon } from '../icons/departureIcons';
   import { clearLocationSession, requestLocation } from '../services/geo';
   import Sheet from './Sheet.svelte';
   import SurfaceControl from './SurfaceControl.svelte';
@@ -250,6 +250,7 @@
       selectedImportMode = null;
       dataNotice = t.resetDataComplete;
       dataError = '';
+      onClose();
     } catch {
       dataError = t.persistenceFailed;
     }
@@ -278,10 +279,9 @@
 
     {#if activeEditorTab === 'features'}
       <div class="tab-content features-tab">
-        <h3 class="section-title">{t.appSettings}</h3>
         <div class="feature-group">
-          <h3 class="group-title">{t.disruptionAlerts}</h3>
           <label class="toggle-row">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html bellIcon}</svg></span>
             <div class="toggle-label">
               <span class="toggle-name">{t.disruptionAlerts}</span>
               <span class="toggle-desc">{t.disruptionAlertsDesc}</span>
@@ -393,8 +393,8 @@
 
         <!-- Location Section -->
         <div class="feature-group">
-          <h3 class="group-title">{t.location}</h3>
           <label class="toggle-row">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html locateIcon}</svg></span>
             <div class="toggle-label">
               <span class="toggle-name">{t.locationServices}</span>
             </div>
@@ -431,7 +431,7 @@
 
         <!-- Sort & Group Section -->
         <div class="feature-group">
-          <h3 class="group-title">{t.sortGroupSection}</h3>
+          <h3 class="group-title"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html arrowUpDown}</svg></span>{t.sortGroupSection}</h3>
 
           <!-- Sort picker -->
           <div class="picker-row">
@@ -534,8 +534,8 @@
         </div>
 
         <div class="feature-group">
-          <h3 class="group-title">{t.afterwork}</h3>
           <label class="toggle-row">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html martiniIcon}</svg></span>
             <div class="toggle-label">
               <span class="toggle-name">{t.afterwork}</span>
               <span class="toggle-desc">{t.afterworkVenuesDesc}</span>
@@ -571,8 +571,8 @@
         </div>
 
         <div class="feature-group">
-          <h3 class="group-title">{t.events}</h3>
           <label class="toggle-row">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html calendarDaysIcon}</svg></span>
             <div class="toggle-label">
               <span class="toggle-name">{t.events}</span>
               <span class="toggle-desc">{t.eventsDesc}</span>
@@ -591,7 +591,7 @@
         </div>
 
         <div class="feature-group">
-          <h3 class="group-title">{t.language}</h3>
+          <h3 class="group-title"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html languagesIcon}</svg></span>{t.language}</h3>
           <div class="segmented-control language-control" role="group" aria-label={t.language}>
             <button
               class="segment-choice"
@@ -613,9 +613,8 @@
         </div>
 
         <div class="feature-group data-group">
-          <h3 class="group-title">{t.dataBackup}</h3>
+          <h3 class="group-title"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html databaseBackupIcon}</svg></span>{t.dataBackup}</h3>
           <p class="data-description">{t.dataBackupDesc}</p>
-          <p class="data-export-hint">{t.backupExportHint}</p>
           <div class="backup-actions">
             <button type="button" class="data-action backup-action" aria-label={t.exportBackup} onclick={exportBackup}>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
@@ -634,6 +633,7 @@
               onchange={handleBackupFile}
             />
           </div>
+          <p class="data-export-hint">{t.backupExportHint}</p>
 
           {#if dataNotice}
             <p class="data-status" role="status" aria-live="polite">{dataNotice}</p>
@@ -687,12 +687,17 @@
           {#if resetDialogOpen}
             <section class="data-dialog danger-dialog" aria-labelledby="reset-data-title" aria-describedby="reset-data-warning">
               <h4 id="reset-data-title">{t.resetDataDialogTitle}</h4>
-              <p id="reset-data-warning">{t.resetDataWarning}</p>
-              <p>{t.resetDataDialogDesc}</p>
-              <button type="button" class="data-action secondary" onclick={exportBackup}>
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
-                <span>{t.exportBeforeReset}</span>
-              </button>
+              <div class="reset-safeguard" role="note">
+                <span class="reset-safeguard-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{@html alertTriangle}</svg></span>
+                <div class="reset-safeguard-copy">
+                  <p id="reset-data-warning">{t.resetDataWarning}</p>
+                  <p>{t.resetDataDialogDesc}</p>
+                </div>
+                <button type="button" class="data-action reset-export-action" onclick={exportBackup}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html downloadIcon}</svg>
+                  <span>{t.exportBeforeReset}</span>
+                </button>
+              </div>
               <label class="reset-label" for="reset-confirmation">{t.resetDataConfirmLabel}</label>
               <input bind:this={resetInputEl} id="reset-confirmation" class="reset-input" type="text" autocomplete="off" value={resetPhrase} oninput={(event) => resetPhrase = (event.currentTarget as HTMLInputElement).value} />
               <div class="data-dialog-actions">
@@ -801,31 +806,31 @@
     display: none;
   }
 
-  .section-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 12px;
-  }
-
   /* Features tab */
   .features-tab {
     padding: 16px;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 0;
   }
 
   .feature-group {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .feature-group + .feature-group {
+    margin-top: 20px;
   }
 
   .group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -851,6 +856,22 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex: 1;
+  }
+
+  .feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    color: var(--text-muted);
+  }
+
+  .feature-icon svg {
+    width: 16px;
+    height: 16px;
   }
 
   .toggle-name {
@@ -1380,8 +1401,7 @@
     }
   }
   .data-group {
-    border-top: 1px solid var(--border);
-    padding-top: 18px;
+    gap: 10px;
   }
   .data-description,
   .data-dialog-copy,
@@ -1396,13 +1416,13 @@
     color: var(--text-muted);
     font-size: 11px;
     line-height: 1.4;
-    margin: -4px 0 10px;
+    margin: 0;
   }
   .backup-actions,
   .data-dialog-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
   }
   .data-action,
   .danger-action {
@@ -1508,6 +1528,49 @@
   .danger-zone h4,
   .danger-dialog h4 { color: var(--text); font-size: 13px; margin: 0; }
   .danger-dialog { border-color: var(--color-critical); }
+  .reset-safeguard {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 8px 10px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-warning-subtle) 62%, var(--bg));
+  }
+  .reset-safeguard-icon {
+    display: flex;
+    align-items: flex-start;
+    padding-top: 1px;
+    color: var(--color-warning);
+  }
+  .reset-safeguard-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  .reset-safeguard-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .reset-safeguard-copy p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .reset-safeguard-copy p:first-child {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .reset-export-action {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    border-color: color-mix(in srgb, var(--color-warning) 55%, var(--border));
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+  }
+  .reset-export-action:hover { background: var(--surface-hover); }
   .reset-input {
     min-height: 38px;
     padding: 8px 10px;

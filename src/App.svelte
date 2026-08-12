@@ -39,6 +39,7 @@
   } from './lib/savedJourneyLifecycle';
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
+  import { plusIcon, settingsGear } from './icons/departureIcons';
 
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
@@ -954,11 +955,21 @@ function closeSettingsPanel() {
       {#key activePageId}
         <div bind:this={pageContentEl} class="page-transition-inner">
           {#if hasNoRoutes}
+            <header class="empty-page-chrome">
+              <h1 class="empty-page-title">Nästa</h1>
+              <div class="empty-header-actions">
+                <button type="button" class="empty-header-action" onclick={toggleEdit} aria-label={t.addSegment}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html plusIcon}</svg>
+                </button>
+                <button type="button" class="empty-header-action" onclick={openSettingsPanel} aria-label={t.settings}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html settingsGear}</svg>
+                </button>
+              </div>
+            </header>
             <div class="empty-state">
               <div class="empty-illustration">
                 <img src={logoPath} alt="Nästa" width="90" height="90" />
               </div>
-              <h1 class="app-name">Nästa</h1>
               <p>{t.noPagesDesc}</p>
               <button
                 class="empty-cta"
@@ -1002,11 +1013,12 @@ function closeSettingsPanel() {
             </div>
     {/if}
 
+    <SettingsPanel
+      isOpen={showSettings}
+      onClose={closeSettingsPanel}
+    />
+
     {#if !hasNoRoutes && page}
-      <SettingsPanel
-        isOpen={showSettings}
-        onClose={closeSettingsPanel}
-      />
       <PageEditor
         pages={pages}
         activePageId={activePageId ?? ''}
@@ -1399,6 +1411,45 @@ function closeSettingsPanel() {
     }
   }
 
+  .empty-page-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 0 6px;
+  }
+
+  .empty-page-title {
+    margin: 0;
+    font-family: 'Neue Machina', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .empty-header-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .empty-header-action {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-right: -4px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .empty-header-action:hover { background: var(--accent-subtle); }
+  .empty-header-action:active { transform: scale(0.965); opacity: 0.9; }
+  .empty-header-action svg { width: 24px; height: 24px; }
+
   .empty-illustration {
     width: 90px;
     height: 90px;
@@ -1409,15 +1460,6 @@ function closeSettingsPanel() {
     width: 100%;
     height: 100%;
     object-fit: contain;
-  }
-
-  .app-name {
-    font-family: 'Neue Machina', sans-serif;
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text);
-    margin: 0;
   }
 
   .empty-state p {

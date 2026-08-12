@@ -103,6 +103,17 @@ describe('SettingsPanel location controls', () => {
     expect(mockRequestLocation).toHaveBeenCalledTimes(1);
   });
 
+  it('uses one muted landmark icon per feature group without duplicating switch labels', () => {
+    const { container, getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
+
+    expect(container.querySelector('.section-title')).toBeNull();
+    expect(container.querySelectorAll('.feature-icon')).toHaveLength(7);
+    expect(container.querySelectorAll('.feature-icon[aria-hidden="true"]')).toHaveLength(7);
+    expect(getByRole('switch', { name: 'Störningsvarningar' })).toBeTruthy();
+    expect(getByRole('switch', { name: 'Platsjänster' })).toBeTruthy();
+    expect(container.querySelectorAll('.group-title')).toHaveLength(3);
+  });
+
   it('renders compact backup actions with full accessible names and decorative icons', () => {
     const { getByRole } = render(SettingsPanel, { props: { isOpen: true, onClose: vi.fn() } });
 
@@ -163,6 +174,10 @@ describe('SettingsPanel location controls', () => {
 
     const reset = getByRole('button', { name: 'Radera all data' }) as HTMLButtonElement;
     const input = getByLabelText('Skriv RESET för att bekräfta') as HTMLInputElement;
+    const safeguard = getByRole('note');
+
+    expect(safeguard.textContent).toContain('Detta går inte att ångra utan en tidigare exporterad säkerhetskopia.');
+    expect(getByRole('button', { name: 'Exportera först' })).toBeTruthy();
     expect(document.activeElement).toBe(input);
     expect(reset.textContent?.trim()).toBe('Radera');
     expect(reset.disabled).toBe(true);
