@@ -152,8 +152,10 @@ describe('NearbySurface', () => {
     await waitFor(() => expect(getByRole('heading', { name: 'Centralen' })).toBeTruthy());
     expect(getByRole('application', { name: /map/i })).toBeTruthy();
     expect(getByText('Hässelby')).toBeTruthy();
-    expect(container.querySelector('.mode-badge svg')).toBeTruthy();
-    expect(container.querySelector('.departure-line')?.textContent).toBe('B');
+    expect(container.querySelector('.station-board-departure .icon-badge svg')).toBeTruthy();
+    expect(container.querySelector('.station-board-departure .stacked-pill')?.textContent).toBe('B');
+    expect(container.querySelector('.station-board-departure .station-destination')?.textContent).toBe('Hässelby');
+    expect(container.querySelector('.station-board-departure [data-testid="countdown-minutes"]')?.textContent).toContain('4');
   });
 
   it('normalizes walking-map bounds when the stop is southwest of the user', async () => {
@@ -185,6 +187,8 @@ describe('NearbySurface', () => {
     await fireEvent.input(input, { target: { value: 'Central' } });
     await waitFor(() => expect(getByRole('button', { name: /Sök Centralen/i })).toBeTruthy());
     await waitFor(() => expect(container.querySelector('.station-preview:not(.muted)')?.textContent).toContain('Hässelby'));
+    expect(container.querySelector('.departure-preview .preview-line')?.textContent).toBe('B');
+    expect(container.querySelector('.departure-preview .preview-countdown')?.textContent).toContain('4');
   });
 
   it('persists Platstjänster when the utility action is used', async () => {

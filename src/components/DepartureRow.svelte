@@ -11,6 +11,7 @@
 
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import TransportIcon from "./TransportIcon.svelte";
+  import StationDepartureCard from "./StationDepartureCard.svelte";
   import { longPress } from '../lib/longPress';
 
   let {
@@ -115,10 +116,6 @@
   let showAllMessages = $state(false);
 
   let urgency = $derived(departure ? getDepartureUrgency(departure, now) : 'later');
-  let countdownParts = $derived.by(() => {
-    const match = /^(\d+)\s+(min)$/i.exec(primaryDepartureText.trim());
-    return match ? { value: match[1], unit: match[2] } : null;
-  });
   let effectiveDisruption = $derived(getEffectiveDisruption(severity, siteDevs.length));
   // Do not add “Snart” when the compact formatter has already rounded the
   // same departure to “Nu” (the final 45–60 seconds).
@@ -205,23 +202,6 @@
     if (!isExpanded) showAllMessages = false;
   });
 
-  function prefetch(node: HTMLElement) {
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          onprefetch?.();
-          observer.unobserve(node);
-        }
-      }
-    }, { root: null, rootMargin: '400px', threshold: 0.1 });
-    observer.observe(node);
-    return {
-      destroy() {
-        observer.disconnect();
-      }
-    };
-  }
-
   function handleContextMenu(event: MouseEvent) {
     event.preventDefault();
     onMoreActions?.(event.currentTarget as HTMLElement);
@@ -254,57 +234,35 @@
   oncontextmenu={handleContextMenu}
   onkeydown={handleContextKey}
 >
+  {#if groupingMode === 'station'}
+    <StationDepartureCard
+      destination={stopLabel(segment.direction?.destination)}
+      line={segment.line}
+      transportType={segment.transportType}
+      scheduledTime={subsequent ?? ''}
+      countdown={hasDeparture ? primaryDepartureText : '—'}
+      {urgencyLabel}
+      countdownColor={countdownColor}
+      badgeBackground={badgeBgIntensity}
+      isArrivingNow={urgency === 'now'}
+      {isSleeping}
+      {nextDepartureTime}
+      {disruptionLabel}
+      isCritical={effectiveDisruption === 'critical'}
+      interactive
+      isExpanded={isExpanded}
+      controls={isExpandable ? segment.id : undefined}
+      onactivate={() => { if (isExpandable) handleToggle(); }}
+      {onprefetch}
+    />
+  {:else}
   <button
     class="card-main"
-    class:station-card-main={groupingMode === 'station'}
-    use:prefetch
     type="button"
     aria-expanded={isExpanded}
     aria-controls={isExpandable ? segment.id : undefined}
     onclick={() => { if (isExpandable) handleToggle(); }}
   >
-    {#if groupingMode === 'station'}
-      <span class="station-destination">{stopLabel(segment.direction?.destination)}</span>
-      <div class="station-service-identity">
-        <div class="icon-badge" style="background: {badgeBgIntensity}">
-          <TransportIcon type={segment.transportType} size={18} />
-        </div>
-        <span class="stacked-pill">{segment.line}</span>
-      </div>
-      {#if subsequent}
-        <span class="clock-times station-clock-times">{subsequent}</span>
-      {/if}
-      {#if disruptionLabel}
-        <span class="disruption-summary station-disruption-summary" class:critical={effectiveDisruption === 'critical'}>
-          <span class="status-dot" aria-hidden="true"></span>
-          {disruptionLabel}
-        </span>
-      {/if}
-      <div class="station-time-rail">
-        {#if isSleeping}
-          <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
-            <g>{@html moonIcon}</g>
-          </svg>
-          {#if nextDepartureTime}
-            <span class="sleep-next">{nextDepartureTime}</span>
-          {/if}
-        {:else if hasDeparture}
-          {#if urgencyLabel}
-            <span class="urgency-label">{urgencyLabel}</span>
-          {/if}
-          <span class="countdown station-countdown" class:arriving-now={urgency === 'now'} style="color: {countdownColor}" data-testid="countdown-minutes">
-            {#if countdownParts}
-              <span class="countdown-value">{countdownParts.value}</span>
-              <span class="countdown-unit">{countdownParts.unit}</span>
-            {:else}
-              {primaryDepartureText}
-            {/if}
-          </span>
-        {:else}
-          <span class="em-dash">—</span>
-        {/if}
-      </div>
-    {:else}
       <div class="icon-badge" style="background: {badgeBgIntensity}">
         <TransportIcon type={segment.transportType} size={18} />
       </div>
@@ -319,9 +277,6 @@
           </span>
         {/if}
       </div>
-    {/if}
-
-    {#if groupingMode !== 'station'}
       <div class="time-col">
         {#if isSleeping}
           <svg viewBox="0 0 24 24" fill="none" class="moon-icon" aria-label={t.sleeping ?? 'Sleeping'}>
@@ -349,8 +304,8 @@
           </svg>
         {/if}
       </div>
-    {/if}
   </button>
+  {/if}
 
   {#if isExpanded}
     <div class="card-controls" role="group" aria-label={t.cardControls ?? 'Card actions'}>
@@ -565,113 +520,6 @@
   .route-arrow {
     color: var(--accent);
     font-weight: 700;
-  }
-  /* ── Station mode: original C2 destination-first card ── */
-  .station-card-main {
-    grid-template-columns: auto minmax(0, 1fr) 110px;
-    grid-template-rows: minmax(0, 1fr) auto auto;
-    align-items: stretch;
-    min-height: 86px;
-    padding: 12px var(--transit-card-padding-inline);
-    column-gap: 10px;
-    row-gap: 8px;
-  }
-  .station-destination {
-    grid-column: 1 / 3;
-    grid-row: 1;
-    align-self: center;
-    min-width: 0;
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.25;
-    display: -webkit-box;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-wrap: pretty;
-  }
-  .station-service-identity {
-    grid-column: 1;
-    grid-row: 2;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-    align-self: end;
-  }
-  .station-clock-times {
-    grid-column: 2;
-    grid-row: 2;
-    min-width: 0;
-    max-width: 100%;
-    justify-self: center;
-    align-self: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: center;
-  }
-  .station-disruption-summary {
-    grid-column: 1 / 3;
-    grid-row: 3;
-    justify-self: start;
-  }
-  .station-time-rail {
-    grid-column: 3;
-    grid-row: 1 / 3;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: flex-end;
-    gap: 4px;
-    min-width: 0;
-    min-height: 100%;
-    box-sizing: border-box;
-    justify-self: end;
-    text-align: right;
-  }
-  .station-time-rail .countdown {
-    font-size: clamp(32px, 4vw, 40px);
-    white-space: nowrap;
-  }
-  .station-countdown {
-    display: inline-flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 5px;
-  }
-  .countdown-unit {
-    font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    line-height: 1;
-  }
-  .station-time-rail .urgency-label {
-    align-self: flex-end;
-    color: var(--text-muted);
-  }
-  .station-time-rail .sleep-next {
-    text-align: right;
-  }
-  .stacked-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-size: 12px;
-    font-weight: 900;
-    font-family: 'Neue Machina', sans-serif;
-    border-radius: var(--radius-sm);
-    line-height: 1;
-  }
-  .station-service-identity .icon-badge {
-    width: 32px;
-    height: 32px;
   }
   .weather-indicator {
     display: inline-flex;
@@ -917,12 +765,6 @@
     .card-main {
       padding: 12px var(--transit-card-padding-inline);
       gap: 12px;
-    }
-
-    .station-card-main {
-      grid-template-columns: auto minmax(0, 1fr) 118px;
-      column-gap: 12px;
-      row-gap: 8px;
     }
   }
 </style>

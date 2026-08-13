@@ -215,7 +215,7 @@ test.describe("Nästa App", () => {
   });
 
   test("loads Nearby after reload when browser location is already granted", async ({ page, context }) => {
-    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.grantPermissions(["geolocation"], { origin: new URL(page.url()).origin });
     await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
@@ -229,11 +229,21 @@ test.describe("Nästa App", () => {
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
     await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
-    await expect(surface.getByRole("button", { name: /Lindarängsvägen/i })).toBeVisible({ timeout: 15_000 });
+    const stop = surface.getByRole("button", { name: /Lindarängsvägen/i });
+    await expect(stop).toBeVisible({ timeout: 15_000 });
+    await expect(stop.locator(".departure-preview").first()).toBeVisible({ timeout: 15_000 });
+
+    await stop.click();
+    await expect(surface.getByRole("heading", { name: /Lindarängsvägen/i })).toBeVisible();
+    const boardCard = surface.locator(".station-board-departure");
+    await expect(boardCard).toBeVisible({ timeout: 15_000 });
+    await expect(boardCard.locator(".station-destination")).toContainText("Norra Hammarbyhamnen");
+    await expect(boardCard.locator(".stacked-pill")).toHaveText("76");
+    await expect(boardCard.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
   });
 
   test("loads Nearby after reload without the Permissions API when location is already granted", async ({ page, context }) => {
-    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.grantPermissions(["geolocation"], { origin: new URL(page.url()).origin });
     await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
     await page.addInitScript(() => {
       Object.defineProperty(navigator, "permissions", { configurable: true, value: undefined });

@@ -19,6 +19,7 @@
   import { editPencil, mapIcon, settingsGear, slLogo } from '../icons/departureIcons';
   import { openSlTickets } from '../lib/openSlTickets';
   import MapViewer from './MapViewer.svelte';
+  import StationDepartureCard from './StationDepartureCard.svelte';
   import TransportIcon from './TransportIcon.svelte';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
@@ -285,6 +286,14 @@
     });
   }
 
+  function departureUrgencyLabel(departure: TransitDeparture): string {
+    return departure.minutes > 0 && departure.minutes <= 3 ? (t.departureSoon ?? 'Snart') : '';
+  }
+
+  function departureCountdownColor(departure: TransitDeparture): string {
+    return departure.minutes <= 3 ? 'var(--accent)' : 'var(--text)';
+  }
+
   async function loadInitialLocation() {
     const position = await loadGrantedLocation();
     if (position && settings.locationServicesEnabled && !location.position) {
@@ -542,12 +551,17 @@
       {:else}
         <div class="departure-list" aria-label={t.departures ?? 'Avgångar'}>
           {#each boardDepartures as departure (departure.id)}
-            <div class="departure-card">
-              <span class="mode-badge" aria-hidden="true">
-                <TransportIcon type={getTransportType(departure.transportMode)} size={20} />
-              </span>
-              <div class="departure-main"><strong>{departure.destination}</strong><span><b class="departure-line">{departure.line}</b> · {departure.lineName}</span></div>
-              <div class="departure-time"><strong>{departureLabel(departure)}</strong><span>{departure.scheduledTime}</span></div>
+            <div class="departure-card station-board-departure">
+              <StationDepartureCard
+                destination={departure.destination}
+                line={departure.line}
+                transportType={getTransportType(departure.transportMode)}
+                scheduledTime={departure.scheduledTime}
+                countdown={departureLabel(departure)}
+                urgencyLabel={departureUrgencyLabel(departure)}
+                countdownColor={departureCountdownColor(departure)}
+                isArrivingNow={departure.minutes <= 0}
+              />
             </div>
           {/each}
         </div>
@@ -596,7 +610,7 @@
               <span class="station-mode" aria-hidden="true">
                 <TransportIcon type={getTransportType(stop.modes[0])} size={20} />
               </span>
-              <span class="station-main"><strong>{stop.name}</strong><span class="station-meta">{stopDistance(stop)}{walkingLabel(stop) ? ` · ${walkingLabel(stop)}` : ''}</span>{#if previews.has(stop.id)}<span class="station-preview">{#each previews.get(stop.id) ?? [] as departure (departure.id)}<span class="preview-departure"><span class="preview-line">{departure.line}</span><strong>{departureLabel(departure)}</strong><span>{departure.destination}</span></span>{/each}</span>{:else}<span class="station-preview muted">{t.loadingDepartures ?? 'Läser in avgångar…'}</span>{/if}</span>
+              <span class="station-main"><strong>{stop.name}</strong><span class="station-meta">{stopDistance(stop)}{walkingLabel(stop) ? ` · ${walkingLabel(stop)}` : ''}</span>{#if previews.has(stop.id)}<span class="station-preview">{#each previews.get(stop.id) ?? [] as departure (departure.id)}<StationDepartureCard variant="preview" destination={departure.destination} line={departure.line} transportType={getTransportType(departure.transportMode)} scheduledTime={departure.scheduledTime} countdown={departureLabel(departure)} countdownColor={departureCountdownColor(departure)} />{/each}</span>{:else}<span class="station-preview muted">{t.loadingDepartures ?? 'Läser in avgångar…'}</span>{/if}</span>
               <svg class="station-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           {/each}
@@ -639,10 +653,10 @@
   .search-field { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }.search-field svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--text-secondary); }.search-field input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
   .location-prompt { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; margin: 0 16px 10px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--accent-subtle); color: var(--accent); }.prompt-icon svg { width: 20px; height: 20px; }.prompt-copy { display: grid; gap: 2px; min-width: 0; }.prompt-copy strong { font-size: 13px; }.prompt-copy span { color: var(--text-secondary); font-size: 11px; line-height: 1.3; }.primary-action { grid-column: 2; justify-self: start; min-height: 38px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-size: 13px; font-weight: 700; }
   .station-section-heading { display: flex; align-items: baseline; gap: 8px; padding: 4px 16px 8px; }.station-section-heading h2 { margin: 0; font-size: 15px; font-weight: 750; }.station-section-heading span { color: var(--text-secondary); font-size: 12px; }
-  .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 78px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode, .mode-badge { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main, .departure-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong, .departure-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main span, .departure-main span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: flex; gap: 8px; min-width: 0; color: var(--text); font-size: 11px; }.preview-departure { display: inline-flex; min-width: 0; align-items: center; gap: 4px; }.preview-departure > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.preview-line, .departure-line { color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .03em; }.preview-departure strong { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }.station-main .muted { color: var(--text-muted); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
+  .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 78px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main > span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: grid; gap: 0; min-width: 0; color: var(--text); }.station-main .muted { color: var(--text-muted); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
   .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 14px; }.state-panel button { min-height: 40px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
-  .board-summary { display: flex; align-items: end; gap: 18px; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.detail-map-shell .map-container { position: absolute; inset: 0; }.map-route-label { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 20px); padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-route-label strong { margin-left: auto; color: var(--text); font-size: 12px; }.route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }.user-dot { background: #2563EB; }.stop-dot { background: var(--text); }.departure-line { margin-right: 2px; }
-  .departure-card { min-height: 68px; }.departure-time { display: grid; gap: 3px; min-width: 58px; text-align: right; }.departure-time strong { font-size: 17px; font-variant-numeric: tabular-nums; }.departure-time span { color: var(--text-secondary); font-size: 11px; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }
+  .board-summary { display: flex; align-items: end; gap: 18px; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.detail-map-shell .map-container { position: absolute; inset: 0; }.map-route-label { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 20px); padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-route-label strong { margin-left: auto; color: var(--text); font-size: 12px; }.route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }.user-dot { background: #2563EB; }.stop-dot { background: var(--text); }
+  .station-board-departure { display: block; min-height: 0; padding: 0; overflow: hidden; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }.departure-skeleton { min-height: 110px; }
   .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }
   @keyframes nearby-shimmer { 50% { opacity: .45; } }
   @media (prefers-reduced-motion: reduce) { .departure-skeleton, .station-skeleton { animation: none; opacity: .7; } }
