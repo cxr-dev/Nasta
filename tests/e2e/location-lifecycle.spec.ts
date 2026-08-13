@@ -36,3 +36,32 @@ test('restores an enabled, granted location after reload without the Permissions
   await expect(surface.getByRole('button', { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
   await expect(surface.getByRole('button', { name: /T-Centralen/i })).toBeVisible({ timeout: 15_000 });
 });
+
+test('keeps a nearby stop board open after a resource-style error', async ({ page }) => {
+  const app = new CommuterApp(page);
+  await app.mockDepartures();
+  await page.route('**/journeyplanner.integration.sl.se/v2/stop-finder**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ locations: [{
+      id: '9091001000100',
+      name: 'T-Centralen',
+      disassembledName: 'T-Centralen',
+      coord: [59.33, 18.06],
+      type: 'stop',
+      productClasses: [1],
+    }] }),
+  }));
+  await app.open();
+
+  await page.keyboard.press('ArrowLeft');
+  const nearby = page.locator('.nearby-surface');
+  await nearby.getByRole('textbox', { name: /search stops/i }).fill('Central');
+  await nearby.getByRole('button', { name: /T-Centralen/i }).click();
+  await expect(nearby.getByRole('heading', { name: 'T-Centralen' })).toBeVisible();
+
+  await page.evaluate(() => window.dispatchEvent(new Event('error')));
+
+  await expect(nearby.getByRole('heading', { name: 'T-Centralen' })).toBeVisible();
+  await expect(nearby.getByText('Mörby centrum')).toBeVisible();
+});

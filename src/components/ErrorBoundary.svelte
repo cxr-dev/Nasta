@@ -16,9 +16,13 @@
     hasError = false;
     window.location.reload();
   }
+
+  function handleWindowError(event: Event) {
+    if (event instanceof ErrorEvent && event.error != null) hasError = true;
+  }
 </script>
 
-<svelte:window onerror={() => { hasError = true; }} />
+<svelte:window onerror={handleWindowError} />
 
 {#if hasError}
   <div class="error-boundary" transition:fade={{ duration: 300 }}>
