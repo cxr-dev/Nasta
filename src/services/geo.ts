@@ -109,8 +109,9 @@ export function requestLocation(): Promise<[number, number] | null> {
 }
 
 /**
- * Refreshes location only after the platform has already granted access. This never opens a
- * native permission prompt, including after an app reload.
+ * Refreshes location after the platform has already granted access. When a browser does not
+ * expose the Permissions API (notably iOS Safari/PWA), it resumes the browser request so an
+ * enabled location setting can restore the session after reload.
  */
 export async function loadGrantedLocation(): Promise<[number, number] | null> {
   if (locationSnapshot.position) return locationSnapshot.position;
@@ -120,7 +121,7 @@ export async function loadGrantedLocation(): Promise<[number, number] | null> {
   if (access !== locationSnapshot.access) {
     publishLocationSnapshot({ ...locationSnapshot, access });
   }
-  return access === 'granted' ? requestLocation() : null;
+  return access === 'granted' || access === 'unknown' ? requestLocation() : null;
 }
 
 /** Clears the in-memory position when the user disables Platsjänster. */

@@ -80,7 +80,7 @@ test.describe("mobile critical commuter flow", () => {
     await expect(dialog.getByRole("button", { name: "Close add form" })).toBeVisible();
   });
 
-  test("opens the utility map and swipes back from its left-to-right surface", async ({ page }) => {
+  test("opens the fixed utility map before the first page and swipes back", async ({ page }) => {
     const app = new CommuterApp(page);
     await app.mockDepartures();
     await page.route("**/v1/sites", (route) => route.fulfill({
@@ -90,7 +90,7 @@ test.describe("mobile critical commuter flow", () => {
     }));
     await app.open();
 
-    await page.getByRole("button", { name: "Nearby" }).click();
+    await page.keyboard.press("ArrowLeft");
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
 
@@ -103,11 +103,40 @@ test.describe("mobile critical commuter flow", () => {
         element.dispatchEvent(event);
       };
       emit("touchstart", 40, 300);
-      emit("touchmove", 210, 304);
+      emit("touchmove", 160, 304);
       emit("touchend", 330, 304);
     });
 
     await expect(page.locator("h1.page-title")).toContainText(/Commuter test/i);
     await expect(page.locator(".nearby-surface")).toHaveCount(0);
+  });
+
+  test("loads Nearby after reload when WebKit location is already granted", async ({ page, context }) => {
+    const app = new CommuterApp(page);
+    await app.mockDepartures();
+    await page.route("**/v1/sites", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        { id: 100, name: "T-Centralen", lat: 59.33, lon: 18.06 },
+      ]),
+    }));
+    await app.open();
+
+    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
+    await expect(page.getByRole("switch", { name: /Location services|Platsjänster/i })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: /Settings/i })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+
+    const surface = page.locator(".nearby-surface");
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
+    await expect(surface.getByRole("button", { name: /T-Centralen/i })).toBeVisible({ timeout: 15_000 });
   });
 });

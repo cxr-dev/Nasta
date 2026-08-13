@@ -554,7 +554,8 @@
   function handleNearbySwipeMove(deltaX: number) {
     if (!showNearby) return;
     nearbyDragging = true;
-    nearbyOffset = Math.min(100, Math.max(0, (Math.max(0, deltaX) / nearbyWidth()) * 100));
+    const progress = nearbyDragProgress(-deltaX, nearbyWidth());
+    nearbyOffset = 100 - progress * 100;
   }
 
   function handleNearbySwipeEnd(deltaX: number, velocityX: number) {
@@ -562,7 +563,7 @@
     if (shouldCompleteNearbySwipe(-deltaX, -velocityX, nearbyWidth())) closeNearby();
     else {
       nearbyDragging = false;
-      nearbyOffset = 0;
+      nearbyOffset = 100;
     }
   }
 
@@ -782,8 +783,8 @@ function closeSettingsPanel() {
     const dx = e.touches[0].clientX - swipeStartX;
     if (!showNearby && getPages().length > 0) {
       const currentIdx = getPages().findIndex((item) => item.id === getActivePageId());
-      const isLastPage = currentIdx === getPages().length - 1;
-      if (isLastPage && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+      const isFirstPage = currentIdx === 0;
+      if (isFirstPage && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
         nearbyEntryActive = true;
         if (!showNearby) {
           openNearby();
@@ -856,8 +857,6 @@ function closeSettingsPanel() {
     const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
     if (dx < 0 && currentIdx < allPages.length - 1) {
       handlePageSwitch(allPages[currentIdx + 1].id);
-    } else if (dx < 0 && currentIdx === allPages.length - 1) {
-      openNearby();
     } else if (dx > 0 && currentIdx > 0) {
       handlePageSwitch(allPages[currentIdx - 1].id);
     }
@@ -1014,12 +1013,12 @@ function closeSettingsPanel() {
     if (e.key === 'ArrowRight') {
       if (currentIdx < allPages.length - 1) {
         handlePageSwitch(allPages[currentIdx + 1].id);
-      } else if (currentIdx === allPages.length - 1) {
-        openNearby();
       }
     } else if (e.key === 'ArrowLeft') {
       if (currentIdx > 0) {
         handlePageSwitch(allPages[currentIdx - 1].id);
+      } else if (currentIdx === 0) {
+        openNearby();
       }
     }
   }
@@ -1111,7 +1110,6 @@ function closeSettingsPanel() {
               deviationStationAlerts={deviationStationAlerts}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
-              onOpenNearby={openNearby}
               onEditToggle={toggleEdit}
               onOpenSettings={openSettingsPanel}
               onQuickAdd={() => showQuickAdd = true}
@@ -1136,6 +1134,8 @@ function closeSettingsPanel() {
         {#await import('./components/NearbySurface.svelte') then { default: NearbySurface }}
           <NearbySurface
             onBack={() => closeNearby()}
+            onEditToggle={toggleEdit}
+            onOpenSettings={openSettingsPanel}
             onSwipeMove={handleNearbySwipeMove}
             onSwipeEnd={handleNearbySwipeEnd}
           />
@@ -1146,6 +1146,9 @@ function closeSettingsPanel() {
     {#if pages.length >= 1 && !editing && !hasNoRoutes}
             <div class="page-dot-indicator" class:visible={pageIndicatorVisible || showNearby} aria-hidden="true">
               <div class="page-dots">
+                <span class="nearby-dot" class:active={showNearby} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5 10 3l6 2.5L21 3v15.5L15 21l-6-2.5L3 21V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 3v15.5M15 6.5V21" stroke="currentColor" stroke-width="1.8"/></svg>
+                </span>
                 {#each pages as p, i (p.id)}
                   <span
                     class="dot"
@@ -1153,9 +1156,6 @@ function closeSettingsPanel() {
                     aria-hidden="true"
                   ></span>
                 {/each}
-                <span class="nearby-dot" class:active={showNearby} aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 5.5 10 3l4 2.5L20 3v15.5L14 21l-4-2.5-6 2.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 3v15.5M14 5.5V21" stroke="currentColor" stroke-width="1.8"/></svg>
-                </span>
               </div>
             </div>
     {/if}

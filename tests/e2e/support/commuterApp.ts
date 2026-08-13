@@ -84,9 +84,11 @@ export class CommuterApp {
 
   async open(testPage: TestPage = defaultTestPage): Promise<void> {
     await this.page.addInitScript((routes) => {
+      if (sessionStorage.getItem("nasta-test-seeded") === "1") return;
       localStorage.clear();
       localStorage.setItem("nasta_settings", JSON.stringify({ language: "en", theme: "light" }));
       localStorage.setItem("nasta_routes", JSON.stringify(routes));
+      sessionStorage.setItem("nasta-test-seeded", "1");
     }, [testPage]);
     await this.page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
     await this.page.emulateMedia({ reducedMotion: "reduce" });

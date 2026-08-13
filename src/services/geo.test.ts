@@ -161,12 +161,14 @@ describe('shared location session', () => {
     expect(getCurrentPosition).not.toHaveBeenCalled();
   });
 
-  it('does not prompt during startup when permission state is unavailable', async () => {
-    const getCurrentPosition = vi.fn();
+  it('resumes a granted location when the Permissions API is unavailable', async () => {
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 80 } } as GeolocationPosition);
+    });
     setGeolocation(getCurrentPosition);
 
-    await expect(loadGrantedLocation()).resolves.toBeNull();
-    expect(getCurrentPosition).not.toHaveBeenCalled();
+    await expect(loadGrantedLocation()).resolves.toEqual([59.33, 18.06]);
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
   });
 
   it('loads silently when the platform has already granted permission', async () => {

@@ -2,7 +2,7 @@
   import type { Page, Segment } from "../types/page";
   import type { SegmentHealth } from "../types/deviation";
   import { departureStore, makeDepartureStatusKey, type Departure, type DepartureStatus } from "../stores/departureStore.svelte";
-  import { getPages, getActivePageId } from "../stores/pageStore.svelte";
+import { getPages, getActivePageId } from "../stores/pageStore.svelte";
   import { transitService } from "../providers/init";
   import { toEntityId } from "../lib/departureConverter";
   import { formatDepartureTime } from "../lib/departureDisplay";
@@ -42,7 +42,6 @@
     deviationStationAlerts = [] as StationAlert[],
     openFeatureSheet = null,
     onSwitchPage,
-    onOpenNearby,
     onEditToggle,
     onOpenSettings,
     onQuickAdd,
@@ -56,7 +55,6 @@
     deviationStationAlerts?: StationAlert[];
     openFeatureSheet?: ((segment: Segment) => void) | null;
     onSwitchPage?: (pageId: string) => void;
-    onOpenNearby?: () => void;
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
     onQuickAdd?: () => void;
@@ -66,11 +64,8 @@
     onMoveSegment?: (segment: Segment, pageId: string) => void;
   } = $props();
 
-  let pages = $derived(getPages());
-  let activePageId = $derived(getActivePageId());
-  let currentPageIndex = $derived(pages.findIndex(p => p.id === activePageId));
-  let hasPrev = $derived(currentPageIndex > 0);
-  let hasNext = $derived(currentPageIndex < pages.length - 1);
+let activePageId = $derived(getActivePageId());
+let pages = $derived(getPages());
 
   let departureData = $state<Map<string, Departure[]>>(new Map());
   let departureStatuses = $state<Map<string, DepartureStatus>>(new Map());
@@ -510,13 +505,6 @@
       <button class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>
         <svg viewBox="0 0 24 24" fill="none">
           {@html settingsGear}
-        </svg>
-      </button>
-      {/if}
-      {#if onOpenNearby && !hasNext}
-      <button class="header-icon-btn" onclick={onOpenNearby} aria-label={t.nearby ?? 'Nearby'}>
-        <svg viewBox="0 0 24 24" fill="none">
-          {@html mapIcon}
         </svg>
       </button>
       {/if}

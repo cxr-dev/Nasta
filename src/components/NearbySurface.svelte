@@ -15,6 +15,9 @@
   import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
   import { resolveTheme } from '../themes';
+  import { editPencil, mapIcon, settingsGear, slLogo } from '../icons/departureIcons';
+  import { openSlTickets } from '../lib/openSlTickets';
+  import MapViewer from './MapViewer.svelte';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
   const maplibreLoad = import('maplibre-gl');
@@ -25,10 +28,14 @@
 
   let {
     onBack,
+    onEditToggle,
+    onOpenSettings,
     onSwipeMove,
     onSwipeEnd,
   }: {
     onBack: () => void;
+    onEditToggle?: () => void;
+    onOpenSettings?: () => void;
     onSwipeMove?: SwipeMove;
     onSwipeEnd?: SwipeEnd;
   } = $props();
@@ -63,6 +70,7 @@
   let maplibregl: any = $state(null);
   let mapInstance: any = null;
   let mapReady = $state(false);
+  let showNetworkMap = $state(false);
   let markers: any[] = [];
   let mapHost: HTMLElement | null = null;
   let locationUnsubscribe: (() => void) | null = null;
@@ -242,7 +250,11 @@
   }
 
   function handleNearbyKeyDown(event: KeyboardEvent) {
-    if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
+    if (boardStop) {
+      if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
+    } else if (event.key !== 'ArrowLeft' && event.key !== 'Escape') {
+      return;
+    }
     event.preventDefault();
     if (boardStop) requestBoardBack();
     else onBack();
@@ -269,6 +281,13 @@
       geometry: { type: 'LineString', coordinates: user && stop ? [[user[1], user[0]], [stop[1], stop[0]]] : [] },
       properties: {},
     });
+  }
+
+  async function loadInitialLocation() {
+    const position = await loadGrantedLocation();
+    if (position && settings.locationServicesEnabled && !location.position) {
+      location = { ...location, position, isLoading: false, access: 'granted' };
+    }
   }
 
   function getWalkingMapBounds(user: [number, number], stop: [number, number]): [[number, number], [number, number]] {
@@ -407,7 +426,7 @@
   }
 
   $effect(() => {
-    if (settings.locationServicesEnabled) void loadGrantedLocation();
+    if (settings.locationServicesEnabled) void loadInitialLocation();
     else {
       nearbyStops = [];
       selectedId = null;
@@ -462,6 +481,27 @@
 
 <svelte:window onkeydown={handleNearbyKeyDown} />
 
+{#snippet headerActions()}
+  <div class="header-actions">
+    <button type="button" class="header-icon-btn sl-ticket-btn" onclick={() => openSlTickets()} aria-label={t.openTickets}>
+      <svg class="sl-logo" viewBox="0 0 470.42 372.62" fill="none" aria-hidden="true">{@html slLogo}</svg>
+    </button>
+    <button type="button" class="header-icon-btn" onclick={() => showNetworkMap = true} aria-label={t.networkMap ?? t.mapViewerLabel}>
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html mapIcon}</svg>
+    </button>
+    {#if onEditToggle}
+      <button type="button" class="header-icon-btn" onclick={onEditToggle} aria-label={t.managePages ?? 'Manage pages'}>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html editPencil}</svg>
+      </button>
+    {/if}
+    {#if onOpenSettings}
+      <button type="button" class="header-icon-btn" onclick={onOpenSettings} aria-label={t.settings}>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{@html settingsGear}</svg>
+      </button>
+    {/if}
+  </div>
+{/snippet}
+
 <section
   class="nearby-surface"
   aria-label={t.nearby ?? 'Nära dig'}
@@ -475,6 +515,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{boardStop.name}</h1></div>
+      {@render headerActions()}
     </header>
     <div class="board-content">
       <div class="board-summary">
@@ -515,10 +556,11 @@
       </button>
       <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
       <span class="live-dot" class:enabled={locationEnabled}></span>
+      {@render headerActions()}
     </header>
     <div class="map-wrap">
       <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatser i närheten'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
-      {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
+      {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{location.isLoading ? (t.waitingForLocation ?? 'Hämtar position...') : locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
       {#if mapError}<div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>{/if}
     </div>
     <div class="nearby-content">
@@ -526,7 +568,7 @@
         <label for="nearby-search">{t.searchStops ?? 'Sök hållplats'}</label>
         <div class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5" stroke-linecap="round"/></svg><input id="nearby-search" bind:value={query} oninput={handleSearchInput} placeholder={t.searchPlaceholder ?? 'Sök hållplats'} autocomplete="off" enterkeyhint="search" /></div>
       </div>
-      {#if !locationEnabled || !hasLocation}
+      {#if (!locationEnabled || !hasLocation) && !location.isLoading}
         <div class="location-prompt">
           <div class="prompt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2" stroke-linecap="round"/></svg></div>
           <div class="prompt-copy"><strong>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</strong><span>{locationActionMessage ?? (locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera plats för att sortera efter avstånd.'))}</span></div>
@@ -555,6 +597,8 @@
   {/if}
 </section>
 
+<MapViewer isOpen={showNetworkMap} onOpen={() => showNetworkMap = true} onClose={() => showNetworkMap = false} mapSrc={import.meta.env.BASE_URL + 'SL_railway_map.svg'} />
+
 <style>
   .nearby-surface { height: 100%; min-height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text); }
   .nearby-topbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
@@ -563,6 +607,14 @@
   .topbar-copy { min-width: 0; flex: 1; }
   .topbar-kicker { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
   .topbar-copy h1 { margin: 2px 0 0; overflow: hidden; font-size: 21px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { display: flex; align-items: center; gap: 0; flex: 0 0 auto; }
+  .header-icon-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -4px; border: 0; border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, transform .12s ease; }
+  .header-icon-btn:hover { background: var(--accent-subtle); }
+  .header-icon-btn:active { transform: scale(.965); opacity: .9; }
+  .header-icon-btn svg { width: 24px; height: 24px; }
+  .header-icon-btn .sl-logo { width: 30.5px; height: 24px; }
+  .sl-ticket-btn { display: none; }
+  @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
   .live-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: var(--border-strong); }
   .live-dot.enabled { background: #2563EB; }
   .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }

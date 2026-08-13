@@ -200,19 +200,56 @@ test.describe("Nästa App", () => {
     await expect(card.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
   });
 
-  test("should open the permanent Nearby surface after the last saved page", async ({ page }) => {
-    await page.keyboard.press("ArrowRight");
-    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
-    await page.getByRole("button", { name: "Nearby" }).click();
+  test("should open the fixed Nearby surface before the first saved page", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Nearby" })).toHaveCount(0);
+    await page.keyboard.press("ArrowLeft");
     await expect(page.locator(".nearby-surface")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Enable location|Use my location|Aktivera plats/i })).toBeVisible();
     await page.keyboard.press("ArrowLeft");
-    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
-    await page.getByRole("button", { name: "Nearby" }).click();
+    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
+    await page.keyboard.press("ArrowLeft");
     await expect(page.locator(".nearby-surface")).toBeVisible();
-    await page.getByRole("button", { name: "Back to pages" }).click();
-    await expect(page.locator("h1.page-title")).toContainText(/Hem/i);
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
+  });
+
+  test("loads Nearby after reload when browser location is already granted", async ({ page, context }) => {
+    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
+    await expect(page.getByRole("switch", { name: /Location services|Platsjänster/i })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
+    await page.keyboard.press("ArrowLeft");
+
+    const surface = page.locator(".nearby-surface");
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
+    await expect(surface.getByRole("button", { name: /Lindarängsvägen/i })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("loads Nearby after reload without the Permissions API when location is already granted", async ({ page, context }) => {
+    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "permissions", { configurable: true, value: undefined });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
+    await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.keyboard.press("ArrowLeft");
+
+    const surface = page.locator(".nearby-surface");
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
+    await expect(surface.getByRole("button", { name: /Lindarängsvägen/i })).toBeVisible({ timeout: 15_000 });
   });
 
   test("should open and close quick-add drawer via inline add button", async ({ page }) => {

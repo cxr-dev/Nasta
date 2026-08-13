@@ -35,6 +35,7 @@ const maplibre = vi.hoisted(() => {
 const nearbyStops = vi.hoisted(() => vi.fn());
 const searchStops = vi.hoisted(() => vi.fn());
 const getDepartures = vi.hoisted(() => vi.fn());
+const loadGrantedLocation = vi.hoisted(() => vi.fn(async (): Promise<[number, number] | null> => null));
 const requestLocation = vi.hoisted(() => vi.fn(async (): Promise<[number, number] | null> => [59.33, 18.06]));
 const subscribeToLocation = vi.hoisted(() => vi.fn((listener: (snapshot: unknown) => void) => {
   listener({ position: [59.33, 18.06], accuracy: null, isLoading: false, access: 'granted' });
@@ -49,7 +50,7 @@ vi.mock('../services/geo', () => ({
   formatDistance: (km: number) => `${Math.round(km * 1000)}m`,
   getWalkingTime: () => 2,
   isDistanceReliable: () => true,
-  loadGrantedLocation: vi.fn(async () => null),
+  loadGrantedLocation,
   requestLocation,
   subscribeToLocation,
 }));
@@ -70,6 +71,31 @@ afterEach(() => {
 });
 
 describe('NearbySurface', () => {
+  it('keeps the standard page header actions available', () => {
+    const onEditToggle = vi.fn();
+    const onOpenSettings = vi.fn();
+    const { getByRole } = render(NearbySurface, {
+      props: { onBack: vi.fn(), onEditToggle, onOpenSettings },
+    });
+
+    expect(getByRole('button', { name: /SL map|Railway map/i })).toBeTruthy();
+    getByRole('button', { name: /Manage pages/i }).click();
+    getByRole('button', { name: /Settings/i }).click();
+    expect(onEditToggle).toHaveBeenCalledOnce();
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+  });
+
+  it('uses a silently loaded location even if the subscription has no initial replay', async () => {
+    loadGrantedLocation.mockResolvedValueOnce([59.33, 18.06]);
+    subscribeToLocation.mockImplementationOnce(() => vi.fn());
+    setLocationServicesEnabled(true);
+
+    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    await waitFor(() => expect(getByRole('button', { name: /Centralen/i })).toBeTruthy());
+    expect(loadGrantedLocation).toHaveBeenCalledOnce();
+  });
+
   it('renders a location-safe station surface and keeps compact attribution', async () => {
     setLocationServicesEnabled(true);
     const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
