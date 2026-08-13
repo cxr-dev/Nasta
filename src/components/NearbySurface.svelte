@@ -15,9 +15,11 @@
   import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
   import { resolveTheme } from '../themes';
+  import { getTransportType } from '../lib/getTransportType';
   import { editPencil, mapIcon, settingsGear, slLogo } from '../icons/departureIcons';
   import { openSlTickets } from '../lib/openSlTickets';
   import MapViewer from './MapViewer.svelte';
+  import TransportIcon from './TransportIcon.svelte';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
   const maplibreLoad = import('maplibre-gl');
@@ -96,15 +98,6 @@
   function departureLabel(departure: TransitDeparture): string {
     if (departure.minutes <= 0) return t.departureNow ?? 'Nu';
     return `${departure.minutes} ${t.minutesShort ?? 'min'}`;
-  }
-
-  function modeLabel(stop: TransitStopSearchResult): string {
-    const mode = stop.modes[0];
-    if (mode === 'metro') return 'T';
-    if (mode === 'train') return 'J';
-    if (mode === 'tram') return 'Sp';
-    if (mode === 'boat' || mode === 'ferry') return 'B';
-    return 'B';
   }
 
   function isSearchMode(): boolean {
@@ -541,7 +534,9 @@
         <div class="departure-list" aria-label={t.departures ?? 'Avgångar'}>
           {#each boardDepartures as departure (departure.id)}
             <div class="departure-card">
-              <span class="mode-badge" aria-hidden="true">{departure.line}</span>
+              <span class="mode-badge" aria-hidden="true">
+                <TransportIcon type={getTransportType(departure.transportMode)} size={20} />
+              </span>
               <div class="departure-main"><strong>{departure.destination}</strong><span><b class="departure-line">{departure.line}</b> · {departure.lineName}</span></div>
               <div class="departure-time"><strong>{departureLabel(departure)}</strong><span>{departure.scheduledTime}</span></div>
             </div>
@@ -586,7 +581,9 @@
         <div class="station-list" bind:this={listEl}>
           {#each displayedStops as stop (stop.id)}
             <button type="button" class="station-card" class:selected={selectedId === stop.id} data-stop-id={stop.id} onclick={() => selectStop(stop)}>
-              <span class="station-mode" aria-hidden="true">{modeLabel(stop)}</span>
+              <span class="station-mode" aria-hidden="true">
+                <TransportIcon type={getTransportType(stop.modes[0])} size={20} />
+              </span>
               <span class="station-main"><strong>{stop.name}</strong><span class="station-meta">{stopDistance(stop)}{walkingLabel(stop) ? ` · ${walkingLabel(stop)}` : ''}</span>{#if previews.has(stop.id)}<span class="station-preview">{#each previews.get(stop.id) ?? [] as departure (departure.id)}<span class="preview-departure"><span class="preview-line">{departure.line}</span><strong>{departureLabel(departure)}</strong><span>{departure.destination}</span></span>{/each}</span>{:else}<span class="station-preview muted">{t.loadingDepartures ?? 'Läser in avgångar…'}</span>{/if}</span>
               <svg class="station-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>

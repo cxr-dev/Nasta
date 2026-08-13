@@ -62,7 +62,7 @@ beforeEach(() => {
   setLocationServicesEnabled(false);
   nearbyStops.mockResolvedValue([{ id: 'sl:1', name: 'Centralen', coord: [59.33, 18.06], modes: ['metro'], distance: 240, locationType: 'station' }]);
   searchStops.mockResolvedValue([]);
-  getDepartures.mockResolvedValue({ departures: [{ id: 'd1', line: 'T-C', lineName: 'Tunnelbana', destination: 'Hässelby', minutes: 4, scheduledTime: '12:04' }], stopDeviations: [] });
+  getDepartures.mockResolvedValue({ departures: [{ id: 'd1', line: 'B', lineName: 'Buss', destination: 'Hässelby', transportMode: 'bus', minutes: 4, scheduledTime: '12:04' }], stopDeviations: [] });
 });
 
 afterEach(() => {
@@ -98,20 +98,42 @@ describe('NearbySurface', () => {
 
   it('renders a location-safe station surface and keeps compact attribution', async () => {
     setLocationServicesEnabled(true);
-    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
     await waitFor(() => expect(getByRole('button', { name: /Centralen/i })).toBeTruthy());
     await waitFor(() => expect(maplibre.AttributionControl).toHaveBeenCalledWith({ compact: true }));
     expect(getByRole('application', { name: /map/i })).toBeTruthy();
+    expect(container.querySelector('.station-mode svg')).toBeTruthy();
+  });
+
+  it('renders a bus icon for nearby stations instead of a text badge', async () => {
+    nearbyStops.mockResolvedValueOnce([{ id: 'sl:bus', name: 'Busshållplats', coord: [59.33, 18.06], modes: ['bus'], distance: 240, locationType: 'station' }]);
+    setLocationServicesEnabled(true);
+    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    await waitFor(() => expect(getByRole('button', { name: /Busshållplats/i })).toBeTruthy());
+    expect(container.querySelector('.station-mode')?.textContent?.trim()).toBe('');
+    expect(container.querySelector('.station-mode svg path')).toBeTruthy();
+  });
+
+  it('renders a boat icon when a nearby stop reports ferry mode', async () => {
+    nearbyStops.mockResolvedValueOnce([{ id: 'sl:ferry', name: 'Färjeläget', coord: [59.33, 18.06], modes: ['ferry'], distance: 240, locationType: 'station' }]);
+    setLocationServicesEnabled(true);
+    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    await waitFor(() => expect(getByRole('button', { name: /Färjeläget/i })).toBeTruthy());
+    expect(container.querySelector('.station-mode svg')?.innerHTML).toContain('M20 21c-1.39');
   });
 
   it('opens a station detail without throwing and shows its map context', async () => {
     setLocationServicesEnabled(true);
-    const { getByRole, getByText } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const { container, getByRole, getByText } = render(NearbySurface, { props: { onBack: vi.fn() } });
     const station = await waitFor(() => getByRole('button', { name: /Centralen/i }));
     await fireEvent.click(station);
     await waitFor(() => expect(getByRole('heading', { name: 'Centralen' })).toBeTruthy());
     expect(getByRole('application', { name: /map/i })).toBeTruthy();
     expect(getByText('Hässelby')).toBeTruthy();
+    expect(container.querySelector('.mode-badge svg')).toBeTruthy();
+    expect(container.querySelector('.departure-line')?.textContent).toBe('B');
   });
 
   it('normalizes walking-map bounds when the stop is southwest of the user', async () => {
