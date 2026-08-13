@@ -32,6 +32,7 @@ test('restores an enabled, granted location after reload without the Permissions
 
   const surface = page.locator('.nearby-surface');
   await expect(surface).toBeVisible();
+  await expect(surface.getByRole('status', { name: /Your location|Din plats/i })).toBeVisible();
   await expect(surface.getByRole('button', { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
   await expect(surface.getByRole('button', { name: /T-Centralen/i })).toBeVisible({ timeout: 15_000 });
 });

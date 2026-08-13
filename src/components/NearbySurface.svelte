@@ -27,6 +27,7 @@
 
   type SwipeMove = (deltaX: number) => void;
   type SwipeEnd = (deltaX: number, velocityX: number) => void;
+  type LocationStatusState = 'off' | 'searching' | 'ready' | 'blocked' | 'unavailable' | 'permission';
 
   let {
     onBack,
@@ -84,6 +85,14 @@
   let displayedStops = $derived(query.trim().length >= 2 ? searchResults : nearbyStops);
   let hasLocation = $derived(Boolean(location.position));
   let locationEnabled = $derived(Boolean(settings.locationServicesEnabled));
+  let locationStatus = $derived.by((): { state: LocationStatusState; label: string } => {
+    if (!locationEnabled) return { state: 'off', label: t.nearbyLocationOff ?? 'Location off' };
+    if (location.position) return { state: 'ready', label: t.nearbyLocationReady ?? 'Your location' };
+    if (location.isLoading) return { state: 'searching', label: t.nearbyLocationSearching ?? 'Finding your location...' };
+    if (location.access === 'denied') return { state: 'blocked', label: t.nearbyLocationBlocked ?? 'Location blocked' };
+    if (location.access === 'unsupported') return { state: 'unavailable', label: t.nearbyLocationUnavailable ?? 'Location unavailable' };
+    return { state: 'permission', label: t.nearbyLocationPermission ?? 'Allow location' };
+  });
 
   function stopDistance(stop: TransitStopSearchResult): string {
     if (stop.distance == null || !isDistanceReliable(stop.distance, location.accuracy)) return '';
@@ -550,11 +559,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
-      <span class="live-dot" class:enabled={locationEnabled}></span>
       {@render headerActions()}
     </header>
     <div class="map-wrap">
       <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatser i närheten'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
+      <div class="map-location-status" class:ready={locationStatus.state === 'ready'} class:searching={locationStatus.state === 'searching'} class:blocked={locationStatus.state === 'blocked'} class:unavailable={locationStatus.state === 'unavailable'} role="status" aria-label={locationStatus.label} aria-live="polite">
+        <span class="map-location-status-dot" aria-hidden="true"></span>
+        <span>{locationStatus.label}</span>
+      </div>
       {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{location.isLoading ? (t.waitingForLocation ?? 'Hämtar position...') : locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
       {#if mapError}<div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>{/if}
     </div>
@@ -612,10 +624,13 @@
   .header-icon-btn .sl-logo { width: 30.5px; height: 24px; }
   .sl-ticket-btn { display: none; }
   @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
-  .live-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: var(--border-strong); }
-  .live-dot.enabled { background: #2563EB; }
   .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }
   .map-container { position: absolute; inset: 0; }
+  .map-location-status { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; max-width: calc(100% - 24px); padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--text); font-size: 11px; font-weight: 700; line-height: 1; }
+  .map-location-status-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--text-muted); }
+  .map-location-status.ready .map-location-status-dot, .map-location-status.searching .map-location-status-dot { background: #2563EB; }
+  .map-location-status.blocked .map-location-status-dot { background: var(--color-warning, #956B12); }
+  .map-location-status.unavailable .map-location-status-dot { background: var(--text-secondary); }
   .map-overlay-copy { position: absolute; left: 16px; right: 16px; bottom: 16px; display: grid; gap: 4px; max-width: 250px; padding: 10px 12px; border: 1px solid rgba(23,23,23,.12); border-radius: 10px; background: rgba(255,255,255,.9); color: #171717; }
   .map-overlay-copy span { font-size: 12px; font-weight: 650; }.map-overlay-copy strong { font-size: 13px; line-height: 1.3; }
   .map-fallback { position: absolute; inset: auto 12px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }

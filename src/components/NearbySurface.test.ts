@@ -85,6 +85,13 @@ describe('NearbySurface', () => {
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 
+  it('explains disabled location services on the map instead of the page header', () => {
+    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    expect(getByRole('status', { name: /Location off|Plats av/i })).toBeTruthy();
+    expect(container.querySelector('.live-dot')).toBeNull();
+  });
+
   it('uses a silently loaded location even if the subscription has no initial replay', async () => {
     loadGrantedLocation.mockResolvedValueOnce([59.33, 18.06]);
     subscribeToLocation.mockImplementationOnce(() => vi.fn());
@@ -102,7 +109,20 @@ describe('NearbySurface', () => {
     await waitFor(() => expect(getByRole('button', { name: /Centralen/i })).toBeTruthy());
     await waitFor(() => expect(maplibre.AttributionControl).toHaveBeenCalledWith({ compact: true }));
     expect(getByRole('application', { name: /map/i })).toBeTruthy();
+    expect(getByRole('status', { name: /Your location|Din plats/i })).toBeTruthy();
     expect(container.querySelector('.station-mode svg')).toBeTruthy();
+  });
+
+  it('shows that the map is waiting for a location fix', () => {
+    subscribeToLocation.mockImplementationOnce((listener: (snapshot: unknown) => void) => {
+      listener({ position: null, isLoading: true, access: 'prompt' });
+      return vi.fn();
+    });
+    setLocationServicesEnabled(true);
+
+    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    expect(getByRole('status', { name: /Finding your location|Hämtar position/i })).toBeTruthy();
   });
 
   it('renders a bus icon for nearby stations instead of a text badge', async () => {
@@ -183,6 +203,7 @@ describe('NearbySurface', () => {
     setLocationServicesEnabled(true);
     const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
     expect(getSettings().locationServicesEnabled).toBe(true);
+    expect(getByRole('status', { name: /Location blocked|Platsåtkomst blockerad/i })).toBeTruthy();
     expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Allow location in the browser|Tillåt platsåtkomst/i);
     expect(getByRole('button', { name: /Retry|Try again|Försök igen/i })).toBeTruthy();
   });
