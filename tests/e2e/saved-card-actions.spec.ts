@@ -313,9 +313,10 @@ test.describe("saved card safe-area PWA simulation", () => {
       content:
         ":root { --safe-area-inset-top: 47px; --safe-area-inset-bottom: 34px; }",
     });
-    await page.locator(".departure-card .card-main").click();
-    await page.locator(".departure-card").getByRole("button", { name: /more actions/i }).click();
-    const sheet = page.locator(".sheet.saved-card-actions-sheet");
+    const activePage = page.locator(".page-slot:not(.page-slot-preview)");
+    await activePage.locator(".departure-card .card-main").click();
+    await activePage.locator(".departure-card").getByRole("button", { name: /more actions/i }).click();
+    const sheet = activePage.locator(".sheet.saved-card-actions-sheet");
     await expect(sheet).toBeVisible();
     await assertLastActionReachable(sheet, "Remove departure");
   });

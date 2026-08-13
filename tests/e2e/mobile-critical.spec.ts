@@ -41,6 +41,98 @@ async function prepareAddStopFlow(page: import("@playwright/test").Page): Promis
 }
 
 test.describe("mobile critical commuter flow", () => {
+  test("tracks page swipes and cancels or commits from the current position", async ({ page }) => {
+    const app = new CommuterApp(page);
+    await app.mockDepartures();
+    const routes = [
+      {
+        id: "swipe-first-page",
+        name: "First page",
+        segments: [{
+          id: "swipe-first-segment",
+          line: "14",
+          lineName: "14",
+          direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+          fromStop: { id: "from-first", name: "T-Centralen", siteId: "100" },
+          toStop: { id: "to-first", name: "Mörby centrum", siteId: "456" },
+          transportType: "metro",
+        }],
+      },
+      {
+        id: "swipe-second-page",
+        name: "Second page",
+        segments: [{
+          id: "swipe-second-segment",
+          line: "14",
+          lineName: "14",
+          direction: { code: 1, destination: "Mörby centrum", stopPointId: "" },
+          fromStop: { id: "from-second", name: "Slussen", siteId: "101" },
+          toStop: { id: "to-second", name: "Mörby centrum", siteId: "456" },
+          transportType: "metro",
+        }],
+      },
+    ];
+    await page.addInitScript((seededRoutes) => {
+      localStorage.clear();
+      localStorage.setItem("nasta_settings", JSON.stringify({ language: "en", theme: "light" }));
+      localStorage.setItem("nasta_routes", JSON.stringify(seededRoutes));
+    }, routes);
+    await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.clock.install();
+    await expect(page.getByRole("heading", { name: "First page" })).toBeVisible();
+    await page.keyboard.press("ArrowRight");
+    await page.clock.fastForward(220);
+    await expect(page.getByRole("heading", { name: "Second page" })).toBeVisible();
+
+    const emitPointer = async (type: string, x: number, y: number, target = "#main-content") => {
+      await page.locator(target).evaluate((element, input) => {
+        const event = new PointerEvent(input.type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "touch",
+          clientX: input.x,
+          clientY: input.y,
+        });
+        element.dispatchEvent(event);
+      }, { type, x, y });
+    };
+
+    const activeCard = ".page-slot:not(.page-slot-preview) .card-main";
+    await emitPointer("pointerdown", 100, 300, activeCard);
+    await emitPointer("pointermove", 200, 304, activeCard);
+    await expect(page.locator(".page-slot")).toHaveCount(2);
+    expect(await page.locator(".page-slot").first().evaluate((node) => getComputedStyle(node).transform)).not.toBe("none");
+
+    await page.clock.fastForward(200);
+    await emitPointer("pointerup", 150, 304, activeCard);
+    await page.clock.fastForward(1_000);
+    await expect(page.getByRole("heading", { name: "Second page" })).toBeVisible();
+
+    await emitPointer("pointerdown", 100, 300, activeCard);
+    await emitPointer("pointermove", 280, 304, activeCard);
+    const reverseOffsets = await page.locator(".page-slot").evaluateAll((nodes) =>
+      nodes.map((node) => new DOMMatrix(getComputedStyle(node).transform).m41),
+    );
+    expect(reverseOffsets[0]).toBeLessThan(0);
+    expect(reverseOffsets[1]).toBeGreaterThan(0);
+    await page.clock.fastForward(100);
+    await emitPointer("pointerup", 280, 304, activeCard);
+    await page.clock.fastForward(1_000);
+    await expect(page.getByRole("heading", { name: "First page" })).toBeVisible();
+
+    await page.keyboard.press("ArrowRight");
+    await page.clock.fastForward(1_000);
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText("Second page");
+    await emitPointer("pointerdown", 300, 300, activeCard);
+    await emitPointer("pointermove", 130, 304, activeCard);
+    await expect(page.locator(".nearby-viewport")).toHaveCount(1);
+    await emitPointer("pointerup", 70, 304, activeCard);
+    await page.clock.fastForward(1_000);
+    await expect(page.locator(".nearby-surface")).toBeVisible();
+  });
+
   test("adds a stop, shows a departure, and opens and closes its actions on modern WebKit", async ({ page }) => {
     const app = await prepareAddStopFlow(page);
     const addButton = page.getByRole("button", { name: /^Add/ });
@@ -80,7 +172,7 @@ test.describe("mobile critical commuter flow", () => {
     await expect(dialog.getByRole("button", { name: "Close add form" })).toBeVisible();
   });
 
-  test("opens the fixed utility map before the first page and swipes back", async ({ page }) => {
+  test("opens the fixed utility map after the last page and swipes back", async ({ page }) => {
     const app = new CommuterApp(page);
     await app.mockDepartures();
     await page.route("**/v1/sites", (route) => route.fulfill({
@@ -89,26 +181,109 @@ test.describe("mobile critical commuter flow", () => {
       body: JSON.stringify([{ id: 100, name: "T-Centralen", lat: 59.33, lon: 18.06 }]),
     }));
     await app.open();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
 
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
 
-    await surface.evaluate((element) => {
-      const emit = (type: string, x: number, y: number) => {
-        const event = new Event(type, { bubbles: true, cancelable: true });
-        const touch = { clientX: x, clientY: y };
-        Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [touch] });
-        Object.defineProperty(event, "changedTouches", { value: [touch] });
-        element.dispatchEvent(event);
-      };
-      emit("touchstart", 40, 300);
-      emit("touchmove", 160, 304);
-      emit("touchend", 330, 304);
+    await page.locator("#main-content").evaluate((element) => {
+      const emit = (type: string, x: number, y: number) => element.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId: 2, pointerType: 'touch', clientX: x, clientY: y,
+      }));
+      emit("pointerdown", 40, 300);
+      emit("pointermove", 160, 304);
+      emit("pointerup", 330, 304);
     });
 
     await expect(page.locator("h1.page-title")).toContainText(/Commuter test/i);
-    await expect(page.locator(".nearby-surface")).toHaveCount(0);
+    await expect(page.locator(".nearby-surface")).toHaveCount(1);
+    await expect(page.locator(".nearby-viewport")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("returns from a Nearby station board by its Back button and a right swipe", async ({ page, context }) => {
+    const app = new CommuterApp(page);
+    await app.mockDepartures();
+    await page.route("**/*.integration.sl.se/**", async (route) => {
+      if (!route.request().url().includes("departures")) return route.fallback();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ departures: Array.from({ length: 8 }, (_, index) => ({
+          line: { designation: "14" },
+          direction_code: 1,
+          destination: index % 2 ? "Fruängen" : "Mörby centrum",
+          display: `${index + 3} min`,
+          expected: new Date(Date.now() + (index + 3) * 60_000).toISOString(),
+        })) }),
+      });
+    });
+    await page.route("**/v1/sites", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{ id: 100, name: "T-Centralen", lat: 59.33, lon: 18.06 }]),
+    }));
+    await app.open();
+    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
+    await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
+    await page.keyboard.press("ArrowRight");
+
+    const surface = page.locator(".nearby-surface");
+    const station = surface.getByRole("button", { name: /T-Centralen/i });
+    await expect(station).toBeVisible({ timeout: 15_000 });
+    await station.click();
+    await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
+    const mapShell = surface.locator(".detail-map-shell");
+    const mapCanvas = mapShell.locator("canvas.maplibregl-canvas");
+    await expect(mapCanvas).toBeVisible({ timeout: 15_000 });
+    const [shellBox, canvasBox] = await Promise.all([mapShell.boundingBox(), mapCanvas.boundingBox()]);
+    expect(shellBox).not.toBeNull();
+    expect(canvasBox).not.toBeNull();
+    expect(shellBox!.height).toBeGreaterThanOrEqual(208);
+    expect(shellBox!.height).toBeLessThanOrEqual(212);
+    expect(Math.abs(shellBox!.height - canvasBox!.height)).toBeLessThanOrEqual(2);
+    const boardScroll = await surface.locator(".board-content").evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(boardScroll.scrollHeight).toBeGreaterThan(boardScroll.clientHeight);
+
+    await surface.getByRole("button", { name: "Back" }).click();
+    await expect(surface.getByRole("heading", { name: "Nearby", exact: true, level: 1 })).toBeVisible();
+    await station.click();
+    await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
+
+    await page.locator(".board-content").evaluate((element) => {
+      const emit = (type: string, x: number, y: number) => element.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId: 3, pointerType: 'touch', clientX: x, clientY: y,
+      }));
+      emit("pointerdown", 40, 500);
+      emit("pointermove", 220, 504);
+      emit("pointerup", 300, 504);
+    });
+
+    await expect(surface.getByRole("heading", { name: "Nearby", exact: true, level: 1 })).toBeVisible();
+    await expect(surface).toBeVisible();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(surface.getByRole("heading", { name: "Nearby", exact: true, level: 1 })).toBeVisible();
+    await page.keyboard.press("ArrowRight");
+    await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
+
+    await page.goBack();
+    await expect(surface.getByRole("heading", { name: "Nearby", exact: true, level: 1 })).toBeVisible();
+    await page.goForward();
+    await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
+
+    await surface.getByRole("button", { name: "Back" }).click();
+    await expect(surface.getByRole("heading", { name: "Nearby", exact: true, level: 1 })).toBeVisible();
+    await surface.getByRole("button", { name: /Back to pages|Tillbaka till sidorna/i }).click();
+    await expect(page.getByRole("heading", { name: "Commuter test" })).toBeVisible();
   });
 
   test("loads Nearby after reload when WebKit location is already granted", async ({ page, context }) => {
@@ -132,7 +307,7 @@ test.describe("mobile critical commuter flow", () => {
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: /Settings/i })).toBeVisible();
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
 
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();

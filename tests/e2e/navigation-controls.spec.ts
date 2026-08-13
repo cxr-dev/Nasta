@@ -54,7 +54,7 @@ async function openApp(page: Page, theme: 'light' | 'dark' = 'light') {
     }]));
   }, { selectedTheme: theme });
   await page.goto('/Nasta/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.page-title')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.page-slot:not(.page-slot-preview) h1.page-title')).toBeVisible({ timeout: 15_000 });
 }
 
 function expectFullViewport(
@@ -104,7 +104,7 @@ for (const viewport of viewports) {
     await expect(railwayDialog).toHaveCount(0);
 
     await page.goto('/Nasta/?navigation-audit=stop-map', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('h1.page-title')).toBeVisible();
+    await expect(page.locator('.page-slot:not(.page-slot-preview) h1.page-title')).toBeVisible();
     const cardToggle = page.locator('.card-main').first();
     await cardToggle.click();
     const expandMap = page.getByRole('button', { name: 'Expand map fullscreen' });

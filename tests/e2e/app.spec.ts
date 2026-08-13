@@ -112,7 +112,7 @@ test.describe("Nästa App", () => {
   test.afterEach(async ({ page }, testInfo) => {
     // Filter out expected network errors from intentional route aborts in tests
     const unexpectedErrors = runtimeErrors.filter(
-      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED"),
+      (msg) => !msg.includes("ERR_FAILED") && !msg.includes("ERR_ABORTED") && !msg.includes("ERR_NETWORK_ACCESS_DENIED"),
     );
     expect(
       unexpectedErrors,
@@ -122,7 +122,7 @@ test.describe("Nästa App", () => {
 
   test("should display route header", async ({ page }) => {
     // Route header displays current route name (toWork/fromWork direction)
-    const routeHeader = page.locator("h1.page-title");
+    const routeHeader = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
     await expect(routeHeader).toBeVisible();
     await expect(routeHeader).toContainText(/Arbete/i);
@@ -166,12 +166,12 @@ test.describe("Nästa App", () => {
     await page.goto("/Nasta/");
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    const routeHeader = page.locator("h1.page-title");
+    const routeHeader = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
     await expect(routeHeader).toBeVisible();
   });
 
   test("should show the page indicator only after switching pages and hide it on scroll", async ({ page }) => {
-    const pageTitle = page.locator("h1.page-title");
+    const pageTitle = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
     await expect(pageTitle).toBeVisible({ timeout: 10000 });
 
     const indicator = page.locator(".page-dot-indicator");
@@ -184,7 +184,7 @@ test.describe("Nästa App", () => {
     await page.keyboard.press("ArrowRight");
     await expect(indicator).toHaveClass(/visible/);
 
-    await page.locator(".card-list").evaluate((element) => {
+    await page.locator(".page-slot:not(.page-slot-preview) .card-list").evaluate((element) => {
       element.dispatchEvent(new Event("scroll"));
     });
     await expect(indicator).not.toHaveClass(/visible/);
@@ -200,19 +200,74 @@ test.describe("Nästa App", () => {
     await expect(card.getByTestId("countdown-minutes")).toContainText(/min|now|soon/i);
   });
 
-  test("should open the fixed Nearby surface before the first saved page", async ({ page }) => {
+  test("should open the fixed Nearby surface after the last saved page", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Nearby" })).toHaveCount(0);
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.keyboard.press("ArrowRight");
     await expect(page.locator(".nearby-surface")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Enable location|Use my location|Aktivera plats/i })).toBeVisible();
     await page.keyboard.press("ArrowLeft");
-    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
-    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.keyboard.press("ArrowRight");
     await expect(page.locator(".nearby-surface")).toBeVisible();
     await page.keyboard.press("ArrowLeft");
-    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
   });
+
+  test("browser touch reaches Nearby through the nested departure scroller without poisoning later clicks", async ({ page, context }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.evaluate(() => {
+      (window as typeof window & { deckPointerCancels: number }).deckPointerCancels = 0;
+      document.querySelector("#main-content")?.addEventListener("pointercancel", () => {
+        (window as typeof window & { deckPointerCancels: number }).deckPointerCancels += 1;
+      });
+    });
+
+    const card = page.locator(".page-slot:not(.page-slot-preview) .card-main").first();
+    const box = await card.boundingBox();
+    expect(box).not.toBeNull();
+    const client = await context.newCDPSession(page);
+    const y = box!.y + Math.min(40, box!.height / 2);
+    const startX = box!.x + box!.width - 30;
+    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: startX, y }] });
+    for (const x of [startX - 35, startX - 90, startX - 170, startX - 250]) {
+      await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 2 }] });
+    }
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+
+    await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible({ timeout: 5_000 });
+    expect(await page.evaluate(() => (window as typeof window & { deckPointerCancels: number }).deckPointerCancels)).toBe(0);
+
+    await page.getByRole("button", { name: /Back to pages|Tillbaka till sidorna/i }).click();
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.locator(".settings-overlay.open")).toBeVisible();
+  });
+
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 1024, height: 768 }]) {
+    test(`keeps Nearby fully offscreen after returning at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.keyboard.press("ArrowRight");
+      await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+      await page.keyboard.press("ArrowRight");
+      const nearby = page.locator(".nearby-viewport");
+      await expect(nearby).toBeVisible();
+
+      await nearby.getByRole("button", { name: /Back to pages|Tillbaka till sidorna/i }).click();
+      await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+      const [mainBox, nearbyBox] = await Promise.all([
+        page.locator("#main-content").boundingBox(),
+        nearby.boundingBox(),
+      ]);
+      expect(mainBox).not.toBeNull();
+      expect(nearbyBox).not.toBeNull();
+      expect(nearbyBox!.x).toBeGreaterThanOrEqual(mainBox!.x + mainBox!.width - 1);
+    });
+  }
 
   test("loads Nearby after reload when browser location is already granted", async ({ page, context }) => {
     await context.grantPermissions(["geolocation"], { origin: new URL(page.url()).origin });
@@ -223,8 +278,10 @@ test.describe("Nästa App", () => {
     await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.locator("h1.page-title")).toContainText(/Arbete/i);
-    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Arbete/i);
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.keyboard.press("ArrowRight");
 
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
@@ -254,7 +311,9 @@ test.describe("Nästa App", () => {
     await page.getByRole("switch", { name: /Location services|Platsjänster/i }).click();
     await page.getByRole("button", { name: /Close settings|Stäng inställningar/i }).click();
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+    await page.keyboard.press("ArrowRight");
 
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
@@ -263,10 +322,10 @@ test.describe("Nästa App", () => {
   });
 
   test("should open and close quick-add drawer via inline add button", async ({ page }) => {
-    const routeHeader = page.locator("h1.page-title");
+    const routeHeader = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
     await routeHeader.waitFor({ state: "visible", timeout: 10000 });
 
-    const addBtn = page.locator(".quick-add-card");
+    const addBtn = page.locator(".page-slot:not(.page-slot-preview) .quick-add-card");
     await expect(addBtn).toBeVisible({ timeout: 5000 });
 
     await addBtn.click();

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
+import type { TransitStopSearchResult } from '../providers/types';
 
 const maplibre = vi.hoisted(() => {
   const mapInstance = {
@@ -10,6 +11,7 @@ const maplibre = vi.hoisted(() => {
     fitBounds: vi.fn(),
     getSource: vi.fn(() => ({ setData: vi.fn() })),
     getContainer: vi.fn(() => document.createElement('div')),
+    resize: vi.fn(),
     on: vi.fn((event: string, callback: () => void) => {
       if (event === 'load') callback();
     }),
@@ -71,6 +73,17 @@ afterEach(() => {
 });
 
 describe('NearbySurface', () => {
+  it('keeps an offscreen preview inert until it is promoted', async () => {
+    setLocationServicesEnabled(true);
+    render(NearbySurface, { props: { onBack: vi.fn(), preview: true } });
+
+    await Promise.resolve();
+    expect(subscribeToLocation).not.toHaveBeenCalled();
+    expect(loadGrantedLocation).not.toHaveBeenCalled();
+    expect(nearbyStops).not.toHaveBeenCalled();
+    expect(maplibre.Map).not.toHaveBeenCalled();
+  });
+
   it('keeps the standard page header actions available', () => {
     const onEditToggle = vi.fn();
     const onOpenSettings = vi.fn();
@@ -144,18 +157,48 @@ describe('NearbySurface', () => {
     expect(container.querySelector('.station-mode svg')?.innerHTML).toContain('M20 21c-1.39');
   });
 
-  it('opens a station detail without throwing and shows its map context', async () => {
+  it('reports station selection without owning navigation', async () => {
     setLocationServicesEnabled(true);
-    const { container, getByRole, getByText } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const onSelectStation = vi.fn();
+    const { getByRole, queryByRole } = render(NearbySurface, {
+      props: { onBack: vi.fn(), onSelectStation },
+    });
     const station = await waitFor(() => getByRole('button', { name: /Centralen/i }));
     await fireEvent.click(station);
-    await waitFor(() => expect(getByRole('heading', { name: 'Centralen' })).toBeTruthy());
-    expect(getByRole('application', { name: /map/i })).toBeTruthy();
-    expect(getByText('Hässelby')).toBeTruthy();
-    expect(container.querySelector('.station-board-departure .icon-badge svg')).toBeTruthy();
-    expect(container.querySelector('.station-board-departure .stacked-pill')?.textContent).toBe('B');
-    expect(container.querySelector('.station-board-departure .station-destination')?.textContent).toBe('Hässelby');
-    expect(container.querySelector('.station-board-departure [data-testid="countdown-minutes"]')?.textContent).toContain('4');
+    expect(onSelectStation).toHaveBeenCalledWith(expect.objectContaining({ id: 'sl:1', name: 'Centralen' }));
+    expect(queryByRole('heading', { name: 'Centralen' })).toBeNull();
+  });
+
+  it('keeps the retained station board mounted immediately to the right of Nearby', async () => {
+    setLocationServicesEnabled(true);
+    const boardStop: TransitStopSearchResult = { id: 'sl:1', name: 'Centralen', coord: [59.33, 18.06], modes: ['metro'], distance: 240, relevance: 1, locationType: 'station' };
+    const { container, getByRole } = render(NearbySurface, {
+      props: { onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'nearby' },
+    });
+
+    await waitFor(() => expect(getByRole('button', { name: /Centralen/i })).toBeTruthy());
+    const panels = container.querySelectorAll('.utility-panel');
+    expect(panels).toHaveLength(2);
+    const nearbyPanel = container.querySelector('.nearby-panel');
+    const boardPanel = container.querySelector('.board-panel');
+    expect(nearbyPanel?.getAttribute('aria-hidden')).toBeNull();
+    expect(boardPanel?.getAttribute('aria-hidden')).toBe('true');
+    expect((boardPanel as HTMLElement | null)?.inert).toBe(true);
+  });
+
+  it('starts retained board work only when the board is promoted', async () => {
+    setLocationServicesEnabled(true);
+    const boardStop: TransitStopSearchResult = { id: 'sl:1', name: 'Centralen', coord: [59.33, 18.06], modes: ['metro'], distance: 240, relevance: 1, locationType: 'station' };
+    const { rerender, getByText } = render(NearbySurface, {
+      props: { onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'nearby' },
+    });
+    await waitFor(() => expect(nearbyStops).toHaveBeenCalled());
+    getDepartures.mockClear();
+
+    await rerender({ onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'board' });
+
+    await waitFor(() => expect(getByText('Hässelby')).toBeTruthy());
+    expect(getDepartures).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes walking-map bounds when the stop is southwest of the user', async () => {
@@ -168,12 +211,11 @@ describe('NearbySurface', () => {
       locationType: 'station',
     }]);
     setLocationServicesEnabled(true);
-    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
-    const station = await waitFor(() => getByRole('button', { name: /Södermalm/i }));
-    await fireEvent.click(station);
+    const boardStop: TransitStopSearchResult = { id: 'sl:southwest', name: 'Södermalm', coord: [59.329, 18.059], modes: ['metro'], distance: 130, relevance: 1, locationType: 'station' };
+    render(NearbySurface, { props: { onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'board' } });
 
-    await waitFor(() => expect(maplibre.Map.mock.results[0]?.value.fitBounds).toHaveBeenCalled());
-    expect(maplibre.Map.mock.results[0].value.fitBounds).toHaveBeenCalledWith(
+    await waitFor(() => expect(maplibre.Map.mock.results.at(-1)?.value.fitBounds).toHaveBeenCalled());
+    expect(maplibre.Map.mock.results.at(-1)?.value.fitBounds).toHaveBeenCalledWith(
       [[18.059, 59.329], [18.06, 59.33]],
       { padding: 42, maxZoom: 15.5 },
     );
@@ -224,15 +266,4 @@ describe('NearbySurface', () => {
     expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Allow site in browser settings|Platsåtkomst blockerad/i);
   });
 
-  it('reports a horizontal back gesture without stealing vertical list scrolling', async () => {
-    const onSwipeMove = vi.fn();
-    const onSwipeEnd = vi.fn();
-    const { container } = render(NearbySurface, { props: { onBack: vi.fn(), onSwipeMove, onSwipeEnd } });
-    const surface = container.querySelector('.nearby-surface') as HTMLElement;
-    await fireEvent.touchStart(surface, { touches: [{ clientX: 180, clientY: 220 }] });
-    await fireEvent.touchMove(surface, { touches: [{ clientX: 280, clientY: 224 }] });
-    await fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 330, clientY: 224 }] });
-    expect(onSwipeMove).toHaveBeenCalled();
-    expect(onSwipeEnd).toHaveBeenCalledWith(150, expect.any(Number));
-  });
 });

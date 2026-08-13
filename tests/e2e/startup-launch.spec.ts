@@ -137,7 +137,7 @@ test.describe('cold-start launch state', () => {
     await page.goto('/Nasta/#share?v=1&type=departure&s=300&n=Centralen&l=13&dir=Nacka&t=metro');
 
     await expect(page.locator('#nasta-launch')).toHaveCount(0);
-    await expect(page.locator('h1.page-title')).toHaveText('Home');
+    await expect(page.locator('.page-slot:not(.page-slot-preview) h1.page-title')).toHaveText('Home');
   });
 
   test('removes the launch state without motion when reduced motion is requested', async ({ page }) => {

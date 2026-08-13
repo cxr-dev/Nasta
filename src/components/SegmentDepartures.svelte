@@ -38,6 +38,7 @@ import { getPages, getActivePageId } from "../stores/pageStore.svelte";
 
   let {
     page,
+    preview = false,
     deviationHealthBySegment = new Map<string, SegmentHealth>(),
     deviationStationAlerts = [] as StationAlert[],
     openFeatureSheet = null,
@@ -51,6 +52,7 @@ import { getPages, getActivePageId } from "../stores/pageStore.svelte";
     onMoveSegment,
   }: {
     page: Page;
+    preview?: boolean;
     deviationHealthBySegment?: Map<string, SegmentHealth>;
     deviationStationAlerts?: StationAlert[];
     openFeatureSheet?: ((segment: Segment) => void) | null;
@@ -92,6 +94,7 @@ let pages = $derived(getPages());
   let weatherGeneration = 0;
 
   $effect(() => {
+    if (preview) return;
     const generation = ++weatherGeneration;
     const segmentsWithCoords = (page.segments ?? []).filter((segment) => segment.fromStop.coord);
     if (segmentsWithCoords.length === 0) {
@@ -124,8 +127,11 @@ let pages = $derived(getPages());
 
 
 
-  const UNSUBSCRIBERS: Array<() => void> = [];
+  const STORE_UNSUBSCRIBERS: Array<() => void> = [];
+  const ACTIVE_UNSUBSCRIBERS: Array<() => void> = [];
   let clockTimer: ReturnType<typeof setInterval> | null = null;
+  let mounted = $state(false);
+  let activeLifecycleStarted = false;
   let depListEl: HTMLDivElement | undefined = $state();
   let hasAnimatedStagger = $state(false);
   let segmentDepsGeneration = 0;
@@ -142,6 +148,11 @@ let pages = $derived(getPages());
     }),
   );
   $effect(() => {
+    if (preview) {
+      expandedSegmentId = null;
+      expandedStopLists = new Set();
+      return;
+    }
     const nextPageId = page.id;
     if (expandedPageId !== null && expandedPageId !== nextPageId) {
       expandedSegmentId = null;
@@ -388,6 +399,7 @@ let pages = $derived(getPages());
   }
 
   $effect(() => {
+    if (preview) return;
     const count = [...segmentDeps.values()].reduce((a, b) => a + b.length, 0);
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
     const cards = depListEl.querySelectorAll('.departure-card, .journey-card');
@@ -403,6 +415,15 @@ let pages = $derived(getPages());
   $effect(() => {
     page.id;
     departureData;
+    if (preview) {
+      const snapshot = new Map<string, Departure[]>();
+      for (const segment of page.segments ?? []) {
+        const key = `${segment.fromStop.siteId}|${segment.line}|${segment.direction.code}`;
+        snapshot.set(segment.id, departureData.get(key) ?? []);
+      }
+      segmentDeps = snapshot;
+      return;
+    }
     loadSegmentDeps().catch((e) => console.error('loadSegmentDeps failed', e));
   });
 
@@ -429,8 +450,10 @@ let pages = $derived(getPages());
     }, 5_000);
   }
 
-  onMount(() => {
-    UNSUBSCRIBERS.push(
+  function startActiveLifecycle() {
+    if (!mounted || preview || activeLifecycleStarted) return;
+    activeLifecycleStarted = true;
+    ACTIVE_UNSUBSCRIBERS.push(
       subscribeToLocation((snapshot) => {
         userLocation = walkingEtaActive && isDistanceReliable(200, snapshot.accuracy)
           ? snapshot.position
@@ -439,39 +462,58 @@ let pages = $derived(getPages());
       }),
     );
     if (walkingEtaActive) void loadGrantedLocation();
-    UNSUBSCRIBERS.push(
-      departureStore.subscribe((data) => {
-        departureData = data;
-      }),
-    );
-    UNSUBSCRIBERS.push(
-      departureStore.stopDeviations.subscribe((data) => {
-        stopDeviationsMap = data;
-      }),
-    );
-    UNSUBSCRIBERS.push(
-      departureStore.status.subscribe((data) => {
-        departureStatuses = data;
-      }),
-    );
-    UNSUBSCRIBERS.push(
-      departureStore.isLoading.subscribe((val) => (isLoading = val)),
-    );
     startClockTimer();
-
     try {
       const initial = (page.segments ?? []).slice(0, PREFETCH_SEGMENT_COUNT);
       for (const seg of initial) prefetchForSegment(seg);
     } catch (e) {}
+  }
+
+  function stopActiveLifecycle() {
+    if (!activeLifecycleStarted) return;
+    activeLifecycleStarted = false;
+    ACTIVE_UNSUBSCRIBERS.splice(0).forEach((unsubscribe) => unsubscribe());
+    stopClockTimer();
+    userLocation = null;
+    locationRequestInFlight = false;
+  }
+
+  onMount(() => {
+    STORE_UNSUBSCRIBERS.push(
+      departureStore.subscribe((data) => {
+        departureData = data;
+      }),
+    );
+    STORE_UNSUBSCRIBERS.push(
+      departureStore.stopDeviations.subscribe((data) => {
+        stopDeviationsMap = data;
+      }),
+    );
+    STORE_UNSUBSCRIBERS.push(
+      departureStore.status.subscribe((data) => {
+        departureStatuses = data;
+      }),
+    );
+    STORE_UNSUBSCRIBERS.push(
+      departureStore.isLoading.subscribe((val) => (isLoading = val)),
+    );
+    mounted = true;
+    startActiveLifecycle();
+  });
+
+  $effect(() => {
+    preview;
+    if (preview) stopActiveLifecycle();
+    else startActiveLifecycle();
   });
 
   onDestroy(() => {
-    UNSUBSCRIBERS.forEach((fn) => fn());
-    stopClockTimer();
+    STORE_UNSUBSCRIBERS.forEach((fn) => fn());
+    stopActiveLifecycle();
   });
 </script>
 
-<div class="departures-view">
+<div class="departures-view" aria-hidden={preview ? "true" : undefined} inert={preview ? true : undefined}>
   <!-- Page nav header -->
   <header class="page-chrome">
     <h1 class="page-title">{page.name}</h1>
@@ -798,6 +840,7 @@ let pages = $derived(getPages());
     padding: 0 0 calc(24px + env(safe-area-inset-bottom, 0px));
     flex: 1;
     overflow-y: auto;
+    touch-action: pan-y pinch-zoom;
   }
 
   .content-section {

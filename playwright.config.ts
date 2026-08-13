@@ -47,8 +47,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite preview --host localhost --port 4173 --strictPort",
+    command: "node node_modules/vite/bin/vite.js preview --host localhost --port 4173 --strictPort",
     url: "http://localhost:4173/Nasta/",
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
   },
 });

@@ -957,7 +957,7 @@ test.describe("Route stops preview", () => {
     await stopFinderRequest;
     await tripRequest;
 
-    const card = page.getByTestId("segment-row");
+    const card = page.locator(".page-slot:not(.page-slot-preview)").getByTestId("segment-row");
     await card.locator(".card-main").click();
     await expect(card.locator(".route-stops")).toBeVisible({ timeout: 5000 });
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
@@ -988,7 +988,7 @@ test.describe("Route stops preview", () => {
     await seedPage(page);
     await requestInfo.tripStarted;
 
-    const card = page.getByTestId("segment-row");
+    const card = page.locator(".page-slot:not(.page-slot-preview)").getByTestId("segment-row");
     await card.locator(".card-main").click();
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
 
@@ -1013,7 +1013,7 @@ test.describe("Route stops preview", () => {
     await seedPage(page, [...routes, { id: "second-page", name: "Second", segments: [] }]);
     await requestInfo.tripStarted;
 
-    const card = page.getByTestId("segment-row");
+    const card = page.locator(".page-slot:not(.page-slot-preview)").getByTestId("segment-row");
     await card.locator(".card-main").click();
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
     await card.getByRole("button", { name: /show all stops/i }).click();
@@ -1022,7 +1022,7 @@ test.describe("Route stops preview", () => {
     await page.getByRole("button", { name: "Manage pages" }).click();
     const editor = page.locator(".editor-sheet");
     await editor.getByRole("button", { name: "Second" }).click();
-    await expect(page.getByRole("heading", { name: "Second" })).toBeVisible();
+    await expect(page.locator(".page-slot:not(.page-slot-preview)").getByRole("heading", { name: "Second" })).toBeVisible();
     await editor.getByRole("button", { name: "Route stops test" }).click();
     await expect(card).toBeVisible();
     await editor.getByRole("button", { name: "Close editor" }).click();

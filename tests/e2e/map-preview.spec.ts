@@ -123,7 +123,7 @@ async function openApp(page: Page) {
   });
 
   await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("h1.page-title")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toBeVisible({ timeout: 15_000 });
 }
 
 test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async ({

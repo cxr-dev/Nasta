@@ -52,12 +52,12 @@ test.describe("PWA runtime", () => {
 
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
 
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as Window & { __nastaGeolocationCalls?: number }).__nastaGeolocationCalls ?? 0)).toBeGreaterThan(0);
-    await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
+    await expect(surface.locator(".location-prompt")).toHaveCount(0);
   });
 
   test("keeps a previously loaded shell usable after an offline reload", async ({ page, context }) => {

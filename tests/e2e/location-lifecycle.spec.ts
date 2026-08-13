@@ -28,7 +28,7 @@ test('restores an enabled, granted location after reload without the Permissions
   await page.getByRole('switch', { name: /Location services|Platsjänster/i }).click();
   await page.getByRole('button', { name: /Close settings|Stäng inställningar/i }).click();
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
 
   const surface = page.locator('.nearby-surface');
   await expect(surface).toBeVisible();
@@ -54,7 +54,7 @@ test('keeps a nearby stop board open after a resource-style error', async ({ pag
   }));
   await app.open();
 
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
   const nearby = page.locator('.nearby-surface');
   await nearby.getByRole('textbox', { name: /search stops/i }).fill('Central');
   await nearby.getByRole('button', { name: /T-Centralen/i }).click();
@@ -63,5 +63,5 @@ test('keeps a nearby stop board open after a resource-style error', async ({ pag
   await page.evaluate(() => window.dispatchEvent(new Event('error')));
 
   await expect(nearby.getByRole('heading', { name: 'T-Centralen' })).toBeVisible();
-  await expect(nearby.getByText('Mörby centrum')).toBeVisible();
+  await expect(nearby.locator('.board-panel .departure-list').getByText('Mörby centrum')).toBeVisible();
 });

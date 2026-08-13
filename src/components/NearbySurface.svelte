@@ -14,34 +14,34 @@
   } from '../services/geo';
   import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
   import { getT } from '../stores/localeStore.svelte';
-  import { resolveTheme } from '../themes';
   import { getTransportType } from '../lib/getTransportType';
   import { editPencil, mapIcon, settingsGear, slLogo } from '../icons/departureIcons';
   import { openSlTickets } from '../lib/openSlTickets';
   import MapViewer from './MapViewer.svelte';
+  import NearbyMap from './NearbyMap.svelte';
   import StationDepartureCard from './StationDepartureCard.svelte';
   import TransportIcon from './TransportIcon.svelte';
-  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-
-  const maplibreLoad = import('maplibre-gl');
-  void import('maplibre-gl/dist/maplibre-gl.css');
-
-  type SwipeMove = (deltaX: number) => void;
-  type SwipeEnd = (deltaX: number, velocityX: number) => void;
   type LocationStatusState = 'off' | 'searching' | 'ready' | 'blocked' | 'unavailable' | 'permission';
+  type UtilityView = 'nearby' | 'board';
 
   let {
     onBack,
+    onBoardBack,
+    onSelectStation,
     onEditToggle,
     onOpenSettings,
-    onSwipeMove,
-    onSwipeEnd,
+    boardStop = null,
+    view = 'nearby',
+    preview = false,
   }: {
     onBack: () => void;
+    onBoardBack?: () => void;
+    onSelectStation?: (stop: TransitStopSearchResult) => void;
     onEditToggle?: () => void;
     onOpenSettings?: () => void;
-    onSwipeMove?: SwipeMove;
-    onSwipeEnd?: SwipeEnd;
+    boardStop?: TransitStopSearchResult | null;
+    view?: UtilityView;
+    preview?: boolean;
   } = $props();
 
   let t = $derived(getT());
@@ -57,7 +57,6 @@
   let searchError = $state<string | null>(null);
   let mapError = $state(false);
   let selectedId = $state<string | null>(null);
-  let boardStop = $state<TransitStopSearchResult | null>(null);
   let boardDepartures = $state<TransitDeparture[]>([]);
   let boardLoading = $state(false);
   let boardError = $state(false);
@@ -68,20 +67,12 @@
   let boardGeneration = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let boardTimer: ReturnType<typeof setInterval> | null = null;
-  let boardHistoryActive = false;
+  let loadedBoardStopId: string | null = null;
   let listEl = $state<HTMLDivElement | undefined>(undefined);
-  let mapEl = $state<HTMLDivElement | undefined>(undefined);
-  let maplibregl: any = $state(null);
-  let mapInstance: any = null;
-  let mapReady = $state(false);
   let showNetworkMap = $state(false);
-  let markers: any[] = [];
-  let mapHost: HTMLElement | null = null;
   let locationUnsubscribe: (() => void) | null = null;
-  let gestureStartX = 0;
-  let gestureStartY = 0;
-  let gestureStartedAt = 0;
-  let gestureIntent = false;
+  let mounted = $state(false);
+  let utilityActive = $state(false);
 
   let displayedStops = $derived(query.trim().length >= 2 ? searchResults : nearbyStops);
   let hasLocation = $derived(Boolean(location.position));
@@ -212,78 +203,20 @@
     await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
   }
 
-  function openBoard(stop: TransitStopSearchResult) {
-    boardStop = stop;
-    void loadDepartures(stop, true);
-    if (boardTimer) clearInterval(boardTimer);
-    boardTimer = setInterval(() => {
-      if (boardStop) void loadDepartures(boardStop, true);
-    }, 30000);
-    const state = history.state && typeof history.state === 'object' ? history.state : {};
-    history.pushState({ ...state, nastaNearbyBoard: stop.id }, '', window.location.href);
-    boardHistoryActive = true;
-  }
-
-  function closeBoard() {
-    if (!boardStop) return;
-    boardStop = null;
-    boardDepartures = [];
-    boardGeneration += 1;
-    if (boardTimer) clearInterval(boardTimer);
-    boardTimer = null;
-    boardHistoryActive = false;
-  }
-
-  function requestBoardBack() {
-    if (boardHistoryActive) history.back();
-    else closeBoard();
-  }
-
   function openDirections() {
     const coord = boardStop?.coord;
     if (!coord) return;
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${coord[0]},${coord[1]}&travelmode=walking`, '_blank', 'noopener,noreferrer');
   }
 
-  function handlePopState(event: PopStateEvent) {
-    if (boardStop) {
-      if (!(event.state as { nastaNearbyBoard?: string } | null)?.nastaNearbyBoard) closeBoard();
-      return;
-    }
-  }
-
-  function handleNearbyKeyDown(event: KeyboardEvent) {
-    if (boardStop) {
-      if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
-    } else if (event.key !== 'ArrowLeft' && event.key !== 'Escape') {
-      return;
-    }
-    event.preventDefault();
-    if (boardStop) requestBoardBack();
-    else onBack();
-  }
-
   function selectStop(stop: TransitStopSearchResult) {
     selectedId = stop.id;
-    openBoard(stop);
+    onSelectStation?.(stop);
   }
 
   function scrollToStop(id: string) {
     selectedId = id;
     listEl?.querySelector<HTMLElement>(`[data-stop-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
-  function updateLine() {
-    if (!mapInstance || !mapReady) return;
-    const source = mapInstance.getSource?.('nearby-walk-line');
-    const user = location.position;
-    const stop = boardStop?.coord;
-    if (!source) return;
-    source.setData({
-      type: 'Feature',
-      geometry: { type: 'LineString', coordinates: user && stop ? [[user[1], user[0]], [stop[1], stop[0]]] : [] },
-      properties: {},
-    });
   }
 
   function departureUrgencyLabel(departure: TransitDeparture): string {
@@ -301,142 +234,23 @@
     }
   }
 
-  function getWalkingMapBounds(user: [number, number], stop: [number, number]): [[number, number], [number, number]] {
-    return [
-      [Math.min(user[1], stop[1]), Math.min(user[0], stop[0])],
-      [Math.max(user[1], stop[1]), Math.max(user[0], stop[0])],
-    ];
+  function activate() {
+    if (utilityActive || preview || !mounted) return;
+    utilityActive = true;
+    locationUnsubscribe = subscribeToLocation((snapshot) => { location = snapshot; });
   }
 
-  function updateMarkers() {
-    if (!mapInstance || !mapReady || !maplibregl) return;
-    try {
-      markers.forEach((marker) => marker.remove());
-      markers = [];
-      if (location.position) {
-        markers.push(new maplibregl.Marker({ color: '#2563EB' }).setLngLat([location.position[1], location.position[0]]).addTo(mapInstance));
-      }
-      for (const stop of displayedStops) {
-        if (!stop.coord) continue;
-        const marker = new maplibregl.Marker({ color: stop.id === selectedId ? '#171717' : '#6B7280' })
-          .setLngLat([stop.coord[1], stop.coord[0]])
-          .setPopup(new maplibregl.Popup({ offset: 14 }).setText(stop.name))
-          .addTo(mapInstance);
-        marker.getElement?.().addEventListener('click', () => scrollToStop(stop.id));
-        markers.push(marker);
-      }
-      if (boardStop?.coord) {
-        markers.push(new maplibregl.Marker({ color: '#171717' }).setLngLat([boardStop.coord[1], boardStop.coord[0]]).addTo(mapInstance));
-      }
-      if (boardStop?.coord && location.position && mapInstance.fitBounds) {
-        mapInstance.fitBounds(
-          getWalkingMapBounds(location.position, boardStop.coord),
-          { padding: 42, maxZoom: 15.5 },
-        );
-      }
-      updateLine();
-    } catch {
-      mapError = true;
-    }
-  }
-
-  function setupMap() {
-    const mgl = maplibregl;
-    const el = mapEl;
-    const centerStop = boardStop?.coord;
-    const centerPosition = centerStop ?? (settings.locationServicesEnabled ? location.position : null);
-    if (!mgl || !el || !centerPosition) return;
-    if (mapInstance && mapHost !== el) {
-      try { mapInstance.remove(); } catch { /* best effort */ }
-      mapInstance = null;
-      mapReady = false;
-      markers = [];
-    }
-    if (mapInstance) return;
-    try {
-      const dark = resolveTheme(settings.theme ?? 'system', window.matchMedia('(prefers-color-scheme: dark)').matches) === 'dark';
-      mapInstance = new mgl.Map({
-        container: el,
-        style: dark ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-        center: [centerPosition[1], centerPosition[0]],
-        zoom: 14.2,
-        attributionControl: false,
-        dragRotate: false,
-        keyboard: false,
-      });
-      mapHost = el;
-      mapInstance.addControl(new mgl.AttributionControl({ compact: true }), 'bottom-right');
-      const closeAttribution = () => {
-        try {
-          const attrib = mapInstance?.getContainer?.().querySelector('.maplibregl-ctrl-attrib');
-          if (attrib instanceof HTMLDetailsElement) attrib.open = false;
-          attrib?.classList.remove('maplibregl-compact-show');
-        } catch {
-          // Attribution is non-essential; the map remains usable if its DOM changes.
-        }
-      };
-      mapInstance.on('error', () => { mapError = true; });
-      mapInstance.on('load', () => {
-        try {
-          mapInstance.addSource('nearby-walk-line', {
-            type: 'geojson',
-            data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: {} },
-          });
-          mapInstance.addLayer({
-            id: 'nearby-walk-line',
-            type: 'line',
-            source: 'nearby-walk-line',
-            paint: { 'line-color': '#2563EB', 'line-width': 3, 'line-dasharray': [1, 1.5], 'line-opacity': 0.75 },
-          });
-          mapReady = true;
-          closeAttribution();
-          updateMarkers();
-        } catch {
-          mapError = true;
-        }
-      });
-      mapInstance.on('styledata', closeAttribution);
-    } catch {
-      mapError = true;
-      mapInstance = null;
-      mapReady = false;
-    }
-  }
-
-  function stopMapGesture(event: TouchEvent) {
-    event.stopPropagation();
-  }
-
-  function handleTouchStart(event: TouchEvent) {
-    if (event.touches.length !== 1) return;
-    gestureStartX = event.touches[0].clientX;
-    gestureStartY = event.touches[0].clientY;
-    gestureStartedAt = performance.now();
-    gestureIntent = false;
-  }
-
-  function handleTouchMove(event: TouchEvent) {
-    if (event.touches.length !== 1) return;
-    const dx = event.touches[0].clientX - gestureStartX;
-    const dy = event.touches[0].clientY - gestureStartY;
-    if (!gestureIntent) {
-      if (Math.abs(dy) > Math.abs(dx) + 4 || Math.abs(dx) < 10) return;
-      if (dx <= 0) return;
-      gestureIntent = true;
-    }
-    event.preventDefault();
-    onSwipeMove?.(dx);
-  }
-
-  function handleTouchEnd(event: TouchEvent) {
-    if (!gestureIntent) return;
-    const dx = event.changedTouches[0].clientX - gestureStartX;
-    const elapsed = Math.max(1, performance.now() - gestureStartedAt);
-    onSwipeEnd?.(dx, dx / elapsed);
-    gestureIntent = false;
+  function deactivate() {
+    if (!utilityActive) return;
+    utilityActive = false;
+    locationUnsubscribe?.();
+    locationUnsubscribe = null;
+    if (boardTimer) clearInterval(boardTimer);
+    boardTimer = null;
   }
 
   $effect(() => {
+    if (!utilityActive) return;
     if (settings.locationServicesEnabled) void loadInitialLocation();
     else {
       nearbyStops = [];
@@ -446,51 +260,56 @@
   });
 
   $effect(() => {
+    if (!utilityActive || view !== 'nearby') return;
     const position = location.position;
     if (position && settings.locationServicesEnabled) void loadNearby(position);
   });
 
   $effect(() => {
+    if (!utilityActive || view !== 'nearby') return;
     const stops = displayedStops;
     if (stops.length > 0) void loadPreviews(stops);
   });
 
   $effect(() => {
-    maplibregl;
-    mapEl;
-    location.position;
-    setupMap();
-  });
-
-  $effect(() => {
-    displayedStops;
-    selectedId;
-    boardStop;
-    location.position;
-    mapReady;
-    updateMarkers();
+    const stop = boardStop;
+    const boardActive = utilityActive && view === 'board' && Boolean(stop);
+    if (!boardActive || !stop) {
+      if (boardTimer) clearInterval(boardTimer);
+      boardTimer = null;
+      return;
+    }
+    if (loadedBoardStopId !== stop.id) {
+      loadedBoardStopId = stop.id;
+      boardDepartures = [];
+      boardGeneration += 1;
+      void loadDepartures(stop, true);
+    }
+    if (!boardTimer) {
+      boardTimer = setInterval(() => void loadDepartures(stop, true), 30000);
+    }
+    return () => {
+      if (boardTimer) clearInterval(boardTimer);
+      boardTimer = null;
+    };
   });
 
   onMount(() => {
-    locationUnsubscribe = subscribeToLocation((snapshot) => { location = snapshot; });
-    maplibreLoad.then((module) => {
-      module.setWorkerUrl(workerUrl);
-      maplibregl = module;
-    }).catch(() => { mapError = true; });
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    mounted = true;
+    activate();
+  });
+
+  $effect(() => {
+    if (preview) deactivate();
+    else activate();
   });
 
   onDestroy(() => {
-    locationUnsubscribe?.();
+    deactivate();
     if (searchTimer) clearTimeout(searchTimer);
     if (boardTimer) clearInterval(boardTimer);
-    try { mapInstance?.remove(); } catch { /* MapLibre cleanup is best effort. */ }
-    mapInstance = null;
   });
 </script>
-
-<svelte:window onkeydown={handleNearbyKeyDown} />
 
 {#snippet headerActions()}
   <div class="header-actions">
@@ -516,13 +335,13 @@
 <section
   class="nearby-surface"
   aria-label={t.nearby ?? 'Nära dig'}
-  ontouchstart={handleTouchStart}
-  ontouchmove={handleTouchMove}
-  ontouchend={handleTouchEnd}
+  aria-hidden={preview ? 'true' : undefined}
+  inert={preview}
 >
   {#if boardStop}
+    <div class="utility-panel board-panel" aria-hidden={preview || view !== 'board' ? 'true' : undefined} inert={preview || view !== 'board'}>
     <header class="nearby-topbar">
-      <button type="button" class="icon-button" onclick={requestBoardBack} aria-label={t.back ?? 'Tillbaka'}>
+      <button type="button" class="icon-button" onclick={onBoardBack} aria-label={t.back ?? 'Tillbaka'}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{boardStop.name}</h1></div>
@@ -535,7 +354,13 @@
       </div>
       {#if boardStop.coord}
         <div class="detail-map-shell">
-          <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatsen'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
+          <NearbyMap
+            active={!preview && view === 'board'}
+            {location}
+            {boardStop}
+            label={t.nearbyMap ?? 'Karta över hållplatsen'}
+            onError={() => { mapError = true; }}
+          />
           {#if location.position}<div class="map-route-label"><span class="route-dot user-dot"></span><span>{t.walkToStop ?? 'Gå till hållplats'}</span><strong>{walkingLabel(boardStop) || stopDistance(boardStop)}</strong></div>{:else}<div class="map-route-label"><span class="route-dot stop-dot"></span><span>{t.stopLocation ?? 'Hållplatsens läge'}</span></div>{/if}
         </div>
         <button type="button" class="directions-action" onclick={openDirections}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V5M12 5 6 11M12 5l6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>{t.navigateToStop ?? t.openInMaps ?? 'Vägbeskrivning'}</button>
@@ -567,7 +392,9 @@
         </div>
       {/if}
     </div>
-  {:else}
+    </div>
+  {/if}
+  <div class="utility-panel nearby-panel" aria-hidden={preview || view !== 'nearby' ? 'true' : undefined} inert={preview || view !== 'nearby'}>
     <header class="nearby-topbar">
       <button type="button" class="icon-button" onclick={onBack} aria-label={t.backToPages ?? 'Tillbaka till sidorna'}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -576,7 +403,15 @@
       {@render headerActions()}
     </header>
     <div class="map-wrap">
-      <div class="map-container" bind:this={mapEl} role="application" aria-label={t.nearbyMap ?? 'Karta över hållplatser i närheten'} ontouchstart={stopMapGesture} ontouchmove={stopMapGesture} ontouchend={stopMapGesture}></div>
+      <NearbyMap
+        active={!preview && view === 'nearby'}
+        {location}
+        stops={displayedStops}
+        {selectedId}
+        label={t.nearbyMap ?? 'Karta över hållplatser i närheten'}
+        onSelectStop={(stop) => scrollToStop(stop.id)}
+        onError={() => { mapError = true; }}
+      />
       <div class="map-location-status" class:ready={locationStatus.state === 'ready'} class:searching={locationStatus.state === 'searching'} class:blocked={locationStatus.state === 'blocked'} class:unavailable={locationStatus.state === 'unavailable'} role="status" aria-label={locationStatus.label} aria-live="polite">
         <span class="map-location-status-dot" aria-hidden="true"></span>
         <span>{locationStatus.label}</span>
@@ -617,13 +452,15 @@
         </div>
       {/if}
     </div>
-  {/if}
+  </div>
 </section>
 
 <MapViewer isOpen={showNetworkMap} onOpen={() => showNetworkMap = true} onClose={() => showNetworkMap = false} mapSrc={import.meta.env.BASE_URL + 'SL_railway_map.svg'} />
 
 <style>
-  .nearby-surface { height: 100%; min-height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text); }
+  .nearby-surface { position: relative; height: 100%; min-height: 100%; overflow: visible; background: var(--bg); color: var(--text); }
+  .utility-panel { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+  .board-panel { transform: translate3d(100%, 0, 0); }
   .nearby-topbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
   .icon-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
   .icon-button svg { width: 21px; height: 21px; }
@@ -639,7 +476,6 @@
   .sl-ticket-btn { display: none; }
   @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
   .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }
-  .map-container { position: absolute; inset: 0; }
   .map-location-status { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; max-width: calc(100% - 24px); padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--text); font-size: 11px; font-weight: 700; line-height: 1; }
   .map-location-status-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--text-muted); }
   .map-location-status.ready .map-location-status-dot, .map-location-status.searching .map-location-status-dot { background: #2563EB; }
@@ -648,14 +484,14 @@
   .map-overlay-copy { position: absolute; left: 16px; right: 16px; bottom: 16px; display: grid; gap: 4px; max-width: 250px; padding: 10px 12px; border: 1px solid rgba(23,23,23,.12); border-radius: 10px; background: rgba(255,255,255,.9); color: #171717; }
   .map-overlay-copy span { font-size: 12px; font-weight: 650; }.map-overlay-copy strong { font-size: 13px; line-height: 1.3; }
   .map-fallback { position: absolute; inset: auto 12px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }
-  .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
   .search-wrap { padding: 12px 16px 8px; }.search-wrap label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .search-field { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }.search-field svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--text-secondary); }.search-field input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
   .location-prompt { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; margin: 0 16px 10px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--accent-subtle); color: var(--accent); }.prompt-icon svg { width: 20px; height: 20px; }.prompt-copy { display: grid; gap: 2px; min-width: 0; }.prompt-copy strong { font-size: 13px; }.prompt-copy span { color: var(--text-secondary); font-size: 11px; line-height: 1.3; }.primary-action { grid-column: 2; justify-self: start; min-height: 38px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-size: 13px; font-weight: 700; }
   .station-section-heading { display: flex; align-items: baseline; gap: 8px; padding: 4px 16px 8px; }.station-section-heading h2 { margin: 0; font-size: 15px; font-weight: 750; }.station-section-heading span { color: var(--text-secondary); font-size: 12px; }
   .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 78px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main > span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: grid; gap: 0; min-width: 0; color: var(--text); }.station-main .muted { color: var(--text-muted); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
   .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 14px; }.state-panel button { min-height: 40px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
-  .board-summary { display: flex; align-items: end; gap: 18px; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.detail-map-shell .map-container { position: absolute; inset: 0; }.map-route-label { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 20px); padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-route-label strong { margin-left: auto; color: var(--text); font-size: 12px; }.route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }.user-dot { background: #2563EB; }.stop-dot { background: var(--text); }
+  .board-summary { display: flex; align-items: end; gap: 18px; flex: 0 0 auto; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; min-height: 210px; flex: 0 0 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.map-route-label { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; max-width: calc(100% - 20px); padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-route-label strong { margin-left: auto; color: var(--text); font-size: 12px; }.route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }.user-dot { background: #2563EB; }.stop-dot { background: var(--text); }
   .station-board-departure { display: block; min-height: 0; padding: 0; overflow: hidden; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }.departure-skeleton { min-height: 110px; }
   .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }
   @keyframes nearby-shimmer { 50% { opacity: .45; } }

@@ -38,7 +38,7 @@ test.describe("Nästa Resilience & Edge Cases", () => {
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
 
     // Verify app loads without crash
-    const routeHeader = page.locator("h1.page-title");
+    const routeHeader = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
     await expect(routeHeader).toBeVisible({ timeout: 10000 });
 
     // The migration happens in loadRoutes() which is called during store init.

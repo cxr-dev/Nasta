@@ -16,6 +16,7 @@
   let locale = $derived(getLocale());
   import { transitService } from './providers/init';
   import type { Segment, Stop, TransportType, SegmentDirection } from './types/page';
+  import type { TransitStopSearchResult } from './providers/types';
   import { DEFAULT_JOURNEY_ROUTE_TYPE } from './services/journeyService';
   
 
@@ -40,7 +41,23 @@
   import type { Departure } from './stores/departureStore.svelte';
   import type { SegmentHealth, StationAlert } from './types/deviation';
   import { plusIcon, settingsGear } from './icons/departureIcons';
-  import { nearbyDragProgress, shouldCompleteNearbySwipe } from './lib/nearbyNavigation';
+  import {
+    pageSwipeIntent,
+    pageSwipeOffset,
+    recentVelocity,
+    springSettled,
+    springStep,
+    shouldCompletePageSwipe,
+    type PageSwipeIntent,
+    type PageSwipeSample,
+  } from './lib/pageSwipe';
+  import {
+    buildDeckDestinations,
+    deckDestinationIndex,
+    parseDeckHistory,
+    serializeDeckHistory,
+    type DeckDestination,
+  } from './lib/deckNavigation';
 
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
@@ -91,22 +108,31 @@
   const PAGE_INDICATOR_DURATION = 1400;
   let pageIndicatorVisible = $state(false);
   let pageIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
-  let nearbyCloseTimer: ReturnType<typeof setTimeout> | null = null;
-  let nearbyOffset = $state(100);
-  let nearbyDragging = $state(false);
-  let nearbyEntryActive = false;
-  let nearbyGestureStartedAt = 0;
-  let nearbyHistoryActive = false;
-  let nearbyClosingFromHistory = false;
+  let nearbyViewportEl = $state<HTMLElement | null>(null);
   let mainEl = $state<HTMLElement | null>(null);
   // PTR icon spring entrance
   let ptrSpinnerEl = $state<HTMLDivElement | undefined>();
   let ptrIconEl = $state<SVGSVGElement | undefined>();
-  // Page swipe transition
+  // Interruptible page deck
   let isTransitioning = $state(false);
-  let transitionDirection: 'left' | 'right' = 'left';
-  let pageContentEl = $state<HTMLDivElement | undefined>();
-  let prevPageId: string | null = null;
+  let pageSwipeDragging = $state(false);
+  let pageSwipeSettling = $state(false);
+  let deckWidth = 390;
+  let deckOffset = 0;
+  let deckVelocity = 0;
+  let deckFrame: number | null = null;
+  let deckLastFrameAt = 0;
+  let deckTargetPosition: number | null = null;
+  let deckCommitTarget: number | null = null;
+  let pointerId: number | null = null;
+  let pointerIntent: PageSwipeIntent = 'pending';
+  let pointerEligible = false;
+  let pointerSamples: PageSwipeSample[] = [];
+  let suppressNextClick = false;
+  let suppressClickTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingHistoryMode: 'auto' | 'none' | 'replace' = 'auto';
+  let navigationStartPosition = 0;
+  const deckSlotElements = new Map<string, HTMLElement>();
 
   let page = $derived(getActivePage());
   let pages = $derived(getPages());
@@ -118,7 +144,21 @@
   let deviationStationAlerts = $state<StationAlert[]>([]);
   let hour = $derived(getTimeOfDay().hour);
   let startupReady = $state(false);
-  let showNearby = $state(false);
+  let utilityView = $state<'pages' | 'nearby' | 'board'>('pages');
+  let retainedBoardStop = $state<TransitStopSearchResult | null>(null);
+  let nearbyVisited = $state(false);
+  let showNearby = $derived(utilityView !== 'pages');
+  let deckDestinations = $derived(buildDeckDestinations(
+    pages.map((candidate) => candidate.id),
+    retainedBoardStop?.id ?? null,
+  ));
+  let deckPageSlots = $derived.by(() => {
+    const current = activeDeckPosition();
+    return [current - 1, current, current + 1]
+      .filter((position) => position >= 0 && position < pages.length)
+      .map((position) => ({ page: pages[position], relative: position - current }));
+  });
+  let nearbyMounted = $derived(showNearby || nearbyVisited);
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -487,84 +527,224 @@
     if (result.shouldRefresh) void refreshSavedJourneys(page, true);
   }
 
-  async function handlePageSwitch(pageId: string) {
-    if (isTransitioning) return;
-    const currentPage = getActivePage();
-    if (!currentPage) return;
-    if (import.meta.env.DEV) console.log(`[App] handlePageSwitch: ${currentPage.id} -> ${pageId}`);
-    const allPages = getPages();
-    const currentIdx = allPages.findIndex(p => p.id === currentPage.id);
-    const nextIdx = allPages.findIndex(p => p.id === pageId);
-    transitionDirection = nextIdx > currentIdx ? 'left' : 'right';
-    await performPageTransition(pageId);
+  function activeDeckPosition() {
+    const destination = activeDeckDestination();
+    const position = deckDestinationIndex(deckDestinations, destination);
+    return Math.max(0, position);
   }
 
-  function openNearby() {
-    if (hasNoRoutes) return;
-    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
-    showNearby = true;
-    if (!nearbyHistoryActive) {
-      const state = history.state && typeof history.state === 'object' ? history.state : {};
-      history.pushState({ ...state, nastaNearby: true }, '', window.location.href);
-      nearbyHistoryActive = true;
+  function activeDeckDestination(): DeckDestination {
+    if (utilityView === 'board' && retainedBoardStop) {
+      return { kind: 'board', stopId: retainedBoardStop.id };
     }
-    nearbyDragging = false;
-    nearbyOffset = 100;
-    departureStore.stopAutoRefresh();
-    deviationStore.stopAutoRefresh();
-    requestAnimationFrame(() => {
-      if (showNearby && !nearbyDragging) nearbyOffset = 0;
+    if (utilityView === 'nearby') return { kind: 'nearby' };
+    return { kind: 'page', pageId: getActivePageId() ?? getPages()[0]?.id ?? '' };
+  }
+
+  function pagePosition(pageId: string) {
+    return getPages().findIndex((candidate) => candidate.id === pageId);
+  }
+
+  function deckSlotStyle(relative: number) {
+    return relative === 0 ? 'transform: none;' : `transform: translate3d(${relative * deckWidth}px, 0, 0);`;
+  }
+
+  function measureDeckWidth() {
+    return mainEl?.clientWidth || scrollContainer?.clientWidth || deckWidth || 390;
+  }
+
+  function setDeckSlot(pageId: string, element: HTMLElement | null) {
+    if (element) deckSlotElements.set(pageId, element);
+    else deckSlotElements.delete(pageId);
+  }
+
+  function deckSlot(element: HTMLElement, pageId: string) {
+    setDeckSlot(pageId, element);
+    return {
+      update(nextPageId: string) {
+        if (nextPageId === pageId) return;
+        setDeckSlot(pageId, null);
+        pageId = nextPageId;
+        setDeckSlot(pageId, element);
+      },
+      destroy() {
+        setDeckSlot(pageId, null);
+      },
+    };
+  }
+
+  function applyDeckTransforms() {
+    const current = activeDeckPosition();
+    for (const [pageId, element] of deckSlotElements) {
+      const position = pagePosition(pageId);
+      const offset = (position - current) * deckWidth + deckOffset;
+      element.style.transform = offset === 0 ? 'none' : `translate3d(${offset}px, 0, 0)`;
+    }
+    if (nearbyViewportEl) {
+      const offset = (getPages().length - current) * deckWidth + deckOffset;
+      nearbyViewportEl.style.transform = offset === 0 ? 'none' : `translate3d(${offset}px, 0, 0)`;
+    }
+  }
+
+  function renderDeckOffset(offset: number) {
+    deckOffset = offset;
+    if (deckFrame !== null) return;
+    deckFrame = requestAnimationFrame(() => {
+      deckFrame = null;
+      applyDeckTransforms();
     });
   }
 
-  function finishNearbyClose(skipHistory = false) {
-    showNearby = false;
-    nearbyCloseTimer = null;
-    if (!skipHistory && nearbyHistoryActive) {
-      nearbyHistoryActive = false;
+  function applyDestination(destination: DeckDestination) {
+    if (destination.kind === 'page') {
+      utilityView = 'pages';
+      pageSetActivePage(destination.pageId);
+      void loadDepartures();
+      return;
+    }
+    nearbyVisited = true;
+    utilityView = destination.kind;
+    departureStore.stopAutoRefresh();
+    deviationStore.stopAutoRefresh();
+  }
+
+  function syncDeckHistory(sourcePosition: number, targetPosition: number) {
+    if (pendingHistoryMode === 'none') return;
+    const destination = deckDestinations[targetPosition];
+    const source = deckDestinations[sourcePosition];
+    if (!destination) return;
+    if (pendingHistoryMode === 'replace' || destination.kind === 'page') {
+      history.replaceState(serializeDeckHistory(history.state, destination), '', window.location.href);
+      return;
+    }
+    if (targetPosition > sourcePosition) {
+      history.pushState(serializeDeckHistory(history.state, destination), '', window.location.href);
+    } else if (source?.kind !== 'page') {
       history.back();
     }
-    void loadDepartures();
   }
 
-  function closeNearby(fromHistory = false) {
-    if (!showNearby) return;
-    nearbyClosingFromHistory = fromHistory;
-    nearbyDragging = false;
-    nearbyOffset = 100;
-    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
-    nearbyCloseTimer = setTimeout(() => {
-      finishNearbyClose(nearbyClosingFromHistory);
-      nearbyClosingFromHistory = false;
-    }, 190);
-  }
+  function completeDeckSettle() {
+    const commitTarget = deckCommitTarget;
+    const sourcePosition = navigationStartPosition;
+    deckFrame = null;
+    deckOffset = 0;
+    deckVelocity = 0;
+    deckTargetPosition = null;
+    deckCommitTarget = null;
+    pageSwipeDragging = false;
+    pageSwipeSettling = false;
+    isTransitioning = false;
 
-  function handleNearbyPopState(event: PopStateEvent) {
-    if (!showNearby || !nearbyHistoryActive) return;
-    const state = event.state as { nastaNearby?: boolean; nastaNearbyBoard?: string } | null;
-    if (state?.nastaNearby || state?.nastaNearbyBoard) return;
-    nearbyHistoryActive = false;
-    closeNearby(true);
-  }
-
-  function nearbyWidth() {
-    return mainEl?.clientWidth || 480;
-  }
-
-  function handleNearbySwipeMove(deltaX: number) {
-    if (!showNearby) return;
-    nearbyDragging = true;
-    const progress = nearbyDragProgress(-deltaX, nearbyWidth());
-    nearbyOffset = 100 - progress * 100;
-  }
-
-  function handleNearbySwipeEnd(deltaX: number, velocityX: number) {
-    if (!showNearby) return;
-    if (shouldCompleteNearbySwipe(-deltaX, -velocityX, nearbyWidth())) closeNearby();
-    else {
-      nearbyDragging = false;
-      nearbyOffset = 100;
+    if (commitTarget !== null) {
+      const destination = deckDestinations[commitTarget];
+      if (destination) {
+        applyDestination(destination);
+        syncDeckHistory(sourcePosition, commitTarget);
+      }
     }
+    pendingHistoryMode = 'auto';
+    requestAnimationFrame(() => applyDeckTransforms());
+    showPageIndicator();
+  }
+
+  function runDeckSpring(now: number) {
+    const elapsed = Math.min(32, Math.max(1, now - deckLastFrameAt));
+    deckLastFrameAt = now;
+    const target = deckTargetPosition === null ? 0 : -Math.sign(deckTargetPosition - activeDeckPosition()) * deckWidth;
+    ({ position: deckOffset, velocity: deckVelocity } = springStep(deckOffset, deckVelocity, target, elapsed));
+    applyDeckTransforms();
+    if (springSettled(deckOffset, deckVelocity, target)) {
+      deckOffset = target;
+      applyDeckTransforms();
+      completeDeckSettle();
+      return;
+    }
+    deckFrame = requestAnimationFrame(runDeckSpring);
+  }
+
+  function settleDeck(commit: boolean, targetPosition: number | null, velocity = 0) {
+    const reducedMotion = typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const validCommit = commit && targetPosition !== null;
+    if (reducedMotion) {
+      deckCommitTarget = validCommit ? targetPosition : null;
+      completeDeckSettle();
+      return;
+    }
+    isTransitioning = true;
+    pageSwipeDragging = false;
+    pageSwipeSettling = true;
+    deckCommitTarget = validCommit ? targetPosition : null;
+    deckTargetPosition = validCommit ? targetPosition : null;
+    deckVelocity = velocity;
+    deckLastFrameAt = performance.now();
+    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
+    deckFrame = requestAnimationFrame(runDeckSpring);
+  }
+
+  function cancelDeckSettle() {
+    if (!pageSwipeSettling) return;
+    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
+    deckFrame = null;
+    deckTargetPosition = null;
+    deckCommitTarget = null;
+    pageSwipeSettling = false;
+    isTransitioning = false;
+  }
+
+  function navigateDeckTo(position: number, historyMode: 'auto' | 'none' | 'replace' = 'auto') {
+    const current = activeDeckPosition();
+    if (position < 0 || position >= deckDestinations.length || position === current) return;
+    deckWidth = measureDeckWidth();
+    navigationStartPosition = current;
+    pendingHistoryMode = historyMode;
+    if (Math.abs(position - current) > 1) {
+      const destination = deckDestinations[position];
+      if (destination) {
+        applyDestination(destination);
+        syncDeckHistory(current, position);
+      }
+      pendingHistoryMode = 'auto';
+      requestAnimationFrame(() => applyDeckTransforms());
+      showPageIndicator();
+      return;
+    }
+    if (position >= getPages().length) nearbyVisited = true;
+    settleDeck(true, position);
+  }
+
+  function handlePageSwitch(pageId: string) {
+    const target = pagePosition(pageId);
+    if (target >= 0) navigateDeckTo(target);
+  }
+
+  function navigateDeckBy(direction: -1 | 1) {
+    navigateDeckTo(activeDeckPosition() + direction);
+  }
+
+  function closeNearby() {
+    if (utilityView === 'nearby') navigateDeckBy(-1);
+  }
+
+  function closeBoard() {
+    if (utilityView === 'board') navigateDeckBy(-1);
+  }
+
+  async function handleStationSelection(stop: TransitStopSearchResult) {
+    retainedBoardStop = stop;
+    nearbyVisited = true;
+    await tick();
+    const target = deckDestinationIndex(deckDestinations, { kind: 'board', stopId: stop.id });
+    if (target >= 0) navigateDeckTo(target);
+  }
+
+  function handleDeckPopState(event: PopStateEvent) {
+    clearClickSuppression();
+    const destination = parseDeckHistory(event.state);
+    if (!destination) return;
+    const position = deckDestinationIndex(deckDestinations, destination);
+    if (position >= 0) navigateDeckTo(position, 'none');
   }
 
   function showPageIndicator() {
@@ -583,55 +763,10 @@
     pageIndicatorTimer = null;
   }
 
-  async function performPageTransition(nextPageId: string) {
-    const rm = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!pageContentEl || rm) {
-      pageSetActivePage(nextPageId);
-      showPageIndicator();
-      return;
-    }
-
-    isTransitioning = true;
-    const dir = transitionDirection === 'left' ? -1 : 1;
-    gsap.set(pageContentEl!, { willChange: 'transform, opacity' });
-
-    // Exit: slide out
-    await new Promise<void>(resolve => {
-      gsap.to(pageContentEl!, {
-        x: dir * 16,
-        opacity: 0,
-        duration: 0.1,
-        ease: 'power2.in',
-        overwrite: 'auto',
-        onComplete: resolve,
-      });
-    });
-
-    // Switch page data
-    prevPageId = getActivePage()?.id ?? null;
-    pageSetActivePage(nextPageId);
-    await tick();
-
-    // Enter: slide in from opposite side
-    if (pageContentEl) {
-      gsap.set(pageContentEl!, { x: dir * -16, opacity: 0 });
-      await new Promise<void>(resolve => {
-        gsap.to(pageContentEl!, {
-          x: 0,
-          opacity: 1,
-          duration: 0.18,
-          ease: 'power3.out',
-          overwrite: 'auto',
-          onComplete: () => {
-            gsap.set(pageContentEl!, { clearProps: 'transform,opacity,willChange' });
-            resolve();
-          },
-        });
-      });
-    }
-
-    isTransitioning = false;
-    showPageIndicator();
+  function pageSwipeIsExcludedTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && Boolean(target.closest(
+      'a, input, textarea, select, [contenteditable="true"], [data-no-page-swipe], .map-viewer, .map-preview, .segment-swipe-container, .drag-handle, .directions-action, .header-actions, .icon-button, button:not(.card-main):not(.station-card), [role="button"]:not(.card-main):not(.station-card)',
+    ));
   }
 
   function openSegmentPanels(segment: Segment) {
@@ -766,35 +901,64 @@ function closeSettingsPanel() {
   loadDepartures();
 }
 
-  function handleTouchStart(e: TouchEvent) {
-    if (editing) return;
-    if (e.touches.length !== 1) return;
-    swipeStartX = e.touches[0].clientX;
-    swipeStartY = e.touches[0].clientY;
-    nearbyGestureStartedAt = performance.now();
-    nearbyEntryActive = false;
+  function clearClickSuppression() {
+    suppressNextClick = false;
+    if (suppressClickTimer) clearTimeout(suppressClickTimer);
+    suppressClickTimer = null;
+  }
+
+  function armClickSuppression() {
+    clearClickSuppression();
+    suppressNextClick = true;
+    suppressClickTimer = setTimeout(clearClickSuppression, 500);
+  }
+
+  function handlePointerDown(event: PointerEvent) {
+    if (event.pointerType !== 'touch' || editing || isRefreshing) return;
+    clearClickSuppression();
+    cancelDeckSettle();
+    pointerId = event.pointerId;
+    swipeStartX = event.clientX;
+    swipeStartY = event.clientY;
+    deckWidth = measureDeckWidth();
+    pointerIntent = 'pending';
+    pointerEligible = !pageSwipeIsExcludedTarget(event.target);
+    pointerSamples = [{ x: 0, time: performance.now() }];
     pullTriggered = false;
   }
 
-  function handleTouchMove(e: TouchEvent) {
-    if (editing || isRefreshing) return;
-    if (showNearby) return;
-    const dy = e.touches[0].clientY - swipeStartY;
-    const dx = e.touches[0].clientX - swipeStartX;
-    if (!showNearby && getPages().length > 0) {
-      const currentIdx = getPages().findIndex((item) => item.id === getActivePageId());
-      const isFirstPage = currentIdx === 0;
-      if (isFirstPage && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
-        nearbyEntryActive = true;
-        if (!showNearby) {
-          openNearby();
-          nearbyDragging = true;
-          nearbyOffset = 100;
+  function handlePointerMove(event: PointerEvent) {
+    if (event.pointerId !== pointerId || editing || isRefreshing) return;
+    const dx = event.clientX - swipeStartX;
+    const dy = event.clientY - swipeStartY;
+    if (pointerIntent === 'pending') {
+      pointerIntent = pageSwipeIntent(dx, dy);
+      if (pointerIntent === 'horizontal' && !pointerEligible) pointerIntent = 'vertical';
+      if (pointerIntent === 'horizontal') {
+        pageSwipeDragging = true;
+        armClickSuppression();
+        try {
+          mainEl?.setPointerCapture(event.pointerId);
+        } catch {
+          // Synthetic pointer events have no browser-owned pointer to capture.
         }
-        nearbyOffset = (1 - nearbyDragProgress(dx, nearbyWidth())) * 100;
-        return;
       }
     }
+
+    if (pointerIntent === 'horizontal') {
+      event.preventDefault();
+      pointerSamples.push({ x: dx, time: performance.now() });
+      if (pointerSamples.length > 8) pointerSamples.shift();
+      const direction = dx < 0 ? 1 : -1;
+      const target = activeDeckPosition() + direction;
+      const hasTarget = target >= 0 && target < deckDestinations.length;
+      if (target >= getPages().length) nearbyVisited = true;
+      renderDeckOffset(pageSwipeOffset(dx, hasTarget, deckWidth));
+      return;
+    }
+
+    if (pointerIntent !== 'vertical') return;
+    clearClickSuppression();
     const atTop = !scrollContainer || scrollContainer.scrollTop === 0;
     if (atTop && dy > 0 && dy > Math.abs(dx) * 1.2) {
       pullDistance = Math.min(dy * 0.55, PULL_MAX);
@@ -803,66 +967,59 @@ function closeSettingsPanel() {
     }
   }
 
-  function handleTouchCancel() {
+  function resetPointer() {
+    pointerId = null;
+    pointerEligible = false;
+    pointerIntent = 'pending';
+    pointerSamples = [];
     swipeStartX = 0;
     swipeStartY = 0;
-    pullDistance = 0;
-    pullTriggered = false;
-    if (nearbyEntryActive) {
-      nearbyEntryActive = false;
-      closeNearby();
-    }
   }
 
-  async function handleTouchEnd(e: TouchEvent) {
-    if (editing) return;
-    const dx = e.changedTouches[0].clientX - swipeStartX;
-    const dy = e.changedTouches[0].clientY - swipeStartY;
-    const elapsed = Math.max(1, performance.now() - nearbyGestureStartedAt);
-    const velocityX = dx / elapsed;
+  function handlePointerCancel(event: PointerEvent) {
+    if (event.pointerId !== pointerId) return;
+    if (pageSwipeDragging) settleDeck(false, null, 0);
+    pullDistance = 0;
+    pullTriggered = false;
+    clearClickSuppression();
+    resetPointer();
+  }
 
-    if (nearbyEntryActive) {
-      nearbyEntryActive = false;
-      if (shouldCompleteNearbySwipe(dx, velocityX, nearbyWidth())) {
-        nearbyDragging = false;
-        nearbyOffset = 0;
-      } else {
-        closeNearby();
-      }
+  async function handlePointerUp(event: PointerEvent) {
+    if (event.pointerId !== pointerId) return;
+    const dx = event.clientX - swipeStartX;
+    const dy = event.clientY - swipeStartY;
+    if (pointerIntent === 'horizontal') {
+      pointerSamples.push({ x: dx, time: performance.now() });
+      const velocity = recentVelocity(pointerSamples);
+      const direction = dx < 0 ? 1 : -1;
+      const target = activeDeckPosition() + direction;
+      const hasTarget = target >= 0 && target < deckDestinations.length;
+      const shouldCommit = hasTarget && shouldCompletePageSwipe(deckOffset, velocity, deckWidth);
+      if (shouldCommit) markSwiped();
+      navigationStartPosition = activeDeckPosition();
+      pendingHistoryMode = 'auto';
+      settleDeck(shouldCommit, hasTarget ? target : null, velocity);
+      resetPointer();
       return;
     }
 
-    if (showNearby) return;
-
-    // Pull-to-refresh takes priority over horizontal swipe
-    if (pullDistance >= PULL_THRESHOLD) {
+    if (pointerIntent === 'vertical' && pullDistance >= PULL_THRESHOLD) {
       pullTriggered = true;
       pullDistance = 0;
+      resetPointer();
       await triggerManualRefresh();
       return;
     }
-
-    if (pullDistance > 0) {
-      pullDistance = 0;
-      return;
-    }
     pullDistance = 0;
+    resetPointer();
+  }
 
-    if (isTransitioning) return;
-    if (Math.abs(dy) > Math.abs(dx)) return;
-    if (Math.abs(dx) < 48) return;
-
-    const allPages = getPages();
-    if (allPages.length === 0) return;
-    const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
-    if (dx < 0 && currentIdx < allPages.length - 1) {
-      handlePageSwitch(allPages[currentIdx + 1].id);
-    } else if (dx > 0 && currentIdx > 0) {
-      handlePageSwitch(allPages[currentIdx - 1].id);
-    }
-    if (!settings.hasSwipedRoutes) {
-      markSwiped();
-    }
+  function handleDeckClick(event: MouseEvent) {
+    if (!suppressNextClick) return;
+    clearClickSuppression();
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   async function triggerManualRefresh() {
@@ -943,7 +1100,13 @@ function closeSettingsPanel() {
     consumeShareHash();
     const handleHashChange = () => consumeShareHash();
     window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('popstate', handleNearbyPopState);
+    window.addEventListener('popstate', handleDeckPopState);
+    const initialDestination = activeDeckDestination();
+    history.replaceState(
+      serializeDeckHistory(history.state, initialDestination),
+      '',
+      window.location.href,
+    );
     // pageStore.syncFromRoutes() is called automatically on creation
 
     // pageStore handles active page initialization; the page-id effect starts
@@ -983,7 +1146,7 @@ function closeSettingsPanel() {
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', handleNearbyPopState);
+      window.removeEventListener('popstate', handleDeckPopState);
       unsub();
       unsubDeviations();
       unsubscribeLifecycle();
@@ -994,32 +1157,24 @@ function closeSettingsPanel() {
   function handleKeyDown(e: KeyboardEvent) {
     if (editing) return;
 
-    if (showNearby) {
-      return;
-    }
-
     // Ignore if typing in an input, textarea, or contenteditable
     const activeEl = document.activeElement;
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
       return;
     }
 
-    if (isTransitioning) return;
-    const allPages = getPages();
-    if (allPages.length === 0) return;
-
-    const currentIdx = allPages.findIndex(p => p.id === getActivePageId());
-
     if (e.key === 'ArrowRight') {
-      if (currentIdx < allPages.length - 1) {
-        handlePageSwitch(allPages[currentIdx + 1].id);
-      }
+      clearClickSuppression();
+      e.preventDefault();
+      navigateDeckBy(1);
     } else if (e.key === 'ArrowLeft') {
-      if (currentIdx > 0) {
-        handlePageSwitch(allPages[currentIdx - 1].id);
-      } else if (currentIdx === 0) {
-        openNearby();
-      }
+      clearClickSuppression();
+      e.preventDefault();
+      navigateDeckBy(-1);
+    } else if (e.key === 'Escape' && showNearby) {
+      clearClickSuppression();
+      e.preventDefault();
+      navigateDeckBy(-1);
     }
   }
 
@@ -1031,8 +1186,9 @@ function closeSettingsPanel() {
     if (snackbarTimer) clearTimeout(snackbarTimer);
     if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
     if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
-    if (nearbyCloseTimer) clearTimeout(nearbyCloseTimer);
-    window.removeEventListener('popstate', handleNearbyPopState);
+    if (suppressClickTimer) clearTimeout(suppressClickTimer);
+    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
+    window.removeEventListener('popstate', handleDeckPopState);
   });
 </script>
 
@@ -1042,10 +1198,11 @@ function closeSettingsPanel() {
   <main
     id="main-content"
     bind:this={mainEl}
-    ontouchstart={handleTouchStart}
-    ontouchmove={handleTouchMove}
-    ontouchend={handleTouchEnd}
-    ontouchcancel={handleTouchCancel}
+    onpointerdown={handlePointerDown}
+    onpointermove={handlePointerMove}
+    onpointerup={handlePointerUp}
+    onpointercancel={handlePointerCancel}
+    onclickcapture={handleDeckClick}
   >
     <div
       class="pull-indicator"
@@ -1077,9 +1234,9 @@ function closeSettingsPanel() {
     {/if}
 
     <div class="scroll-container" bind:this={scrollContainer} onscroll={hidePageIndicator}>
-      {#key activePageId}
-        <div bind:this={pageContentEl} class="page-transition-inner">
-          {#if hasNoRoutes}
+      <div class="page-deck">
+        {#if hasNoRoutes}
+          <div class="page-transition-inner page-slot">
             <header class="empty-page-chrome">
               <h1 class="empty-page-title">Nästa</h1>
               <div class="empty-header-actions">
@@ -1103,9 +1260,21 @@ function closeSettingsPanel() {
                 <span>{t.addSegment}</span>
               </button>
             </div>
-          {:else if page}
+          </div>
+        {:else}
+          {#each deckPageSlots as slot (slot.page.id)}
+            <div
+              class="page-transition-inner page-slot"
+              class:page-slot-preview={slot.relative !== 0 || showNearby}
+              class:deck-moving={pageSwipeDragging || pageSwipeSettling}
+              style={deckSlotStyle(slot.relative)}
+              aria-hidden={slot.relative !== 0 || showNearby ? 'true' : undefined}
+              inert={slot.relative !== 0 || showNearby}
+              use:deckSlot={slot.page.id}
+            >
             <SegmentDepartures
-              page={page}
+              page={slot.page}
+              preview={slot.relative !== 0 || showNearby}
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
@@ -1118,26 +1287,32 @@ function closeSettingsPanel() {
               onSavedCardAction={handleSavedCardAction}
               onMoveSegment={handleMoveSegment}
             />
-          {/if}
-        </div>
-      {/key}
+            </div>
+          {/each}
+        {/if}
+      </div>
 
     </div>
 
-    {#if showNearby}
+    {#if nearbyMounted}
       <div
         class="nearby-viewport"
-        class:dragging={nearbyDragging}
-        style={`transform: translate3d(${nearbyOffset}%, 0, 0)`}
-        aria-hidden={nearbyOffset >= 100}
+        class:deck-moving={pageSwipeDragging || pageSwipeSettling}
+        bind:this={nearbyViewportEl}
+        style={deckSlotStyle(getPages().length - activeDeckPosition())}
+        aria-hidden={showNearby ? undefined : 'true'}
+        inert={!showNearby}
       >
         {#await import('./components/NearbySurface.svelte') then { default: NearbySurface }}
           <NearbySurface
             onBack={() => closeNearby()}
+            onBoardBack={() => closeBoard()}
+            onSelectStation={handleStationSelection}
             onEditToggle={toggleEdit}
             onOpenSettings={openSettingsPanel}
-            onSwipeMove={handleNearbySwipeMove}
-            onSwipeEnd={handleNearbySwipeEnd}
+            boardStop={retainedBoardStop}
+            view={utilityView === 'board' ? 'board' : 'nearby'}
+            preview={!showNearby}
           />
         {/await}
       </div>
@@ -1387,7 +1562,7 @@ function closeSettingsPanel() {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    touch-action: manipulation; /* pan + pinch-zoom; JS handles PTR + swipe */
+    touch-action: pan-y pinch-zoom;
     background: var(--bg);
   }
 
@@ -1430,6 +1605,7 @@ function closeSettingsPanel() {
     background: var(--bg);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    touch-action: pan-y pinch-zoom;
     padding: 0 var(--page-gutter) 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -1444,6 +1620,30 @@ function closeSettingsPanel() {
     min-height: 100%;
     display: flex;
     flex-direction: column;
+  }
+
+  .page-deck {
+    position: relative;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  .page-slot {
+    transform: none;
+  }
+
+  .page-slot-preview {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .deck-moving {
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .deck-moving { will-change: auto; }
   }
 
   .page-dot-indicator {
@@ -1565,18 +1765,6 @@ function closeSettingsPanel() {
     width: 100%;
     background: var(--bg);
     transform: translate3d(100%, 0, 0);
-    transition: transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: transform;
-  }
-
-  .nearby-viewport.dragging {
-    transition: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .nearby-viewport {
-      transition: none;
-    }
   }
 
   .nearby-dot {
