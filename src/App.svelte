@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { on } from 'svelte/events';
   import gsap from 'gsap';
   import { getActivePage, getActivePageId, getPages, setActivePage as pageSetActivePage, createPage, addSegment as storeAddSegment, updateSegment, moveSegment, removeSegmentWithSnapshot, restoreSegment, type RemovedSegmentSnapshot } from './stores/pageStore.svelte';
   import { parseShareHash, type ShareIntent } from './lib/shareModel';
@@ -124,10 +125,10 @@
   let deckLastFrameAt = 0;
   let deckTargetPosition: number | null = null;
   let deckCommitTarget: number | null = null;
-  let pointerId: number | null = null;
-  let pointerIntent: PageSwipeIntent = 'pending';
-  let pointerEligible = false;
-  let pointerSamples: PageSwipeSample[] = [];
+  let touchIdentifier: number | null = null;
+  let touchIntent: PageSwipeIntent = 'pending';
+  let touchEligible = false;
+  let touchSamples: PageSwipeSample[] = [];
   let suppressNextClick = false;
   let suppressClickTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingHistoryMode: 'auto' | 'none' | 'replace' = 'auto';
@@ -913,42 +914,57 @@ function closeSettingsPanel() {
     suppressClickTimer = setTimeout(clearClickSuppression, 500);
   }
 
-  function handlePointerDown(event: PointerEvent) {
-    if (event.pointerType !== 'touch' || editing || isRefreshing) return;
+  function handleTouchStart(event: TouchEvent) {
+    if (editing || isRefreshing) return;
+    if (event.touches.length !== 1) {
+      cancelTouchGesture();
+      return;
+    }
+    const touch = event.touches[0];
     clearClickSuppression();
     cancelDeckSettle();
-    pointerId = event.pointerId;
-    swipeStartX = event.clientX;
-    swipeStartY = event.clientY;
+    touchIdentifier = touch.identifier;
+    swipeStartX = touch.clientX;
+    swipeStartY = touch.clientY;
     deckWidth = measureDeckWidth();
-    pointerIntent = 'pending';
-    pointerEligible = !pageSwipeIsExcludedTarget(event.target);
-    pointerSamples = [{ x: 0, time: performance.now() }];
+    touchIntent = 'pending';
+    touchEligible = !pageSwipeIsExcludedTarget(event.target);
+    touchSamples = [{ x: 0, time: performance.now() }];
     pullTriggered = false;
   }
 
-  function handlePointerMove(event: PointerEvent) {
-    if (event.pointerId !== pointerId || editing || isRefreshing) return;
-    const dx = event.clientX - swipeStartX;
-    const dy = event.clientY - swipeStartY;
-    if (pointerIntent === 'pending') {
-      pointerIntent = pageSwipeIntent(dx, dy);
-      if (pointerIntent === 'horizontal' && !pointerEligible) pointerIntent = 'vertical';
-      if (pointerIntent === 'horizontal') {
+  function trackedTouch(touches: TouchList): Touch | null {
+    if (touchIdentifier === null) return null;
+    for (let index = 0; index < touches.length; index += 1) {
+      const touch = touches[index];
+      if (touch.identifier === touchIdentifier) return touch;
+    }
+    return null;
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (editing || isRefreshing) return;
+    if (event.touches.length !== 1) {
+      cancelTouchGesture();
+      return;
+    }
+    const touch = trackedTouch(event.touches);
+    if (!touch) return;
+    const dx = touch.clientX - swipeStartX;
+    const dy = touch.clientY - swipeStartY;
+    if (touchIntent === 'pending') {
+      touchIntent = pageSwipeIntent(dx, dy);
+      if (touchIntent === 'horizontal' && !touchEligible) touchIntent = 'vertical';
+      if (touchIntent === 'horizontal') {
         pageSwipeDragging = true;
         armClickSuppression();
-        try {
-          mainEl?.setPointerCapture(event.pointerId);
-        } catch {
-          // Synthetic pointer events have no browser-owned pointer to capture.
-        }
       }
     }
 
-    if (pointerIntent === 'horizontal') {
+    if (touchIntent === 'horizontal') {
       event.preventDefault();
-      pointerSamples.push({ x: dx, time: performance.now() });
-      if (pointerSamples.length > 8) pointerSamples.shift();
+      touchSamples.push({ x: dx, time: performance.now() });
+      if (touchSamples.length > 8) touchSamples.shift();
       const direction = dx < 0 ? 1 : -1;
       const target = activeDeckPosition() + direction;
       const hasTarget = target >= 0 && target < deckDestinations.length;
@@ -957,7 +973,7 @@ function closeSettingsPanel() {
       return;
     }
 
-    if (pointerIntent !== 'vertical') return;
+    if (touchIntent !== 'vertical') return;
     clearClickSuppression();
     const atTop = !scrollContainer || scrollContainer.scrollTop === 0;
     if (atTop && dy > 0 && dy > Math.abs(dx) * 1.2) {
@@ -967,31 +983,38 @@ function closeSettingsPanel() {
     }
   }
 
-  function resetPointer() {
-    pointerId = null;
-    pointerEligible = false;
-    pointerIntent = 'pending';
-    pointerSamples = [];
+  function nonPassiveTouchMove(node: HTMLElement) {
+    return {
+      destroy: on(node, 'touchmove', handleTouchMove, { passive: false }),
+    };
+  }
+
+  function resetTouch() {
+    touchIdentifier = null;
+    touchEligible = false;
+    touchIntent = 'pending';
+    touchSamples = [];
     swipeStartX = 0;
     swipeStartY = 0;
   }
 
-  function handlePointerCancel(event: PointerEvent) {
-    if (event.pointerId !== pointerId) return;
+  function cancelTouchGesture() {
+    if (touchIdentifier === null) return;
     if (pageSwipeDragging) settleDeck(false, null, 0);
     pullDistance = 0;
     pullTriggered = false;
     clearClickSuppression();
-    resetPointer();
+    resetTouch();
   }
 
-  async function handlePointerUp(event: PointerEvent) {
-    if (event.pointerId !== pointerId) return;
-    const dx = event.clientX - swipeStartX;
-    const dy = event.clientY - swipeStartY;
-    if (pointerIntent === 'horizontal') {
-      pointerSamples.push({ x: dx, time: performance.now() });
-      const velocity = recentVelocity(pointerSamples);
+  async function handleTouchEnd(event: TouchEvent) {
+    const touch = trackedTouch(event.changedTouches);
+    if (!touch) return;
+    const dx = touch.clientX - swipeStartX;
+    const dy = touch.clientY - swipeStartY;
+    if (touchIntent === 'horizontal') {
+      touchSamples.push({ x: dx, time: performance.now() });
+      const velocity = recentVelocity(touchSamples);
       const direction = dx < 0 ? 1 : -1;
       const target = activeDeckPosition() + direction;
       const hasTarget = target >= 0 && target < deckDestinations.length;
@@ -1000,19 +1023,19 @@ function closeSettingsPanel() {
       navigationStartPosition = activeDeckPosition();
       pendingHistoryMode = 'auto';
       settleDeck(shouldCommit, hasTarget ? target : null, velocity);
-      resetPointer();
+      resetTouch();
       return;
     }
 
-    if (pointerIntent === 'vertical' && pullDistance >= PULL_THRESHOLD) {
+    if (touchIntent === 'vertical' && pullDistance >= PULL_THRESHOLD) {
       pullTriggered = true;
       pullDistance = 0;
-      resetPointer();
+      resetTouch();
       await triggerManualRefresh();
       return;
     }
     pullDistance = 0;
-    resetPointer();
+    resetTouch();
   }
 
   function handleDeckClick(event: MouseEvent) {
@@ -1198,10 +1221,10 @@ function closeSettingsPanel() {
   <main
     id="main-content"
     bind:this={mainEl}
-    onpointerdown={handlePointerDown}
-    onpointermove={handlePointerMove}
-    onpointerup={handlePointerUp}
-    onpointercancel={handlePointerCancel}
+    use:nonPassiveTouchMove
+    ontouchstart={handleTouchStart}
+    ontouchend={handleTouchEnd}
+    ontouchcancel={cancelTouchGesture}
     onclickcapture={handleDeckClick}
   >
     <div
@@ -1630,6 +1653,11 @@ function closeSettingsPanel() {
 
   .page-slot {
     transform: none;
+  }
+
+  .page-slot :global(.card-main),
+  .nearby-viewport :global(.station-card) {
+    touch-action: pan-y pinch-zoom;
   }
 
   .page-slot-preview {
