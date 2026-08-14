@@ -10,40 +10,32 @@
     fallbackMessage?: string;
   } = $props();
 
-  let hasError = $state(false);
-
   function reload() {
-    hasError = false;
     window.location.reload();
-  }
-
-  function handleWindowError(event: Event) {
-    if (event instanceof ErrorEvent && event.error != null) hasError = true;
   }
 </script>
 
-<svelte:window onerror={handleWindowError} />
-
-{#if hasError}
-  <div class="error-boundary" transition:fade={{ duration: 300 }}>
-    <div class="error-content">
-      <div class="error-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <h2>{t.errorTitle}</h2>
-      <p>{fallbackMessage || t.errorDefault}</p>
-      <button onclick={reload}>
-        {t.reloadApp}
-      </button>
-    </div>
-  </div>
-{:else}
+<svelte:boundary>
   {@render children()}
-{/if}
+  {#snippet failed(_error, _reset)}
+    <div class="error-boundary" transition:fade={{ duration: 300 }}>
+      <div class="error-content">
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h2>{t.errorTitle}</h2>
+        <p>{fallbackMessage || t.errorDefault}</p>
+        <button onclick={reload}>
+          {t.reloadApp}
+        </button>
+      </div>
+    </div>
+  {/snippet}
+</svelte:boundary>
 
 <style>
   .error-boundary {

@@ -133,9 +133,10 @@ describe('NearbySurface', () => {
     });
     setLocationServicesEnabled(true);
 
-    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
 
     expect(getByRole('status', { name: /Finding your location|Hämtar position/i })).toBeTruthy();
+    expect(container.querySelector('.location-prompt')).toBeNull();
   });
 
   it('renders a bus icon for nearby stations instead of a text badge', async () => {
@@ -184,6 +185,17 @@ describe('NearbySurface', () => {
     expect(nearbyPanel?.getAttribute('aria-hidden')).toBeNull();
     expect(boardPanel?.getAttribute('aria-hidden')).toBe('true');
     expect((boardPanel as HTMLElement | null)?.inert).toBe(true);
+  });
+
+  it('shows a board-only fallback when map initialization fails', async () => {
+    maplibre.Map.mockImplementationOnce(function () { throw new Error('map init failed'); });
+    setLocationServicesEnabled(true);
+    const boardStop: TransitStopSearchResult = { id: 'sl:1', name: 'Centralen', coord: [59.33, 18.06], modes: ['metro'], distance: 240, relevance: 1, locationType: 'station' };
+    const { container } = render(NearbySurface, {
+      props: { onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'board' },
+    });
+
+    await waitFor(() => expect(container.querySelector('.board-panel .detail-map-empty')).toBeTruthy());
   });
 
   it('starts retained board work only when the board is promoted', async () => {
@@ -251,7 +263,19 @@ describe('NearbySurface', () => {
     expect(getSettings().locationServicesEnabled).toBe(true);
     expect(getByRole('status', { name: /Location blocked|Platsåtkomst blockerad/i })).toBeTruthy();
     expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Allow location in the browser|Tillåt platsåtkomst/i);
-    expect(getByRole('button', { name: /Retry|Try again|Försök igen/i })).toBeTruthy();
+    expect(getByRole('button', { name: /Allow location|Tillåt plats/i })).toBeTruthy();
+  });
+
+  it('offers a location retry when the browser cannot acquire a position', () => {
+    subscribeToLocation.mockImplementationOnce((listener: (snapshot: unknown) => void) => {
+      listener({ position: null, isLoading: false, access: 'unknown' });
+      return vi.fn();
+    });
+    setLocationServicesEnabled(true);
+
+    const { getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+
+    expect(getByRole('button', { name: /Try location again|Försök hitta plats igen/i })).toBeTruthy();
   });
 
   it('explains a blocked browser permission after retry', async () => {
@@ -262,7 +286,7 @@ describe('NearbySurface', () => {
     });
     setLocationServicesEnabled(true);
     const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
-    await fireEvent.click(getByRole('button', { name: /Retry|Try again|Försök igen/i }));
+    await fireEvent.click(getByRole('button', { name: /Allow location|Tillåt plats/i }));
     expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Allow site in browser settings|Platsåtkomst blockerad/i);
   });
 

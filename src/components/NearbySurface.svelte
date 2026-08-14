@@ -55,7 +55,8 @@
   let error = $state<string | null>(null);
   let locationActionMessage = $state<string | null>(null);
   let searchError = $state<string | null>(null);
-  let mapError = $state(false);
+  let nearbyMapError = $state(false);
+  let boardMapError = $state(false);
   let selectedId = $state<string | null>(null);
   let boardDepartures = $state<TransitDeparture[]>([]);
   let boardLoading = $state(false);
@@ -354,13 +355,22 @@
       </div>
       {#if boardStop.coord}
         <div class="detail-map-shell">
-          <NearbyMap
-            active={!preview && view === 'board'}
-            {location}
-            {boardStop}
-            label={t.nearbyMap ?? 'Karta över hållplatsen'}
-            onError={() => { mapError = true; }}
-          />
+          {#if boardMapError}
+            <div class="detail-map-empty"><span>{t.mapUnavailable ?? 'Kartan är inte tillgänglig för den här hållplatsen.'}</span></div>
+          {:else}
+            <svelte:boundary>
+              <NearbyMap
+                active={!preview && view === 'board'}
+                {location}
+                {boardStop}
+                label={t.nearbyMap ?? 'Karta över hållplatsen'}
+                onError={() => { boardMapError = true; }}
+              />
+              {#snippet failed(_error, _reset)}
+                <div class="detail-map-empty"><span>{t.mapUnavailable ?? 'Kartan är inte tillgänglig för den här hållplatsen.'}</span></div>
+              {/snippet}
+            </svelte:boundary>
+          {/if}
           {#if location.position}<div class="map-route-label"><span class="route-dot user-dot"></span><span>{t.walkToStop ?? 'Gå till hållplats'}</span><strong>{walkingLabel(boardStop) || stopDistance(boardStop)}</strong></div>{:else}<div class="map-route-label"><span class="route-dot stop-dot"></span><span>{t.stopLocation ?? 'Hållplatsens läge'}</span></div>{/if}
         </div>
         <button type="button" class="directions-action" onclick={openDirections}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V5M12 5 6 11M12 5l6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>{t.navigateToStop ?? t.openInMaps ?? 'Vägbeskrivning'}</button>
@@ -403,21 +413,26 @@
       {@render headerActions()}
     </header>
     <div class="map-wrap">
-      <NearbyMap
-        active={!preview && view === 'nearby'}
-        {location}
-        stops={displayedStops}
-        {selectedId}
-        label={t.nearbyMap ?? 'Karta över hållplatser i närheten'}
-        onSelectStop={(stop) => scrollToStop(stop.id)}
-        onError={() => { mapError = true; }}
-      />
+      <svelte:boundary>
+        <NearbyMap
+          active={!preview && view === 'nearby'}
+          {location}
+          stops={displayedStops}
+          {selectedId}
+          label={t.nearbyMap ?? 'Karta över hållplatser i närheten'}
+          onSelectStop={(stop) => scrollToStop(stop.id)}
+          onError={() => { nearbyMapError = true; }}
+        />
+        {#snippet failed(_error, _reset)}
+          <div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>
+        {/snippet}
+      </svelte:boundary>
       <div class="map-location-status" class:ready={locationStatus.state === 'ready'} class:searching={locationStatus.state === 'searching'} class:blocked={locationStatus.state === 'blocked'} class:unavailable={locationStatus.state === 'unavailable'} role="status" aria-label={locationStatus.label} aria-live="polite">
         <span class="map-location-status-dot" aria-hidden="true"></span>
         <span>{locationStatus.label}</span>
       </div>
-      {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{location.isLoading ? (t.waitingForLocation ?? 'Hämtar position...') : locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
-      {#if mapError}<div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>{/if}
+      {#if !location.position}<div class="map-overlay-copy"><span>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</span><strong>{location.isLoading ? (t.waitingForLocation ?? 'Hämtar position...') : locationEnabled ? (location.access === 'denied' || location.access === 'prompt' ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.nearbyLocationUnavailable ?? 'Plats ej tillgänglig.')) : (t.locationPromptDesc ?? 'Aktivera Platstjänster för att se din omgivning.')}</strong></div>{/if}
+      {#if nearbyMapError}<div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>{/if}
     </div>
     <div class="nearby-content">
       <div class="search-wrap">
@@ -427,8 +442,8 @@
       {#if (!locationEnabled || !hasLocation) && !location.isLoading}
         <div class="location-prompt">
           <div class="prompt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2" stroke-linecap="round"/></svg></div>
-          <div class="prompt-copy"><strong>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</strong><span>{locationActionMessage ?? (locationEnabled ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.locationPromptDesc ?? 'Aktivera plats för att sortera efter avstånd.'))}</span></div>
-          <button type="button" class="primary-action" onclick={useLocation}>{locationEnabled ? (t.retry ?? 'Försök igen') : (t.locationEnableBtn ?? 'Aktivera plats')}</button>
+          <div class="prompt-copy"><strong>{locationEnabled ? (t.locationServices ?? 'Platstjänster') : (t.locationPromptTitle ?? 'Hitta hållplatser nära dig')}</strong><span>{locationActionMessage ?? (locationEnabled ? (location.access === 'denied' || location.access === 'prompt' ? (t.nearbyStopsPermissionDenied ?? 'Tillåt platsåtkomst i webbläsaren.') : (t.nearbyLocationUnavailable ?? 'Plats ej tillgänglig.')) : (t.locationPromptDesc ?? 'Aktivera plats för att sortera efter avstånd.'))}</span></div>
+          <button type="button" class="primary-action" onclick={useLocation}>{locationEnabled ? (location.access === 'denied' || location.access === 'prompt' ? (t.nearbyLocationPermission ?? 'Allow location') : (t.nearbyLocationTryAgain ?? 'Try location again')) : (t.locationEnableBtn ?? 'Aktivera plats')}</button>
         </div>
       {/if}
       {#if searching || loading}

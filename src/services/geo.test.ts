@@ -150,15 +150,45 @@ describe('shared location session', () => {
       isLoading: false,
       access: 'granted',
     });
+    expect(snapshots.filter((snapshot) => snapshot.position != null)).toHaveLength(1);
   });
 
-  it.each(['prompt', 'denied'] as PermissionState[])('does not prompt during granted-only startup when permission is %s', async (state) => {
+  it('does not request location automatically when permission is denied', async () => {
     const getCurrentPosition = vi.fn();
     setGeolocation(getCurrentPosition);
-    setPermission(state);
+    setPermission('denied');
 
     await expect(loadGrantedLocation()).resolves.toBeNull();
     expect(getCurrentPosition).not.toHaveBeenCalled();
+  });
+
+  it('requests location automatically when permission is prompt', async () => {
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
+    });
+    setGeolocation(getCurrentPosition);
+    setPermission('prompt');
+
+    await expect(loadGrantedLocation()).resolves.toEqual([59.33, 18.06]);
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+    expect(getLocationSnapshot().access).toBe('granted');
+  });
+
+  it('shows loading while startup permission access is pending', async () => {
+    let resolvePermission: ((status: PermissionStatus) => void) | undefined;
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true,
+      value: { query: vi.fn(() => new Promise<PermissionStatus>((resolve) => { resolvePermission = resolve; })) },
+    });
+    setGeolocation(vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
+    }));
+
+    const location = loadGrantedLocation();
+
+    expect(getLocationSnapshot().isLoading).toBe(true);
+    resolvePermission?.({ state: 'prompt' } as PermissionStatus);
+    await expect(location).resolves.toEqual([59.33, 18.06]);
   });
 
   it('resumes a granted location when the Permissions API is unavailable', async () => {

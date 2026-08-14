@@ -6,9 +6,6 @@
   import { resolveTheme } from '../themes';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
-  const maplibreLoad = import('maplibre-gl');
-  void import('maplibre-gl/dist/maplibre-gl.css');
-
   let {
     active,
     location,
@@ -103,7 +100,10 @@
     if (!active || !host || !center || map || loading) return;
     loading = true;
     try {
-      const module = await maplibreLoad;
+      const [module] = await Promise.all([
+        import('maplibre-gl'),
+        import('maplibre-gl/dist/maplibre-gl.css'),
+      ]);
       if (!active || !host || map) return;
       module.setWorkerUrl(workerUrl);
       maplibregl = module;

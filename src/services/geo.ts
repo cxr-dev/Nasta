@@ -95,8 +95,8 @@ export function subscribeToLocation(listener: (snapshot: LocationSnapshot) => vo
 }
 
 /**
- * Requests the current location after an explicit user action. Concurrent callers share one
- * browser request, and callers that unmount do not cancel the request for other consumers.
+ * Requests the current location. Concurrent callers share one browser request, and callers that
+ * unmount do not cancel the request for other consumers.
  */
 export function requestLocation(): Promise<[number, number] | null> {
   if (locationSnapshot.position) return Promise.resolve(locationSnapshot.position);
@@ -109,19 +109,21 @@ export function requestLocation(): Promise<[number, number] | null> {
 }
 
 /**
- * Refreshes location after the platform has already granted access. When a browser does not
- * expose the Permissions API (notably iOS Safari/PWA), it resumes the browser request so an
- * enabled location setting can restore the session after reload.
+ * Restores location for an enabled app setting. A prompt state may request the native platform
+ * permission dialog on cold PWA activation; denied and unsupported states remain short-circuited.
  */
 export async function loadGrantedLocation(): Promise<[number, number] | null> {
   if (locationSnapshot.position) return locationSnapshot.position;
   if (locationRequest) return locationRequest;
 
+  publishLocationSnapshot({ ...locationSnapshot, isLoading: true });
   const access = await getBrowserLocationAccess();
-  if (access !== locationSnapshot.access) {
-    publishLocationSnapshot({ ...locationSnapshot, access });
+  if (access === 'denied' || access === 'unsupported') {
+    publishLocationSnapshot({ ...locationSnapshot, isLoading: false, access });
+    return null;
   }
-  return access === 'granted' || access === 'unknown' ? requestLocation() : null;
+  if (access !== locationSnapshot.access) publishLocationSnapshot({ ...locationSnapshot, access });
+  return requestLocation();
 }
 
 /** Clears the in-memory position when the user disables Platsjänster. */
