@@ -121,6 +121,7 @@ const sv = {
   walkingEtaDesc:
     "Visa gångavstånd och ETA till hållplatsen. Frågar om plats när du aktiverar.",
   walkingEtaLockedDesc: "Aktivera för att använda gång-ETA.",
+  approx: "Cirka",
   enableLocationForWalkEta: "Aktivera plats för gång-ETA.",
   enableLocationForWalkEtaBrowser:
     "Tillåt platsåtkomst i webbläsaren för gång-ETA.",
@@ -130,7 +131,11 @@ const sv = {
   nearbyLocationOff: "Plats av",
   nearbyLocationSearching: "Hämtar plats...",
   nearbyLocationReady: "Din plats",
+  youAreHere: "Du är här",
+  nearbyLocationAcquired: "Position hittad. Hållplatserna sorteras nu efter avstånd.",
+  distance: "Avstånd",
   nearbyLocationBlocked: "Platsåtkomst blockerad",
+  nearbyLocationSettings: "Tillåt platsåtkomst i webbläsarens inställningar.",
   nearbyLocationUnavailable: "Plats ej tillgänglig",
   nearbyLocationPermission: "Tillåt plats",
   nearbyLocationTryAgain: "Försök hitta plats igen",
@@ -215,6 +220,7 @@ const sv = {
   nearbyTitle: "Nära dig",
   nearbyMap: "Karta över hållplatser i närheten",
   mapUnavailable: "Kartan är inte tillgänglig. Listan med hållplatser fungerar fortfarande.",
+  nearbyOffline: "Ingen anslutning. Försök igen när du är online.",
   noNearbyStops: "Inga hållplatser hittades inom 2 km.",
   nearbyLoadError: "Kunde inte läsa in hållplatser i närheten.",
   backToPages: "Tillbaka till sidorna",
@@ -346,7 +352,7 @@ const sv = {
   // Location prompt
   locationPromptTitle: "Hitta närliggande hållplatser",
   locationPromptDesc:
-    "Vi använder din plats för att automatiskt visa de närmaste hållplaterna och gångavståndet.",
+    "Vi använder din plats för att automatiskt visa de närmaste hållplatserna och avståndet till dem.",
   locationEnableBtn: "Aktivera plats",
   locationSkipBtn: "Kanske senare",
 
@@ -637,6 +643,7 @@ const en: typeof sv = {
   walkingEtaDesc:
     "Show walking distance and ETA to your stop. Asks for location when you turn this on.",
   walkingEtaLockedDesc: "Enable to use walking ETA.",
+  approx: "Approx.",
   enableLocationForWalkEta: "Enable location for live walk ETA.",
   enableLocationForWalkEtaBrowser:
     "Allow location in the browser for walking ETA.",
@@ -646,7 +653,11 @@ const en: typeof sv = {
   nearbyLocationOff: "Location off",
   nearbyLocationSearching: "Finding your location...",
   nearbyLocationReady: "Your location",
+  youAreHere: "You are here",
+  nearbyLocationAcquired: "Location found. Nearby stops are now sorted by distance.",
+  distance: "Distance",
   nearbyLocationBlocked: "Location blocked",
+  nearbyLocationSettings: "Allow site in browser settings.",
   nearbyLocationUnavailable: "Location unavailable",
   nearbyLocationPermission: "Allow location",
   nearbyLocationTryAgain: "Try location again",
@@ -729,6 +740,7 @@ const en: typeof sv = {
   nearbyTitle: "Nearby",
   nearbyMap: "Map of nearby stops",
   mapUnavailable: "Map unavailable. The stop list is still available.",
+  nearbyOffline: "No connection. Try again when you’re online.",
   noNearbyStops: "No stops found within 2 km.",
   nearbyLoadError: "Couldn't load nearby stops.",
   backToPages: "Back to pages",
@@ -856,7 +868,7 @@ const en: typeof sv = {
   // Location prompt
   locationPromptTitle: "Find nearby stops",
   locationPromptDesc:
-    "We use your location to automatically show the nearest stops and walking distance.",
+    "We use your location to automatically show the nearest stops and their distance from you.",
   locationEnableBtn: "Enable location",
   locationSkipBtn: "Maybe later",
 

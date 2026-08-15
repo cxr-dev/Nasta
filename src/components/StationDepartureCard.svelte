@@ -128,10 +128,10 @@
 {/if}
 
 <style>
-  .departure-preview { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; padding: 5px 0; border-top: 1px solid var(--border); color: var(--text); }
-  .preview-line, .stacked-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 25px; height: 25px; padding: 0 6px; border-radius: var(--radius-sm); background: var(--accent-subtle); color: var(--accent); font-family: 'Neue Machina', sans-serif; font-size: 11px; font-weight: 900; line-height: 1; }
-  .preview-destination { min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-  .preview-countdown { font-family: 'Neue Machina', sans-serif; font-size: 15px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; white-space: nowrap; }
+  .departure-preview { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; height: 24px; padding: 0; border-top: 1px solid var(--border); box-sizing: border-box; color: var(--text); }
+  .preview-line, .stacked-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 20px; padding: 0 5px; border-radius: var(--radius-sm); background: var(--accent-subtle); color: var(--accent); font-family: 'Neue Machina', sans-serif; font-size: 10px; font-weight: 900; line-height: 1; }
+  .preview-destination { min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: 12px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-countdown { font-family: 'Neue Machina', sans-serif; font-size: 13px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.03em; white-space: nowrap; }
 
   .station-card-main { display: grid; grid-template-columns: auto minmax(0, 1fr) 110px; grid-template-rows: minmax(0, 1fr) auto auto; align-items: stretch; min-height: 86px; width: 100%; padding: 12px var(--transit-card-padding-inline); column-gap: 10px; row-gap: 8px; box-sizing: border-box; background: transparent; color: var(--text); text-align: left; }
   button.station-card-main { border: 0; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

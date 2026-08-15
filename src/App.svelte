@@ -46,8 +46,8 @@
     pageSwipeIntent,
     pageSwipeOffset,
     recentVelocity,
+    boundedSpringStep,
     springSettled,
-    springStep,
     shouldCompletePageSwipe,
     type PageSwipeIntent,
     type PageSwipeSample,
@@ -147,7 +147,8 @@
   let startupReady = $state(false);
   let utilityView = $state<'pages' | 'nearby' | 'board'>('pages');
   let retainedBoardStop = $state<TransitStopSearchResult | null>(null);
-  let nearbyVisited = $state(false);
+  let nearbySurfaceModule: Promise<typeof import('./components/NearbySurface.svelte')> | null = null;
+  let nearbySurfaceAttempt = $state(0);
   let showNearby = $derived(utilityView !== 'pages');
   let deckDestinations = $derived(buildDeckDestinations(
     pages.map((candidate) => candidate.id),
@@ -159,7 +160,36 @@
       .filter((position) => position >= 0 && position < pages.length)
       .map((position) => ({ page: pages[position], relative: position - current }));
   });
-  let nearbyMounted = $derived(showNearby || nearbyVisited);
+  let nearbyMounted = $derived(showNearby || (
+    activeDeckPosition() === getPages().length - 1
+    && (pageSwipeDragging || pageSwipeSettling)
+  ));
+
+  function loadNearbySurface() {
+    if (!nearbySurfaceModule) {
+      nearbySurfaceModule = import('./components/NearbySurface.svelte').catch((error) => {
+        nearbySurfaceModule = null;
+        throw error;
+      });
+    }
+    return nearbySurfaceModule;
+  }
+
+  function retryNearbySurface() {
+    nearbySurfaceModule = null;
+    nearbySurfaceAttempt += 1;
+  }
+
+  $effect(() => {
+    if (!startupReady || activePageId !== pages.at(-1)?.id || nearbySurfaceModule) return;
+    const warm = () => { void loadNearbySurface().catch(() => {}); };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(warm, { timeout: 1_500 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(warm, 300);
+    return () => window.clearTimeout(timer);
+  });
 
   type DepartureSegmentInput = {
     siteId: string;
@@ -596,17 +626,42 @@
     });
   }
 
+  function releaseFocusBeforeDestination(destination: DeckDestination) {
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement)) return;
+    const leavesSavedPage = Boolean(activeElement.closest('.page-slot'));
+    const leavesUtility = destination.kind === 'page' && Boolean(activeElement.closest('.nearby-viewport'));
+    const changesUtilityPanel = (
+      destination.kind === 'board' && Boolean(activeElement.closest('.nearby-panel'))
+    ) || (
+      destination.kind === 'nearby' && Boolean(activeElement.closest('.board-panel'))
+    );
+    if (leavesSavedPage || leavesUtility || changesUtilityPanel) activeElement.blur();
+  }
+
+  function focusUtilityDestination(destination: DeckDestination) {
+    if (destination.kind !== 'nearby' && destination.kind !== 'board') return;
+    void tick().then(() => {
+      if (utilityView !== destination.kind) return;
+      const selector = destination.kind === 'board'
+        ? '.board-panel:not([aria-hidden="true"]) .nearby-topbar > .icon-button'
+        : '.nearby-panel:not([aria-hidden="true"]) .station-card.selected';
+      nearbyViewportEl?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+    });
+  }
+
   function applyDestination(destination: DeckDestination) {
+    releaseFocusBeforeDestination(destination);
     if (destination.kind === 'page') {
       utilityView = 'pages';
       pageSetActivePage(destination.pageId);
       void loadDepartures();
       return;
     }
-    nearbyVisited = true;
     utilityView = destination.kind;
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
+    focusUtilityDestination(destination);
   }
 
   function syncDeckHistory(sourcePosition: number, targetPosition: number) {
@@ -636,6 +691,7 @@
     pageSwipeDragging = false;
     pageSwipeSettling = false;
     isTransitioning = false;
+    clearClickSuppression();
 
     if (commitTarget !== null) {
       const destination = deckDestinations[commitTarget];
@@ -653,7 +709,7 @@
     const elapsed = Math.min(32, Math.max(1, now - deckLastFrameAt));
     deckLastFrameAt = now;
     const target = deckTargetPosition === null ? 0 : -Math.sign(deckTargetPosition - activeDeckPosition()) * deckWidth;
-    ({ position: deckOffset, velocity: deckVelocity } = springStep(deckOffset, deckVelocity, target, elapsed));
+    ({ position: deckOffset, velocity: deckVelocity } = boundedSpringStep(deckOffset, deckVelocity, target, elapsed, deckWidth));
     applyDeckTransforms();
     if (springSettled(deckOffset, deckVelocity, target)) {
       deckOffset = target;
@@ -711,7 +767,6 @@
       showPageIndicator();
       return;
     }
-    if (position >= getPages().length) nearbyVisited = true;
     settleDeck(true, position);
   }
 
@@ -734,7 +789,6 @@
 
   async function handleStationSelection(stop: TransitStopSearchResult) {
     retainedBoardStop = stop;
-    nearbyVisited = true;
     await tick();
     const target = deckDestinationIndex(deckDestinations, { kind: 'board', stopId: stop.id });
     if (target >= 0) navigateDeckTo(target);
@@ -968,7 +1022,6 @@ function closeSettingsPanel() {
       const direction = dx < 0 ? 1 : -1;
       const target = activeDeckPosition() + direction;
       const hasTarget = target >= 0 && target < deckDestinations.length;
-      if (target >= getPages().length) nearbyVisited = true;
       renderDeckOffset(pageSwipeOffset(dx, hasTarget, deckWidth));
       return;
     }
@@ -1040,6 +1093,12 @@ function closeSettingsPanel() {
 
   function handleDeckClick(event: MouseEvent) {
     if (!suppressNextClick) return;
+    const fromTouch = (event as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } })
+      .sourceCapabilities?.firesTouchEvents;
+    if (!fromTouch) {
+      clearClickSuppression();
+      return;
+    }
     clearClickSuppression();
     event.preventDefault();
     event.stopPropagation();
@@ -1326,18 +1385,42 @@ function closeSettingsPanel() {
         aria-hidden={showNearby ? undefined : 'true'}
         inert={!showNearby}
       >
-        {#await import('./components/NearbySurface.svelte') then { default: NearbySurface }}
-          <NearbySurface
-            onBack={() => closeNearby()}
-            onBoardBack={() => closeBoard()}
-            onSelectStation={handleStationSelection}
-            onEditToggle={toggleEdit}
-            onOpenSettings={openSettingsPanel}
-            boardStop={retainedBoardStop}
-            view={utilityView === 'board' ? 'board' : 'nearby'}
-            preview={!showNearby}
-          />
-        {/await}
+        {#if showNearby}
+          {#key nearbySurfaceAttempt}
+            {#await loadNearbySurface()}
+              <div class="nearby-preview-shell" aria-hidden="true">
+                <div class="nearby-preview-header"><span></span><div><i></i><b></b></div><span></span></div>
+                <div class="nearby-preview-map"></div>
+                <div class="nearby-preview-search"></div>
+                <div class="nearby-preview-card"></div>
+                <div class="nearby-preview-card"></div>
+              </div>
+            {:then { default: NearbySurface }}
+              <NearbySurface
+                onBack={() => closeNearby()}
+                onBoardBack={() => closeBoard()}
+                onSelectStation={handleStationSelection}
+                onEditToggle={toggleEdit}
+                onOpenSettings={openSettingsPanel}
+                boardStop={retainedBoardStop}
+                view={utilityView === 'board' ? 'board' : 'nearby'}
+              />
+            {:catch}
+              <div class="nearby-preview-shell nearby-load-fallback">
+                <p>Couldn’t load Nearby.</p>
+                <button type="button" onclick={retryNearbySurface}>Try again</button>
+              </div>
+            {/await}
+          {/key}
+        {:else}
+          <div class="nearby-preview-shell" aria-hidden="true">
+            <div class="nearby-preview-header"><span></span><div><i></i><b></b></div><span></span></div>
+            <div class="nearby-preview-map"></div>
+            <div class="nearby-preview-search"></div>
+            <div class="nearby-preview-card"></div>
+            <div class="nearby-preview-card"></div>
+          </div>
+        {/if}
       </div>
     {/if}
 
@@ -1794,6 +1877,12 @@ function closeSettingsPanel() {
     background: var(--bg);
     transform: translate3d(100%, 0, 0);
   }
+
+  .nearby-preview-shell { min-height: 100%; background: var(--bg); }
+  .nearby-preview-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 12px; align-items: center; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--border); }
+  .nearby-preview-header > span, .nearby-preview-header i, .nearby-preview-header b, .nearby-preview-search, .nearby-preview-card { display: block; border-radius: 10px; background: var(--surface-emphasis); }
+  .nearby-preview-header > span { width: 44px; height: 44px; }.nearby-preview-header div { display: grid; gap: 6px; }.nearby-preview-header i { width: 56px; height: 10px; }.nearby-preview-header b { width: 176px; max-width: 100%; height: 19px; }
+  .nearby-preview-map { height: clamp(176px, 27dvh, 270px); background: var(--surface-emphasis); }.nearby-preview-search { height: 46px; margin: 12px 16px; }.nearby-preview-card { height: 106px; margin: 8px 16px; }.nearby-load-fallback { display: grid; place-content: center; gap: 12px; padding: 24px; text-align: center; }.nearby-load-fallback p { margin: 0; }.nearby-load-fallback button { min-height: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--text-on-accent); font: inherit; font-weight: 700; }
 
   .nearby-dot {
     display: inline-flex;

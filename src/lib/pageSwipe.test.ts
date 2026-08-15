@@ -3,6 +3,8 @@ import {
   pageSwipeIntent,
   pageSwipeDirection,
   pageSwipeOffset,
+  boundedSpringStep,
+  clampPageSwipeVelocity,
   recentVelocity,
   springStep,
   springSettled,
@@ -54,5 +56,24 @@ describe("page swipe geometry", () => {
     expect(position).toBeCloseTo(-390, 1);
     expect(velocity).toBeCloseTo(0, 1);
     expect(springSettled(position, velocity, -390)).toBe(true);
+  });
+
+  it("bounds release velocity and snaps a crossing to its destination", () => {
+    expect(clampPageSwipeVelocity(24)).toBe(2.5);
+    expect(clampPageSwipeVelocity(-24)).toBe(-2.5);
+
+    const next = boundedSpringStep(-380, -24, -390, 16, 390);
+    expect(next.position).toBe(-390);
+    expect(next.velocity).toBe(0);
+  });
+
+  it("never renders a spring outside the current or adjacent viewport", () => {
+    const next = boundedSpringStep(-180, -2.5, -390, 16, 390);
+    const previous = boundedSpringStep(180, 2.5, 390, 16, 390);
+
+    expect(next.position).toBeGreaterThanOrEqual(-390);
+    expect(next.position).toBeLessThanOrEqual(390);
+    expect(previous.position).toBeGreaterThanOrEqual(-390);
+    expect(previous.position).toBeLessThanOrEqual(390);
   });
 });

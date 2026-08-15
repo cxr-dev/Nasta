@@ -12,6 +12,7 @@ const maplibre = vi.hoisted(() => {
     getSource: vi.fn(() => ({ setData: vi.fn() })),
     getContainer: vi.fn(() => document.createElement('div')),
     resize: vi.fn(),
+    setStyle: vi.fn(),
     on: vi.fn((event: string, callback: () => void) => {
       if (event === 'load') callback();
     }),
@@ -98,11 +99,13 @@ describe('NearbySurface', () => {
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 
-  it('explains disabled location services on the map instead of the page header', () => {
+  it('explains disabled location services once, next to its enabling action', () => {
     const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
 
-    expect(getByRole('status', { name: /Location off|Plats av/i })).toBeTruthy();
+    expect(getByRole('button', { name: /Enable location|Aktivera plats/i })).toBeTruthy();
+    expect(container.querySelector('.map-location-status')).toBeNull();
     expect(container.querySelector('.live-dot')).toBeNull();
+    expect(container.querySelector('.state-panel')).toBeNull();
   });
 
   it('uses a silently loaded location even if the subscription has no initial replay', async () => {
@@ -116,14 +119,21 @@ describe('NearbySurface', () => {
     expect(loadGrantedLocation).toHaveBeenCalledOnce();
   });
 
-  it('renders a location-safe station surface and keeps compact attribution', async () => {
+  it('renders a labeled current-location reference, named stops, and compact attribution', async () => {
     setLocationServicesEnabled(true);
     const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
     await waitFor(() => expect(getByRole('button', { name: /Centralen/i })).toBeTruthy());
     await waitFor(() => expect(maplibre.AttributionControl).toHaveBeenCalledWith({ compact: true }));
-    expect(getByRole('application', { name: /map/i })).toBeTruthy();
-    expect(getByRole('status', { name: /Your location|Din plats/i })).toBeTruthy();
+    expect(getByRole('group', { name: /map/i })).toBeTruthy();
+    expect(container.querySelector('.map-location-status')).toBeNull();
     expect(container.querySelector('.station-mode svg')).toBeTruthy();
+    expect(maplibre.Marker).toHaveBeenCalledTimes(2);
+    const markerOptions = maplibre.Marker.mock.calls as unknown as Array<[{ element: HTMLElement }]>;
+    expect(markerOptions.map(([options]) => options.element.getAttribute('aria-label'))).toEqual([
+      expect.stringMatching(/You are here|Du är här/i),
+      'Centralen',
+    ]);
+    expect(markerOptions[1][0].element.querySelector('.nearby-stop-marker-dot')).toBeTruthy();
   });
 
   it('shows that the map is waiting for a location fix', () => {
@@ -133,10 +143,11 @@ describe('NearbySurface', () => {
     });
     setLocationServicesEnabled(true);
 
-    const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
+    const { container } = render(NearbySurface, { props: { onBack: vi.fn() } });
 
-    expect(getByRole('status', { name: /Finding your location|Hämtar position/i })).toBeTruthy();
-    expect(container.querySelector('.location-prompt')).toBeNull();
+    expect(container.querySelector('.map-skeleton.visible')).toBeTruthy();
+    expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Finding your location|Hämtar plats/i);
+    expect(container.querySelector('.location-prompt button')).toBeNull();
   });
 
   it('renders a bus icon for nearby stations instead of a text badge', async () => {
@@ -213,7 +224,7 @@ describe('NearbySurface', () => {
     expect(getDepartures).toHaveBeenCalledTimes(1);
   });
 
-  it('normalizes walking-map bounds when the stop is southwest of the user', async () => {
+  it('centers the stop board on its stop without drawing a walking route', async () => {
     nearbyStops.mockResolvedValueOnce([{
       id: 'sl:southwest',
       name: 'Södermalm',
@@ -226,11 +237,13 @@ describe('NearbySurface', () => {
     const boardStop: TransitStopSearchResult = { id: 'sl:southwest', name: 'Södermalm', coord: [59.329, 18.059], modes: ['metro'], distance: 130, relevance: 1, locationType: 'station' };
     render(NearbySurface, { props: { onBack: vi.fn(), onBoardBack: vi.fn(), boardStop, view: 'board' } });
 
-    await waitFor(() => expect(maplibre.Map.mock.results.at(-1)?.value.fitBounds).toHaveBeenCalled());
-    expect(maplibre.Map.mock.results.at(-1)?.value.fitBounds).toHaveBeenCalledWith(
-      [[18.059, 59.329], [18.06, 59.33]],
-      { padding: 42, maxZoom: 15.5 },
-    );
+    await waitFor(() => expect(maplibre.Map).toHaveBeenCalled());
+    expect(maplibre.Map).toHaveBeenLastCalledWith(expect.objectContaining({ center: [18.059, 59.329], zoom: 15.5 }));
+    expect(maplibre.Map.mock.results.at(-1)?.value.fitBounds).not.toHaveBeenCalled();
+    expect(maplibre.Map.mock.results.at(-1)?.value.addSource).not.toHaveBeenCalled();
+    expect(maplibre.Marker).toHaveBeenCalledTimes(1);
+    const markerOptions = (maplibre.Marker.mock.calls as unknown as Array<[{ element: HTMLElement }]>)[0]?.[0];
+    expect(markerOptions.element.getAttribute('aria-label')).toBe('Södermalm');
   });
 
   it('loads departure previews for searched stations', async () => {
@@ -261,7 +274,7 @@ describe('NearbySurface', () => {
     setLocationServicesEnabled(true);
     const { container, getByRole } = render(NearbySurface, { props: { onBack: vi.fn() } });
     expect(getSettings().locationServicesEnabled).toBe(true);
-    expect(getByRole('status', { name: /Location blocked|Platsåtkomst blockerad/i })).toBeTruthy();
+    expect(container.querySelector('.map-location-status')).toBeNull();
     expect(container.querySelector('.location-prompt')?.textContent).toMatch(/Allow location in the browser|Tillåt platsåtkomst/i);
     expect(getByRole('button', { name: /Allow location|Tillåt plats/i })).toBeTruthy();
   });

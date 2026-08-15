@@ -6,6 +6,7 @@
   import SurfaceControl from './SurfaceControl.svelte';
   import { focusBoundary } from '../lib/focusBoundary';
   import { createHistoryView } from '../lib/historyView';
+  import { openWalkingDirections } from '../lib/openWalkingDirections';
 
   const maplibreLoad = import('maplibre-gl');
   void import('maplibre-gl/dist/maplibre-gl.css');
@@ -32,12 +33,8 @@
     t: Record<string, string>;
   } = $props();
 
-  type MapApp = "default" | "google" | "apple" | "waze";
-  const MAP_PREF_KEY = "nasta_map_app_preference";
   const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-  let mapsSheetForIndex = $state<number | null>(null);
-  let rememberMapChoice = $state(true);
   let maplibregl: any = $state(null);
   let mapDiv = $state<HTMLDivElement | undefined>(undefined);
   let mapInstance: any = null;
@@ -127,52 +124,6 @@
     };
   });
 
-  function loadMapPreference(): MapApp {
-    try {
-      const stored = localStorage.getItem(MAP_PREF_KEY);
-      if (stored === "google" || stored === "apple" || stored === "waze" || stored === "default") {
-        return stored;
-      }
-    } catch {}
-    return "default";
-  }
-
-  function saveMapPreference(app: MapApp) {
-    try {
-      localStorage.setItem(MAP_PREF_KEY, app);
-    } catch {}
-  }
-
-  function openMapWithPreference(lat: number, lng: number, forcePick = false, rowIndex: number | null = null) {
-    const pref = loadMapPreference();
-    if (pref === 'default') {
-      const ua = navigator.userAgent.toLowerCase();
-      const isiOS = /iphone|ipad|ipod/.test(ua);
-      const app = isiOS ? 'apple' : 'google';
-      openMapApp(app, lat, lng);
-      return;
-    }
-    openMapApp(pref, lat, lng);
-  }
-
-  function openMapApp(app: Exclude<MapApp, "default">, lat: number, lng: number) {
-    const enc = `${lat},${lng}`;
-    const urls = {
-      google: `https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=walking`,
-      apple: `https://maps.apple.com/?daddr=${enc}&dirflg=w`,
-      waze: `https://waze.com/ul?ll=${enc}&navigate=yes`,
-    };
-    if (rememberMapChoice) saveMapPreference(app);
-    window.open(urls[app], "_blank", "noopener,noreferrer");
-    mapsSheetForIndex = null;
-  }
-
-  function mapAppOptions() {
-    const ua = navigator.userAgent.toLowerCase();
-    const isiOS = /iphone|ipad|ipod/.test(ua);
-    return isiOS ? (["apple", "google", "waze"] as const) : (["google", "waze", "apple"] as const);
-  }
-
   function lockBodyScroll(lock: boolean) {
     document.documentElement.style.overscrollBehavior = lock ? 'none' : '';
     document.documentElement.style.touchAction = lock ? 'none' : '';
@@ -257,7 +208,7 @@
         <span>{t.stopLocation ?? 'Stop location'}</span>
         {#if walkingEtaEnabled}
           {#if dist !== null}
-            <span>{t.walkToStop} · {formatDistance(dist)} · {getWalkingTime(dist)} min</span>
+            <span>{t.walkToStop} · {formatDistance(dist)} · {t.approx ?? 'Approx.'} {getWalkingTime(dist)} min</span>
           {:else if locationRequestInFlight}
             <span class="hint">{t.waitingForLocation}</span>
           {/if}
@@ -322,7 +273,7 @@
       <button
         type="button"
         class="map-link map-link-secondary"
-        onclick={() => openMapWithPreference(stopLat, stopLon, false, null)}
+        onclick={() => openWalkingDirections(stopLat, stopLon)}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />

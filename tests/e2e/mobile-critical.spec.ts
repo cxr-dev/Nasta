@@ -209,7 +209,7 @@ test.describe("mobile critical commuter flow", () => {
       emit("touchend", 60);
     });
 
-    await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nearby", level: 1 })).toBeVisible();
   });
 
   test("adds a stop, shows a departure, and opens and closes its actions on modern WebKit", async ({ page }) => {
@@ -270,7 +270,7 @@ test.describe("mobile critical commuter flow", () => {
     await page.keyboard.press("ArrowRight");
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
-    const station = surface.getByRole("button", { name: /T-Centralen/i });
+    const station = surface.locator(".station-card").filter({ hasText: "T-Centralen" });
     await expect(station).toBeVisible({ timeout: 15_000 });
     await expect(station).toHaveCSS("touch-action", "pan-y pinch-zoom");
 
@@ -288,8 +288,8 @@ test.describe("mobile critical commuter flow", () => {
     });
 
     await expect(page.locator("h1.page-title")).toContainText(/Commuter test/i);
-    await expect(page.locator(".nearby-surface")).toHaveCount(1);
-    await expect(page.locator(".nearby-viewport")).toHaveAttribute("aria-hidden", "true");
+    await expect(page.locator(".nearby-surface")).toHaveCount(0);
+    await expect(page.locator(".nearby-viewport")).toHaveCount(0);
   });
 
   test("returns from a Nearby station board by its Back button and a right swipe", async ({ page, context }) => {
@@ -323,7 +323,7 @@ test.describe("mobile critical commuter flow", () => {
     await page.keyboard.press("ArrowRight");
 
     const surface = page.locator(".nearby-surface");
-    const station = surface.getByRole("button", { name: /T-Centralen/i });
+    const station = surface.locator(".station-card").filter({ hasText: "T-Centralen" });
     await expect(station).toBeVisible({ timeout: 15_000 });
     await station.click();
     await expect(surface.getByRole("heading", { name: "T-Centralen" })).toBeVisible();
@@ -407,6 +407,6 @@ test.describe("mobile critical commuter flow", () => {
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
     await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
-    await expect(surface.getByRole("button", { name: /T-Centralen/i })).toBeVisible({ timeout: 15_000 });
+    await expect(surface.locator(".station-card").filter({ hasText: "T-Centralen" })).toBeVisible({ timeout: 15_000 });
   });
 });

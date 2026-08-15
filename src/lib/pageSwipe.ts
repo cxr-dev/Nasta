@@ -14,7 +14,8 @@ const HORIZONTAL_RATIO = 1.2;
 const COMMIT_FRACTION = 0.33;
 const COMMIT_VELOCITY = 0.45;
 const VELOCITY_WINDOW_MS = 80;
-const SPRING_OMEGA = 30 / 1_000;
+const SPRING_OMEGA = 48 / 1_000;
+const MAX_RELEASE_VELOCITY = 2.5;
 
 export function pageSwipeIntent(deltaX: number, deltaY: number): PageSwipeIntent {
   const horizontal = Math.abs(deltaX);
@@ -51,6 +52,10 @@ export function recentVelocity(samples: PageSwipeSample[]): number {
   return elapsed > 0 ? (last.x - first.x) / elapsed : 0;
 }
 
+export function clampPageSwipeVelocity(velocity: number): number {
+  return Math.max(-MAX_RELEASE_VELOCITY, Math.min(MAX_RELEASE_VELOCITY, velocity));
+}
+
 export function springStep(position: number, velocity: number, target: number, elapsedMs: number): SpringState {
   const elapsed = Math.max(0, elapsedMs);
   const offset = position - target;
@@ -59,6 +64,17 @@ export function springStep(position: number, velocity: number, target: number, e
   return {
     position: target + (offset + coefficient * elapsed) * decay,
     velocity: (velocity - SPRING_OMEGA * coefficient * elapsed) * decay,
+  };
+}
+
+export function boundedSpringStep(position: number, velocity: number, target: number, elapsedMs: number, width: number): SpringState {
+  const next = springStep(position, clampPageSwipeVelocity(velocity), target, elapsedMs);
+  const crossedTarget = target < 0 ? next.position <= target : target > 0 ? next.position >= target : false;
+  if (crossedTarget) return { position: target, velocity: 0 };
+  const limit = Math.max(1, width);
+  return {
+    position: Math.max(-limit, Math.min(limit, next.position)),
+    velocity: next.velocity,
   };
 }
 

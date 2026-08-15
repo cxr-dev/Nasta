@@ -206,7 +206,7 @@ test.describe("Nästa App", () => {
     await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
     await page.keyboard.press("ArrowRight");
     await expect(page.locator(".nearby-surface")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nearby", level: 1 })).toBeVisible();
     await expect(page.getByRole("button", { name: /Enable location|Use my location|Aktivera plats/i })).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
@@ -239,7 +239,7 @@ test.describe("Nästa App", () => {
     }
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
-    await expect(page.getByRole("heading", { name: "Nearby" })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: "Nearby", level: 1 })).toBeVisible({ timeout: 5_000 });
     expect(await page.evaluate(() => (window as typeof window & { deckPointerCancels: number }).deckPointerCancels)).toBe(0);
 
     await page.getByRole("button", { name: /Back to pages|Tillbaka till sidorna/i }).click();
@@ -249,7 +249,7 @@ test.describe("Nästa App", () => {
   });
 
   for (const viewport of [{ width: 768, height: 1024 }, { width: 1024, height: 768 }]) {
-    test(`keeps Nearby fully offscreen after returning at ${viewport.width}px`, async ({ page }) => {
+    test(`unmounts Nearby after returning at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.keyboard.press("ArrowRight");
       await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
@@ -259,13 +259,7 @@ test.describe("Nästa App", () => {
 
       await nearby.getByRole("button", { name: /Back to pages|Tillbaka till sidorna/i }).click();
       await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
-      const [mainBox, nearbyBox] = await Promise.all([
-        page.locator("#main-content").boundingBox(),
-        nearby.boundingBox(),
-      ]);
-      expect(mainBox).not.toBeNull();
-      expect(nearbyBox).not.toBeNull();
-      expect(nearbyBox!.x).toBeGreaterThanOrEqual(mainBox!.x + mainBox!.width - 1);
+      await expect(nearby).toHaveCount(0);
     });
   }
 
@@ -286,7 +280,7 @@ test.describe("Nästa App", () => {
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
     await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
-    const stop = surface.getByRole("button", { name: /Lindarängsvägen/i });
+    const stop = surface.locator(".station-card").filter({ hasText: "Lindarängsvägen" });
     await expect(stop).toBeVisible({ timeout: 15_000 });
     await expect(stop.locator(".departure-preview").first()).toBeVisible({ timeout: 15_000 });
 
@@ -318,7 +312,7 @@ test.describe("Nästa App", () => {
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
     await expect(surface.getByRole("button", { name: /Enable location|Retry|Aktivera plats|Försök igen/i })).toHaveCount(0);
-    await expect(surface.getByRole("button", { name: /Lindarängsvägen/i })).toBeVisible({ timeout: 15_000 });
+    await expect(surface.locator(".station-card").filter({ hasText: "Lindarängsvägen" })).toBeVisible({ timeout: 15_000 });
   });
 
   test("should open and close quick-add drawer via inline add button", async ({ page }) => {
