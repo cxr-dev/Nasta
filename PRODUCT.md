@@ -1,51 +1,68 @@
 # Product
 
-## Register
+<!-- impeccable:product-schema 1 -->
 
-product
+## Platform
+
+web
 
 ## Users
 
-Daily Stockholm commuters who take SL public transport (bus, metro, train, ferry). Users check departures while walking or waiting at stops — often outdoors in sunlight, one-handed on mobile, with limited attention span. They want a "glanceable" PWA that loads instantly and works in tunnels or areas with poor signal.
+Daily Stockholm commuters who use SL public transport (bus, metro, train, ferry). They check departures while walking or waiting at stops — often outdoors in sunlight, one-handed on mobile, with limited attention and unreliable connectivity.
 
 ## Product Purpose
 
-Nästa helps commuters track real-time departures from configured stops, calculate arrival times, and stay informed about transit disruptions — all from a mobile-first dashboard that works offline. Success means the user opens the app, sees their next departure in under 2 seconds, and gets back to their day.
+Nästa helps commuters see the next relevant departure from their configured journeys quickly, with live updates, arrival estimates, and disruption context. Success means the user can open the PWA, understand what leaves next in under two seconds, and continue their day.
 
-## Brand Personality
+## Positioning
 
-**Voice**: Minimalist, functional, no-nonsense Scandinavian
-**Tone**: Calm, efficient, trustworthy — a utility that just works
-**3-word personality**: Practical · Quick · Uncluttered
+Nästa is a fast, glanceable Stockholm SL commuter utility rather than a general city-discovery app. Saved journeys and live departures are its core value; nearby stops, maps, venues, and events are optional supporting tools for the journey.
 
-## Anti-references
+## Operating Context
 
-- **No gradient text.** Single solid color for emphasis; weight or size carries hierarchy.
-- **No glassmorphism.** Blurs and glass cards are never decorative — only used with deliberate purpose.
-- **No side-stripe borders.** No colored left/right borders on cards, list items, or callouts.
-- **No hero-metric template.** No big-number / small-label SaaS cliché patterns.
-- **No generic card grids.** No identical icon-heading-text cards repeated without purpose.
-- **No AI-scaffold tropes.** No uppercase tracked "ABOUT" / "PROCESS" / "PRICING" kickers; no numbered 01/02/03 section markers. Sequences earn their numbering.
-- **No decorative fluff.** Every element serves the glanceable commuter use case. Nothing decorative.
-- **No desktop-first layout.** Mobile-first, 480px max-width, one-handed thumb zone.
-- **No stale-data silence.** Freshness indicator is visible; stale data is clearly marked.
-- **No muted-gray-only palette.** Themes have personality; color is purposeful, not gray for elegance.
+The PWA is used on a phone while commuting, including in bright outdoor conditions and tunnels or areas with poor signal. Users configure pages and journey segments locally, then return to those saved views for day-to-day departure checks. Location is opt-in and requested only after an explicit action.
 
-## Design Principles
+## Capabilities and Constraints
 
-1. **Function first** — Every visual element earns its place in the commuter's glance.
-2. **Speed perception** — Interface feels instant and responsive; cached data shows immediately, live data refines.
-3. **Glanceable information** — Largest number on screen is minutes until departure. Clear hierarchy, minimal noise.
-4. **No AI slop** — No gradient text, no side-stripe borders, no glassmorphism, no decorative reflexes.
-5. **Mobile-optimized** — Touch-friendly targets, works in sunlight, one-handed, safe-area aware.
-6. **Offline resilience** — Core functionality works without network; disruptions and ferry schedules cached.
-7. **Thematic personality** — One restrained identity with handcrafted light, dark, and system preferences. Personality comes from hierarchy and purposeful status color, not a palette marketplace.
+- Shows live SL departures, disruptions, station-facility notices, arrival estimates, and configurable refresh intervals.
+- Supports Stockholm SL and a static Sjöstadstrafiken timetable for supported ferry piers; static ferry data has no live delay adjustments.
+- Offers optional nearby-stop ranking, walking estimates, maps, venues, and event discovery without making them prerequisites for core departures.
+- Works as an offline-safe PWA with cached schedules and data where available; live disruptions and most discovery data require a network connection.
+- Requires no account, app-owned backend, or app-store installation. Settings and saved pages remain in the user's browser; IndexedDB stores persistent caches and generated share cards.
+- Provides Swedish and English UI, light/dark/system themes, and user-controlled settings and data backup/import.
+
+## Brand Commitments
+
+**Voice**: Minimalist, functional, no-nonsense Scandinavian.
+
+**Tone**: Calm, efficient, trustworthy — a utility that just works.
+
+**Personality**: Practical, quick, uncluttered.
+
+The product remains mobile-first, dense but glanceable, and free of decorative UI. It rejects gradient text, decorative glass, side-stripe borders, generic card grids, and desktop-first layouts. Freshness must be visible and stale data clearly marked.
+
+## Evidence on Hand
+
+- The implemented Svelte PWA, its component and service code, and automated Vitest/Playwright coverage.
+- Public SL Transport, Journey Planner, and Deviations APIs for live transit data.
+- A checked-in static Sjöstadstrafiken timetable for supported ferry piers.
+- Visit Stockholm event data, a Supabase Edge Function for curated beer venues, and Overpass/OpenStreetMap for wine and cocktail venues.
+- Generated `public/events-data.json` as a build-time/offline event-data tier.
+
+No proprietary customer research, testimonials, or app-owned user accounts should be implied or fabricated.
+
+## Product Principles
+
+1. **Departure first** — The next relevant departure is the primary job; supporting features do not compete with it.
+2. **Glanceable under real conditions** — Information must work one-handed, outdoors, and with limited attention.
+3. **Fast even when connectivity is not** — Show useful cached information immediately and make data freshness explicit.
+4. **Local control by default** — Saved journeys, preferences, and optional location use stay under the commuter's control without an account.
+5. **Useful, not ornamental** — Every feature and visual treatment must earn its place in the commuting workflow.
 
 ## Accessibility & Inclusion
 
-- WCAG 2.1 AA compliant
-- Handcrafted light/dark tokens with WCAG contrast tests for text, surfaces, controls, and status states
-- Reduced motion support via `prefers-reduced-motion` — all animations have non-animated fallbacks
-- Bilingual UI (Swedish + English) with auto-detection
-- Touch-friendly minimum tap targets
-- Works with system font scaling (no fixed viewport zoom lock)
+- WCAG 2.1 AA compliant.
+- Handcrafted light/dark tokens with WCAG contrast tests for text, surfaces, controls, and status states.
+- Reduced-motion support through `prefers-reduced-motion`, with non-animated fallbacks.
+- Bilingual Swedish and English UI with auto-detection.
+- Touch-friendly minimum tap targets and system font scaling without a fixed viewport zoom lock.

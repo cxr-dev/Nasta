@@ -1,34 +1,38 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-06-16T00:00:00Z",
+  "generatedAt": "2026-08-19T00:00:00Z",
   "title": "Design System: Nästa",
   "extensions": {
     "colorMeta": {
-      "neutral-bg": { "role": "neutral", "displayName": "Neutral Paper", "canonical": "oklch(97.7% 0.005 80)", "tonalRamp": ["oklch(15% 0.005 80)", "oklch(25% 0.005 80)", "oklch(35% 0.005 80)", "oklch(50% 0.005 80)", "oklch(65% 0.005 80)", "oklch(78% 0.005 80)", "oklch(88% 0.005 80)", "oklch(97.7% 0.005 80)"] },
-      "surface": { "role": "neutral", "displayName": "White Surface", "canonical": "oklch(100% 0 0)", "tonalRamp": ["oklch(15% 0 0)", "oklch(30% 0 0)", "oklch(45% 0 0)", "oklch(60% 0 0)", "oklch(75% 0 0)", "oklch(85% 0 0)", "oklch(93% 0 0)", "oklch(100% 0 0)"] },
-      "accent": { "role": "primary", "displayName": "Ink", "canonical": "oklch(21% 0 0)", "tonalRamp": ["oklch(10% 0 0)", "oklch(21% 0 0)", "oklch(30% 0 0)", "oklch(40% 0 0)", "oklch(55% 0 0)", "oklch(70% 0 0)", "oklch(85% 0 0)", "oklch(95% 0 0)"] },
-      "disruption-critical": { "role": "tertiary", "displayName": "Disruption Critical", "canonical": "oklch(53% 0.17 29)", "tonalRamp": ["oklch(20% 0.17 29)", "oklch(30% 0.17 29)", "oklch(40% 0.17 29)", "oklch(53% 0.17 29)", "oklch(65% 0.17 29)", "oklch(75% 0.17 29)", "oklch(85% 0.17 29)", "oklch(95% 0.17 29)"] },
-      "disruption-affected": { "role": "tertiary", "displayName": "Disruption Affected", "canonical": "oklch(65% 0.14 70)", "tonalRamp": ["oklch(20% 0.14 70)", "oklch(30% 0.14 70)", "oklch(40% 0.14 70)", "oklch(53% 0.14 70)", "oklch(65% 0.14 70)", "oklch(78% 0.14 70)", "oklch(88% 0.14 70)", "oklch(95% 0.14 70)"] }
+      "neutral-bg": { "role": "neutral", "displayName": "Restrained Neutral Background", "canonical": "#FAFAF9", "tonalRamp": ["#171717", "#333332", "#4F4F4D", "#747472", "#999997", "#C0C0BE", "#E0E0DE", "#FAFAF9"] },
+      "surface": { "role": "neutral", "displayName": "Primary Surface", "canonical": "#FFFFFF", "tonalRamp": ["#171717", "#383838", "#595959", "#7A7A7A", "#9B9B9B", "#BCBCBC", "#DDDDDD", "#FFFFFF"] },
+      "accent": { "role": "primary", "displayName": "Ink Accent", "canonical": "#171717", "tonalRamp": ["#0A0A0A", "#171717", "#2D2D2D", "#474747", "#666666", "#8A8A8A", "#B5B5B5", "#ECECEC"] },
+      "page-work": { "role": "secondary", "displayName": "Work Route Blue", "canonical": "#2563EB", "tonalRamp": ["#172554", "#1E3A8A", "#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#DBEAFE"] },
+      "page-home": { "role": "secondary", "displayName": "Home Route Green", "canonical": "#059669", "tonalRamp": ["#022C22", "#065F46", "#047857", "#059669", "#10B981", "#34D399", "#6EE7B7", "#D1FAE5"] },
+      "system-warning-bg": { "role": "tertiary", "displayName": "Warning Paper", "canonical": "#FEF3C7", "tonalRamp": ["#451A03", "#78350F", "#92400E", "#B45309", "#D97706", "#F59E0B", "#FCD34D", "#FEF3C7"] },
+      "system-error-bg": { "role": "tertiary", "displayName": "Error Paper", "canonical": "#FEF2F2", "tonalRamp": ["#450A0A", "#7F1D1D", "#991B1B", "#B91C1C", "#DC2626", "#EF4444", "#FECACA", "#FEF2F2"] },
+      "disruption-critical": { "role": "tertiary", "displayName": "Critical Brick", "canonical": "#E74C3C", "tonalRamp": ["#4A0E08", "#7A1710", "#A8291D", "#C93C2D", "#E74C3C", "#EE7568", "#F5AAA2", "#FBE0DC"] },
+      "disruption-affected": { "role": "tertiary", "displayName": "Affected Ochre", "canonical": "#E8950A", "tonalRamp": ["#4A2A00", "#754200", "#A45E00", "#C97900", "#E8950A", "#F0AE42", "#F6CF91", "#FCEBCD"] }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page route names (h1). Caps the headline space." },
+      "display": { "displayName": "Display", "purpose": "Page route names." },
       "headline": { "displayName": "Headline", "purpose": "Empty-state headings and section headers." },
-      "countdown": { "displayName": "Countdown", "purpose": "Departure minutes remaining. Always the largest numeric element on screen." },
-      "body": { "displayName": "Body", "purpose": "Descriptions, empty-state copy, station notices." },
-      "label": { "displayName": "Label", "purpose": "Metadata labels, secondary info, button text." }
+      "countdown": { "displayName": "Countdown", "purpose": "Departure minutes remaining; always the largest number on a card." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, empty-state copy, and station notices." },
+      "label": { "displayName": "Label", "purpose": "Metadata labels and secondary information." }
     },
     "shadows": [
-      { "name": "action-bar", "value": "0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)", "purpose": "Floating action bar separation from scrollable content." },
-      { "name": "feature-drawer", "value": "0 24px 60px rgba(0,0,0,0.22)", "purpose": "Modal overlay panel. Heaviest shadow in the system." }
+      { "name": "floating-action-bar", "value": "0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)", "purpose": "Separates the sticky action bar from scrollable content." },
+      { "name": "feature-discovery-drawer", "value": "0 24px 60px rgba(0,0,0,0.22)", "purpose": "Deliberate modal separation for the feature discovery drawer." }
     ],
     "motion": [
-      { "name": "ease-out", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Default easing for state transitions (GSAP power2.out)." },
-      { "name": "ease-in", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Exit transitions (GSAP power2.in)." },
-      { "name": "spring-entrance", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "Back.out(1.7) for modals and first-run elements." },
-      { "name": "button-press", "value": "transform 120ms ease, opacity 120ms ease", "purpose": "Global button active press feedback." }
+      { "name": "standard-exit", "value": "power2.out / power3.out", "purpose": "Default GSAP easing for state changes." },
+      { "name": "spring-entrance", "value": "back.out(1.7)", "purpose": "Reserved for modal and first-run entrances." },
+      { "name": "button-press", "value": "transform 120ms ease, opacity 120ms ease", "purpose": "Short active feedback for controls." }
     ],
     "breakpoints": [
-      { "name": "mobile", "value": "480px", "purpose": "Max width of the app shell. All design targets this width." }
+      { "name": "app-shell", "value": "480px", "purpose": "Maximum single-column app-shell width." },
+      { "name": "desktop-controls", "value": "768px", "purpose": "Larger-screen control treatment." }
     ]
   },
   "components": [
@@ -36,78 +40,53 @@
       "name": "Departure Card",
       "kind": "card",
       "refersTo": "departure-card",
-      "description": "Per-segment departure card showing transport line, stop info, and countdown timer.",
-      "html": "<div class=\"ds-departure-card\"><button class=\"ds-card-main\" type=\"button\"><div class=\"ds-accent-bar\" style=\"background: var(--accent, #171717)\"></div><div class=\"ds-icon-badge\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><circle cx=\"12\" cy=\"12\" r=\"4\"/></svg></div><div class=\"ds-meta-col\"><span class=\"ds-route-num\">76</span><span class=\"ds-from-stop\">Slussen</span><span class=\"ds-to-dest\">→ Ropsten</span></div><div class=\"ds-time-col\"><span class=\"ds-countdown\" style=\"color: var(--accent, #171717)\">3</span><span class=\"ds-clock-times\">14:32</span></div></button></div>",
-      "css": ".ds-departure-card { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: var(--surface, #fff); border: 1px solid var(--border, rgba(0,0,0,0.08)); } .ds-card-main { display: flex; align-items: center; min-height: 58px; width: 100%; padding: 10px 14px 10px 0; gap: 10px; background: transparent; border: none; text-align: left; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; } .ds-accent-bar { width: 4px; min-height: 58px; border-radius: 0 2px 2px 0; flex-shrink: 0; align-self: stretch; } .ds-icon-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-width: 32px; border-radius: 8px; flex-shrink: 0; background: var(--accent-subtle, rgba(23,23,23,0.10)); color: var(--accent, #171717); } .ds-icon-badge svg { width: 18px; height: 18px; } .ds-meta-col { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; gap: 1px; } .ds-route-num { font-size: 19px; font-weight: 900; color: var(--text, #171717); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-from-stop { font-size: 12px; color: var(--text-secondary, rgba(0,0,0,0.55)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; } .ds-to-dest { font-size: 11px; color: var(--text-muted, rgba(0,0,0,0.35)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; } .ds-time-col { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 2px; flex-shrink: 0; padding-left: 4px; } .ds-countdown { font-family: 'Neue Machina', sans-serif; font-size: 34px; font-weight: 900; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; line-height: 1; } .ds-clock-times { font-size: 11px; font-weight: 500; color: var(--text-muted, rgba(0,0,0,0.35)); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1; }"
+      "description": "The recurring transport summary with route, destination, and dominant countdown.",
+      "html": "<article class=\"ds-departure-card\"><span class=\"ds-accent-bar\"></span><span class=\"ds-route\">76</span><span class=\"ds-destination\">Ropsten</span><span class=\"ds-countdown\">3</span></article>",
+      "css": ".ds-departure-card { display:grid; grid-template-columns:4px auto 1fr auto; gap:10px; align-items:center; padding:10px 14px 10px 0; border:1px solid var(--border, rgba(0,0,0,.08)); border-radius:12px; background:var(--surface,#fff); color:var(--text,#171717); font-family:'Satoshi','DM Sans',sans-serif; } .ds-accent-bar { align-self:stretch; border-radius:0 2px 2px 0; background:var(--accent,#171717); } .ds-route,.ds-countdown { font-family:'Neue Machina',sans-serif; font-weight:900; } .ds-route { font-size:19px; } .ds-destination { min-width:0; font-size:15px; } .ds-countdown { font-size:34px; line-height:1; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; }"
     },
     {
-      "name": "Action Bar Button",
+      "name": "Primary Button",
       "kind": "button",
-      "refersTo": "button-action-bar",
-      "description": "Sticky bottom action bar for settings/edit mode.",
-      "html": "<button class=\"ds-action-btn\" type=\"button\"><svg viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"width:18px;height:18px;\"><path d=\"M12 3h5M12 8h5M12 13h5M7 3l-4 4M7 8l-4 4M7 13l-4 4\"/></svg><span>Settings</span></button>",
-      "css": ".ds-action-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: min(100%, 320px); padding: 14px 20px; background: var(--accent-subtle, rgba(23,23,23,0.10)); border: 1px solid var(--border, rgba(0,0,0,0.08)); border-radius: 16px; font-size: 14px; font-weight: 600; color: var(--accent, #171717); cursor: pointer; font-family: inherit; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06); -webkit-tap-highlight-color: transparent; transition: all 150ms ease; } .ds-action-btn:hover { opacity: 0.80; } .ds-action-btn:active { transform: scale(0.965); }"
+      "refersTo": "button-primary",
+      "description": "Solid primary call to action for a deliberate user choice.",
+      "html": "<button class=\"ds-primary-button\" type=\"button\">Save changes</button>",
+      "css": ".ds-primary-button { padding:14px 24px; border:0; border-radius:12px; background:var(--accent,#171717); color:var(--text-on-accent,#fff); font:600 15px 'Satoshi','DM Sans',sans-serif; cursor:pointer; transition:transform 120ms ease,opacity 120ms ease; } .ds-primary-button:hover { transform:translateY(-1px); } .ds-primary-button:focus-visible { outline:2px solid var(--accent,#171717); outline-offset:3px; } .ds-primary-button:active { transform:scale(.965); opacity:.9; }"
     },
     {
       "name": "Page Header",
-      "kind": "custom",
-      "refersTo": "page-header",
-      "description": "Route page header with page name and navigation arrows.",
-      "html": "<header class=\"ds-page-header\"><div class=\"ds-page-block\"><button class=\"ds-nav-arrow\" aria-label=\"Previous page\"><svg viewBox=\"0 0 16 16\" fill=\"none\" style=\"width:14px;height:14px;\"><path d=\"M10 3l-5 5 5 5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button><h1 class=\"ds-page-title\">Arbete</h1><button class=\"ds-nav-arrow\" aria-label=\"Next page\"><svg viewBox=\"0 0 16 16\" fill=\"none\" style=\"width:14px;height:14px;\"><path d=\"M6 3l5 5-5 5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div><div class=\"ds-header-rule\"></div></header>",
-      "css": ".ds-page-header { padding: 14px 20px 0; padding-top: calc(14px + env(safe-area-inset-top)); background: var(--bg, #FAFAF9); } .ds-page-block { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-bottom: 18px; } .ds-page-title { font-family: 'Neue Machina', sans-serif; font-size: clamp(38px, 10vw, 52px); font-weight: 800; letter-spacing: -0.035em; line-height: 0.9; margin: 0; color: var(--accent, #171717); text-align: center; min-width: 0; flex: 1; } .ds-nav-arrow { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; background: var(--accent-subtle, rgba(23,23,23,0.10)); border-radius: 50%; color: var(--accent, #171717); cursor: pointer; flex-shrink: 0; transition: background 150ms ease, transform 150ms ease; } .ds-nav-arrow:active { transform: scale(0.92); } .ds-header-rule { height: 2px; background: var(--accent, #171717); opacity: 0.25; margin: 0 -20px; }"
+      "kind": "nav",
+      "refersTo": "page-header-icon",
+      "description": "Route title with compact circular page navigation.",
+      "html": "<header class=\"ds-page-header\"><button class=\"ds-nav\" aria-label=\"Previous page\">←</button><h1>Arbete</h1><button class=\"ds-nav\" aria-label=\"Next page\">→</button></header>",
+      "css": ".ds-page-header { display:flex; align-items:center; gap:8px; padding:calc(14px + env(safe-area-inset-top)) 20px 0; background:var(--bg,#fafaf9); } .ds-page-header h1 { flex:1; margin:0; color:var(--accent,#171717); font:800 clamp(38px,10vw,52px)/.9 'Neue Machina',sans-serif; letter-spacing:-.035em; text-align:center; } .ds-nav { width:36px; height:36px; border:0; border-radius:999px; background:var(--accent-subtle,rgba(23,23,23,.1)); color:var(--accent,#171717); cursor:pointer; transition:transform 120ms ease; } .ds-nav:focus-visible { outline:2px solid var(--accent,#171717); outline-offset:2px; } .ds-nav:active { transform:scale(.92); }"
     },
     {
-      "name": "Notice Bar",
+      "name": "Station Notice Bar",
       "kind": "custom",
       "refersTo": "notice-bar",
-      "description": "Collapsible facility notice bar for station alerts.",
-      "html": "<div class=\"ds-notice-bar\"><button class=\"ds-notice-row\" type=\"button\"><svg viewBox=\"0 0 24 24\" fill=\"none\" style=\"width:15px;height:15px;\"><circle cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 8v4M12 16h.01\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><span class=\"ds-notice-label\">Station notices</span><span class=\"ds-notice-count\">3</span><svg class=\"ds-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"width:14px;height:14px;\"><polyline points=\"6 9 12 15 18 9\"/></svg></button></div>",
-      "css": ".ds-notice-bar { border: 1px solid var(--border, rgba(0,0,0,0.08)); border-radius: 10px; background: var(--surface, #fff); overflow: hidden; } .ds-notice-row { display: flex; align-items: center; gap: 7px; width: 100%; padding: 9px 12px; background: transparent; border: none; cursor: pointer; font-family: inherit; text-align: left; -webkit-tap-highlight-color: transparent; color: var(--text-secondary, rgba(0,0,0,0.55)); } .ds-notice-label { font-size: 12px; font-weight: 600; color: var(--text-secondary, rgba(0,0,0,0.55)); flex: 1; } .ds-notice-count { font-size: 11px; font-weight: 700; color: var(--text-on-accent, #fff); background: var(--accent, #171717); border-radius: 999px; padding: 1px 6px; line-height: 1.5; flex-shrink: 0; } .ds-chevron { color: var(--text-muted, rgba(0,0,0,0.35)); transition: transform 0.2s ease; }"
+      "description": "Compact, expandable station-facility notice.",
+      "html": "<button class=\"ds-notice\" type=\"button\"><span>Station notices</span><b>3</b><span>⌄</span></button>",
+      "css": ".ds-notice { display:flex; align-items:center; gap:7px; width:100%; padding:9px 12px; border:1px solid var(--border,rgba(0,0,0,.08)); border-radius:10px; background:var(--surface,#fff); color:var(--text-secondary,rgba(0,0,0,.55)); font:600 12px/1.3 'Satoshi','DM Sans',sans-serif; text-align:left; cursor:pointer; } .ds-notice span:first-child { flex:1; } .ds-notice b { padding:1px 6px; border-radius:999px; background:var(--accent,#171717); color:var(--text-on-accent,#fff); font-size:11px; } .ds-notice:focus-visible { outline:2px solid var(--accent,#171717); outline-offset:2px; }"
     },
     {
-      "name": "Disruption Tag",
+      "name": "Disruption Pill",
       "kind": "chip",
-      "refersTo": "badge-pill",
-      "description": "Disruption severity pill tag shown on affected departure cards.",
-      "html": "<span class=\"ds-disrupt-pill\">TECHNICAL</span>",
-      "css": ".ds-disrupt-pill { display: inline-flex; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; padding: 2px 7px; border-radius: 10px; line-height: 1.2; background: var(--accent, #171717); }"
+      "refersTo": "disruption-pill",
+      "description": "Small severity tag used only with affected transit information.",
+      "html": "<span class=\"ds-disruption-pill\">Technical</span>",
+      "css": ".ds-disruption-pill { display:inline-flex; padding:2px 7px; border-radius:10px; background:var(--accent,#171717); color:var(--text-on-accent,#fff); font:700 9px/1 'Satoshi','DM Sans',sans-serif; letter-spacing:.04em; text-transform:uppercase; }"
     }
   ],
   "narrative": {
     "northStar": "The Departure Board",
-    "overview": "Nästa is a real-time Stockholm transit dashboard designed for a single purpose: telling the commuter when the next departure leaves, in under a second, at a glance. It takes the visual language of physical departure boards at transit stations \u2014 bold, typographic, high-contrast, no decoration \u2014 and brings it to a mobile screen. The system is opinionatedly flat: no gradient text, no glassmorphism, no numbered section markers, no decorative flourishes. Surfaces separate by borders and tonal contrast, not by shadows. The interface at 480px max-width is always a single column, one-handed, designed for outdoor sunlight readability and tunnel-region offline resilience.",
-    "keyCharacteristics": [
-      "No gradient text. No side-stripe borders. No glassmorphism.",
-      "Mobile-first: 480px max-width, single-column, one-handed thumb zone.",
-      "Bold display typography: the countdown number (34px 900 weight) is always the largest element on screen.",
-      "Dynamic color: 16 theme palettes with contrast-aware light/dark adaptation. Not a gray-on-gray default.",
-      "Flat by default: borders draw hierarchy, not shadows. Shadows reserved for floating elements only."
-    ],
+    "overview": "Nästa is a real-time Stockholm transit dashboard designed for a single purpose: telling the commuter when the next departure leaves, in under a second, at a glance. It takes the visual language of physical departure boards at transit stations — bold, typographic, high-contrast, no decoration — and brings it to a mobile screen. The system is opinionatedly flat: no gradient text, no glassmorphism, no numbered section markers, no decorative flourishes. Surfaces separate by borders and tonal contrast, not by shadows. The interface at 480px max-width is always a single column, one-handed, designed for outdoor sunlight readability and tunnel-region offline resilience.",
+    "keyCharacteristics": ["No gradient text, side-stripe borders, glassmorphism, or decorative flourishes.", "Mobile-first, single-column interface at 480px maximum width.", "A bold countdown is the dominant numeric element on departure cards.", "Handcrafted light, dark, and system palettes use purposeful status color.", "Surfaces separate through borders and tonal contrast; shadows signal floating elements."],
     "rules": [
-      { "name": "The Dynamic Contrast Rule", "body": "All text, surface, and border tokens are computed from the background color's luminance \u2014 never hardcoded per theme. A dark background produces light text at fixed opacity ratios; a light background produces dark text. This guarantees WCAG 2.1 AA contrast without manual tuning per palette.", "section": "colors" },
-      { "name": "The Dominant Countdown Rule", "body": "The departure countdown (34px, 900 weight, Neue Machina) must be the largest number on any card. No competing numeric display within the same card. If a secondary time is needed, it appears at 11px below the countdown, not beside it.", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "Every surface is flat at rest. Card separation comes from a 1px --border stroke, not a drop shadow. The presence of a shadow is always a deliberate signal: \"this element floats above the content stack.\"", "section": "elevation" }
+      { "name": "The Static Token Rule", "body": "Every production token belongs to the small Light/Dark palette tables and has a concrete use in the app.", "section": "colors" },
+      { "name": "The Dominant Countdown Rule", "body": "The departure countdown is the largest number on any card; secondary times remain small and below it.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. A shadow is always a deliberate signal that an element floats above the content stack.", "section": "elevation" }
     ],
-    "dos": [
-      "Do use the departure countdown (34px, 900 weight) as the dominant visual element on each card.",
-      "Do let the dynamic theme system determine accent and text colors \u2014 never hardcode a color value for a themed surface.",
-      "Do keep the interface at 480px max-width, single-column, with the main scroll area as the primary interaction.",
-      "Do use border strokes (1px --border) for card separation; surfaces rest flat.",
-      "Do animate with GSAP using power2.out / power3.out easing; use back.out(1.7) only for spring entrances of modals and first-run elements.",
-      "Do respect prefers-reduced-motion: collapse all animations to instant state changes.",
-      "Do show a freshness indicator (dot + label) so the user always knows data recency."
-    ],
-    "donts": [
-      "Don't use gradient text (background-clip: text + gradient). Single solid color only.",
-      "Don't use side-stripe borders (colored border-left / border-right greater than 1px as decoration).",
-      "Don't use glassmorphism (backdrop-filter: blur + semi-transparent bg) except on the defined floating action bar and modal backdrop. Never on cards or panels.",
-      "Don't pair border: 1px solid with box-shadow blur \u2265 16px on the same element. Pick one: a solid border at --border, OR a shadow (action bar uses shadow; cards use border).",
-      "Don't use card radii larger than 12px for departure cards. The 14px radius is reserved for the feature drawer and onboarding; 16px for the action bar button.",
-      "Don't apply borders to cards that have a disruption strip. Disrupted cards use a transparent border to avoid double-stroke with the strip.",
-      "Don't hardcode amber/red warning banner colors outside the system palette; use the defined token set for consistency.",
-      "Don't create numbered section markers (01 / 02 / 03) or uppercase tracked kickers above sections. Sequences earn their numbering.",
-      "Don't gate content visibility behind class-triggered transitions that could pause in hidden tabs or headless renderers.",
-      "Don't let the default warm off-white bg shift into cream/sand/beige territory; #FAFAF9 is intentionally restrained."
-    ]
+    "dos": ["Do make the departure countdown the dominant visual element on a card.", "Do use the handcrafted semantic Light/Dark tokens and validate contrast.", "Do keep the app single-column, mobile-first, and centered on the primary scroll flow.", "Do use border strokes for card separation and static semantic tokens for transit status.", "Do honor reduced-motion preferences and show data freshness."],
+    "donts": ["Don't use gradient text, decorative side-stripe borders, or generic card grids.", "Don't use decorative glass on cards or panels.", "Don't combine a card border with a large blurred drop shadow.", "Don't create numbered section markers or uppercase tracked kickers without a real sequence.", "Don't hardcode undeclared status colors or use a radius larger than the established scale."]
   }
 }
