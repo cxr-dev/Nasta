@@ -200,14 +200,15 @@
 <style>
   .nearby-map { position: absolute; inset: 0; touch-action: pan-y pinch-zoom; }
   .nearby-map.fullscreen { touch-action: none; }
-  :global(.nearby-stop-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+  /* MapLibre owns marker-root transforms; roots must remain outside normal flow. */
+  :global(.nearby-stop-marker) { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
   :global(button.nearby-stop-marker) { cursor: pointer; }
   :global(.nearby-stop-marker-dot), :global(.nearby-stop-marker-center) { position: absolute; border-radius: 50%; pointer-events: none; }
   :global(.nearby-stop-marker-dot) { width: 25px; height: 25px; border: 3px solid var(--surface); background: var(--text-secondary); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 28%, transparent); }
   :global(.nearby-stop-marker-center) { width: 7px; height: 7px; background: var(--surface); }
   :global(.nearby-stop-marker.selected .nearby-stop-marker-dot) { background: var(--accent); transform: scale(1.12); }
   :global(.nearby-stop-marker:focus-visible) { outline: 3px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
-  :global(.nearby-user-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; pointer-events: none; }
+  :global(.nearby-user-marker) { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 44px; height: 44px; pointer-events: none; }
   :global(.nearby-user-marker-dot) { width: 17px; height: 17px; border: 3px solid #fff; border-radius: 50%; background: #1677e8; box-shadow: 0 0 0 5px color-mix(in srgb, #1677e8 24%, transparent), 0 1px 4px color-mix(in srgb, #000 32%, transparent); }
   :global(.nearby-user-marker-label) { position: absolute; top: 36px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 18%, transparent); color: var(--text); font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
   :global(.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show)) { min-height: 24px; padding: 0 24px 0 0; margin: 6px !important; background-color: transparent; border-radius: 12px; }

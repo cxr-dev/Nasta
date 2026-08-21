@@ -172,6 +172,9 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
   await tileRequest;
 
   await expect(page.locator("canvas.maplibregl-canvas")).toBeAttached();
+  const stopMarker = page.locator(".nearby-stop-marker");
+  await expect(stopMarker).toHaveCSS("position", "absolute");
+  await expect(stopMarker).not.toHaveCSS("transform", "none");
   const attribution = page.locator(".maplibregl-ctrl-attrib");
   await expect(attribution).toBeVisible();
   await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);

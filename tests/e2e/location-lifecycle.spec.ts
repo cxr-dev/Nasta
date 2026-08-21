@@ -1,5 +1,61 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { CommuterApp } from './support/commuterApp';
+
+type MarkerGeometry = {
+  label: string;
+  instance: string | null;
+  position: string;
+  transform: string;
+  x: number;
+  y: number;
+};
+
+async function readMarkerGeometry(markers: Locator): Promise<MarkerGeometry[]> {
+  return markers.evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      label: element.getAttribute('aria-label') ?? '',
+      instance: element.getAttribute('data-marker-instance'),
+      position: style.position,
+      transform: style.transform,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }).sort((a, b) => a.label.localeCompare(b.label)));
+}
+
+function markerDistances(markers: MarkerGeometry[]): number[] {
+  const distances: number[] = [];
+  for (let first = 0; first < markers.length; first += 1) {
+    for (let second = first + 1; second < markers.length; second += 1) {
+      distances.push(Math.hypot(
+        markers[second].x - markers[first].x,
+        markers[second].y - markers[first].y,
+      ));
+    }
+  }
+  return distances;
+}
+
+function expectCoherentScale(before: MarkerGeometry[], after: MarkerGeometry[], expectedScale?: number): number {
+  const beforeDistances = markerDistances(before);
+  const afterDistances = markerDistances(after);
+  const ratios = beforeDistances.map((distance, index) => afterDistances[index] / distance);
+  const scale = ratios[0];
+  for (const ratio of ratios) expect(ratio).toBeCloseTo(expectedScale ?? scale, 1);
+  return scale;
+}
+
+async function waitForMarkersToSettle(markers: Locator): Promise<void> {
+  let previous = '';
+  await expect.poll(async () => {
+    const current = JSON.stringify((await readMarkerGeometry(markers)).map(({ x, y }) => [x, y]));
+    const settled = current === previous;
+    previous = current;
+    return settled;
+  }, { timeout: 5_000, intervals: [100, 150, 250] }).toBe(true);
+}
 
 async function removePermissionsApi(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -65,7 +121,7 @@ test('restores an enabled, granted location after reload without the Permissions
   await expect(surface.locator('.station-card').filter({ hasText: 'T-Centralen' })).toBeVisible({ timeout: 15_000 });
 });
 
-test('renders every nearby station as a visible named map marker', async ({ page, context }) => {
+test('keeps user and stop markers locked to one geographic frame', async ({ page, context }, testInfo) => {
   const app = new CommuterApp(page);
   await app.mockDepartures();
   await mockNearbyStops(page, [
@@ -89,6 +145,7 @@ test('renders every nearby station as a visible named map marker', async ({ page
 
   const surface = page.locator('.nearby-surface');
   const markers = surface.locator('.nearby-stop-marker');
+  const markerRoots = surface.locator('.nearby-stop-marker, .nearby-user-marker');
   const dots = surface.locator('.nearby-stop-marker-dot');
   await expect(surface.locator('.station-card')).toHaveCount(3, { timeout: 15_000 });
   await expect(markers).toHaveCount(3, { timeout: 15_000 });
@@ -102,6 +159,78 @@ test('renders every nearby station as a visible named map marker', async ({ page
     await expect(dot).toHaveCSS('width', '25px');
     await expect(dot).toHaveCSS('height', '25px');
     expect(await dot.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  }
+
+  await expect(markerRoots).toHaveCount(4);
+  await markerRoots.evaluateAll((elements) => {
+    elements.forEach((element, index) => element.setAttribute('data-marker-instance', `marker-${index}`));
+  });
+  const embedded = await readMarkerGeometry(markerRoots);
+  for (const marker of embedded) {
+    expect(marker.position).toBe('absolute');
+    expect(marker.transform).not.toBe('none');
+  }
+
+  await surface.getByRole('button', { name: /expand map fullscreen/i }).click();
+  const dialog = surface.getByRole('dialog', { name: /map/i });
+  await expect(dialog).toBeVisible();
+  await waitForMarkersToSettle(markerRoots);
+  const fullscreen = await readMarkerGeometry(markerRoots);
+  expect(fullscreen.map(({ label, instance }) => ({ label, instance })))
+    .toEqual(embedded.map(({ label, instance }) => ({ label, instance })));
+  expectCoherentScale(embedded, fullscreen, 1);
+
+  const fullscreenBounds = await dialog.boundingBox();
+  await page.mouse.move(
+    fullscreenBounds!.x + fullscreenBounds!.width * 0.8,
+    fullscreenBounds!.y + fullscreenBounds!.height * 0.5,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    fullscreenBounds!.x + fullscreenBounds!.width * 0.8 + 70,
+    fullscreenBounds!.y + fullscreenBounds!.height * 0.5 + 40,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await waitForMarkersToSettle(markerRoots);
+  const panned = await readMarkerGeometry(markerRoots);
+  const panDelta = { x: panned[0].x - fullscreen[0].x, y: panned[0].y - fullscreen[0].y };
+  expect(Math.hypot(panDelta.x, panDelta.y)).toBeGreaterThan(20);
+  for (let index = 1; index < panned.length; index += 1) {
+    expect(panned[index].x - fullscreen[index].x).toBeCloseTo(panDelta.x, 0);
+    expect(panned[index].y - fullscreen[index].y).toBeCloseTo(panDelta.y, 0);
+  }
+  expectCoherentScale(fullscreen, panned, 1);
+
+  let finalFullscreen = panned;
+  if (testInfo.project.name === 'chromium') {
+    await page.mouse.move(
+      fullscreenBounds!.x + fullscreenBounds!.width / 2,
+      fullscreenBounds!.y + fullscreenBounds!.height / 2,
+    );
+    await page.mouse.wheel(0, -500);
+    await waitForMarkersToSettle(markerRoots);
+    finalFullscreen = await readMarkerGeometry(markerRoots);
+    expect(expectCoherentScale(panned, finalFullscreen)).toBeGreaterThan(1.1);
+  }
+
+  await dialog.getByRole('button', { name: /minimize map/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await waitForMarkersToSettle(markerRoots);
+  const restored = await readMarkerGeometry(markerRoots);
+  expect(restored.map(({ label, instance }) => ({ label, instance })))
+    .toEqual(embedded.map(({ label, instance }) => ({ label, instance })));
+  expectCoherentScale(finalFullscreen, restored, 1);
+
+  const embeddedBounds = await surface.locator('.map-wrap').boundingBox();
+  await page.mouse.move(embeddedBounds!.x + 30, embeddedBounds!.y + embeddedBounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(embeddedBounds!.x + 80, embeddedBounds!.y + embeddedBounds!.height / 2, { steps: 5 });
+  await page.mouse.up();
+  const afterEmbeddedDrag = await readMarkerGeometry(markerRoots);
+  for (let index = 0; index < restored.length; index += 1) {
+    expect(afterEmbeddedDrag[index].x).toBeCloseTo(restored[index].x, 0);
+    expect(afterEmbeddedDrag[index].y).toBeCloseTo(restored[index].y, 0);
   }
 });
 
