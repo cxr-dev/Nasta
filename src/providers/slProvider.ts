@@ -3,6 +3,8 @@ import type {
   TransitStopSearchResult,
   NearbyStopQuery,
   TransitDeparture,
+  DepartureFetchOptions,
+  DepartureFetchResult,
   TransitDisruption,
   TransitStopSequence,
   TransitStopSequenceStop,
@@ -12,8 +14,14 @@ import type {
 } from "./types.js";
 import { SL_PRODUCT_TO_MODE } from "../types/transit.js";
 import { getNearbyStops as getNearbySlStops } from "../services/nearbyStops";
-import { searchSites as slSearchSites, getDepartures as slGetDepartures } from "../services/slApi.js";
-import { getDeviations as slGetDeviations, pickPreferredMessageText } from "../services/slDeviations.js";
+import {
+  searchSites as slSearchSites,
+  getDepartures as slGetDepartures,
+} from "../services/slApi.js";
+import {
+  getDeviations as slGetDeviations,
+  pickPreferredMessageText,
+} from "../services/slDeviations.js";
 import { resolveStopSequence } from "../services/routeStops.js";
 import {
   getPredictedDepartures as timetablePredicted,
@@ -33,7 +41,9 @@ function toStopEntityId(siteId: string): EntityId {
 }
 
 function fromStopEntityId(entityId: EntityId): string {
-  return entityId.startsWith(STOP_PREFIX) ? entityId.slice(STOP_PREFIX.length) : entityId;
+  return entityId.startsWith(STOP_PREFIX)
+    ? entityId.slice(STOP_PREFIX.length)
+    : entityId;
 }
 
 /** Convert SL TransportType → canonical TransportMode. */
@@ -43,9 +53,14 @@ function toTransportMode(t: TransportType): TransportMode {
 }
 
 /** Convert Departure[] → TransitDeparture[]. */
-function toTransitDepartures(deps: Departure[], stopId: EntityId): TransitDeparture[] {
+function toTransitDepartures(
+  deps: Departure[],
+  stopId: EntityId,
+): TransitDeparture[] {
   return deps.map((d) => {
-    const dataSource: DepartureDataSource = d.predicted ? "predicted" : "realtime";
+    const dataSource: DepartureDataSource = d.predicted
+      ? "predicted"
+      : "realtime";
     return {
       id: `${stopId}|${d.line}|${d.direction_code}|${d.time}`,
       stopId,
@@ -77,14 +92,25 @@ function toDisruptionSeverity(s: string): "info" | "warning" | "critical" {
 }
 
 /** Estimate DisruptionEffect from severify/context. */
-function estimateEffect(msg: DeviationMessage): "other" | "reduced_service" | "significant_delays" | "no_service" | "accessibility_issue" | "elevator_service" | "escalator_service" {
+function estimateEffect(
+  msg: DeviationMessage,
+):
+  | "other"
+  | "reduced_service"
+  | "significant_delays"
+  | "no_service"
+  | "accessibility_issue"
+  | "elevator_service"
+  | "escalator_service" {
   if (msg.severity === "critical") return "no_service";
   if (msg.severity === "warning") return "significant_delays";
   return "other";
 }
 
 /** Convert DeviationMessage[] → TransitDisruption[]. */
-function toTransitDisruptions(messages: DeviationMessage[]): TransitDisruption[] {
+function toTransitDisruptions(
+  messages: DeviationMessage[],
+): TransitDisruption[] {
   return messages.map((msg) => {
     const text = pickPreferredMessageText(msg, "en");
     return {
@@ -112,7 +138,24 @@ function toTransitDisruptions(messages: DeviationMessage[]): TransitDisruption[]
 }
 
 /** Convert SiteSearchResult[] → TransitStopSearchResult[]. */
-function toSearchResults(results: Array<{ siteId: string; name: string; lat?: number; lon?: number; productClasses?: number[]; matchQuality?: number; type: "stop" | "station"; locality?: string }>): TransitStopSearchResult[] {
+export function normalizeMatchQuality(matchQuality?: number): number {
+  if (matchQuality == null || !Number.isFinite(matchQuality)) return 50;
+  if (matchQuality <= 1) return Math.round(Math.max(0, matchQuality) * 100);
+  return Math.round(Math.min(1000, Math.max(0, matchQuality)) / 10);
+}
+
+function toSearchResults(
+  results: Array<{
+    siteId: string;
+    name: string;
+    lat?: number;
+    lon?: number;
+    productClasses?: number[];
+    matchQuality?: number;
+    type: "stop" | "station";
+    locality?: string;
+  }>,
+): TransitStopSearchResult[] {
   return results.map((r) => ({
     id: toStopEntityId(r.siteId),
     name: r.name,
@@ -121,7 +164,7 @@ function toSearchResults(results: Array<{ siteId: string; name: string; lat?: nu
       const m = SL_PRODUCT_TO_MODE[pc];
       return m ? [m] : [];
     }),
-    relevance: r.matchQuality != null ? Math.round(r.matchQuality * 20) : 50,
+    relevance: normalizeMatchQuality(r.matchQuality),
     locationType: r.type === "station" ? "station" : "stop",
     locality: r.locality,
     providerMetadata: { siteId: r.siteId },
@@ -157,12 +200,18 @@ export const slProvider: TransitProvider = {
     return stopId.startsWith(STOP_PREFIX);
   },
 
-  async searchStops(query: string, signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
+  async searchStops(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<TransitStopSearchResult[]> {
     const results = await slSearchSites(query, signal);
     return toSearchResults(results);
   },
 
-  async getNearbyStops(query: NearbyStopQuery, signal?: AbortSignal): Promise<TransitStopSearchResult[]> {
+  async getNearbyStops(
+    query: NearbyStopQuery,
+    signal?: AbortSignal,
+  ): Promise<TransitStopSearchResult[]> {
     return getNearbySlStops(query, signal);
   },
 
@@ -171,9 +220,14 @@ export const slProvider: TransitProvider = {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }> {
+    options?: DepartureFetchOptions,
+  ): Promise<DepartureFetchResult> {
     const siteId = fromStopEntityId(stopId);
-    const { departures, stopDeviations } = await slGetDepartures(siteId, undefined, signal);
+    const { departures, stopDeviations, diagnostics } = await slGetDepartures(
+      siteId,
+      options?.forecastMinutes,
+      signal,
+    );
 
     let filtered = departures;
     if (line != null) {
@@ -183,7 +237,11 @@ export const slProvider: TransitProvider = {
       filtered = filtered.filter((d) => d.direction_code === directionCode);
     }
 
-    return { departures: toTransitDepartures(filtered, stopId), stopDeviations };
+    return {
+      departures: toTransitDepartures(filtered, stopId),
+      stopDeviations,
+      diagnostics,
+    };
   },
 
   async getPredictedDepartures(
@@ -193,7 +251,12 @@ export const slProvider: TransitProvider = {
     maxResults: number,
   ): Promise<TransitDeparture[]> {
     const siteId = fromStopEntityId(stopId);
-    const predicted = await timetablePredicted(siteId, line, directionCode, maxResults);
+    const predicted = await timetablePredicted(
+      siteId,
+      line,
+      directionCode,
+      maxResults,
+    );
     return predicted.map((p) => ({
       id: `${stopId}|${p.line}|${p.direction_code}|${p.time}`,
       stopId,
@@ -235,15 +298,15 @@ export const slProvider: TransitProvider = {
     };
   },
 
-  async getKnownRoutes(
-    stopId: EntityId,
-  ): Promise<Array<{
-    line: string;
-    lineName: string;
-    destination: string;
-    directionCode: number;
-    transportMode: TransportMode;
-  }>> {
+  async getKnownRoutes(stopId: EntityId): Promise<
+    Array<{
+      line: string;
+      lineName: string;
+      destination: string;
+      directionCode: number;
+      transportMode: TransportMode;
+    }>
+  > {
     const siteId = fromStopEntityId(stopId);
     const routes = await timetableKnownRoutes(siteId);
     return routes.map((r) => ({
@@ -281,7 +344,13 @@ export const slProvider: TransitProvider = {
     signal?: AbortSignal,
   ): Promise<TransitStopSequence | null> {
     const siteId = fromStopEntityId(originStopId);
-    const stopNames = await resolveStopSequence(siteId, destinationName, line, directionCode, signal);
+    const stopNames = await resolveStopSequence(
+      siteId,
+      destinationName,
+      line,
+      directionCode,
+      signal,
+    );
     if (!stopNames) return null;
 
     const stops: TransitStopSequenceStop[] = stopNames.map((name, i) => ({

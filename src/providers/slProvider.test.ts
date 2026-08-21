@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { slProvider } from "./slProvider.js";
+import { normalizeMatchQuality, slProvider } from "./slProvider.js";
 import type { TransitProvider } from "./types.js";
 
 (globalThis as any).fetch = vi.fn();
@@ -63,14 +63,23 @@ describe("slProvider", () => {
   // Timetable-dependent tests run FIRST before any API calls populate the cache
   describe("getPredictedDepartures", () => {
     it("returns empty array when empty timetable cache", async () => {
-      const deps = await slProvider.getPredictedDepartures!("sl:1001", "4", 0, 5);
+      const deps = await slProvider.getPredictedDepartures!(
+        "sl:1001",
+        "4",
+        0,
+        5,
+      );
       expect(deps).toEqual([]);
     });
   });
 
   describe("getNextScheduledDeparture", () => {
     it("returns null when empty timetable cache", async () => {
-      const dep = await slProvider.getNextScheduledDeparture!("sl:1001", "4", 0);
+      const dep = await slProvider.getNextScheduledDeparture!(
+        "sl:1001",
+        "4",
+        0,
+      );
       expect(dep).toBeNull();
     });
   });
@@ -103,14 +112,23 @@ describe("slProvider", () => {
       expect(results[0].name).toBe("T-Centralen");
       expect(results[0].coord).toEqual([59.33, 18.06]);
       expect(results[0].modes).toContain("metro");
-      expect(results[0].relevance).toBe(19);
+      expect(results[0].relevance).toBe(95);
       expect(results[0].locationType).toBe("stop");
     });
 
-    it("returns empty array when API fails", async () => {
+    it("throws when the API fails", async () => {
       (globalThis as any).fetch.mockRejectedValue(new Error("network error"));
-      const results = await slProvider.searchStops!("unknown");
-      expect(results).toEqual([]);
+      await expect(slProvider.searchStops!("unknown")).rejects.toThrow(
+        "network error",
+      );
+    });
+
+    it("normalizes both current and legacy match quality scales", () => {
+      expect(normalizeMatchQuality(965)).toBe(97);
+      expect(normalizeMatchQuality(0.95)).toBe(95);
+      expect(normalizeMatchQuality(50)).toBe(5);
+      expect(normalizeMatchQuality(100)).toBe(10);
+      expect(normalizeMatchQuality()).toBe(50);
     });
   });
 
@@ -123,7 +141,11 @@ describe("slProvider", () => {
       mockFetchResponse({
         departures: [
           {
-            line: { designation: "4", name: "Linje 4", transport_mode: "metro" },
+            line: {
+              designation: "4",
+              name: "Linje 4",
+              transport_mode: "metro",
+            },
             destination: "Radiohuset",
             direction_code: 0,
             scheduled: "2026-06-25T12:05:00",
@@ -155,8 +177,18 @@ describe("slProvider", () => {
     it("filters by line when specified", async () => {
       mockFetchResponse({
         departures: [
-          { line: { designation: "4" }, destination: "A", direction_code: 0, scheduled: "2099-06-25T12:05:00" },
-          { line: { designation: "17" }, destination: "B", direction_code: 1, scheduled: "2099-06-25T12:10:00" },
+          {
+            line: { designation: "4" },
+            destination: "A",
+            direction_code: 0,
+            scheduled: "2099-06-25T12:05:00",
+          },
+          {
+            line: { designation: "17" },
+            destination: "B",
+            direction_code: 1,
+            scheduled: "2099-06-25T12:10:00",
+          },
         ],
         stop_deviations: [],
       });
@@ -174,9 +206,17 @@ describe("slProvider", () => {
           deviation_case_id: 42,
           created: "2026-06-25T10:00:00+02:00",
           modified: "2026-06-25T10:30:00+02:00",
-          priority: { importance_level: 3, influence_level: 2, urgency_level: 1 },
+          priority: {
+            importance_level: 3,
+            influence_level: 2,
+            urgency_level: 1,
+          },
           message_variants: [
-            { language: "sv", header: "Förseningar", details: "10 min försening" },
+            {
+              language: "sv",
+              header: "Förseningar",
+              details: "10 min försening",
+            },
             { language: "en", header: "Delays", details: "10 min delay" },
           ],
           scope: {
@@ -202,9 +242,7 @@ describe("slProvider", () => {
   describe("resolveStopId", () => {
     it("resolves stop name to EntityId", async () => {
       mockFetchResponse({
-        locations: [
-          { id: "90910010009001", name: "Centralen", type: "stop" },
-        ],
+        locations: [{ id: "90910010009001", name: "Centralen", type: "stop" }],
       });
 
       const id = await slProvider.resolveStopId!("Centralen");
@@ -222,7 +260,12 @@ describe("slProvider", () => {
     it("returns null when API resolves no stops", async () => {
       mockFetchResponse({ locations: [] });
 
-      const seq = await slProvider.getStopSequence!("sl:1001", "Ropsten", "4", 0);
+      const seq = await slProvider.getStopSequence!(
+        "sl:1001",
+        "Ropsten",
+        "4",
+        0,
+      );
       expect(seq).toBeNull();
     });
   });

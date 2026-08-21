@@ -2,6 +2,8 @@ import { ProviderRegistry } from "../providers/registry.js";
 import type { TransitService, EntityId, TransitProvider } from "../providers/types.js";
 import type {
   TransitDeparture,
+  DepartureFetchOptions,
+  DepartureFetchResult,
   TransitDisruption,
   TransitStopSearchResult,
   NearbyStopQuery,
@@ -33,6 +35,10 @@ export class TransitServiceImpl implements TransitService {
     const results: TransitStopSearchResult[] = [];
     for (const batch of batches) {
       if (batch.status === "fulfilled") results.push(...batch.value);
+    }
+    if (results.length === 0) {
+      const failed = batches.find((batch): batch is PromiseRejectedResult => batch.status === "rejected");
+      if (failed) throw failed.reason;
     }
     return results;
   }
@@ -69,9 +75,10 @@ export class TransitServiceImpl implements TransitService {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }> {
+    options?: DepartureFetchOptions,
+  ): Promise<DepartureFetchResult> {
     return this.resolveOrThrow(stopId, _stopName).getDepartures(
-      stopId, line, directionCode, signal,
+      stopId, line, directionCode, signal, options,
     );
   }
 

@@ -2,6 +2,7 @@ import type { Departure, SiteSearchResult } from "../types/departure";
 import { cleanStopName } from "../lib/stopName";
 import type { TransportType } from "../types/page";
 import { getTransportType } from "../lib/getTransportType";
+import type { DepartureFetchDiagnostics } from "../types/transit";
 import { learnFromApiResponse } from "./timetableCache";
 import { cacheScheduleTime } from "./scheduleCache";
 import { stopAreaStore } from "../stores/stopAreaStore.svelte";
@@ -11,6 +12,24 @@ const JOURNEY_PLANNER_URL = "https://journeyplanner.integration.sl.se/v2";
 const STOP_FINDER_URL = `${JOURNEY_PLANNER_URL}/stop-finder`;
 const TRIP_URL = `${JOURNEY_PLANNER_URL}/trips`;
 const DEFAULT_FORECAST_MINUTES = 240;
+const STALE_DEPARTURE_GRACE_MS = 90_000;
+
+type SlApiErrorKind = "timeout" | "http" | "network" | "invalid-json";
+
+export type SlApiError = Error & {
+  kind: SlApiErrorKind;
+  status?: number;
+  diagnostics?: DepartureFetchDiagnostics;
+};
+
+function apiError(
+  message: string,
+  kind: SlApiErrorKind,
+  status?: number,
+  diagnostics?: DepartureFetchDiagnostics,
+): SlApiError {
+  return Object.assign(new Error(message), { kind, status, diagnostics });
+}
 
 /**
  * Parse SL API timestamps as Stockholm local time using Intl-based DST-aware conversion.
@@ -77,7 +96,6 @@ export function parseSlTimestamp(raw: string): number {
   return assumedUtcMs - offsetMs;
 }
 
-
 function globalIdToSiteId(globalId: string): string {
   return globalId.replace(/^9091001000/, "");
 }
@@ -129,7 +147,8 @@ function isValidDeparture(obj: unknown): obj is Departure {
     o.timeToDeparture >= 0;
   const hasUsableDisplay = Number.isFinite(parseDisplayMinutes(o.display));
   const hasTimestamp = [o.expected, o.scheduled].some(
-    (value) => typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
+    (value) =>
+      typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
   );
   return (
     typeof line === "object" &&
@@ -148,29 +167,23 @@ export async function searchSites(
 
   const url = `${STOP_FINDER_URL}?name_sf=${encodeURIComponent(query)}&any_obj_filter_sf=2&type_sf=any`;
 
-  let response: Response;
-  try {
-    response = await fetch(url, { signal });
-  } catch (e) {
-    if ((e as Error).name === "AbortError") {
-      return [];
-    }
-    if (import.meta.env.DEV) console.error("[SL API] Search fetch error:", e);
-    return [];
-  }
-
-  if (!response.ok) {
-    if (import.meta.env.DEV)
-      console.error("[SL API] Search error:", response.status);
-    return [];
-  }
+  const response = await fetch(url, { signal });
+  if (!response.ok)
+    throw apiError(
+      `Search API error: ${response.status}`,
+      "http",
+      response.status,
+    );
 
   let data: StopFinderResponse;
   try {
     data = await response.json();
   } catch {
-    if (import.meta.env.DEV) console.error("[SL API] JSON parse error");
-    return [];
+    throw apiError(
+      "Search API returned invalid JSON",
+      "invalid-json",
+      response.status,
+    );
   }
 
   const rawLocations = Array.isArray(data.locations) ? data.locations : [];
@@ -204,10 +217,34 @@ export async function getDepartures(
   siteId: string,
   forecast = DEFAULT_FORECAST_MINUTES,
   signal?: AbortSignal,
-): Promise<{ departures: Departure[]; stopDeviations: any[] }> {
+): Promise<{
+  departures: Departure[];
+  stopDeviations: any[];
+  diagnostics: DepartureFetchDiagnostics;
+}> {
+  const requestedAt = Date.now();
+  const startedAt = performance.now();
+  const failureDiagnostics = (
+    httpStatus?: number,
+  ): DepartureFetchDiagnostics => ({
+    requestedAt,
+    durationMs: Math.round(performance.now() - startedAt),
+    forecastMinutes: forecast,
+    rawCount: 0,
+    validCount: 0,
+    invalidCount: 0,
+    staleCount: 0,
+    relativeFallbackCount: 0,
+    httpStatus,
+  });
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 10000);
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener("abort", abortFromCaller, { once: true });
 
   let response: Response;
   try {
@@ -217,21 +254,50 @@ export async function getDepartures(
     );
   } catch (e) {
     clearTimeout(timeoutId);
-    if ((e as Error).name === "AbortError") {
-      throw e;
-    }
-    throw e;
+    signal?.removeEventListener("abort", abortFromCaller);
+    if (signal?.aborted && !timedOut) throw e;
+    if (timedOut)
+      throw apiError(
+        "Departure request timed out",
+        "timeout",
+        undefined,
+        failureDiagnostics(),
+      );
+    const message =
+      e instanceof Error && e.message ? e.message : "Departure request failed";
+    throw apiError(message, "network", undefined, failureDiagnostics());
   }
   clearTimeout(timeoutId);
+  signal?.removeEventListener("abort", abortFromCaller);
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  if (!response.ok)
+    throw apiError(
+      `API error: ${response.status}`,
+      "http",
+      response.status,
+      failureDiagnostics(response.status),
+    );
 
-  const data = await response.json();
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    throw apiError(
+      "Departure API returned invalid JSON",
+      "invalid-json",
+      response.status,
+      failureDiagnostics(response.status),
+    );
+  }
   learnFromApiResponse(siteId, data.departures || []).catch(() => {});
 
   const rawDeps = Array.isArray(data.departures) ? data.departures : [];
-  const stopDeviations = Array.isArray(data.stop_deviations) ? data.stop_deviations : [];
+  const stopDeviations = Array.isArray(data.stop_deviations)
+    ? data.stop_deviations
+    : [];
   const validDeps = rawDeps.filter(isValidDeparture);
+  let staleCount = 0;
+  let relativeFallbackCount = 0;
 
   // Extract stop_area.id from departure responses and publish to stopAreaStore
   // This enables disruption matching via Deviations API stop area lookup
@@ -244,17 +310,24 @@ export async function getDepartures(
 
   const departures = validDeps.flatMap((dep: any) => {
     const timestampCandidate = [dep.expected, dep.scheduled].find(
-      (value) => typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
+      (value) =>
+        typeof value === "string" && Number.isFinite(parseSlTimestamp(value)),
     );
     const liveTime = timestampCandidate ?? "";
     const parsedTime = liveTime ? parseSlTimestamp(liveTime) : NaN;
     const apiMinutes =
-      typeof dep.timeToDeparture === "number" && Number.isFinite(dep.timeToDeparture)
+      typeof dep.timeToDeparture === "number" &&
+      Number.isFinite(dep.timeToDeparture)
         ? dep.timeToDeparture
         : NaN;
     const displayMinutes = parseDisplayMinutes(dep.display);
 
-    if (Number.isNaN(parsedTime) && Number.isNaN(apiMinutes) && Number.isNaN(displayMinutes)) return [];
+    if (
+      Number.isNaN(parsedTime) &&
+      Number.isNaN(apiMinutes) &&
+      Number.isNaN(displayMinutes)
+    )
+      return [];
 
     // Prioritize computed minutes from parsed timestamp
     let minutes: number;
@@ -262,19 +335,19 @@ export async function getDepartures(
     if (!Number.isNaN(parsedTime)) {
       // Compute from absolute timestamp (most reliable)
       const now = Date.now();
-      if (parsedTime < now) {
-        if (import.meta.env.DEV) {
-          console.warn("[SL API] Ignoring stale departure:", {
-            raw: liveTime,
-            parsed: parsedTime,
-            now,
-            line: dep.line?.designation,
-            destination: dep.destination,
-          });
+      if (parsedTime < now - STALE_DEPARTURE_GRACE_MS) {
+        const relativeMinutes = !Number.isNaN(apiMinutes)
+          ? apiMinutes
+          : displayMinutes;
+        if (Number.isNaN(relativeMinutes) || relativeMinutes <= 0) {
+          staleCount += 1;
+          return [];
         }
-        return [];
+        relativeFallbackCount += 1;
+        minutes = Math.max(0, Math.ceil(relativeMinutes));
+      } else {
+        minutes = Math.max(0, Math.ceil((parsedTime - now) / 60000));
       }
-      minutes = Math.ceil((parsedTime - now) / 60000);
     } else {
       // Use the provider's relative value only when no usable timestamp exists.
       minutes = !Number.isNaN(apiMinutes)
@@ -282,17 +355,22 @@ export async function getDepartures(
         : Math.max(0, Math.ceil(displayMinutes));
     }
 
-    const formattedTime = !Number.isNaN(parsedTime)
-      ? formatTime(new Date(parsedTime))
-      : "";
+    const formattedTime =
+      !Number.isNaN(parsedTime) &&
+      parsedTime >= Date.now() - STALE_DEPARTURE_GRACE_MS
+        ? formatTime(new Date(parsedTime))
+        : "";
 
     // Extract scheduled time from API response and cache it
-    const scheduledTime = typeof dep.scheduled === "string" ? parseSlTimestamp(dep.scheduled) : NaN;
+    const scheduledTime =
+      typeof dep.scheduled === "string" ? parseSlTimestamp(dep.scheduled) : NaN;
     if (Number.isFinite(scheduledTime)) {
       const scheduledDate = new Date(scheduledTime);
       const line = dep.line?.designation || dep.line?.name || "";
       const direction_code = dep.direction_code ?? 0;
-      cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(() => {});
+      cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(
+        () => {},
+      );
     }
 
     // Extract departure-level deviations (plural "deviations" field from SL API)
@@ -304,30 +382,44 @@ export async function getDepartures(
         }))
       : undefined;
 
-    return [{
-      line: dep.line?.designation || dep.line?.name || "",
-      lineName: dep.line?.name || "",
-      destination: dep.destination || "",
-      direction_code: dep.direction_code ?? 0,
-      minutes,
-      time: formattedTime,
-      expectedAt: Number.isFinite(parsedTime) ? parsedTime : undefined,
-      deviations: depDeviations,
-      transportType: getTransportType(dep.line?.transport_mode),
-      // SL API exposes journey.id — used for vehicle position estimation in the progress strip
-      journeyRef: dep.journey?.id != null ? String(dep.journey.id) : undefined,
-      // SL API exposes trip.id — fallback for cache key when journeyRef is missing
-      tripId: dep.trip?.id != null ? String(dep.trip.id) : undefined,
-      // SL's pre-calculated display — always correct, use as fallback
-      display: dep.display,
-      // SL API provides stop point ID
-      stop_point_id: dep.stop_point?.id ?? undefined,
-    }];
+    return [
+      {
+        line: dep.line?.designation || dep.line?.name || "",
+        lineName: dep.line?.name || "",
+        destination: dep.destination || "",
+        direction_code: dep.direction_code ?? 0,
+        minutes,
+        time: formattedTime,
+        expectedAt: Number.isFinite(parsedTime) ? parsedTime : undefined,
+        deviations: depDeviations,
+        transportType: getTransportType(dep.line?.transport_mode),
+        // SL API exposes journey.id — used for vehicle position estimation in the progress strip
+        journeyRef:
+          dep.journey?.id != null ? String(dep.journey.id) : undefined,
+        // SL API exposes trip.id — fallback for cache key when journeyRef is missing
+        tripId: dep.trip?.id != null ? String(dep.trip.id) : undefined,
+        // SL's pre-calculated display — always correct, use as fallback
+        display: dep.display,
+        // SL API provides stop point ID
+        stop_point_id: dep.stop_point?.id ?? undefined,
+      },
+    ];
   });
 
-  return { departures, stopDeviations };
-}
+  const diagnostics: DepartureFetchDiagnostics = {
+    requestedAt,
+    durationMs: Math.round(performance.now() - startedAt),
+    forecastMinutes: forecast,
+    rawCount: rawDeps.length,
+    validCount: departures.length,
+    invalidCount: rawDeps.length - validDeps.length,
+    staleCount,
+    relativeFallbackCount,
+    httpStatus: response.status,
+  };
 
+  return { departures, stopDeviations, diagnostics };
+}
 
 export async function searchTrips(
   originId: string,
@@ -348,7 +440,7 @@ export async function searchTrips(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
-  signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  signal?.addEventListener("abort", () => controller.abort(), { once: true });
 
   let response: Response;
   try {
@@ -375,12 +467,17 @@ export async function searchTrips(
     for (const leg of legs) {
       if (globalIdToSiteId(leg.origin?.id || "") === originId) {
         const liveTime = leg.origin?.time || "";
-        const parsedTime = liveTime ? parseSlTimestamp(`${leg.origin?.date || ""}T${liveTime}`) : NaN;
+        const parsedTime = liveTime
+          ? parseSlTimestamp(`${leg.origin?.date || ""}T${liveTime}`)
+          : NaN;
 
         if (isNaN(parsedTime)) continue;
 
-        const minutes = Math.max(1, Math.ceil((parsedTime - Date.now()) / 60000));
-        
+        const minutes = Math.max(
+          1,
+          Math.ceil((parsedTime - Date.now()) / 60000),
+        );
+
         // Filter out past trips
         if (minutes < 0) continue;
 
@@ -425,7 +522,9 @@ function formatTime(date: Date): string {
  * 128 -> bus
  * 256 -> boat
  */
-export function mapProductClassesToTransportTypes(classes: number[]): TransportType[] {
+export function mapProductClassesToTransportTypes(
+  classes: number[],
+): TransportType[] {
   const types = new Set<TransportType>();
   for (const c of classes) {
     if (c === 1 || c === 2) types.add("metro");

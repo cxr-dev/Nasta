@@ -363,6 +363,31 @@ export interface TransitDeparture {
   providerMetadata?: Record<string, unknown>;
 }
 
+/** Optional request controls for a departure board. */
+export interface DepartureFetchOptions {
+  /** Forecast horizon requested from the provider, in minutes. */
+  forecastMinutes?: number;
+}
+
+/** Provider diagnostics for explaining an empty or degraded departure response. */
+export interface DepartureFetchDiagnostics {
+  requestedAt: number;
+  durationMs: number;
+  forecastMinutes: number;
+  rawCount: number;
+  validCount: number;
+  invalidCount: number;
+  staleCount: number;
+  relativeFallbackCount: number;
+  httpStatus?: number;
+}
+
+export interface DepartureFetchResult {
+  departures: TransitDeparture[];
+  stopDeviations: any[];
+  diagnostics?: DepartureFetchDiagnostics;
+}
+
 /** Trip reference — for showing trip continuation / stop sequence */
 export interface TransitTripRef {
   tripId: EntityId;
@@ -798,7 +823,8 @@ export interface TransitProvider {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }>;
+    options?: DepartureFetchOptions,
+  ): Promise<DepartureFetchResult>;
 
   /** Get predicted future departures (schedule-based, not live).
    *  Used for "sleeping" state (late night / early morning).
@@ -933,7 +959,8 @@ export interface TransitService {
     line?: string,
     directionCode?: number,
     signal?: AbortSignal,
-  ): Promise<{ departures: TransitDeparture[]; stopDeviations: any[] }>;
+    options?: DepartureFetchOptions,
+  ): Promise<DepartureFetchResult>;
 
   getPredictedDepartures(
     stopId: EntityId,

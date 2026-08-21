@@ -1,7 +1,13 @@
 /// <reference types="vitest" />
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { searchSites, getDepartures, parseSlTimestamp, mapProductClassesToTransportTypes, searchTrips } from "./slApi";
+import {
+  searchSites,
+  getDepartures,
+  parseSlTimestamp,
+  mapProductClassesToTransportTypes,
+  searchTrips,
+} from "./slApi";
 
 (globalThis as any).fetch = vi.fn();
 
@@ -70,39 +76,91 @@ describe("slApi service", () => {
       expect(results[0].name).toBe("Test stop");
     });
 
-    it("returns empty array on API error", async () => {
+    it("throws on API error", async () => {
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
       });
 
-      const result = await searchSites("test");
-      expect(result).toEqual([]);
+      await expect(searchSites("test")).rejects.toThrow(
+        "Search API error: 500",
+      );
     });
 
-    it("returns empty array on JSON parse error", async () => {
+    it("throws on JSON parse error", async () => {
       (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => { throw new Error("Invalid JSON"); },
+        json: async () => {
+          throw new Error("Invalid JSON");
+        },
       });
-      const result = await searchSites("test");
-      expect(result).toEqual([]);
+      await expect(searchSites("test")).rejects.toThrow("invalid JSON");
     });
 
-    it("returns empty array on fetch AbortError", async () => {
-      (globalThis as any).fetch = vi.fn().mockRejectedValue({ name: "AbortError" });
-      const result = await searchSites("test");
-      expect(result).toEqual([]);
+    it("throws on fetch AbortError", async () => {
+      (globalThis as any).fetch = vi
+        .fn()
+        .mockRejectedValue({ name: "AbortError" });
+      await expect(searchSites("test")).rejects.toMatchObject({
+        name: "AbortError",
+      });
     });
 
-    it("returns empty array on network error", async () => {
-      (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error("Network error"));
-      const result = await searchSites("test");
-      expect(result).toEqual([]);
+    it("throws on network error", async () => {
+      (globalThis as any).fetch = vi
+        .fn()
+        .mockRejectedValue(new Error("Network error"));
+      await expect(searchSites("test")).rejects.toThrow("Network error");
     });
   });
 
   describe("getDepartures", () => {
+    it("recovers a contradictory stale timestamp from a future relative value", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          departures: [
+            {
+              line: { designation: "76" },
+              destination: "Test",
+              direction_code: 1,
+              expected: "2024-01-01T08:04:00",
+              display: "5 min",
+            },
+          ],
+        }),
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures[0].minutes).toBe(5);
+      expect(result.diagnostics?.relativeFallbackCount).toBe(1);
+    });
+
+    it("keeps a recently passed timestamp during the grace period", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          departures: [
+            {
+              line: { designation: "76" },
+              destination: "Test",
+              direction_code: 1,
+              expected: "2024-01-01T09:00:00",
+            },
+          ],
+        }),
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(1);
+      expect(result.departures[0].minutes).toBe(0);
+    });
     it("rejects departures whose timestamp has already passed", async () => {
       vi.useFakeTimers();
       // Set system time to 2024-01-01T08:00:30 UTC
@@ -127,6 +185,29 @@ describe("slApi service", () => {
 
       const result = await getDepartures("9001");
       expect(result.departures).toHaveLength(0);
+    });
+
+    it("rejects a stale timestamp when the relative fallback is zero", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-01T08:00:30Z"));
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          departures: [
+            {
+              line: { designation: "76" },
+              destination: "Test",
+              direction_code: 1,
+              expected: "2024-01-01T08:04:00",
+              timeToDeparture: 0,
+            },
+          ],
+        }),
+      });
+
+      const result = await getDepartures("9001");
+      expect(result.departures).toHaveLength(0);
+      expect(result.diagnostics?.staleCount).toBe(1);
     });
 
     it("correctly handles future departures", async () => {
@@ -287,7 +368,11 @@ describe("slApi service", () => {
       const mockDepartures = {
         departures: [
           {
-            line: { designation: "30", name: "30", transport_mode: "lightrail" },
+            line: {
+              designation: "30",
+              name: "30",
+              transport_mode: "lightrail",
+            },
             destination: "Solna station",
             direction_code: 1,
             expected: "2099-01-01T10:00:00",
@@ -441,9 +526,33 @@ describe("slApi service", () => {
     });
 
     it("throws on network fetch error", async () => {
-      (globalThis as any).fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+      (globalThis as any).fetch = vi
+        .fn()
+        .mockRejectedValue(new Error("Connection refused"));
 
       await expect(getDepartures("9001")).rejects.toThrow("Connection refused");
+    });
+
+    it("classifies a request timeout separately from caller cancellation", async () => {
+      vi.useFakeTimers();
+      (globalThis as any).fetch = vi.fn(
+        (_url: string, options: { signal: AbortSignal }) =>
+          new Promise((_, reject) => {
+            options.signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("aborted", "AbortError")),
+              { once: true },
+            );
+          }),
+      );
+
+      const request = getDepartures("9001");
+      const result = expect(request).rejects.toMatchObject({
+        kind: "timeout",
+        diagnostics: { forecastMinutes: 240 },
+      });
+      await vi.advanceTimersByTimeAsync(10000);
+      await result;
     });
 
     it("maps departure-level deviations from API", async () => {
@@ -455,7 +564,11 @@ describe("slApi service", () => {
             direction_code: 1,
             expected: "2099-01-01T10:00:00",
             deviations: [
-              { importance_level: 3, consequence: "DELAYED", message: "5 min sen" },
+              {
+                importance_level: 3,
+                consequence: "DELAYED",
+                message: "5 min sen",
+              },
             ],
           },
         ],
@@ -513,7 +626,11 @@ describe("slApi service", () => {
           {
             legs: [
               {
-                origin: { id: "90910010009999", time: "10:00:00", date: "2026-06-15" },
+                origin: {
+                  id: "90910010009999",
+                  time: "10:00:00",
+                  date: "2026-06-15",
+                },
                 destination: { name: "Other" },
                 line: { designation: "X" },
                 direction: { code: 1 },
@@ -538,7 +655,9 @@ describe("slApi service", () => {
         status: 500,
       });
 
-      await expect(searchTrips("9001", "9002")).rejects.toThrow("Trip API error: 500");
+      await expect(searchTrips("9001", "9002")).rejects.toThrow(
+        "Trip API error: 500",
+      );
     });
 
     it("returns empty for empty journeys response", async () => {

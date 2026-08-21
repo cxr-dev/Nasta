@@ -65,7 +65,7 @@ describe("TransitServiceImpl", () => {
     const result = await svc.getDepartures("sl:123", "Test", "4", 1);
 
     expect(result).toEqual({ departures: [{ id: "d1" }], stopDeviations: [] });
-    expect(mock.getDepartures).toHaveBeenCalledWith("sl:123", "4", 1, undefined);
+    expect(mock.getDepartures).toHaveBeenCalledWith("sl:123", "4", 1, undefined, undefined);
   });
 
   it("getDepartures throws for unknown provider", async () => {
@@ -109,6 +109,16 @@ describe("TransitServiceImpl", () => {
 
     const svc = createTransitService(registry);
     expect(await svc.searchStops("test")).toEqual([]);
+  });
+
+  it('throws when every search provider fails without a partial result', async () => {
+    const registry = new ProviderRegistry();
+    registry.register(mockProvider('sl', {
+      capabilities: { providerId: 'sl', displayName: 'SL', features: { search: true, realtime: false, schedules: false, predictions: false, disruptions: false, stopSequences: false, vehiclePositions: false, routeGeometry: false, tripMetadata: false, occupancy: false } },
+      searchStops: vi.fn().mockRejectedValue(new Error('offline')),
+    }));
+
+    await expect(createTransitService(registry).searchStops('test')).rejects.toThrow('offline');
   });
 
   it("getPredictedDepartures delegates when provider supports it", async () => {
