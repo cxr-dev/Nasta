@@ -14,9 +14,9 @@
   const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
   const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-  let { active, location, stops = [], selectedId = null, boardStop = null, interactionMode = 'embedded', label, locationLabel = 'You are here', onSelectStop, onLoading, onReady, onFatalError }: {
+  let { active, location, stops = [], selectedId = null, boardStop = null, includeLocationWithBoardStop = false, interactionMode = 'embedded', resetViewToken = 0, label, locationLabel = 'You are here', onSelectStop, onLoading, onReady, onFatalError }: {
     active: boolean; location: LocationSnapshot; stops?: TransitStopSearchResult[]; selectedId?: string | null;
-    boardStop?: TransitStopSearchResult | null; interactionMode?: 'embedded' | 'fullscreen'; label: string; locationLabel?: string; onSelectStop?: (stop: TransitStopSearchResult) => void;
+    boardStop?: TransitStopSearchResult | null; includeLocationWithBoardStop?: boolean; interactionMode?: 'embedded' | 'fullscreen'; resetViewToken?: number; label: string; locationLabel?: string; onSelectStop?: (stop: TransitStopSearchResult) => void;
     onLoading?: () => void; onReady?: () => void; onFatalError?: () => void;
   } = $props();
 
@@ -30,6 +30,7 @@
   let loading = false;
   let systemDark = $state(false);
   let currentStyle = '';
+  let handledResetViewToken = 0;
 
   function styleUrl() {
     return resolveTheme(getSettings().theme ?? 'system', systemDark) === 'dark' ? DARK_STYLE : LIGHT_STYLE;
@@ -64,11 +65,13 @@
     map.keyboard?.disable?.();
   }
   function markerElement(stop: TransitStopSearchResult, selected: boolean) {
-    const element = document.createElement('button');
-    element.type = 'button';
+    const interactive = Boolean(onSelectStop);
+    const element = document.createElement(interactive ? 'button' : 'div');
+    if (element instanceof HTMLButtonElement) element.type = 'button';
     element.className = `nearby-stop-marker${selected ? ' selected' : ''}`;
     element.setAttribute('aria-label', stop.name);
     element.title = stop.name;
+    if (!interactive) element.setAttribute('role', 'img');
     const dot = document.createElement('span');
     dot.className = 'nearby-stop-marker-dot';
     dot.setAttribute('aria-hidden', 'true');
@@ -76,7 +79,7 @@
     center.className = 'nearby-stop-marker-center';
     center.setAttribute('aria-hidden', 'true');
     element.append(dot, center);
-    element.addEventListener('click', () => onSelectStop?.(stop));
+    if (interactive) element.addEventListener('click', () => onSelectStop?.(stop));
     return element;
   }
   function locationElement() {
@@ -108,7 +111,7 @@
       try { marker.remove(); } catch { /* Continue removing the remaining markers. */ }
     });
     markers = [];
-    if (!boardStop && location.position && location.position.every(Number.isFinite)) {
+    if ((!boardStop || includeLocationWithBoardStop) && location.position && location.position.every(Number.isFinite)) {
       try {
         markers.push(new maplibregl.Marker({ element: locationElement() })
           .setLngLat([location.position[1], location.position[0]]).addTo(map));
@@ -134,7 +137,7 @@
       module.setWorkerUrl(workerUrl);
       maplibregl = module;
       currentStyle = styleUrl();
-      map = new module.Map({ container: host, style: currentStyle, center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2, attributionControl: false, dragRotate: false, keyboard: false });
+      map = new module.Map({ container: host, style: currentStyle, center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2, attributionControl: false, dragPan: false, scrollZoom: false, doubleClickZoom: false, touchZoomRotate: false, dragRotate: false, keyboard: false });
       map.addControl(new module.AttributionControl({ compact: true }), 'bottom-right');
       setMapInteractionMode(interactionMode);
       map.on('error', (event: { sourceId?: string; error?: unknown }) => {
@@ -144,8 +147,10 @@
       map.once?.('idle', collapseAttribution);
       const initialize = () => { ready = true; updateMarkers(); resize(); collapseAttribution(); onReady?.(); };
       map.on('load', initialize); map.on('style.load', initialize);
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(host);
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(host);
+      }
     } catch { reportFatalError(); }
     finally { loading = false; }
   }
@@ -159,8 +164,16 @@
     void setup();
     resize();
   });
-  $effect(() => { active; stops; selectedId; boardStop; if (active) updateMarkers(); });
+  $effect(() => { active; stops; selectedId; boardStop; includeLocationWithBoardStop; location.position; if (active) updateMarkers(); });
   $effect(() => { setMapInteractionMode(interactionMode); resize(); });
+  $effect(() => {
+    const token = resetViewToken;
+    if (!token || token === handledResetViewToken || !map) return;
+    const center = boardStop?.coord ?? location.position;
+    if (!center) return;
+    handledResetViewToken = token;
+    try { map.jumpTo?.({ center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2 }); } catch { reportFatalError(); }
+  });
   $effect(() => {
     const nextStyle = styleUrl();
     if (map && nextStyle !== currentStyle) {
@@ -187,7 +200,8 @@
 <style>
   .nearby-map { position: absolute; inset: 0; touch-action: pan-y pinch-zoom; }
   .nearby-map.fullscreen { touch-action: none; }
-  :global(.nearby-stop-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+  :global(.nearby-stop-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+  :global(button.nearby-stop-marker) { cursor: pointer; }
   :global(.nearby-stop-marker-dot), :global(.nearby-stop-marker-center) { position: absolute; border-radius: 50%; pointer-events: none; }
   :global(.nearby-stop-marker-dot) { width: 25px; height: 25px; border: 3px solid var(--surface); background: var(--text-secondary); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 28%, transparent); }
   :global(.nearby-stop-marker-center) { width: 7px; height: 7px; background: var(--surface); }
@@ -196,4 +210,8 @@
   :global(.nearby-user-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; pointer-events: none; }
   :global(.nearby-user-marker-dot) { width: 17px; height: 17px; border: 3px solid #fff; border-radius: 50%; background: #1677e8; box-shadow: 0 0 0 5px color-mix(in srgb, #1677e8 24%, transparent), 0 1px 4px color-mix(in srgb, #000 32%, transparent); }
   :global(.nearby-user-marker-label) { position: absolute; top: 36px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 18%, transparent); color: var(--text); font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
+  :global(.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show)) { min-height: 24px; padding: 0 24px 0 0; margin: 6px !important; background-color: transparent; border-radius: 12px; }
+  :global(.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show)::before) { content: ''; position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, 0.92); pointer-events: none; }
+  :global(.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-button) { width: 24px; height: 24px; border-radius: 12px; background-color: transparent; background-position: center; background-repeat: no-repeat; background-size: 18px 18px; z-index: 1; }
+  :global(.maplibregl-ctrl-attrib) { font-size: 9px; }
 </style>

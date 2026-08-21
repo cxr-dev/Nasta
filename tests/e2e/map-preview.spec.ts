@@ -175,8 +175,26 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
   const attribution = page.locator(".maplibregl-ctrl-attrib");
   await expect(attribution).toBeVisible();
   await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
-  await attribution.locator(".maplibregl-ctrl-attrib-button").click();
+  const attributionButton = attribution.locator(".maplibregl-ctrl-attrib-button");
+  const map = page.locator(".nearby-map");
+  const [buttonBox, mapBox] = await Promise.all([attributionButton.boundingBox(), map.boundingBox()]);
+  expect(buttonBox?.width).toBeCloseTo(24, 0);
+  expect(buttonBox?.height).toBeCloseTo(24, 0);
+  expect(mapBox!.x + mapBox!.width - (buttonBox!.x + buttonBox!.width)).toBeCloseTo(6, 0);
+  expect(mapBox!.y + mapBox!.height - (buttonBox!.y + buttonBox!.height)).toBeCloseTo(6, 0);
+  await expect(attributionButton).toHaveAttribute("aria-label", /attribution/i);
+  await expect.poll(() => attribution.evaluate((element) => {
+    const before = getComputedStyle(element, "::before");
+    const button = element.querySelector(".maplibregl-ctrl-attrib-button");
+    return {
+      beforeHeight: before.height,
+      beforeWidth: before.width,
+      buttonBackgroundSize: button ? getComputedStyle(button).backgroundSize : "",
+    };
+  })).toEqual({ beforeHeight: "20px", beforeWidth: "20px", buttonBackgroundSize: "18px 18px" });
+  await attributionButton.click();
   await expect(attribution).toHaveClass(/maplibregl-compact-show/);
+  await expect(attribution.locator(".maplibregl-ctrl-attrib-inner")).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 
@@ -203,6 +221,49 @@ test("keeps the embedded map scrollable and reserves gestures for fullscreen", a
   await expandButton.click();
   await expect(page.getByRole("dialog", { name: "Stop location" })).toBeVisible();
   await expect(canvas).toHaveCSS("touch-action", "none");
+});
+
+test("keeps the departure expand control inside its preview when a standalone safe area is present", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApp(page);
+  await page.locator(".card-main").first().click();
+
+  const map = page.locator(".map-container");
+  const expand = page.getByRole("button", { name: "Expand map fullscreen" });
+  await map.evaluate((element) => element.style.setProperty("--map-control-safe-top", "47px"));
+
+  const embeddedMap = await map.boundingBox();
+  const embeddedExpand = await expand.boundingBox();
+  expect(embeddedExpand!.y - embeddedMap!.y).toBeCloseTo(8, 0);
+
+  await expand.click();
+  const back = page.getByRole("button", { name: "Back" });
+  await expect(back).toBeVisible();
+  expect((await back.boundingBox())!.y).toBeCloseTo(59, 0);
+});
+
+test("uses the same compact attribution control on Nearby", async ({ page, context }) => {
+  await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+  await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+  await openApp(page);
+  await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "Enable location" }).click();
+
+  const map = page.locator(".nearby-surface .nearby-map");
+  const attribution = map.locator(".maplibregl-ctrl-attrib");
+  const button = attribution.locator(".maplibregl-ctrl-attrib-button");
+  await expect(button).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => attribution.evaluate((element) => getComputedStyle(element).margin)).toBe("6px");
+
+  const [buttonBox, mapBox] = await Promise.all([button.boundingBox(), map.boundingBox()]);
+  expect(buttonBox?.width).toBeCloseTo(24, 0);
+  expect(buttonBox?.height).toBeCloseTo(24, 0);
+  expect(mapBox!.x + mapBox!.width - (buttonBox!.x + buttonBox!.width)).toBeCloseTo(6, 0);
+  expect(mapBox!.y + mapBox!.height - (buttonBox!.y + buttonBox!.height)).toBeCloseTo(6, 0);
+  await expect.poll(() => attribution.evaluate((element) => getComputedStyle(element, "::before").width)).toBe("20px");
+
+  await button.click();
+  await expect(attribution.locator(".maplibregl-ctrl-attrib-inner")).toBeVisible();
 });
 
 test("keeps route stops and map in one vertical reading flow at desktop width", async ({ page }) => {

@@ -687,9 +687,11 @@
   .header-icon-btn .sl-logo { width: 30.5px; height: 24px; }
   .sl-ticket-btn { display: none; }
   @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
-  .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }
+  .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); --map-control-safe-top: env(safe-area-inset-top, 0px); }
   .map-wrap.nearby-map-fullscreen { position: fixed; z-index: 40; inset: 0; width: auto; height: auto; min-height: 0; max-height: none; border-radius: 0; touch-action: none; }
-  .nearby-map-expand, .nearby-map-close { position: absolute; z-index: 3; top: calc(12px + env(safe-area-inset-top)); right: 12px; }
+  .nearby-map-expand, .nearby-map-close { position: absolute; z-index: 3; right: 12px; }
+  .nearby-map-expand { top: 12px; }
+  .nearby-map-close { top: calc(12px + var(--map-control-safe-top)); }
   .nearby-map-expand { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: var(--text); color: var(--surface); cursor: pointer; }
   .nearby-map-expand:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
   .nearby-map-expand svg { width: 20px; height: 20px; }

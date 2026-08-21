@@ -274,6 +274,7 @@ describe("NearbySurface", () => {
     expect(
       markerOptions[1][0].element.querySelector(".nearby-stop-marker-dot"),
     ).toBeTruthy();
+    expect(markerOptions[1][0].element.tagName).toBe("BUTTON");
   });
 
   it("opens an accessible fullscreen map and restores the embedded map with Escape", async () => {

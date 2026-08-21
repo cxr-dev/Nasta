@@ -4,7 +4,6 @@
   import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon, shareGlyph } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
-  import MapPreview from "./MapPreview.svelte";
   import RouteStopsPreview from "./RouteStopsPreview.svelte";
   import { dismissedStore } from "../stores/dismissedStore.svelte";
   import { getDepartureUrgency, getEffectiveDisruption, getLiveMinutes } from "../lib/departureDisplay";
@@ -79,6 +78,13 @@
     moreActionsLabel?: string;
     onShare?: () => void;
   } = $props();
+
+  let mapPreviewModule: Promise<typeof import('./MapPreview.svelte')> | null = null;
+
+  function loadMapPreview() {
+    if (!mapPreviewModule) mapPreviewModule = import('./MapPreview.svelte');
+    return mapPreviewModule;
+  }
 
   function pillLabel(type: string, severity: string): string {
     if (severity === 'critical') {
@@ -391,14 +397,16 @@
     <div bind:this={panelEl} class="expanded-panel" class:collapsing id={segment.id}>
         <div class="expanded-actions">
           <RouteStopsPreview {segment} showAll={showAllStops} onShowAllChange={onShowAllStopsChange} />
-          <MapPreview
-            {segment}
-            {userLocation}
-            {locationRequestInFlight}
-            {walkingEtaEnabled}
-            {openFeatureSheet}
-            {t}
-          />
+          {#await loadMapPreview() then { default: MapPreview }}
+            <MapPreview
+              {segment}
+              {userLocation}
+              {locationRequestInFlight}
+              {walkingEtaEnabled}
+              {openFeatureSheet}
+              {t}
+            />
+          {/await}
         </div>
     </div>
   {/if}

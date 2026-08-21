@@ -1,21 +1,15 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { Segment } from "../types/page";
+  import type { TransitStopSearchResult } from '../providers/types';
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
+  import type { LocationSnapshot } from '../services/geo';
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import SurfaceControl from './SurfaceControl.svelte';
   import { focusBoundary } from '../lib/focusBoundary';
   import { createHistoryView } from '../lib/historyView';
   import { openWalkingDirections } from '../lib/openWalkingDirections';
-
-  const maplibreLoad = import('maplibre-gl');
-  void import('maplibre-gl/dist/maplibre-gl.css');
-  // maplibre-gl v6 ships its web worker as a separate file that imports a
-  // sibling shared chunk. ?worker&url routes it through Vite's worker pipeline
-  // so the build emits one self-contained worker asset; setWorkerUrl() points
-  // MapLibre at it. Without this the worker resolves to an un-emitted
-  // assets/maplibre-gl-worker.mjs in production (404) and no tiles load.
-  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+  import NearbyMap from './NearbyMap.svelte';
 
   let {
     segment,
@@ -33,96 +27,33 @@
     t: Record<string, string>;
   } = $props();
 
-  const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
-
-  let maplibregl: any = $state(null);
-  let mapDiv = $state<HTMLDivElement | undefined>(undefined);
-  let mapInstance: any = null;
-  let mapLoadError = $state(false);
   let isFullscreen = $state(false);
   let fullscreenVisible = $state(false);
   let isClosing = $state(false);
+  let resetViewToken = $state(0);
+  let mapError = $state(false);
+  let mapAttempt = $state(0);
   let expandButtonEl = $state<HTMLButtonElement | undefined>(undefined);
   let historyView: ReturnType<typeof createHistoryView> | null = null;
 
-  function setMapInteractionMode(fullscreen: boolean) {
-    if (!mapInstance) return;
-
-    const handlers = [mapInstance.dragPan, mapInstance.scrollZoom, mapInstance.touchZoomRotate];
-    for (const handler of handlers) {
-      if (fullscreen) handler?.enable();
-      else handler?.disable();
-    }
-    mapInstance.touchZoomRotate?.disableRotation();
-
+  let mapStop = $derived.by<TransitStopSearchResult | null>(() => {
     const coord = segment.fromStop.coord;
-    if (!fullscreen && coord) {
-      mapInstance.jumpTo({ center: [coord[1], coord[0]], zoom: 15.5 });
-    }
-  }
-
-  $effect(() => {
-    maplibreLoad.then(m => {
-      m.setWorkerUrl(workerUrl);
-      maplibregl = m;
-    }).catch(() => {
-      mapLoadError = true;
-    });
-  });
-
-  $effect(() => {
-    const coord = segment.fromStop.coord;
-    const loc = userLocation;
-    const mgl = maplibregl;
-    const div = mapDiv;
-    if (!coord || !mgl || !div) return;
-
-    const center: [number, number] = [coord[1], coord[0]];
-
-    if (mapInstance) mapInstance.remove();
-
-    mapInstance = new mgl.Map({
-      container: div,
-      style: MAP_STYLE,
-      center,
-      zoom: 15.5,
-      attributionControl: false,
-      dragPan: false,
-      scrollZoom: false,
-      doubleClickZoom: false,
-      touchZoomRotate: false,
-      dragRotate: false,
-      keyboard: false,
-    });
-
-    mapInstance.addControl(new mgl.AttributionControl({ compact: true }), "bottom-right");
-    let attributionClosed = false;
-    const closeInitialAttribution = () => {
-      if (attributionClosed) return;
-      const container = mapInstance.getContainer?.();
-      const attribution = container?.querySelector('.maplibregl-ctrl-attrib');
-      if (!attribution) return;
-      attribution.classList.remove('maplibregl-compact-show');
-      if (attribution instanceof HTMLDetailsElement) attribution.open = false;
-      attributionClosed = attribution.classList.contains('maplibregl-compact');
-    };
-    mapInstance.on('styledata', closeInitialAttribution);
-    mapInstance.on('sourcedata', closeInitialAttribution);
-    setMapInteractionMode(untrack(() => isFullscreen));
-
-    mapInstance.on("load", () => {
-      closeInitialAttribution();
-      new mgl.Marker({ color: "#FF4757" }).setLngLat(center).addTo(mapInstance);
-      if (loc) {
-        new mgl.Marker({ color: "#2f80ed" }).setLngLat(loc).addTo(mapInstance);
-      }
-    });
-
-    return () => {
-      mapInstance?.remove();
-      mapInstance = null;
+    if (!coord) return null;
+    return {
+      id: segment.fromStop.id,
+      name: segment.fromStop.name,
+      coord,
+      modes: [segment.transportType],
+      relevance: 1,
+      locationType: 'stop',
     };
   });
+  let mapLocation = $derived.by<LocationSnapshot>(() => ({
+    position: userLocation,
+    accuracy: null,
+    isLoading: locationRequestInFlight,
+    access: userLocation ? 'granted' : 'unknown',
+  }));
 
   function lockBodyScroll(lock: boolean) {
     document.documentElement.style.overscrollBehavior = lock ? 'none' : '';
@@ -166,10 +97,8 @@
     if (isFullscreen) return;
     isFullscreen = true;
     fullscreenVisible = false;
-    setMapInteractionMode(true);
     requestAnimationFrame(() => {
       if (isFullscreen) fullscreenVisible = true;
-      mapInstance?.resize();
     });
   }
 
@@ -182,19 +111,23 @@
   function closeFullscreen() {
     if (!isFullscreen || isClosing) return;
     isClosing = true;
-    setMapInteractionMode(false);
     lockBodyScroll(false);
     setTimeout(() => {
       isFullscreen = false;
       fullscreenVisible = false;
       isClosing = false;
-      requestAnimationFrame(() => mapInstance?.resize());
+      resetViewToken += 1;
       tick().then(() => expandButtonEl?.focus());
     }, prefersReducedMotion() ? 0 : 150);
   }
 
   function prefersReducedMotion() {
     return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function retryMap() {
+    mapError = false;
+    mapAttempt += 1;
   }
 </script>
 
@@ -230,11 +163,37 @@
         ontouchstart={isFullscreen ? stopTouchPropagation : undefined}
         ontouchmove={isFullscreen ? stopTouchPropagation : undefined}
         ontouchend={isFullscreen ? stopTouchPropagation : undefined}
-      >
-        <div
-          class="mini-map"
-          bind:this={mapDiv}
-        ></div>
+        >
+        <div class="mini-map">
+          {#if mapError}
+            <div class="map-fallback" role="status">
+              <span>{t.mapUnavailable ?? 'Map unavailable.'}</span>
+              <button type="button" onclick={retryMap}>{t.retry ?? 'Retry'}</button>
+            </div>
+          {:else if mapStop}
+            <svelte:boundary>
+              {#key mapAttempt}
+                <NearbyMap
+                  active={true}
+                  location={mapLocation}
+                  boardStop={mapStop}
+                  includeLocationWithBoardStop={true}
+                  interactionMode={isFullscreen ? 'fullscreen' : 'embedded'}
+                  {resetViewToken}
+                  label={t.stopLocation ?? 'Stop location'}
+                  locationLabel={t.youAreHere ?? 'You are here'}
+                  onFatalError={() => { mapError = true; }}
+                />
+              {/key}
+              {#snippet failed(_error, reset)}
+                <div class="map-fallback" role="status">
+                  <span>{t.mapUnavailable ?? 'Map unavailable.'}</span>
+                  <button type="button" onclick={() => { retryMap(); reset(); }}>{t.retry ?? 'Retry'}</button>
+                </div>
+              {/snippet}
+            </svelte:boundary>
+          {/if}
+        </div>
         {#if isFullscreen}
           <div class="map-back-control">
             <SurfaceControl kind="back" tone="overlay" label={t.back ?? 'Back'} onclick={requestBack} />
@@ -311,12 +270,37 @@
     font-weight: 600;
   }
   .mini-map {
+    position: relative;
     width: 100%;
     height: 132px;
     display: block;
     border-radius: 12px;
     overflow: hidden;
     background: linear-gradient(135deg, color-mix(in oklch, var(--surface) 88%, #000 12%), var(--surface));
+  }
+  .map-fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 8px;
+    padding: 16px;
+    background: var(--surface-emphasis);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 650;
+    text-align: center;
+  }
+  .map-fallback button {
+    min-height: 44px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
   }
   .journey-actions {
     display: flex;
@@ -359,6 +343,8 @@
   }
   .map-container {
     position: relative;
+    --map-control-safe-top: env(safe-area-inset-top, 0px);
+    --map-control-safe-left: env(safe-area-inset-left, 0px);
     transition: opacity 150ms ease-out, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
   }
   .map-container.fullscreen {
@@ -384,8 +370,8 @@
   }
   .map-expand-btn {
     position: absolute;
-    top: calc(8px + env(safe-area-inset-top, 0px));
-    right: calc(8px + env(safe-area-inset-right, 0px));
+    top: 8px;
+    right: 8px;
     z-index: 10;
     display: flex;
     align-items: center;
@@ -396,15 +382,14 @@
     min-height: 44px;
     border: none;
     border-radius: 8px;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(4px);
-    color: rgba(255,255,255,0.85);
+    background: var(--text);
+    color: var(--surface);
     cursor: pointer;
     transition: background 160ms ease, transform 160ms ease;
   }
   .map-expand-btn:active {
     transform: scale(0.92);
-    background: rgba(0,0,0,0.7);
+    background: var(--text);
   }
   .map-expand-btn svg {
     width: 18px;
@@ -421,16 +406,8 @@
   }
   .map-back-control {
     position: absolute;
-    top: calc(12px + env(safe-area-inset-top, 0px));
-    left: calc(12px + env(safe-area-inset-left, 0px));
+    top: calc(12px + var(--map-control-safe-top));
+    left: calc(12px + var(--map-control-safe-left));
     z-index: 10;
-  }
-  :global(.maplibregl-ctrl-attrib-button) {
-    width: 20px !important;
-    height: 20px !important;
-    opacity: 0.45;
-  }
-  :global(.maplibregl-ctrl-attrib) {
-    font-size: 9px !important;
   }
 </style>

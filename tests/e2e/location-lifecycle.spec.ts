@@ -316,6 +316,27 @@ test('opens the Nearby map fullscreen with a history-backed close action', async
   expect(await page.evaluate(() => history.state?.nastaFullscreenView ?? null)).toBeNull();
 });
 
+test('keeps the Nearby expand control at the preview edge with a standalone safe area', async ({ page }) => {
+  const app = new CommuterApp(page);
+  await app.mockDepartures();
+  await app.open();
+  await page.keyboard.press('ArrowRight');
+
+  const nearby = page.locator('.nearby-surface');
+  const map = nearby.locator('.map-wrap');
+  const expand = nearby.getByRole('button', { name: /expand map fullscreen/i });
+  await map.evaluate((element) => element.style.setProperty('--map-control-safe-top', '47px'));
+
+  const embeddedMap = await map.boundingBox();
+  const embeddedExpand = await expand.boundingBox();
+  expect(embeddedExpand!.y - embeddedMap!.y).toBeCloseTo(12, 0);
+
+  await expand.click();
+  const close = nearby.getByRole('button', { name: /minimize map/i });
+  await expect(close).toBeVisible();
+  expect((await close.boundingBox())!.y).toBeCloseTo(59, 0);
+});
+
 test('shows a 12-hour fallback together with a stop disruption', async ({ page }) => {
   const app = new CommuterApp(page);
   await app.mockDepartures();
