@@ -251,3 +251,116 @@ test('keeps a nearby stop board open after a resource-style error', async ({ pag
   await expect(nearby.getByRole('heading', { name: 'T-Centralen' })).toBeVisible();
   await expect(nearby.locator('.board-panel .departure-list').getByText('Mörby centrum')).toBeVisible();
 });
+
+test('ranks a nearby Rökubbsgatan ahead of distant Röksta despite SL relevance', async ({ page, context }) => {
+  const app = new CommuterApp(page);
+  await app.mockDepartures();
+  await page.route('**/journeyplanner.integration.sl.se/v2/stop-finder**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ locations: [
+      {
+        id: '9091001000101',
+        name: 'Röksta',
+        disassembledName: 'Röksta',
+        coord: [59.9, 18.06],
+        type: 'stop',
+        productClasses: [1],
+        matchQuality: 990,
+      },
+      {
+        id: '9091001000102',
+        name: 'Rökubbsgatan',
+        disassembledName: 'Rökubbsgatan',
+        coord: [59.331, 18.061],
+        type: 'stop',
+        productClasses: [1],
+        matchQuality: 100,
+      },
+    ] }),
+  }));
+  await mockNearbyStops(page);
+  await context.grantPermissions(['geolocation'], { origin: 'http://localhost:4173' });
+  await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
+  await app.open();
+  await page.evaluate(() => {
+    localStorage.setItem('nasta_settings', JSON.stringify({ language: 'en', theme: 'light', locationServicesEnabled: true }));
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.keyboard.press('ArrowRight');
+
+  const nearby = page.locator('.nearby-surface');
+  await nearby.getByRole('textbox', { name: /search stops/i }).fill('rök');
+  const cards = nearby.locator('.station-card');
+  await expect(cards).toHaveCount(2, { timeout: 15_000 });
+  await expect(cards).toHaveText([/Rökubbsgatan/, /Röksta/]);
+});
+
+test('opens the Nearby map fullscreen with a history-backed close action', async ({ page }) => {
+  const app = new CommuterApp(page);
+  await app.mockDepartures();
+  await app.open();
+  await page.keyboard.press('ArrowRight');
+
+  const nearby = page.locator('.nearby-surface');
+  const expand = nearby.getByRole('button', { name: /expand map fullscreen/i });
+  const historyBefore = await page.evaluate(() => history.length);
+  await expand.click();
+
+  const dialog = nearby.getByRole('dialog', { name: /map/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS('touch-action', 'none');
+  expect(await page.evaluate(() => history.length)).toBe(historyBefore + 1);
+  await dialog.getByRole('button', { name: /minimize map/i }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(await page.evaluate(() => history.state?.nastaFullscreenView ?? null)).toBeNull();
+});
+
+test('shows a 12-hour fallback together with a stop disruption', async ({ page }) => {
+  const app = new CommuterApp(page);
+  await app.mockDepartures();
+  await page.route('**/journeyplanner.integration.sl.se/v2/stop-finder**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ locations: [{
+      id: '9091001000100',
+      name: 'T-Centralen',
+      disassembledName: 'T-Centralen',
+      coord: [59.33, 18.06],
+      type: 'stop',
+      productClasses: [1],
+    }] }),
+  }));
+  await page.route('**/transport.integration.sl.se/v1/sites/*/departures**', async (route) => {
+    const forecast = new URL(route.request().url()).searchParams.get('forecast');
+    const body = forecast === '720'
+      ? {
+          departures: [{
+            line: { designation: '14' },
+            direction_code: 1,
+            destination: 'Mörby centrum',
+            expected: new Date(Date.now() + 7 * 60 * 60_000).toISOString(),
+          }],
+        }
+      : {
+          departures: [],
+          stop_deviations: [{ site_id: '100', message: 'Platform temporarily moved' }],
+        };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.route('**/basemaps.cartocdn.com/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+  }));
+  await app.open();
+  await page.keyboard.press('ArrowRight');
+
+  const nearby = page.locator('.nearby-surface');
+  await nearby.getByRole('textbox', { name: /search stops/i }).fill('Central');
+  await nearby.locator('.station-card').filter({ hasText: 'T-Centralen' }).click();
+  await expect(nearby.getByRole('heading', { name: 'T-Centralen' })).toBeVisible();
+  await expect(nearby.getByText(/Next service/i)).toBeVisible();
+  await expect(nearby.getByText('Platform temporarily moved')).toBeVisible();
+  await expect(nearby.getByText('Mörby centrum')).toBeVisible();
+});

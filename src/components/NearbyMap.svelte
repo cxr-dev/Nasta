@@ -14,9 +14,9 @@
   const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
   const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-  let { active, location, stops = [], selectedId = null, boardStop = null, label, locationLabel = 'You are here', onSelectStop, onLoading, onReady, onFatalError }: {
+  let { active, location, stops = [], selectedId = null, boardStop = null, interactionMode = 'embedded', label, locationLabel = 'You are here', onSelectStop, onLoading, onReady, onFatalError }: {
     active: boolean; location: LocationSnapshot; stops?: TransitStopSearchResult[]; selectedId?: string | null;
-    boardStop?: TransitStopSearchResult | null; label: string; locationLabel?: string; onSelectStop?: (stop: TransitStopSearchResult) => void;
+    boardStop?: TransitStopSearchResult | null; interactionMode?: 'embedded' | 'fullscreen'; label: string; locationLabel?: string; onSelectStop?: (stop: TransitStopSearchResult) => void;
     onLoading?: () => void; onReady?: () => void; onFatalError?: () => void;
   } = $props();
 
@@ -50,6 +50,18 @@
       resizeFrame = null;
       try { map?.resize?.(); } catch { reportFatalError(); }
     });
+  }
+  function setMapInteractionMode(mode: 'embedded' | 'fullscreen') {
+    if (!map) return;
+    const enabled = mode === 'fullscreen';
+    for (const handler of [map.dragPan, map.scrollZoom, map.touchZoomRotate]) {
+      if (enabled) handler?.enable?.();
+      else handler?.disable?.();
+    }
+    map.touchZoomRotate?.disableRotation?.();
+    map.dragRotate?.disable?.();
+    map.doubleClickZoom?.disable?.();
+    map.keyboard?.disable?.();
   }
   function markerElement(stop: TransitStopSearchResult, selected: boolean) {
     const element = document.createElement('button');
@@ -124,7 +136,7 @@
       currentStyle = styleUrl();
       map = new module.Map({ container: host, style: currentStyle, center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2, attributionControl: false, dragRotate: false, keyboard: false });
       map.addControl(new module.AttributionControl({ compact: true }), 'bottom-right');
-      map.dragPan?.disable?.(); map.scrollZoom?.disable?.(); map.touchZoomRotate?.disable?.(); map.doubleClickZoom?.disable?.(); map.keyboard?.disable?.();
+      setMapInteractionMode(interactionMode);
       map.on('error', (event: { sourceId?: string; error?: unknown }) => {
         if (event?.sourceId || !event?.error || typeof map?.isStyleLoaded !== 'function') return;
         if (!map.isStyleLoaded()) reportFatalError();
@@ -148,6 +160,7 @@
     resize();
   });
   $effect(() => { active; stops; selectedId; boardStop; if (active) updateMarkers(); });
+  $effect(() => { setMapInteractionMode(interactionMode); resize(); });
   $effect(() => {
     const nextStyle = styleUrl();
     if (map && nextStyle !== currentStyle) {
@@ -169,10 +182,11 @@
   });
 </script>
 
-<div class="nearby-map" bind:this={host} role="group" aria-label={label}></div>
+<div class="nearby-map" class:fullscreen={interactionMode === 'fullscreen'} bind:this={host} role="group" aria-label={label}></div>
 
 <style>
   .nearby-map { position: absolute; inset: 0; touch-action: pan-y pinch-zoom; }
+  .nearby-map.fullscreen { touch-action: none; }
   :global(.nearby-stop-marker) { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
   :global(.nearby-stop-marker-dot), :global(.nearby-stop-marker-center) { position: absolute; border-radius: 50%; pointer-events: none; }
   :global(.nearby-stop-marker-dot) { width: 25px; height: 25px; border: 3px solid var(--surface); background: var(--text-secondary); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 28%, transparent); }

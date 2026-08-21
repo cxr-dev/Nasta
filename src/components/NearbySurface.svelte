@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import type { TransitDeparture, TransitStopSearchResult } from '../providers/types';
+  import type { DepartureFetchDiagnostics, TransitDeparture, TransitStopSearchResult } from '../providers/types';
+  import type { SlApiError } from '../services/slApi';
   import { transitService } from '../providers/init';
   import {
     clearLocationSession,
@@ -12,13 +13,18 @@
     type LocationSnapshot,
   } from '../services/geo';
   import { getSettings, setLocationServicesEnabled } from '../stores/settingsStore.svelte';
-  import { getT } from '../stores/localeStore.svelte';
+  import { translations } from '../lib/i18n';
+  import { resolveLocale } from '../stores/localeStore.svelte';
   import { getTransportType } from '../lib/getTransportType';
   import { editPencil, mapIcon, settingsGear, slLogo } from '../icons/departureIcons';
   import { openSlTickets } from '../lib/openSlTickets';
   import { openWalkingDirections } from '../lib/openWalkingDirections';
+  import { rankStopSearchResults } from '../services/stopSearchRanking';
+  import { focusBoundary } from '../lib/focusBoundary';
+  import { createHistoryView } from '../lib/historyView';
   import MapViewer from './MapViewer.svelte';
   import NearbyMap from './NearbyMap.svelte';
+  import SurfaceControl from './SurfaceControl.svelte';
   import StationDepartureCard from './StationDepartureCard.svelte';
   import TransportIcon from './TransportIcon.svelte';
   type LocationStatusState = 'off' | 'searching' | 'ready' | 'blocked' | 'unavailable' | 'permission';
@@ -49,8 +55,8 @@
     preview?: boolean;
   } = $props();
 
-  let t = $derived(getT());
   let settings = $derived(getSettings());
+  let t = $derived(translations[resolveLocale(settings.language)]);
   let location = $state<LocationSnapshot>({ position: null, accuracy: null, isLoading: false, access: 'unknown' });
   let nearbyStops = $state<TransitStopSearchResult[]>([]);
   let searchResults = $state<TransitStopSearchResult[]>([]);
@@ -68,7 +74,13 @@
   let selectedId = $state<string | null>(null);
   let boardDepartures = $state<TransitDeparture[]>([]);
   let boardLoading = $state(false);
+  let boardRefreshing = $state(false);
   let boardError = $state(false);
+  let boardEmptyState = $state<'none' | 'empty' | 'invalid'>('none');
+  let boardDiagnostics = $state<DepartureFetchDiagnostics | undefined>(undefined);
+  let boardStopDeviations = $state<any[]>([]);
+  let boardExtendedForecast = $state(false);
+  let boardCopyConfirmation = $state(false);
   let previews = $state<Map<string, PreviewState>>(new Map());
   let locationAnnouncement = $state('');
   let catalogGeneration = 0;
@@ -77,12 +89,14 @@
   let boardGeneration = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let boardTimer: ReturnType<typeof setInterval> | null = null;
+  let boardAbortController: AbortController | null = null;
   let loadedBoardStopId: string | null = null;
-  let listEl = $state<HTMLDivElement | undefined>(undefined);
   let showNetworkMap = $state(false);
   let locationUnsubscribe: (() => void) | null = null;
   let mounted = $state(false);
   let utilityActive = $state(false);
+  let nearbyMapFullscreen = $state(false);
+  let nearbyMapHistory: ReturnType<typeof createHistoryView> | null = null;
 
   let displayedStops = $derived(query.trim().length >= 2 ? searchResults : nearbyStops);
   let hasLocation = $derived(Boolean(location.position));
@@ -94,6 +108,16 @@
     if (location.access === 'denied') return { state: 'blocked', label: t.nearbyLocationBlocked ?? 'Location blocked' };
     if (location.access === 'unsupported') return { state: 'unavailable', label: t.nearbyLocationUnavailable ?? 'Location unavailable' };
     return { state: 'permission', label: t.nearbyLocationPermission ?? 'Allow location' };
+  });
+  let boardCopy = $derived({
+    noDepartures: t.nearbyNoDepartures,
+    invalidData: t.nearbyInvalidData,
+    details: t.nearbyTechnicalDetails,
+    copy: t.nearbyCopyDetails,
+    copied: t.nearbyDetailsCopied,
+    refreshing: t.nearbyRefreshing,
+    stale: t.nearbyShowingStale,
+    nextService: t.nearbyNextService,
   });
 
   function stopDistance(stop: TransitStopSearchResult): string {
@@ -164,8 +188,8 @@
     try {
       const results = await transitService.searchStops(value);
       if (generation !== searchGeneration) return;
-      searchResults = results;
-      selectedId = results[0]?.id ?? null;
+      searchResults = rankStopSearchResults(results, value, location.position);
+      selectedId = searchResults[0]?.id ?? null;
     } catch {
       if (generation === searchGeneration) {
         searchResults = [];
@@ -181,26 +205,76 @@
     searchTimer = setTimeout(() => void runSearch(), 220);
   }
 
-  async function loadDepartures(stop: TransitStopSearchResult, forBoard = false) {
+  function currentStopDeviations(deviations: unknown[], stopId: string): any[] {
+    const siteId = stopId.replace(/^sl:/, '');
+    return deviations.filter((deviation) => {
+      if (!deviation || typeof deviation !== 'object') return false;
+      const item = deviation as Record<string, unknown>;
+      const scopedId = item.site_id ?? item.siteId ?? item.stop_id ?? item.stopId;
+      return scopedId == null || String(scopedId) === siteId;
+    });
+  }
+
+  function extendedDepartureLabel(departure: TransitDeparture): string {
+    if (departure.expectedTime == null) return departure.scheduledTime;
+    const departureDate = new Date(departure.expectedTime);
+    const now = new Date();
+    const stockholmDate = (date: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+    const dayLabel = stockholmDate(departureDate) === stockholmDate(now) ? t.today : t.tomorrow;
+    const time = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(departureDate);
+    return `${dayLabel} ${time}`;
+  }
+
+  function deviationMessage(deviation: unknown): string {
+    if (!deviation || typeof deviation !== 'object') return '';
+    const message = (deviation as Record<string, unknown>).message;
+    return typeof message === 'string' ? message.trim() : '';
+  }
+
+  async function loadDepartures(stop: TransitStopSearchResult, forBoard = false, allowExtendedForecast = true) {
     const generation = forBoard ? ++boardGeneration : boardGeneration;
     if (forBoard) {
-      boardLoading = true;
+      boardAbortController?.abort();
+      boardAbortController = new AbortController();
+      boardLoading = boardDepartures.length === 0;
+      boardRefreshing = boardDepartures.length > 0;
       boardError = false;
+      boardEmptyState = 'none';
+      boardCopyConfirmation = false;
     }
     try {
-      const result = await transitService.getDepartures(stop.id, stop.name);
+      const signal = forBoard ? boardAbortController?.signal : undefined;
+      let result = await transitService.getDepartures(stop.id, stop.name, undefined, undefined, signal);
+      const initialStopDeviations = result.stopDeviations ?? [];
+      let extendedForecast = false;
+      if (forBoard && allowExtendedForecast && result.departures.length === 0) {
+        result = await transitService.getDepartures(stop.id, stop.name, undefined, undefined, signal, { forecastMinutes: 720 });
+        extendedForecast = true;
+      }
       const departures = result.departures
         .filter((departure) => departure.minutes >= 0)
         .sort((a, b) => a.minutes - b.minutes);
       if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) {
-        boardDepartures = departures;
+        if (departures.length > 0 || !boardExtendedForecast || allowExtendedForecast) {
+          boardDepartures = extendedForecast ? departures.slice(0, 12) : departures;
+          boardExtendedForecast = extendedForecast && departures.length > 0;
+        }
+        boardStopDeviations = currentStopDeviations(result.stopDeviations?.length ? result.stopDeviations : initialStopDeviations, stop.id);
+        boardDiagnostics = result.diagnostics;
+        boardEmptyState = departures.length === 0 && result.diagnostics && result.diagnostics.rawCount > 0 && result.diagnostics.validCount === 0 ? 'invalid' : departures.length === 0 ? 'empty' : 'none';
       }
       return departures.slice(0, 2);
-    } catch {
-      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) boardError = true;
+    } catch (error) {
+      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id && (error as Error).name !== 'AbortError') {
+        boardError = true;
+        boardDiagnostics = (error as SlApiError).diagnostics;
+      }
       return [];
     } finally {
-      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) boardLoading = false;
+      if (forBoard && generation === boardGeneration && boardStop?.id === stop.id) {
+        boardLoading = false;
+        boardRefreshing = false;
+      }
     }
   }
 
@@ -241,13 +315,53 @@
     onSelectStation?.(stop);
   }
 
-  function scrollToStop(id: string) {
-    selectedId = id;
-    listEl?.querySelector<HTMLElement>(`[data-stop-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
   function departureUrgencyLabel(departure: TransitDeparture): string {
     return departure.minutes > 0 && departure.minutes <= 3 ? (t.departureSoon ?? 'Snart') : '';
+  }
+
+  function selectStopFromMap(stop: TransitStopSearchResult) {
+    if (nearbyMapFullscreen) nearbyMapHistory?.back();
+    selectStop(stop);
+  }
+
+  function lockBodyScroll(lock: boolean) {
+    document.documentElement.style.touchAction = lock ? 'none' : '';
+  }
+
+  function openNearbyMapFullscreen() {
+    if (nearbyMapFullscreen) return;
+    nearbyMapFullscreen = true;
+    lockBodyScroll(true);
+    nearbyMapHistory?.enter();
+  }
+
+  function closeNearbyMapFullscreen() {
+    if (!nearbyMapFullscreen) return;
+    nearbyMapFullscreen = false;
+    lockBodyScroll(false);
+  }
+
+  function requestNearbyMapBack() {
+    closeNearbyMapFullscreen();
+    nearbyMapHistory?.back();
+  }
+
+  function copyBoardDiagnostics() {
+    if (!boardStop) return;
+    const diagnostics = boardDiagnostics;
+    const text = [
+      `siteId=${boardStop.id.replace(/^sl:/, '')}`,
+      `requestedAt=${diagnostics?.requestedAt ?? 'unknown'}`,
+      `durationMs=${diagnostics?.durationMs ?? 'unknown'}`,
+      `forecastMinutes=${diagnostics?.forecastMinutes ?? 'unknown'}`,
+      `httpStatus=${diagnostics?.httpStatus ?? 'unknown'}`,
+      `raw=${diagnostics?.rawCount ?? 'unknown'}`,
+      `valid=${diagnostics?.validCount ?? 'unknown'}`,
+      `stale=${diagnostics?.staleCount ?? 'unknown'}`,
+      `invalid=${diagnostics?.invalidCount ?? 'unknown'}`,
+    ].join('\n');
+    const write = navigator.clipboard?.writeText(text);
+    if (write) void write.then(() => { boardCopyConfirmation = true; }).catch(() => undefined);
   }
 
   function departureCountdownColor(departure: TransitDeparture): string {
@@ -308,16 +422,23 @@
     if (!boardActive || !stop) {
       if (boardTimer) clearInterval(boardTimer);
       boardTimer = null;
+      boardAbortController?.abort();
+      boardAbortController = null;
+      loadedBoardStopId = null;
       return;
     }
     if (loadedBoardStopId !== stop.id) {
       loadedBoardStopId = stop.id;
       boardDepartures = [];
+      boardStopDeviations = [];
+      boardDiagnostics = undefined;
+      boardExtendedForecast = false;
+      boardEmptyState = 'none';
       boardGeneration += 1;
       void loadDepartures(stop, true);
     }
     if (!boardTimer) {
-      boardTimer = setInterval(() => void loadDepartures(stop, true), 30000);
+      boardTimer = setInterval(() => void loadDepartures(stop, true, false), 30000);
     }
     return () => {
       if (boardTimer) clearInterval(boardTimer);
@@ -328,6 +449,10 @@
   onMount(() => {
     mounted = true;
     activate();
+    nearbyMapHistory = createHistoryView('nearby-map', {
+      onEnter: openNearbyMapFullscreen,
+      onExit: closeNearbyMapFullscreen,
+    });
   });
 
   $effect(() => {
@@ -339,6 +464,9 @@
     deactivate();
     if (searchTimer) clearTimeout(searchTimer);
     if (boardTimer) clearInterval(boardTimer);
+    boardAbortController?.abort();
+    nearbyMapHistory?.destroy();
+    lockBodyScroll(false);
   });
 </script>
 
@@ -410,11 +538,25 @@
       {/if}
       {#if boardLoading}
         <div class="departure-list" aria-busy="true">{#each Array(4) as _, i (i)}<div class="departure-skeleton" style={`--i:${i}`} aria-hidden="true"></div>{/each}</div>
-      {:else if boardError}
-        <div class="state-panel"><strong>{t.departuresUnavailable ?? 'Avgångar kunde inte läsas in'}</strong><button type="button" onclick={() => void loadDepartures(boardStop!, true)}>{t.retry ?? 'Försök igen'}</button></div>
+      {:else if boardError && boardDepartures.length === 0}
+        {#each boardStopDeviations as deviation, index (deviation.id ?? deviation.deviation_id ?? `${boardStop?.id ?? 'stop'}-${index}`)}
+          {@const message = deviationMessage(deviation)}
+          {#if message}<p class="board-disruption" role="status">{message}</p>{/if}
+        {/each}
+        <div class="state-panel"><strong>{t.departuresUnavailable ?? 'Avgångar kunde inte läsas in'}</strong><button type="button" onclick={() => void loadDepartures(boardStop!, true)}>{t.retry ?? 'Försök igen'}</button><details><summary>{boardCopy.details}</summary><button type="button" onclick={copyBoardDiagnostics}>{boardCopyConfirmation ? boardCopy.copied : boardCopy.copy}</button></details></div>
       {:else if boardDepartures.length === 0}
-        <div class="state-panel"><strong>{t.noDeparturesAvailable ?? 'Inga kommande avgångar'}</strong></div>
+        {#each boardStopDeviations as deviation, index (deviation.id ?? deviation.deviation_id ?? `${boardStop?.id ?? 'stop'}-${index}`)}
+          {@const message = deviationMessage(deviation)}
+          {#if message}<p class="board-disruption" role="status">{message}</p>{/if}
+        {/each}
+        <div class="state-panel"><strong>{boardEmptyState === 'invalid' ? boardCopy.invalidData : boardCopy.noDepartures}</strong>{#if boardEmptyState === 'invalid'}<details><summary>{boardCopy.details}</summary><button type="button" onclick={copyBoardDiagnostics}>{boardCopyConfirmation ? boardCopy.copied : boardCopy.copy}</button></details>{/if}</div>
       {:else}
+        {#if boardExtendedForecast}<p class="board-status" role="status">{boardCopy.nextService}</p>{/if}
+        {#if boardRefreshing || boardError}<div class="board-status" role="status">{boardError ? boardCopy.stale : boardCopy.refreshing} {#if boardError}<button type="button" onclick={() => void loadDepartures(boardStop!, true)}>{t.retry ?? 'Försök igen'}</button>{/if}</div>{/if}
+        {#each boardStopDeviations as deviation, index (deviation.id ?? deviation.deviation_id ?? `${boardStop?.id ?? 'stop'}-${index}`)}
+          {@const message = deviationMessage(deviation)}
+          {#if message}<p class="board-disruption" role="status">{message}</p>{/if}
+        {/each}
         <div class="departure-list" aria-label={t.departures ?? 'Avgångar'}>
           {#each boardDepartures as departure (departure.id)}
             <div class="departure-card station-board-departure">
@@ -422,11 +564,13 @@
                 destination={departure.destination}
                 line={departure.line}
                 transportType={getTransportType(departure.transportMode)}
-                scheduledTime={departure.scheduledTime}
+                scheduledTime={boardExtendedForecast ? extendedDepartureLabel(departure) : departure.scheduledTime}
                 countdown={departureLabel(departure)}
                 urgencyLabel={departureUrgencyLabel(departure)}
                 countdownColor={departureCountdownColor(departure)}
                 isArrivingNow={departure.minutes <= 0}
+                isSleeping={false}
+                nextDepartureTime={null}
               />
             </div>
           {/each}
@@ -443,7 +587,17 @@
       <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
       {@render headerActions()}
     </header>
-    <div class="map-wrap">
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="map-wrap"
+      class:nearby-map-fullscreen={nearbyMapFullscreen}
+      role={nearbyMapFullscreen ? 'dialog' : undefined}
+      aria-modal={nearbyMapFullscreen ? 'true' : undefined}
+      aria-label={nearbyMapFullscreen ? (t.nearbyMap ?? 'Karta över hållplatser i närheten') : undefined}
+      tabindex={nearbyMapFullscreen ? -1 : undefined}
+      onkeydown={(event) => { if (event.key === 'Escape' && nearbyMapFullscreen) requestNearbyMapBack(); }}
+      use:focusBoundary={{ active: nearbyMapFullscreen, initialFocus: '[data-surface-control]' }}
+    >
       <svelte:boundary>
         {#key nearbyMapAttempt}
           <NearbyMap
@@ -453,7 +607,8 @@
             {selectedId}
             label={t.nearbyMap ?? 'Karta över hållplatser i närheten'}
             locationLabel={t.youAreHere ?? t.nearbyLocationReady ?? 'Du är här'}
-            onSelectStop={(stop) => scrollToStop(stop.id)}
+            interactionMode={nearbyMapFullscreen ? 'fullscreen' : 'embedded'}
+            onSelectStop={selectStopFromMap}
             onLoading={() => { nearbyMapReady = false; }}
             onReady={() => { nearbyMapReady = true; }}
             onFatalError={() => { nearbyMapError = true; }}
@@ -463,6 +618,13 @@
           <div class="map-fallback">{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</div>
         {/snippet}
       </svelte:boundary>
+      {#if nearbyMapFullscreen}
+        <div class="nearby-map-close"><SurfaceControl kind="close" tone="overlay" label={t.minimizeMap ?? 'Förminska kartan'} onclick={requestNearbyMapBack} /></div>
+      {:else}
+        <button type="button" class="nearby-map-expand" aria-label={t.expandMap ?? 'Förstora kartan'} onclick={openNearbyMapFullscreen}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      {/if}
       <div class:visible={!nearbyMapReady && !nearbyMapError} class="map-skeleton" aria-hidden="true"></div>
       {#if nearbyMapError}<div class="map-fallback"><span>{t.mapUnavailable ?? 'Kartan är inte tillgänglig. Listan fungerar fortfarande.'}</span><button type="button" onclick={retryNearbyMap}>{t.retry ?? 'Försök igen'}</button></div>{/if}
     </div>
@@ -486,7 +648,7 @@
         <div class="state-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.5 10 3l4 2.5L20 3v15.5L14 21l-4-2.5-6 2.5V5.5Z" stroke-linejoin="round"/><path d="M10 3v15.5M14 5.5V21"/></svg><strong>{isSearchMode() ? (t.noStops ?? 'Ingen hållplats hittades') : (t.noNearbyStops ?? 'Inga hållplatser nära dig')}</strong></div>
       {:else}
         <div class="station-section-heading"><h2>{isSearchMode() ? (t.searchStops ?? 'Sökresultat') : (t.nearbyTitle ?? 'Nära dig')}</h2><span>{displayedStops.length}</span></div>
-        <div class="station-list" bind:this={listEl}>
+        <div class="station-list">
           {#each displayedStops as stop (stop.id)}
             {@const previewState = previews.get(stop.id) ?? { state: 'loading' }}
             <button type="button" class="station-card" class:selected={selectedId === stop.id} data-stop-id={stop.id} onclick={() => selectStop(stop)}>
@@ -526,6 +688,11 @@
   .sl-ticket-btn { display: none; }
   @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
   .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); }
+  .map-wrap.nearby-map-fullscreen { position: fixed; z-index: 40; inset: 0; width: auto; height: auto; min-height: 0; max-height: none; border-radius: 0; touch-action: none; }
+  .nearby-map-expand, .nearby-map-close { position: absolute; z-index: 3; top: calc(12px + env(safe-area-inset-top)); right: 12px; }
+  .nearby-map-expand { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: var(--text); color: var(--surface); cursor: pointer; }
+  .nearby-map-expand:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
+  .nearby-map-expand svg { width: 20px; height: 20px; }
   .map-skeleton { position: absolute; inset: 0; z-index: 1; background: var(--surface-emphasis); opacity: 0; pointer-events: none; transition: opacity 150ms ease; }.map-skeleton.visible { opacity: 1; }
   .map-fallback { position: absolute; inset: auto 12px 12px; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }.map-fallback button { justify-self: start; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font: inherit; font-weight: 700; }
   .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
@@ -535,6 +702,8 @@
   .station-section-heading { display: flex; align-items: baseline; gap: 8px; padding: 4px 16px 8px; }.station-section-heading h2 { margin: 0; font-size: 15px; font-weight: 750; }.station-section-heading span { color: var(--text-secondary); font-size: 12px; }
   .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 106px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main > span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: grid; grid-template-rows: repeat(2, 24px); gap: 0; min-width: 0; min-height: 48px; color: var(--text); }.station-main .muted { color: var(--text-muted); }.preview-skeleton { display: block; width: min(150px, 88%); height: 9px; align-self: center; border-radius: 999px; background: var(--surface-emphasis); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
   .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 14px; }.state-panel button, .detail-map-empty button { min-height: 44px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
+  .state-panel details { max-width: 100%; color: var(--text-secondary); font-size: 12px; }.state-panel summary { cursor: pointer; }.state-panel details button { margin-top: 8px; }
+  .board-status { margin: 0 16px 8px; color: var(--text-secondary); font-size: 12px; }.board-status button { min-height: 32px; margin-left: 8px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; }.board-disruption { margin: 0 16px 8px; padding: 9px 10px; border-left: 3px solid var(--accent); background: var(--surface-hover); color: var(--text-secondary); font-size: 12px; }
   .board-summary { display: flex; align-items: end; gap: 18px; flex: 0 0 auto; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; min-height: 210px; flex: 0 0 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.map-distance-label { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-distance-label strong { color: var(--text); font-size: 12px; }
   .station-board-departure { display: block; min-height: 0; padding: 0; overflow: hidden; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }.departure-skeleton { min-height: 110px; }
   .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }

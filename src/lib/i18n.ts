@@ -17,8 +17,10 @@ const sv = {
   addPage: "Lägg till sida",
   deletePage: "Ta bort sida",
   deletePageConfirmTitle: "Ta bort sidan?",
-  deletePageConfirmDesc: "\"{name}\" innehåller {n} avgångar. Detta går inte att ångra.",
-  deletePageConfirmDescEmpty: "\"{name}\" har inga avgångar. Detta går inte att ångra.",
+  deletePageConfirmDesc:
+    '"{name}" innehåller {n} avgångar. Detta går inte att ångra.',
+  deletePageConfirmDescEmpty:
+    '"{name}" har inga avgångar. Detta går inte att ångra.',
   moreActions: "Fler åtgärder",
   moreActionsForDeparture: "Fler åtgärder för avgång {line} från {stop}",
   moreActionsForJourney: "Fler åtgärder för resa till {destination}",
@@ -126,13 +128,15 @@ const sv = {
   enableLocationForWalkEtaBrowser:
     "Tillåt platsåtkomst i webbläsaren för gång-ETA.",
   useNearbyStops: "Visa hållplatser nära dig",
-  nearbyStopsPermissionDenied: "Tillåt platsåtkomst i webbläsaren för att visa hållplatser nära dig.",
+  nearbyStopsPermissionDenied:
+    "Tillåt platsåtkomst i webbläsaren för att visa hållplatser nära dig.",
   waitingForLocation: "Hämtar position...",
   nearbyLocationOff: "Plats av",
   nearbyLocationSearching: "Hämtar plats...",
   nearbyLocationReady: "Din plats",
   youAreHere: "Du är här",
-  nearbyLocationAcquired: "Position hittad. Hållplatserna sorteras nu efter avstånd.",
+  nearbyLocationAcquired:
+    "Position hittad. Hållplatserna sorteras nu efter avstånd.",
   distance: "Avstånd",
   nearbyLocationBlocked: "Platsåtkomst blockerad",
   nearbyLocationSettings: "Tillåt platsåtkomst i webbläsarens inställningar.",
@@ -169,7 +173,8 @@ const sv = {
   loadError: "Kunde inte ladda. Kontrollera din anslutning.",
   retry: "Försök igen",
   dataBackup: "Säkerhetskopiering",
-  dataBackupDesc: "Spara eller återställ dina sidor, avgångar, resor och appinställningar.",
+  dataBackupDesc:
+    "Spara eller återställ dina sidor, avgångar, resor och appinställningar.",
   exportBackup: "Exportera säkerhetskopia",
   importBackup: "Importera säkerhetskopia",
   exportAction: "Exportera",
@@ -178,22 +183,30 @@ const sv = {
   backupFile: "Säkerhetskopieringsfil",
   backupInvalid: "Filen kunde inte läsas som en giltig Nästa-säkerhetskopia.",
   backupExported: "Säkerhetskopian har sparats.",
-  backupExportHint: "Välj ”Spara i Filer” för att välja en plats, eller dela säkerhetskopian.",
+  backupExportHint:
+    "Välj ”Spara i Filer” för att välja en plats, eller dela säkerhetskopian.",
   backupShared: "Säkerhetskopian skickades till vald app.",
   backupDownloaded: "Säkerhetskopian har hämtats.",
   backupExportFailed: "Kunde inte exportera säkerhetskopian. Försök igen.",
-  backupPreview: "Säkerhetskopia från {date}: {pages} sidor, {departures} avgångar och {journeys} resor.",
+  backupPreview:
+    "Säkerhetskopia från {date}: {pages} sidor, {departures} avgångar och {journeys} resor.",
   backupImportMode: "Hur vill du importera säkerhetskopian?",
   backupReplace: "Ersätt nuvarande data",
-  backupReplaceDesc: "Tar bort nuvarande sparade sidor och inställningar och återställer filen.",
+  backupReplaceDesc:
+    "Tar bort nuvarande sparade sidor och inställningar och återställer filen.",
   backupAdd: "Lägg till i nuvarande data",
-  backupAddDesc: "Behåller nuvarande inställningar och lägger bara till saknade sidor och kort.",
-  backupImportComplete: "Import klar: {added} tillagda, {existing} redan sparade och {kept} befintliga behölls.",
+  backupAddDesc:
+    "Behåller nuvarande inställningar och lägger bara till saknade sidor och kort.",
+  backupImportComplete:
+    "Import klar: {added} tillagda, {existing} redan sparade och {kept} befintliga behölls.",
   resetData: "Radera lokal appdata",
-  resetDataDesc: "Tar bort sparade sidor, avgångar, resor, inställningar, historik och lokala cachedata.",
-  resetDataWarning: "Detta går inte att ångra utan en tidigare exporterad säkerhetskopia. Nedladdade säkerhetskopior påverkas inte. Webbläsarens platsbehörighet och appinstallationen påverkas inte.",
+  resetDataDesc:
+    "Tar bort sparade sidor, avgångar, resor, inställningar, historik och lokala cachedata.",
+  resetDataWarning:
+    "Detta går inte att ångra utan en tidigare exporterad säkerhetskopia. Nedladdade säkerhetskopior påverkas inte. Webbläsarens platsbehörighet och appinstallationen påverkas inte.",
   resetDataDialogTitle: "Radera all lokal appdata?",
-  resetDataDialogDesc: "Exportera en säkerhetskopia först om du vill kunna återställa dina sidor och resor senare.",
+  resetDataDialogDesc:
+    "Exportera en säkerhetskopia först om du vill kunna återställa dina sidor och resor senare.",
   resetDataConfirmLabel: "Skriv RESET för att bekräfta",
   resetDataConfirmButton: "Radera all data",
   resetDataComplete: "All lokal appdata har raderats.",
@@ -219,7 +232,8 @@ const sv = {
   nearby: "Nära dig",
   nearbyTitle: "Nära dig",
   nearbyMap: "Karta över hållplatser i närheten",
-  mapUnavailable: "Kartan är inte tillgänglig. Listan med hållplatser fungerar fortfarande.",
+  mapUnavailable:
+    "Kartan är inte tillgänglig. Listan med hållplatser fungerar fortfarande.",
   nearbyOffline: "Ingen anslutning. Försök igen när du är online.",
   noNearbyStops: "Inga hållplatser hittades inom 2 km.",
   nearbyLoadError: "Kunde inte läsa in hållplatser i närheten.",
@@ -230,7 +244,8 @@ const sv = {
   updatedMinutesAgo: "Uppdaterad för {minutes} min sedan",
   timesMayHaveChanged: "Tiderna kan ha ändrats",
   couldNotUpdateStop: "Kunde inte uppdatera hållplatsen",
-  noConnectionDepartures: "Ingen anslutning. Avgångarna uppdateras när du är online igen.",
+  noConnectionDepartures:
+    "Ingen anslutning. Avgångarna uppdateras när du är online igen.",
   failedToUpdateDepartures: "Kunde inte uppdatera avgångarna",
   departuresUnavailable: "Avgångar ej tillgängliga",
   persistenceFailed: "Ändringarna kanske inte sparas på den här enheten",
@@ -345,6 +360,14 @@ const sv = {
   noDeparturesAvailable: "Inga avgångar hittades",
   sleeping: "Sover",
   nextDeparture: "Nästa avgång",
+  nearbyNoDepartures: "Inga avgångar de närmaste 12 timmarna",
+  nearbyInvalidData: "Avgångsdata kunde inte tolkas",
+  nearbyTechnicalDetails: "Tekniska detaljer",
+  nearbyCopyDetails: "Kopiera detaljer",
+  nearbyDetailsCopied: "Kopierat",
+  nearbyRefreshing: "Uppdaterar avgångar...",
+  nearbyShowingStale: "Visar senast hämtade avgångar",
+  nearbyNextService: "Nästa trafik",
 
   // Attribution
   attribution: "Trafikdata via",
@@ -513,7 +536,8 @@ const sv = {
   groupDisrupted: "Störningar",
   groupStation: "Station",
   groupTransport: "Transporttyp",
-  groupSegmentsDesc: "Visa avgångar i grupper efter station eller transporttyp.",
+  groupSegmentsDesc:
+    "Visa avgångar i grupper efter station eller transporttyp.",
   groupSleeping: "Gruppera sovande",
   groupSleepingDesc: "Flytta sovande linjer till botten av listan.",
   location: "Plats",
@@ -540,8 +564,10 @@ const en: typeof sv = {
   addPage: "Add page",
   deletePage: "Delete page",
   deletePageConfirmTitle: "Delete this page?",
-  deletePageConfirmDesc: "\"{name}\" contains {n} departures. This can't be undone.",
-  deletePageConfirmDescEmpty: "\"{name}\" has no departures. This can't be undone.",
+  deletePageConfirmDesc:
+    '"{name}" contains {n} departures. This can\'t be undone.',
+  deletePageConfirmDescEmpty:
+    '"{name}" has no departures. This can\'t be undone.',
   moreActions: "More actions",
   moreActionsForDeparture: "More actions for departure {line} from {stop}",
   moreActionsForJourney: "More actions for journey to {destination}",
@@ -648,13 +674,15 @@ const en: typeof sv = {
   enableLocationForWalkEtaBrowser:
     "Allow location in the browser for walking ETA.",
   useNearbyStops: "Use nearby stops",
-  nearbyStopsPermissionDenied: "Allow location in the browser to show nearby stops.",
+  nearbyStopsPermissionDenied:
+    "Allow location in the browser to show nearby stops.",
   waitingForLocation: "Fetching location...",
   nearbyLocationOff: "Location off",
   nearbyLocationSearching: "Finding your location...",
   nearbyLocationReady: "Your location",
   youAreHere: "You are here",
-  nearbyLocationAcquired: "Location found. Nearby stops are now sorted by distance.",
+  nearbyLocationAcquired:
+    "Location found. Nearby stops are now sorted by distance.",
   distance: "Distance",
   nearbyLocationBlocked: "Location blocked",
   nearbyLocationSettings: "Allow site in browser settings.",
@@ -691,7 +719,8 @@ const en: typeof sv = {
   loadError: "Couldn't load. Check your connection.",
   retry: "Retry",
   dataBackup: "Backup",
-  dataBackupDesc: "Save or restore your pages, departures, journeys, and app settings.",
+  dataBackupDesc:
+    "Save or restore your pages, departures, journeys, and app settings.",
   exportBackup: "Export backup",
   importBackup: "Import backup",
   exportAction: "Export",
@@ -700,22 +729,29 @@ const en: typeof sv = {
   backupFile: "Backup file",
   backupInvalid: "This file is not a valid Nästa backup.",
   backupExported: "Backup saved.",
-  backupExportHint: "Choose “Save to Files” to pick a location, or share your backup.",
+  backupExportHint:
+    "Choose “Save to Files” to pick a location, or share your backup.",
   backupShared: "Backup sent to the selected app.",
   backupDownloaded: "Backup downloaded.",
   backupExportFailed: "Couldn't export the backup. Try again.",
-  backupPreview: "Backup from {date}: {pages} pages, {departures} departures, and {journeys} journeys.",
+  backupPreview:
+    "Backup from {date}: {pages} pages, {departures} departures, and {journeys} journeys.",
   backupImportMode: "How do you want to import this backup?",
   backupReplace: "Replace current data",
-  backupReplaceDesc: "Remove current saved pages and settings and restore the file.",
+  backupReplaceDesc:
+    "Remove current saved pages and settings and restore the file.",
   backupAdd: "Add to current data",
   backupAddDesc: "Keep current settings and add only missing pages and cards.",
-  backupImportComplete: "Import complete: {added} added, {existing} already present, and {kept} current items kept.",
+  backupImportComplete:
+    "Import complete: {added} added, {existing} already present, and {kept} current items kept.",
   resetData: "Delete local app data",
-  resetDataDesc: "Removes saved pages, departures, journeys, settings, history, and local caches.",
-  resetDataWarning: "This cannot be undone without a previously exported backup. Downloaded backups are not affected. Browser location permission and the app installation are not affected.",
+  resetDataDesc:
+    "Removes saved pages, departures, journeys, settings, history, and local caches.",
+  resetDataWarning:
+    "This cannot be undone without a previously exported backup. Downloaded backups are not affected. Browser location permission and the app installation are not affected.",
   resetDataDialogTitle: "Delete all local app data?",
-  resetDataDialogDesc: "Export a backup first if you may want to restore your pages and journeys later.",
+  resetDataDialogDesc:
+    "Export a backup first if you may want to restore your pages and journeys later.",
   resetDataConfirmLabel: "Type RESET to confirm",
   resetDataConfirmButton: "Delete all data",
   resetDataComplete: "All local app data has been deleted.",
@@ -750,7 +786,8 @@ const en: typeof sv = {
   updatedMinutesAgo: "Updated {minutes} min ago",
   timesMayHaveChanged: "Times may have changed",
   couldNotUpdateStop: "Couldn’t update this stop",
-  noConnectionDepartures: "No connection. Departures will update when you’re back online.",
+  noConnectionDepartures:
+    "No connection. Departures will update when you’re back online.",
   failedToUpdateDepartures: "Couldn’t update departures",
   departuresUnavailable: "Departures unavailable",
   persistenceFailed: "Changes may not be saved on this device",
@@ -861,6 +898,14 @@ const en: typeof sv = {
   noDeparturesAvailable: "No departures found",
   sleeping: "Sleeping",
   nextDeparture: "Next departure",
+  nearbyNoDepartures: "No departures in the next 12 hours",
+  nearbyInvalidData: "Departure data could not be interpreted",
+  nearbyTechnicalDetails: "Technical details",
+  nearbyCopyDetails: "Copy details",
+  nearbyDetailsCopied: "Copied",
+  nearbyRefreshing: "Updating departures...",
+  nearbyShowingStale: "Showing last fetched departures",
+  nearbyNextService: "Next service",
 
   // Attribution
   attribution: "Transit data via",
