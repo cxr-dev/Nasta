@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { portal } from './portal';
 
 describe('portal action', () => {
@@ -43,15 +43,13 @@ describe('portal action', () => {
   });
 
   it('does not throw on the server (no document)', () => {
-    const originalDocument = globalThis.document;
-    // @ts-expect-error simulate SSR
-    globalThis.document = undefined;
+    vi.stubGlobal('document', undefined);
     try {
       const host = { appendChild: () => {}, remove: () => {} } as unknown as HTMLElement;
       const action = portal(host, true);
       expect(action).toBeUndefined();
     } finally {
-      globalThis.document = originalDocument;
+      vi.unstubAllGlobals();
     }
   });
 });

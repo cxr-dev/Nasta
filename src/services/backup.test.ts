@@ -137,7 +137,7 @@ describe('backup service', () => {
   it('rolls back the first write when the second persistence write fails', () => {
     localStorage.setItem('nasta_routes', 'old-routes');
     localStorage.setItem('nasta_settings', 'old-settings');
-    const originalSetItem = localStorage.setItem;
+    const originalSetItem = vi.mocked(localStorage.setItem).getMockImplementation()!;
     const setItem = vi.spyOn(localStorage, 'setItem');
     setItem
       .mockImplementationOnce(originalSetItem)
