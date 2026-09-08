@@ -134,8 +134,7 @@ export default defineConfig(({ mode }) => {
       transformer: "lightningcss",
     },
     build: {
-      minify: "esbuild",
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           entryFileNames: "assets/[name]-[hash].js",
           chunkFileNames: "assets/[name]-[hash].js",
