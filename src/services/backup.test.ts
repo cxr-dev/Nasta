@@ -11,6 +11,7 @@ import {
   persistRestoredData,
   summarizePages,
 } from './backup';
+import { writeLocalStorageItem } from '../../vitest.setup';
 
 const settings: Settings = {
   refreshInterval: 30000,
@@ -137,12 +138,11 @@ describe('backup service', () => {
   it('rolls back the first write when the second persistence write fails', () => {
     localStorage.setItem('nasta_routes', 'old-routes');
     localStorage.setItem('nasta_settings', 'old-settings');
-    const originalSetItem = vi.mocked(localStorage.setItem).getMockImplementation()!;
     const setItem = vi.spyOn(localStorage, 'setItem');
     setItem
-      .mockImplementationOnce(originalSetItem)
+      .mockImplementationOnce(writeLocalStorageItem)
       .mockImplementationOnce(() => { throw new Error('quota'); })
-      .mockImplementation(originalSetItem);
+      .mockImplementation(writeLocalStorageItem);
 
     expect(() => persistRestoredData([], settings)).toThrow('quota');
     expect(localStorage.getItem('nasta_routes')).toBe('old-routes');

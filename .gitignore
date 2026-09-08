@@ -66,5 +66,8 @@ scripts/test-*
 # Test coverage output
 coverage/
 
+# Vitest 5 artifact root (html/json/junit reporters, attachments)
+.vitest/
+
 .impeccable
 *.log
