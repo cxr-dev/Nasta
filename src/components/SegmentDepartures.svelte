@@ -161,13 +161,20 @@ let pages = $derived(getPages());
     expandedPageId = nextPageId;
   });
 
+  function setStopsExpanded(segmentId: string, showAll: boolean) {
+    const next = new Set(expandedStopLists);
+    if (showAll) next.add(segmentId);
+    else next.delete(segmentId);
+    expandedStopLists = next;
+  }
+
   function toggleExpanded(segmentId: string) {
     const opening = expandedSegmentId !== segmentId;
     expandedSegmentId = opening ? segmentId : null;
     if (!opening) {
-      const nextExpandedStopLists = new Set(expandedStopLists);
-      nextExpandedStopLists.delete(segmentId);
-      expandedStopLists = nextExpandedStopLists;
+      const next = new Set(expandedStopLists);
+      next.delete(segmentId);
+      expandedStopLists = next;
       return;
     }
 
@@ -178,13 +185,6 @@ let pages = $derived(getPages());
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
-  }
-
-  function setStopsExpanded(segmentId: string, showAll: boolean) {
-    const nextExpandedStopLists = new Set(expandedStopLists);
-    if (showAll) nextExpandedStopLists.add(segmentId);
-    else nextExpandedStopLists.delete(segmentId);
-    expandedStopLists = nextExpandedStopLists;
   }
 
   function openSavedCardActions(segment: Segment, trigger?: HTMLElement) {
@@ -637,7 +637,7 @@ let pages = $derived(getPages());
           {@const displayDevs = disruptionDisplay.messages.filter((d) => !dismissedStore.isMessageDismissed(d.message))}
           {@const hasDisruption = displayDevs.length > 0}
           {@const isExpanded = expandedSegmentId === item.segment.id}
-          {@const isExpandable = hasDeparture || hasDisruption || sleepInfo.isSleeping}
+          {@const isExpandable = true}
           {@const topDevMessage = displayDevs[0]?.message ?? ""}
           {@const topDevType = topDevMessage ? disruptionType(topDevMessage) : "general"}
 
@@ -680,9 +680,9 @@ let pages = $derived(getPages());
               weatherSymbol={segmentWeather.get(item.segment.id) ?? null}
               ontoggle={() => toggleExpanded(item.segment.id)}
               onprefetch={() => prefetchForSegment(item.segment)}
+              groupingMode={settings.groupingMode}
               showAllStops={expandedStopLists.has(item.segment.id)}
               onShowAllStopsChange={(showAll) => setStopsExpanded(item.segment.id, showAll)}
-              groupingMode={settings.groupingMode}
               onLongPress={(trigger) => openSavedCardActions(item.segment, trigger)}
               onMoreActions={(trigger) => openSavedCardActions(item.segment, trigger)}
               onShare={() => shareSegment(item.segment, departure)}

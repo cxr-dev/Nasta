@@ -515,6 +515,7 @@ const sv = {
   pageIndicator: "Sida: {name}",
 
   // Map
+  showMap: "Visa karta",
   expandMap: "Förstora kartan",
   minimizeMap: "Förminska kartan",
   mapViewerLabel: "Järnvägskarta",
@@ -1045,6 +1046,7 @@ const en: typeof sv = {
   pageIndicator: "Page: {name}",
 
   // Map
+  showMap: "Show map",
   expandMap: "Expand map fullscreen",
   minimizeMap: "Minimize map",
   mapViewerLabel: "Railway map",

@@ -128,6 +128,17 @@ test.describe("Nästa App", () => {
     await expect(routeHeader).toContainText(/Arbete/i);
   });
 
+  test("keeps adjacent page previews outside the active page on first render", async ({ page }) => {
+    const [active, preview] = await Promise.all([
+      page.locator(".page-slot:not(.page-slot-preview)").boundingBox(),
+      page.locator(".page-slot-preview").first().boundingBox(),
+    ]);
+
+    expect(active).not.toBeNull();
+    expect(preview).not.toBeNull();
+    expect(preview!.x).toBeGreaterThanOrEqual(active!.x + active!.width);
+  });
+
   test("should keep sorting in Settings without a main-page reorder control", async ({ page }) => {
     await expect(page.locator('button[aria-label="Reorder cards"]')).toHaveCount(0);
 

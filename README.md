@@ -23,7 +23,7 @@ Nästa is a glanceable, mobile-first PWA for Stockholm SL departures. It shows c
 - Vitest for unit/component tests and Playwright for browser tests.
 - GitHub Pages for deployment.
 
-The repository uses Node.js 24 from `.node-version` and pnpm 11.9.0 from `package.json`.
+The repository uses Node.js 24 from `.node-version` and pnpm 12.3.4 from `package.json`.
 
 ## Development
 

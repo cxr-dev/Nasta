@@ -26,6 +26,7 @@ function setPermission(state: PermissionState | undefined) {
 }
 
 beforeEach(() => {
+  localStorage.removeItem('nasta_location_access_accepted');
   clearLocationSession();
   setPermission(undefined);
   Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
@@ -34,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   clearLocationSession();
+  localStorage.removeItem('nasta_location_access_accepted');
 });
 
 describe('distanceMeters', () => {
@@ -162,16 +164,49 @@ describe('shared location session', () => {
     expect(getCurrentPosition).not.toHaveBeenCalled();
   });
 
-  it('requests location automatically when permission is prompt', async () => {
+  it('does not request location automatically when permission is prompt', async () => {
     const getCurrentPosition = vi.fn((success: PositionCallback) => {
       success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
     });
     setGeolocation(getCurrentPosition);
     setPermission('prompt');
 
-    await expect(loadGrantedLocation()).resolves.toEqual([59.33, 18.06]);
-    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
-    expect(getLocationSnapshot().access).toBe('granted');
+    await expect(loadGrantedLocation()).resolves.toBeNull();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+    expect(getLocationSnapshot().access).toBe('prompt');
+  });
+
+  it('restores a previously accepted location when the browser reports prompt after reload', async () => {
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
+    });
+    setGeolocation(getCurrentPosition);
+    setPermission('prompt');
+
+    await expect(requestLocation()).resolves.toEqual([59.33, 18.06]);
+    expect(localStorage.getItem('nasta_location_access_accepted')).toBe('true');
+
+    vi.resetModules();
+    const reloadedGeo = await import('./geo');
+    const reloadedRequest = vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
+    });
+    setGeolocation(reloadedRequest);
+    setPermission('prompt');
+
+    await expect(reloadedGeo.loadGrantedLocation()).resolves.toEqual([59.33, 18.06]);
+    expect(reloadedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('forgets remembered access when location services are disabled', async () => {
+    setGeolocation(vi.fn((success: PositionCallback) => {
+      success({ coords: { latitude: 59.33, longitude: 18.06, accuracy: 25 } } as GeolocationPosition);
+    }));
+
+    await requestLocation();
+    clearLocationSession();
+
+    expect(localStorage.getItem('nasta_location_access_accepted')).toBeNull();
   });
 
   it('shows loading while startup permission access is pending', async () => {
@@ -188,7 +223,8 @@ describe('shared location session', () => {
 
     expect(getLocationSnapshot().isLoading).toBe(true);
     resolvePermission?.({ state: 'prompt' } as PermissionStatus);
-    await expect(location).resolves.toEqual([59.33, 18.06]);
+    await expect(location).resolves.toBeNull();
+    expect(getLocationSnapshot().access).toBe('prompt');
   });
 
   it('resumes a granted location when the Permissions API is unavailable', async () => {

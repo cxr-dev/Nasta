@@ -68,6 +68,7 @@ describe("routeStops", () => {
             {
               legs: [
                 {
+                  transportation: { disassembledName: "13" },
                   stopSequence: [
                     { name: "Slussen", parent: { disassembledName: "Slussen" } },
                     { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
@@ -97,7 +98,7 @@ describe("routeStops", () => {
     );
     // Should have cached the result
     expect(mockPersistentCache.set).toHaveBeenCalledWith(
-      expect.stringContaining("route-stops:v1:9001|13|1"),
+      expect.stringContaining("route-stops:v3:9001|13|1"),
       expect.objectContaining({ stops: ["Gamla stan", "T-Centralen"] }),
       expect.any(Number),
     );
@@ -116,7 +117,7 @@ describe("routeStops", () => {
       {
         urlMatcher: "trips",
         responseBody: {
-          journeys: [{ legs: [{ stopSequence: [
+          journeys: [{ legs: [{ transportation: { disassembledName: "13" }, stopSequence: [
             { name: "Slussen", parent: { disassembledName: "Slussen" } },
             { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
           ] }] }],
@@ -151,7 +152,7 @@ describe("routeStops", () => {
       {
         urlMatcher: "trips",
         responseBody: {
-          journeys: [{ legs: [{ stopSequence: [
+          journeys: [{ legs: [{ transportation: { disassembledName: "13" }, stopSequence: [
             { name: "Slussen", parent: { disassembledName: "Slussen" } },
             { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
             { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
@@ -209,6 +210,7 @@ describe("routeStops", () => {
             {
               legs: [
                 {
+                  transportation: { disassembledName: "13" },
                   stopSequence: [
                     { name: "Slussen", parent: { disassembledName: "Slussen" } },
                     { name: "Ropsten", parent: { disassembledName: "Ropsten" } },
@@ -278,6 +280,64 @@ describe("routeStops", () => {
     const result = await resolveStopSequence("9001", "Ropsten", "13", 1);
 
     expect(result).toBeNull();
+  });
+
+  it("uses the matching line leg instead of a faster connecting journey", async () => {
+    setupFetchMock([
+      {
+        urlMatcher: "stop-finder",
+        responseBody: {
+          locations: [
+            { id: "90910010009999", name: "Gullmarsplan", disassembledName: "Gullmarsplan", type: "stop" },
+          ],
+        },
+      },
+      {
+        urlMatcher: "trips",
+        responseBody: {
+          journeys: [
+            {
+              legs: [
+                {
+                  transportation: { disassembledName: "13", name: "Tunnelbana tunnelbanans röda linje 13" },
+                  stopSequence: [
+                    { name: "Värtavägen", parent: { disassembledName: "Värtavägen" } },
+                    { name: "Östermalmstorg", parent: { disassembledName: "Östermalmstorg" } },
+                    { name: "T-Centralen", parent: { disassembledName: "T-Centralen" } },
+                    { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
+                  ],
+                },
+                {
+                  transportation: { disassembledName: "17", name: "Tunnelbana tunnelbanans gröna linje 17" },
+                  stopSequence: [
+                    { name: "Gamla stan", parent: { disassembledName: "Gamla stan" } },
+                    { name: "Slussen", parent: { disassembledName: "Slussen" } },
+                    { name: "Gullmarsplan", parent: { disassembledName: "Gullmarsplan" } },
+                  ],
+                },
+              ],
+            },
+            {
+              legs: [
+                {
+                  transportation: { disassembledName: "4", name: "Buss blåbuss 4" },
+                  stopSequence: [
+                    { name: "Värtavägen", parent: { disassembledName: "Värtavägen" } },
+                    { name: "St Eriksplan", parent: { disassembledName: "St Eriksplan" } },
+                    { name: "Odenplan", parent: { disassembledName: "Odenplan" } },
+                    { name: "Gullmarsplan", parent: { disassembledName: "Gullmarsplan" } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await resolveStopSequence("001115", "Gullmarsplan", "4", 1);
+
+    expect(result).toEqual(["St Eriksplan", "Odenplan"]);
   });
 
   it("returns null on network error (fetch throws)", async () => {

@@ -23,6 +23,31 @@ let locationRequest: Promise<[number, number] | null> | null = null;
 let sessionGeneration = 0;
 const locationListeners = new Set<(snapshot: LocationSnapshot) => void>();
 const distanceCache = new Map<string, number>();
+const LOCATION_ACCESS_ACCEPTED_KEY = 'nasta_location_access_accepted';
+
+function hasRememberedLocationAccess(): boolean {
+  try {
+    return localStorage.getItem(LOCATION_ACCESS_ACCEPTED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function rememberLocationAccess() {
+  try {
+    localStorage.setItem(LOCATION_ACCESS_ACCEPTED_KEY, 'true');
+  } catch {
+    // Location continues to work for this session when persistence is unavailable.
+  }
+}
+
+function forgetLocationAccess() {
+  try {
+    localStorage.removeItem(LOCATION_ACCESS_ACCEPTED_KEY);
+  } catch {
+    // The browser permission remains the source of truth.
+  }
+}
 
 function publishLocationSnapshot(next: LocationSnapshot) {
   locationSnapshot = next;
@@ -69,6 +94,8 @@ function startLocationRequest(): Promise<[number, number] | null> {
   locationRequest = request;
   void request.then((position) => {
     if (requestGeneration !== sessionGeneration) return;
+    if (position) rememberLocationAccess();
+    else if (failureAccess === 'denied') forgetLocationAccess();
     publishLocationSnapshot({
       position,
       accuracy: position ? requestAccuracy : null,
@@ -109,8 +136,8 @@ export function requestLocation(): Promise<[number, number] | null> {
 }
 
 /**
- * Restores location for an enabled app setting. A prompt state may request the native platform
- * permission dialog on cold PWA activation; denied and unsupported states remain short-circuited.
+ * Restores location for an enabled app setting. A prior successful location response allows the
+ * app to resume a browser permission reported as prompt; the browser still controls any prompt.
  */
 export async function loadGrantedLocation(): Promise<[number, number] | null> {
   if (locationSnapshot.position) return locationSnapshot.position;
@@ -119,6 +146,11 @@ export async function loadGrantedLocation(): Promise<[number, number] | null> {
   publishLocationSnapshot({ ...locationSnapshot, isLoading: true });
   const access = await getBrowserLocationAccess();
   if (access === 'denied' || access === 'unsupported') {
+    if (access === 'denied') forgetLocationAccess();
+    publishLocationSnapshot({ ...locationSnapshot, isLoading: false, access });
+    return null;
+  }
+  if (access === 'prompt' && !hasRememberedLocationAccess()) {
     publishLocationSnapshot({ ...locationSnapshot, isLoading: false, access });
     return null;
   }
@@ -126,10 +158,11 @@ export async function loadGrantedLocation(): Promise<[number, number] | null> {
   return requestLocation();
 }
 
-/** Clears the in-memory position when the user disables Platsjänster. */
+/** Clears in-memory location and remembered app consent when the user disables Platsjänster. */
 export function clearLocationSession() {
   sessionGeneration += 1;
   locationRequest = null;
+  forgetLocationAccess();
   publishLocationSnapshot({ position: null, accuracy: null, isLoading: false, access: 'unknown' });
 }
 

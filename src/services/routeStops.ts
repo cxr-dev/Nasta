@@ -1,9 +1,10 @@
 import { persistentCache } from "./persistentCache";
+import { searchSites } from "./slApi";
 
 const STOP_FINDER_URL = "https://journeyplanner.integration.sl.se/v2/stop-finder";
 const TRIP_URL = "https://journeyplanner.integration.sl.se/v2/trips";
 
-const CACHE_PREFIX = "route-stops:v1";
+const CACHE_PREFIX = "route-stops:v3";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 interface CachedStops {
@@ -73,6 +74,53 @@ async function resolveDestinationToGlobalId(
  * Fetch stop sequence from Trip API for a given origin → destination pair.
  * Returns intermediate stop names (excluding origin and destination).
  */
+function legMatchesLine(
+  leg: NonNullable<TripJourney["legs"]>[number],
+  line: string,
+): boolean {
+  const wanted = line.trim();
+  if (!wanted) return false;
+  const id = (leg.transportation?.disassembledName ?? "").trim();
+  const name = leg.transportation?.name ?? "";
+  if (id === wanted || name === wanted) return true;
+  const numeric = name.match(/(\d+)/);
+  return numeric?.[1] === wanted;
+}
+
+function findLineLeg(
+  journeys: TripJourney[],
+  line: string,
+): NonNullable<TripJourney["legs"]>[number] | null {
+  for (const journey of journeys) {
+    for (const leg of journey.legs ?? []) {
+      if (legMatchesLine(leg, line) && Array.isArray(leg.stopSequence)) return leg;
+    }
+  }
+  return null;
+}
+
+function intermediateStopNames(
+  stopSequence: NonNullable<NonNullable<TripJourney["legs"]>[number]["stopSequence"]>,
+): string[] {
+  return stopSequence
+    .slice(1, -1)
+    .map((s) => s.parent?.disassembledName || s.name || "")
+    .filter(Boolean);
+}
+
+async function fetchTripJourneys(
+  originGlobalId: string,
+  destGlobalId: string,
+  extraQuery: string,
+  signal?: AbortSignal,
+): Promise<TripJourney[]> {
+  const url = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${originGlobalId}&name_destination=${destGlobalId}&calc_number_of_trips=3${extraQuery}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) return [];
+  const data: TripData = await response.json();
+  return Array.isArray(data.journeys) ? data.journeys : [];
+}
+
 async function fetchStopSequenceFromTrip(
   originGlobalId: string,
   destGlobalId: string,
@@ -80,23 +128,18 @@ async function fetchStopSequenceFromTrip(
   directionCode: number,
   signal?: AbortSignal,
 ): Promise<string[] | null> {
-  const url = `${TRIP_URL}?type_origin=any&type_destination=any&name_origin=${originGlobalId}&name_destination=${destGlobalId}&calc_number_of_trips=1&line=${encodeURIComponent(line)}&direction=${directionCode}`;
   try {
-    const response = await fetch(url, { signal });
-    if (!response.ok) return null;
-    const data: TripData = await response.json();
-    const journeys = Array.isArray(data.journeys) ? data.journeys : [];
-    if (journeys.length === 0) return null;
-    const firstLeg = journeys[0]?.legs?.[0];
-    if (!firstLeg?.stopSequence) return null;
-    // Skip origin (first) and destination (last) — only intermediate stops
-    const stops = firstLeg.stopSequence
-      .slice(1, -1)
-      .map((s: { parent?: { disassembledName?: string }; name?: string; disassembledName?: string }) => s.parent?.disassembledName || s.name || "")
-      .filter(Boolean);
-    // An empty list is a valid response for a direct origin → destination
-    // route and should be cached just like a route with intermediate stops.
-    return stops;
+    // The trip planner ignores `line` / `direction` query params and returns the
+    // fastest journey (often metro). Ask for a direct trip first, then fall back
+    // to any journey and pick the leg that actually matches the requested line.
+    let journeys = await fetchTripJourneys(originGlobalId, destGlobalId, "&max_changes=0", signal);
+    let matched = findLineLeg(journeys, line);
+    if (!matched) {
+      journeys = await fetchTripJourneys(originGlobalId, destGlobalId, "", signal);
+      matched = findLineLeg(journeys, line);
+    }
+    if (!matched?.stopSequence) return null;
+    return intermediateStopNames(matched.stopSequence);
   } catch {
     return null;
   }
@@ -186,4 +229,81 @@ export async function resolveStopSequence(
 export function clearRouteStopsCache(): void {
   memoryCache.clear();
   inFlight.clear();
+  coordCache.clear();
+  coordInFlight.clear();
+}
+
+// ─── Stop coordinates (for the route preview map) ────────────────
+
+const coordCache = new Map<string, [number, number] | null>();
+const coordInFlight = new Map<string, Promise<[number, number] | null>>();
+
+/** Resolve a single stop name to [lat, lon] via Stop Finder, cached in memory. */
+export function resolveStopCoord(name: string): Promise<[number, number] | null> {
+  const cached = coordCache.get(name);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  const pending = coordInFlight.get(name);
+  if (pending) return pending;
+
+  const request = (async (): Promise<[number, number] | null> => {
+    try {
+      const sites = await searchSites(name);
+      if (sites.length === 0) return null;
+      // Prefer an exact name match, then any result with coordinates.
+      const byName = sites.find((s) => s.name === name);
+      const pick = byName ?? sites[0];
+      if (pick?.lat == null || pick?.lon == null) return null;
+      return [pick.lat, pick.lon];
+    } catch {
+      return null;
+    }
+  })();
+
+  coordInFlight.set(name, request);
+  request
+    .then((coord) => coordCache.set(name, coord))
+    .finally(() => {
+      if (coordInFlight.get(name) === request) coordInFlight.delete(name);
+    });
+
+  return request;
+}
+
+export interface RoutePoint {
+  name: string;
+  coord: [number, number] | null;
+}
+
+/**
+ * Resolve the full ordered stop sequence (origin → intermediate stops →
+ * destination) with coordinates, for rendering the route on a map.
+ * Returns an empty array when the sequence cannot be resolved.
+ */
+export async function resolveRoutePoints(
+  originSiteId: string,
+  originName: string,
+  destinationName: string,
+  line: string,
+  directionCode: number,
+  signal?: AbortSignal,
+): Promise<RoutePoint[]> {
+  const intermediates = await resolveStopSequence(
+    originSiteId,
+    destinationName,
+    line,
+    directionCode,
+    signal,
+  );
+  if (intermediates === null) return [];
+
+  const names = [originName, ...intermediates, destinationName];
+  const coords = await Promise.all(names.map((n) => resolveStopCoord(n)));
+  return names.map((name, i) => ({ name, coord: coords[i] }));
+}
+
+/** Clear only the coordinate cache (keeps stop-sequence cache warm). */
+export function clearRouteCoordCache(): void {
+  coordCache.clear();
+  coordInFlight.clear();
 }

@@ -14,9 +14,9 @@
   const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
   const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-  let { active, location, stops = [], selectedId = null, boardStop = null, includeLocationWithBoardStop = false, interactionMode = 'embedded', resetViewToken = 0, label, locationLabel = 'You are here', onSelectStop, onLoading, onReady, onFatalError }: {
+  let { active, location, stops = [], selectedId = null, boardStop = null, includeLocationWithBoardStop = false, interactionMode = 'embedded', resetViewToken = 0, label, locationLabel = 'You are here', route = [], onSelectStop, onLoading, onReady, onFatalError }: {
     active: boolean; location: LocationSnapshot; stops?: TransitStopSearchResult[]; selectedId?: string | null;
-    boardStop?: TransitStopSearchResult | null; includeLocationWithBoardStop?: boolean; interactionMode?: 'embedded' | 'fullscreen'; resetViewToken?: number; label: string; locationLabel?: string; onSelectStop?: (stop: TransitStopSearchResult) => void;
+    boardStop?: TransitStopSearchResult | null; includeLocationWithBoardStop?: boolean; interactionMode?: 'embedded' | 'fullscreen'; resetViewToken?: number; label: string; locationLabel?: string; route?: Array<{ name: string; coord: [number, number] | null }>; onSelectStop?: (stop: TransitStopSearchResult) => void;
     onLoading?: () => void; onReady?: () => void; onFatalError?: () => void;
   } = $props();
 
@@ -105,6 +105,58 @@
     control?.classList.remove('maplibregl-compact-show');
     control?.querySelector<HTMLButtonElement>('button')?.blur();
   }
+  const ROUTE_SOURCE_ID = 'route-preview-source';
+  const ROUTE_LAYER_ID = 'route-preview-line';
+
+  function clearRouteLayer() {
+    if (!map) return;
+    try { if (map.getLayer(ROUTE_LAYER_ID)) map.removeLayer(ROUTE_LAYER_ID); } catch { /* best effort */ }
+    try { if (map.getSource(ROUTE_SOURCE_ID)) map.removeSource(ROUTE_SOURCE_ID); } catch { /* best effort */ }
+  }
+
+  function drawRoute() {
+    if (!map || !ready || !maplibregl || route.length < 2) return;
+    const coords = route
+      .map((p) => p.coord)
+      .filter((c): c is [number, number] => !!c && c.every(Number.isFinite));
+    if (coords.length < 2) return;
+    clearRouteLayer();
+    const lngLats = coords.map(([lat, lon]) => [lon, lat]);
+    try {
+      map.addSource(ROUTE_SOURCE_ID, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: lngLats },
+        },
+      });
+      map.addLayer({
+        id: ROUTE_LAYER_ID,
+        source: ROUTE_SOURCE_ID,
+        type: 'line',
+        paint: {
+          'line-color': '#2563EB',
+          'line-width': 4,
+          'line-opacity': 0.65,
+          'line-cap': 'round',
+        },
+      });
+    } catch { clearRouteLayer(); }
+  }
+
+  function routeMarkerElement(name: string) {
+    const element = document.createElement('div');
+    element.className = 'nearby-stop-marker route-stop-marker';
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', name);
+    const dot = document.createElement('span');
+    dot.className = 'nearby-stop-marker-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    element.append(dot);
+    return element;
+  }
+
   function updateMarkers() {
     if (!map || !ready || !maplibregl) return;
     markers.forEach((marker) => {
@@ -124,6 +176,16 @@
           .setLngLat([stop.coord[1], stop.coord[0]]).addTo(map));
       } catch { /* One bad stop must not suppress the remaining markers. */ }
     }
+    drawRoute();
+    if (route.length > 0) {
+      for (const point of route) {
+        if (!point.coord || !point.coord.every(Number.isFinite)) continue;
+        try {
+          markers.push(new maplibregl.Marker({ element: routeMarkerElement(point.name) })
+            .setLngLat([point.coord[1], point.coord[0]]).addTo(map));
+        } catch { /* One bad route point must not suppress the others. */ }
+      }
+    }
   }
   async function setup() {
     if (!active || loading || map || !host) return;
@@ -137,7 +199,7 @@
       module.setWorkerUrl(workerUrl);
       maplibregl = module;
       currentStyle = styleUrl();
-      map = new module.Map({ container: host, style: currentStyle, center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2, attributionControl: false, dragPan: false, scrollZoom: false, doubleClickZoom: false, touchZoomRotate: false, dragRotate: false, keyboard: false });
+      map = new module.Map({ container: host, style: currentStyle, center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2, fadeDuration: 0, attributionControl: false, dragPan: false, scrollZoom: false, doubleClickZoom: false, touchZoomRotate: false, dragRotate: false, keyboard: false });
       map.addControl(new module.AttributionControl({ compact: true }), 'bottom-right');
       setMapInteractionMode(interactionMode);
       map.on('error', (event: { sourceId?: string; error?: unknown }) => {
@@ -164,15 +226,26 @@
     void setup();
     resize();
   });
-  $effect(() => { active; stops; selectedId; boardStop; includeLocationWithBoardStop; location.position; if (active) updateMarkers(); });
+  $effect(() => { active; stops; selectedId; boardStop; includeLocationWithBoardStop; route; location.position; if (active) updateMarkers(); });
   $effect(() => { setMapInteractionMode(interactionMode); resize(); });
   $effect(() => {
     const token = resetViewToken;
     if (!token || token === handledResetViewToken || !map) return;
-    const center = boardStop?.coord ?? location.position;
-    if (!center) return;
     handledResetViewToken = token;
-    try { map.jumpTo?.({ center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2 }); } catch { reportFatalError(); }
+    const routeCoords = route
+      .map((p) => p.coord)
+      .filter((c): c is [number, number] => !!c && c.every(Number.isFinite));
+    try {
+      if (routeCoords.length >= 2 && map.fitBounds) {
+        const bounds = new maplibregl.LngLatBounds();
+        for (const [lat, lon] of routeCoords) bounds.extend([lon, lat]);
+        map.fitBounds(bounds, { padding: 36, maxZoom: 15.5 });
+      } else {
+        const center = boardStop?.coord ?? location.position;
+        if (!center) return;
+        map.jumpTo?.({ center: [center[1], center[0]], zoom: boardStop ? 15.5 : 14.2 });
+      }
+    } catch { reportFatalError(); }
   });
   $effect(() => {
     const nextStyle = styleUrl();
@@ -207,6 +280,8 @@
   :global(.nearby-stop-marker-dot) { width: 25px; height: 25px; border: 3px solid var(--surface); background: var(--text-secondary); box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 28%, transparent); }
   :global(.nearby-stop-marker-center) { width: 7px; height: 7px; background: var(--surface); }
   :global(.nearby-stop-marker.selected .nearby-stop-marker-dot) { background: var(--accent); transform: scale(1.12); }
+  :global(.nearby-stop-marker.route-stop-marker) { width: 26px; height: 26px; }
+  :global(.nearby-stop-marker.route-stop-marker .nearby-stop-marker-dot) { width: 13px; height: 13px; border-width: 2px; box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 26%, transparent); }
   :global(.nearby-stop-marker:focus-visible) { outline: 3px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
   :global(.nearby-user-marker) { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 44px; height: 44px; pointer-events: none; }
   :global(.nearby-user-marker-dot) { width: 17px; height: 17px; border: 3px solid #fff; border-radius: 50%; background: #1677e8; box-shadow: 0 0 0 5px color-mix(in srgb, #1677e8 24%, transparent), 0 1px 4px color-mix(in srgb, #000 32%, transparent); }

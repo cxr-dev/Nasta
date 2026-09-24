@@ -80,6 +80,8 @@
   let boardDiagnostics = $state<DepartureFetchDiagnostics | undefined>(undefined);
   let boardStopDeviations = $state<any[]>([]);
   let boardExtendedForecast = $state(false);
+  let boardSelectedDepartureId = $state<string | null>(null);
+  let boardDepartureStops = $state<Map<string, { names: string[]; loading: boolean }>>(new Map());
   let boardCopyConfirmation = $state(false);
   let previews = $state<Map<string, PreviewState>>(new Map());
   let locationAnnouncement = $state('');
@@ -223,6 +225,45 @@
     const dayLabel = stockholmDate(departureDate) === stockholmDate(now) ? t.today : t.tomorrow;
     const time = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(departureDate);
     return `${dayLabel} ${time}`;
+  }
+
+  function resetBoardDepartureSelection() {
+    boardSelectedDepartureId = null;
+    boardDepartureStops = new Map();
+  }
+
+  async function toggleBoardDeparture(departure: TransitDeparture) {
+    if (!boardStop) return;
+    const opening = boardSelectedDepartureId !== departure.id;
+    boardSelectedDepartureId = opening ? departure.id : null;
+    if (!opening) return;
+    const key = `${departure.line}|${departure.directionCode}|${departure.destination}`;
+    const existing = boardDepartureStops.get(key);
+    if (existing) return;
+    boardDepartureStops = new Map(boardDepartureStops).set(key, { names: [], loading: true });
+    try {
+      const sequence = await transitService.getStopSequence(
+        boardStop.id,
+        departure.destination,
+        departure.line,
+        departure.directionCode,
+      );
+      if (boardSelectedDepartureId !== departure.id) return;
+      const names = [
+        boardStop.name,
+        ...(sequence?.stops ?? []).map((stop) => stop.stopName),
+        departure.destination,
+      ].filter(Boolean).filter((name, index, arr) => index === 0 || name !== arr[index - 1]);
+      const next = new Map(boardDepartureStops);
+      next.set(key, { names, loading: false });
+      boardDepartureStops = next;
+    } catch {
+      if (boardSelectedDepartureId === departure.id) {
+        const next = new Map(boardDepartureStops);
+        next.set(key, { names: [], loading: false });
+        boardDepartureStops = next;
+      }
+    }
   }
 
   function deviationMessage(deviation: unknown): string {
@@ -395,6 +436,12 @@
   }
 
   $effect(() => {
+    // Reset departure stop expansions whenever the selected board stop changes.
+    boardStop;
+    resetBoardDepartureSelection();
+  });
+
+  $effect(() => {
     if (!utilityActive) return;
     if (settings.locationServicesEnabled) void untrack(() => loadInitialLocation());
     else {
@@ -503,7 +550,7 @@
       <button type="button" class="icon-button" onclick={onBoardBack} aria-label={t.back ?? 'Tillbaka'}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{boardStop.name}</h1></div>
+      <div class="topbar-copy"><h1>{boardStop.name}</h1></div>
       {@render headerActions()}
     </header>
     <div class="board-content">
@@ -559,19 +606,46 @@
         {/each}
         <div class="departure-list" aria-label={t.departures ?? 'Avgångar'}>
           {#each boardDepartures as departure (departure.id)}
-            <div class="departure-card station-board-departure">
-              <StationDepartureCard
-                destination={departure.destination}
-                line={departure.line}
-                transportType={getTransportType(departure.transportMode)}
-                scheduledTime={boardExtendedForecast ? extendedDepartureLabel(departure) : departure.scheduledTime}
-                countdown={departureLabel(departure)}
-                urgencyLabel={departureUrgencyLabel(departure)}
-                countdownColor={departureCountdownColor(departure)}
-                isArrivingNow={departure.minutes <= 0}
-                isSleeping={false}
-                nextDepartureTime={null}
-              />
+            {@const key = `${departure.line}|${departure.directionCode}|${departure.destination}`}
+            {@const depStops = boardDepartureStops.get(key)}
+            {@const isOpen = boardSelectedDepartureId === departure.id}
+            <div class="station-board-panel" class:open={isOpen}>
+              <div class="departure-card station-board-departure">
+                <StationDepartureCard
+                  destination={departure.destination}
+                  line={departure.line}
+                  transportType={getTransportType(departure.transportMode)}
+                  scheduledTime={boardExtendedForecast ? extendedDepartureLabel(departure) : departure.scheduledTime}
+                  countdown={departureLabel(departure)}
+                  urgencyLabel={departureUrgencyLabel(departure)}
+                  countdownColor={departureCountdownColor(departure)}
+                  isArrivingNow={departure.minutes <= 0}
+                  isSleeping={false}
+                  nextDepartureTime={null}
+                  interactive={true}
+                  isExpanded={isOpen}
+                  controls={isOpen ? 'expand up' : undefined}
+                  onactivate={() => void toggleBoardDeparture(departure)}
+                />
+              </div>
+              {#if isOpen}
+                <div class="board-departure-stops">
+                  {#if depStops?.loading}
+                    <span class="board-stops-muted">{t.loading ?? 'Laddar'}…</span>
+                  {:else if depStops?.names && depStops.names.length > 0}
+                    <ol class="board-stop-list">
+                      {#each depStops.names as stop, index (stop + index)}
+                        <li class:origin={index === 0} class:destination={index === depStops.names.length - 1}>
+                          <span class="stop-node" aria-hidden="true"></span>
+                          <span>{stop}</span>
+                        </li>
+                      {/each}
+                    </ol>
+                  {:else}
+                    <span class="board-stops-muted">{t.routeStopsUnavailable ?? 'Avgångens hållplatser är inte tillgängliga just nu.'}</span>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -584,7 +658,7 @@
       <button type="button" class="icon-button" onclick={onBack} aria-label={t.backToPages ?? 'Tillbaka till sidorna'}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div class="topbar-copy"><span class="topbar-kicker">{t.nearby ?? 'Nära dig'}</span><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
+      <div class="topbar-copy"><h1>{t.nearbyTitle ?? 'Hållplatser nära dig'}</h1></div>
       {@render headerActions()}
     </header>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -674,11 +748,10 @@
   .utility-panel { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
   .board-panel { transform: translate3d(100%, 0, 0); }
   .nearby-topbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
-  .icon-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+  .icon-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
   .icon-button svg { width: 21px; height: 21px; }
   .topbar-copy { min-width: 0; flex: 1; }
-  .topbar-kicker { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-  .topbar-copy h1 { margin: 2px 0 0; overflow: hidden; font-size: 21px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-copy h1 { margin: 0; overflow: hidden; font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
   .header-actions { display: flex; align-items: center; gap: 0; flex: 0 0 auto; }
   .header-icon-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -4px; border: 0; border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, transform .12s ease; }
   .header-icon-btn:hover { background: var(--accent-subtle); }
@@ -687,7 +760,7 @@
   .header-icon-btn .sl-logo { width: 30.5px; height: 24px; }
   .sl-ticket-btn { display: none; }
   @media (max-width: 767px) { .sl-ticket-btn { display: flex; } }
-  .map-wrap { position: relative; height: 27dvh; min-height: 176px; max-height: 270px; flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); --map-control-safe-top: env(safe-area-inset-top, 0px); }
+  .map-wrap { position: relative; height: clamp(176px, 23dvh, 240px); flex: 0 0 auto; overflow: hidden; background: var(--surface-emphasis); --map-control-safe-top: env(safe-area-inset-top, 0px); }
   .map-wrap.nearby-map-fullscreen { position: fixed; z-index: 40; inset: 0; width: auto; height: auto; min-height: 0; max-height: none; border-radius: 0; touch-action: none; }
   .nearby-map-expand, .nearby-map-close { position: absolute; z-index: 3; right: 12px; }
   .nearby-map-expand { top: 12px; }
@@ -696,19 +769,24 @@
   .nearby-map-expand:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
   .nearby-map-expand svg { width: 20px; height: 20px; }
   .map-skeleton { position: absolute; inset: 0; z-index: 1; background: var(--surface-emphasis); opacity: 0; pointer-events: none; transition: opacity 150ms ease; }.map-skeleton.visible { opacity: 1; }
-  .map-fallback { position: absolute; inset: auto 12px 12px; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }.map-fallback button { justify-self: start; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font: inherit; font-weight: 700; }
-  .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .map-fallback { position: absolute; inset: auto 12px 12px; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 12px; }.map-fallback button { justify-self: start; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font: inherit; font-weight: 700; }
+  .nearby-content, .board-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y pinch-zoom; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .nearby-content::-webkit-scrollbar, .board-content::-webkit-scrollbar { display: none; }
   .search-wrap { padding: 12px 16px 8px; }.search-wrap label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .search-field { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }.search-field svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--text-secondary); }.search-field input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
-  .location-prompt { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; margin: 0 16px 10px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--accent-subtle); color: var(--accent); }.prompt-icon svg { width: 20px; height: 20px; }.prompt-copy { display: grid; gap: 2px; min-width: 0; }.prompt-copy strong { font-size: 13px; }.prompt-copy span { color: var(--text-secondary); font-size: 11px; line-height: 1.3; }.primary-action { grid-column: 2; justify-self: start; min-height: 44px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-size: 13px; font-weight: 700; }
+  .search-field { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.search-field svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--text-secondary); }.search-field input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
+  .location-prompt { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; margin: 0 16px 10px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }.prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; background: var(--accent-subtle); color: var(--accent); }.prompt-icon svg { width: 20px; height: 20px; }.prompt-copy { display: grid; gap: 2px; min-width: 0; }.prompt-copy strong { font-size: 13px; }.prompt-copy span { color: var(--text-secondary); font-size: 12px; line-height: 1.3; }.primary-action { grid-column: 2; justify-self: start; min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--accent); color: var(--text-on-accent); font-size: 13px; font-weight: 700; }
   .station-section-heading { display: flex; align-items: baseline; gap: 8px; padding: 4px 16px 8px; }.station-section-heading h2 { margin: 0; font-size: 15px; font-weight: 750; }.station-section-heading span { color: var(--text-secondary); font-size: 12px; }
   .station-list, .departure-list { display: grid; gap: 8px; padding: 0 16px; }.station-card, .departure-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; min-height: 106px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; }.station-card.selected { border-color: var(--border-strong); background: var(--surface-hover); }.station-mode { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 800; }.station-main { display: grid; gap: 3px; min-width: 0; }.station-main > strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.station-main > span { overflow: hidden; color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.station-main .station-meta { font-size: 12px; }.station-main .station-preview { display: grid; grid-template-rows: repeat(2, 24px); gap: 0; min-width: 0; min-height: 48px; color: var(--text); }.station-main .muted { color: var(--text-muted); }.preview-skeleton { display: block; width: min(150px, 88%); height: 9px; align-self: center; border-radius: 999px; background: var(--surface-emphasis); }.station-chevron { width: 19px; height: 19px; color: var(--text-muted); }
-  .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 14px; }.state-panel button, .detail-map-empty button { min-height: 44px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
+  .state-panel, .detail-map-empty { display: grid; place-items: center; gap: 8px; margin: 8px 16px; padding: 24px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); text-align: center; }.state-panel strong { color: var(--text); font-size: 15px; }.state-panel button, .detail-map-empty button { min-height: 44px; padding: 0 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--text-on-accent); font-weight: 700; }.state-panel svg, .detail-map-empty svg { width: 24px; height: 24px; }
   .state-panel details { max-width: 100%; color: var(--text-secondary); font-size: 12px; }.state-panel summary { cursor: pointer; }.state-panel details button { margin-top: 8px; }
   .board-status { margin: 0 16px 8px; color: var(--text-secondary); font-size: 12px; }.board-status button { min-height: 32px; margin-left: 8px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; }.board-disruption { margin: 0 16px 8px; padding: 9px 10px; border-left: 3px solid var(--accent); background: var(--surface-hover); color: var(--text-secondary); font-size: 12px; }
-  .board-summary { display: flex; align-items: end; gap: 18px; flex: 0 0 auto; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 11px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: 210px; min-height: 210px; flex: 0 0 210px; margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.map-distance-label { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }.map-distance-label strong { color: var(--text); font-size: 12px; }
+  .board-summary { display: flex; align-items: end; gap: 18px; flex: 0 0 auto; padding: 14px 16px 10px; }.board-summary > div { display: grid; gap: 3px; }.summary-label { color: var(--text-secondary); font-size: 12px; }.board-summary strong { font-size: 15px; }.detail-map-shell { position: relative; height: clamp(180px, 24dvh, 240px); min-height: 180px; flex: 0 0 clamp(180px, 24dvh, 240px); margin: 0 16px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-emphasis); }.map-distance-label { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); font-size: 12px; }.map-distance-label strong { color: var(--text); font-size: 12px; }
   .station-board-departure { display: block; min-height: 0; padding: 0; overflow: hidden; }.departure-skeleton, .station-skeleton { min-height: 68px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(90deg, var(--bg), var(--surface), var(--bg)); animation: nearby-shimmer 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }.departure-skeleton { min-height: 110px; }
-  .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }
+  .station-board-panel { margin: 0 16px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }.station-board-panel .departure-card { border: 0; border-radius: 0; }
+  .board-departure-stops { padding: 8px 14px 12px; border-top: 1px solid var(--border); justify-items: start; }.board-stops-muted { display: block; padding: 4px 0; color: var(--text-muted); font-size: 12px; }
+  .board-stop-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }.board-stop-list li { display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; color: var(--text-secondary); font-size: 13px; line-height: 1.2; }.board-stop-list li.origin, .board-stop-list li.destination { color: var(--text); font-weight: 700; }
+  .board-stop-list .stop-node { justify-self: center; width: 7px; height: 7px; border: 1.5px solid var(--border-strong); border-radius: 50%; background: var(--surface); }.board-stop-list li.origin .stop-node, .board-stop-list li.destination .stop-node { width: 9px; height: 9px; border-color: var(--accent); background: var(--accent); }
+  .directions-action { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 16px 14px; padding: 0 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }.directions-action svg { width: 17px; height: 17px; color: #2563EB; }
   @keyframes nearby-shimmer { 50% { opacity: .45; } }
   @media (prefers-reduced-motion: reduce) { .departure-skeleton, .station-skeleton { animation: none; opacity: .7; } }
   @media (prefers-reduced-motion: reduce) { .map-skeleton { transition: none; } }

@@ -156,7 +156,7 @@ test("MapPreview worker is bundled, fetched 200, and loads vector tiles", async 
 
   await openApp(page);
 
-  // Expand the departure card to mount MapPreview.
+  // Expanding a departure with known coordinates renders its map immediately.
   await page.locator(".card-main").first().click();
 
   const worker = await workerPromise;

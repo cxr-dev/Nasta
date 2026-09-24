@@ -14,6 +14,8 @@
     onShowAllChange?: (showAll: boolean) => void;
   } = $props();
 
+  const PREVIEW_NEXT_COUNT = 3;
+
   let t = $derived(getT());
   let stops = $state<string[]>([]);
   let loading = $state(true);
@@ -51,10 +53,16 @@
     return () => controller.abort();
   });
 
-  let visibleStops = $derived(showAll ? stops : stops.slice(0, 4));
-  let hasMore = $derived(stops.length > 4);
+  // Total includes origin + the intermediate stops + destination.
   let totalStops = $derived(stops.length);
-  let visibleCount = $derived(visibleStops.length);
+  // Intermediate stops hidden until "Show all" is pressed.
+  let hiddenMore = $derived(Math.max(0, totalStops - (2 + PREVIEW_NEXT_COUNT)));
+  // Collapsed view: origin + the next N upcoming stops + destination.
+  let visibleStops = $derived(
+    showAll || hiddenMore === 0
+      ? stops
+      : [stops[0], ...stops.slice(1, 1 + PREVIEW_NEXT_COUNT), stops[stops.length - 1]],
+  );
 </script>
 
 {#if loading}
@@ -82,34 +90,48 @@
     <div class="route-stops-heading">
       <span class="route-stops-title">{t.routeStops ?? 'Stops along the route'}</span>
       <span class="route-stops-summary">
-        {#if showAll}
-          {totalStops} {t.journeyMoreStops ?? 'stops'}
-        {:else}
-          {visibleCount} / {totalStops} {t.journeyMoreStops ?? 'stops'}
-        {/if}
+        {totalStops} {t.journeyMoreStops ?? 'stops'}
       </span>
     </div>
 
     <ol class="stop-list">
       {#each visibleStops as stop, index (stop + index)}
-        <li class:origin={index === 0} class:destination={index === stops.length - 1}>
+        {#if index === visibleStops.length - 1 && !showAll && hiddenMore > 0}
+          <li class="more" aria-hidden="true">
+            <span class="stop-node stop-node-more"></span>
+            <span>+{hiddenMore} {t.journeyMoreStops ?? 'stops'}</span>
+          </li>
+        {/if}
+        <li class:origin={index === 0} class:destination={index === visibleStops.length - 1}>
           <span class="stop-node" aria-hidden="true"></span>
           <span>{stop}</span>
         </li>
       {/each}
     </ol>
 
-    {#if hasMore}
+    {#if !showAll && hiddenMore > 0}
       <button
         type="button"
         class="show-stops"
         onpointerdown={(event) => event.stopPropagation()}
         onclick={(event) => {
           event.stopPropagation();
-          onShowAllChange?.(!showAll);
+          onShowAllChange?.(true);
         }}
       >
-        {showAll ? (t.showLess ?? 'Show less') : (t.showAllStops ?? 'Show all stops')}
+        {t.showAllStops ?? 'Show all stops'}
+      </button>
+    {:else if showAll && totalStops > 2 + PREVIEW_NEXT_COUNT}
+      <button
+        type="button"
+        class="show-stops"
+        onpointerdown={(event) => event.stopPropagation()}
+        onclick={(event) => {
+          event.stopPropagation();
+          onShowAllChange?.(false);
+        }}
+      >
+        {t.showLess ?? 'Show less'}
       </button>
     {/if}
   </section>
@@ -202,6 +224,10 @@
     font-size: 14px;
     line-height: 1.2;
   }
+  .stop-list li.more {
+    color: var(--text-muted);
+    font-style: italic;
+  }
   .stop-node {
     position: relative;
     z-index: 1;
@@ -211,6 +237,10 @@
     border: 1.5px solid var(--border-strong);
     border-radius: 50%;
     background: var(--surface);
+  }
+  .stop-node-more {
+    border-color: transparent;
+    background: transparent;
   }
   .stop-list li.origin,
   .stop-list li.destination {
@@ -227,21 +257,22 @@
   .show-stops {
     min-height: 44px;
     margin-top: 6px;
-    padding: 8px 2px;
-    border: 0;
-    background: transparent;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
     color: var(--accent);
     font: inherit;
     font-size: 13px;
-    font-weight: 650;
-    text-align: left;
+    font-weight: 700;
+    text-align: center;
     cursor: pointer;
   }
   .show-stops:hover,
   .show-stops:focus-visible {
-    color: var(--accent-hover, var(--accent));
+    background: var(--accent-subtle);
+    color: var(--accent);
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-    border-radius: var(--radius-sm);
   }
 </style>

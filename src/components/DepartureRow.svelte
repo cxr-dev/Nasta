@@ -38,9 +38,9 @@
     weatherSymbol = null,
     ontoggle,
     onprefetch,
+    groupingMode,
     showAllStops = false,
     onShowAllStopsChange,
-    groupingMode,
     onLongPress,
     onMoreActions,
     moreActionsLabel,
@@ -70,9 +70,9 @@
     weatherSymbol?: string | null;
     ontoggle?: () => void;
     onprefetch?: () => void;
+    groupingMode?: string;
     showAllStops?: boolean;
     onShowAllStopsChange?: (showAll: boolean) => void;
-    groupingMode?: string;
     onLongPress?: (trigger?: HTMLElement) => void;
     onMoreActions?: (trigger: HTMLElement) => void;
     moreActionsLabel?: string;

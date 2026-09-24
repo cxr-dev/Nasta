@@ -10,6 +10,7 @@
   import { createHistoryView } from '../lib/historyView';
   import { openWalkingDirections } from '../lib/openWalkingDirections';
   import NearbyMap from './NearbyMap.svelte';
+  import { resolveRoutePoints, type RoutePoint } from "../services/routeStops";
 
   let {
     segment,
@@ -129,6 +130,7 @@
     mapError = false;
     mapAttempt += 1;
   }
+
 </script>
 
 {#if segment.fromStop.coord}

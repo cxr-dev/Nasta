@@ -1177,6 +1177,8 @@ function closeSettingsPanel() {
   }
 
   onMount(() => {
+    deckWidth = measureDeckWidth();
+    applyDeckTransforms();
     timeOfDayStart();
     initializeCacheLifecycle();
     consumeShareHash();

@@ -193,6 +193,21 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   let stopSequenceAbortController: AbortController | null = null;
   let initialisedSegmentId = $state<string | null>(null);
 
+  function seededDepartureForSegment(segment: Segment): TransitDeparture {
+    return {
+      id: `${segment.fromStop.siteId}|${segment.line}`,
+      stopId: segment.fromStop.siteId,
+      line: segment.line,
+      lineName: segment.lineName,
+      destination: segment.direction.destination,
+      directionCode: segment.direction.code,
+      transportMode: segment.transportType,
+      minutes: -1,
+      scheduledTime: '',
+      dataSource: 'scheduled',
+    };
+  }
+
   $effect(() => {
     if (!initialSegment || initialisedSegmentId === initialSegment.id) return;
     initialisedSegmentId = initialSegment.id;
@@ -203,20 +218,29 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
       coord: initialSegment.fromStop.coord,
       relevance: 1,
     } as TransitStopSearchResult;
-    selectedLine = {
-      id: `${initialSegment.fromStop.siteId}|${initialSegment.line}`,
-      stopId: initialSegment.fromStop.siteId,
-      line: initialSegment.line,
-      lineName: initialSegment.lineName,
-      destination: initialSegment.direction.destination,
-      directionCode: initialSegment.direction.code,
-      transportMode: initialSegment.transportType,
-      minutes: -1,
-      scheduledTime: '',
-      dataSource: 'scheduled',
-    };
-    allDepartures = [selectedLine];
-    step = 'direction';
+    // While editing we seed the station and pre-select the edited line, but keep
+    // the FULL station departure list so the user can step back in the wizard and
+    // change the direction, the line, or even the station ("edit all the way back").
+    step = 'select';
+    loadingDeps = true;
+    void (async () => {
+      try {
+        const supplemented = await loadDeparturesForStation(initialSegment.fromStop.siteId, initialSegment.fromStop.name);
+        allDepartures = supplemented.length > 0 ? supplemented : [seededDepartureForSegment(initialSegment)];
+      } catch {
+        allDepartures = [seededDepartureForSegment(initialSegment)];
+      } finally {
+        loadingDeps = false;
+      }
+      selectedLine =
+        allDepartures.find(
+          (d) => d.line === initialSegment.line && d.directionCode === initialSegment.direction.code,
+        )
+        ?? allDepartures.find((d) => d.line === initialSegment.line)
+        ?? allDepartures[0];
+      step = 'direction';
+      void fetchDirectionStopSequences();
+    })();
   });
 
   async function handleInput() {
@@ -270,6 +294,30 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
     }, SEARCH_DEBOUNCE_MS);
   }
   
+  async function loadDeparturesForStation(stationId: string, stationName: string): Promise<TransitDeparture[]> {
+    const { departures: rawDeps } = await transitService.getDepartures(stationId, stationName);
+    // Supplement with routes known from timetable cache (covers overnight / off-peak)
+    const cachedRoutes = await transitService.getKnownRoutes(stationId, stationName);
+    const supplemented = [...rawDeps];
+    for (const route of cachedRoutes) {
+      if (!supplemented.some((d) => d.line === route.line && d.directionCode === route.directionCode)) {
+        supplemented.push({
+          id: `${stationId}|${route.line}|${route.directionCode}|cached`,
+          stopId: stationId,
+          line: route.line,
+          lineName: route.lineName,
+          destination: route.destination,
+          directionCode: route.directionCode,
+          transportMode: route.transportMode,
+          minutes: -1,
+          scheduledTime: '',
+          dataSource: 'predicted',
+        });
+      }
+    }
+    return supplemented;
+  }
+
   async function selectStation(station: TransitStopSearchResult) {
     selectedStation = station;
     step = 'select';
@@ -282,26 +330,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
     }
 
     try {
-      const { departures: rawDeps } = await transitService.getDepartures(station.id, station.name);
-      // Supplement with routes known from timetable cache (covers overnight / off-peak)
-      const cachedRoutes = await transitService.getKnownRoutes(station.id, station.name);
-      const supplemented = [...rawDeps];
-      for (const route of cachedRoutes) {
-        if (!supplemented.some(d => d.line === route.line && d.directionCode === route.directionCode)) {
-          supplemented.push({
-            id: `${station.id}|${route.line}|${route.directionCode}|cached`,
-            stopId: station.id,
-            line: route.line,
-            lineName: route.lineName,
-            destination: route.destination,
-            directionCode: route.directionCode,
-            transportMode: route.transportMode,
-            minutes: -1,
-            scheduledTime: '',
-            dataSource: 'predicted',
-          });
-        }
-      }
+      const supplemented = await loadDeparturesForStation(station.id, station.name);
       allDepartures = supplemented;
       
       // Auto-skip to direction step if only 1 unique line at this stop
@@ -419,16 +448,32 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   }
   
   function goBack() {
-    if (step === 'direction') {
-      step = 'select';
-      directionStopSequences = {};
-      stopSequenceAbortController?.abort();
-      selectedLine = null;
-    } else {
+    goBackToStep(stepIndex - 1);
+  }
+
+  /** Navigate back to an earlier wizard step so the user can edit "all the way back". */
+  function goBackToStep(target: number) {
+    if (target >= stepIndex) return;
+    if (target <= 0) {
+      // Back to station search — clear everything downstream.
       step = 'search';
       allDepartures = [];
       selectedStation = null;
+      selectedLine = null;
+      directionStopSequences = {};
+      stopSequenceAbortController?.abort();
+      return;
     }
+    if (target === 1) {
+      // Back to the line picker — keep the station and its departures.
+      step = 'select';
+      selectedLine = null;
+      directionStopSequences = {};
+      stopSequenceAbortController?.abort();
+      return;
+    }
+    // Back to the direction step.
+    step = 'direction';
   }
 
 function toggleTransportType(type: TransportType) {
@@ -511,14 +556,23 @@ function filterIconType(type: TransportFilterOption): TransportType {
 <div class="segment-search">
   <div class="step-progress" bind:this={progressEl}>
     {#each stepLabels as label, i}
-      <div class="step-node" class:active={stepIndex >= i} class:completed={stepIndex > i}>
-        <div class="step-dot" data-step={i}>
+      <button
+        type="button"
+        class="step-node"
+        class:active={stepIndex >= i}
+        class:completed={stepIndex > i}
+        class:goto={i < stepIndex}
+        disabled={i >= stepIndex}
+        aria-label={label}
+        onclick={() => goBackToStep(i)}
+      >
+        <span class="step-dot" data-step={i}>
           {#if stepIndex > i}
-            <svg viewBox="0 0 12 12" width="8" height="8" fill="none"><path d="M3 6l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 12 12" width="8" height="8" fill="none" aria-hidden="true"><path d="M3 6l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {/if}
-        </div>
+        </span>
         <span class="step-label">{label}</span>
-      </div>
+      </button>
       {#if i < 2}
         <div class="step-connector-wrap">
           <div class="step-connector" data-connector={i}>
@@ -1121,6 +1175,27 @@ function filterIconType(type: TransportFilterOption): TransportType {
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+    min-width: 40px;
+    padding: 0 0 10px 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .step-node:disabled {
+    cursor: default;
+  }
+
+  .step-node.goto:focus-visible .step-dot {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .step-node.goto:hover .step-dot {
+    border-color: var(--accent);
   }
 
   .step-dot {

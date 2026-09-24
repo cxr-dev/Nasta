@@ -982,7 +982,7 @@ test.describe("Route stops preview", () => {
     expect(requestInfo.tripCalls).toBe(1);
   });
 
-  test("keeps all stops visible through a clock refresh and resets only after an explicit card collapse", async ({ page }) => {
+  test("shows the full route stop list and keeps it visible through a clock refresh", async ({ page }) => {
     const requestInfo = await installRoutes(page);
     await page.clock.install();
     await seedPage(page);
@@ -992,9 +992,8 @@ test.describe("Route stops preview", () => {
     await card.locator(".card-main").click();
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
 
-    await card.getByRole("button", { name: /show all stops/i }).click();
+    // The expanded card lists every stop along the route by default.
     await expect(card.locator(".stop-list li")).toHaveCount(7);
-    await expect(card.getByRole("button", { name: /show less/i })).toBeVisible();
 
     await page.clock.fastForward(5_200);
     await expect(card.locator(".expanded-panel")).toBeVisible();
@@ -1003,12 +1002,12 @@ test.describe("Route stops preview", () => {
     await card.locator(".card-main").click();
     await expect(card.locator(".expanded-panel")).not.toBeVisible();
     await card.locator(".card-main").click();
-    await expect(card.locator(".stop-list li")).toHaveCount(4);
+    await expect(card.locator(".stop-list li")).toHaveCount(7);
     expect(requestInfo.stopFinderCalls).toBe(1);
     expect(requestInfo.tripCalls).toBe(1);
   });
 
-  test("resets the stop disclosure after switching pages", async ({ page }) => {
+  test("collapses the expanded card after switching pages", async ({ page }) => {
     const requestInfo = await installRoutes(page);
     await seedPage(page, [...routes, { id: "second-page", name: "Second", segments: [] }]);
     await requestInfo.tripStarted;
@@ -1016,7 +1015,6 @@ test.describe("Route stops preview", () => {
     const card = page.locator(".page-slot:not(.page-slot-preview)").getByTestId("segment-row");
     await card.locator(".card-main").click();
     await expect(card.locator(".route-stops-loading")).not.toBeVisible();
-    await card.getByRole("button", { name: /show all stops/i }).click();
     await expect(card.locator(".stop-list li")).toHaveCount(7);
 
     await page.getByRole("button", { name: "Manage pages" }).click();
@@ -1028,7 +1026,7 @@ test.describe("Route stops preview", () => {
     await editor.getByRole("button", { name: "Close editor" }).click();
 
     await card.locator(".card-main").click();
-    await expect(card.locator(".stop-list li")).toHaveCount(4);
+    await expect(card.locator(".stop-list li")).toHaveCount(7);
   });
 
   test("keeps the expanded panel height stable while a prefetched response finishes", async ({ page }) => {

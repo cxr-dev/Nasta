@@ -57,14 +57,14 @@ const segment: Segment = {
 };
 
 describe('MapPreview MapLibre module loading', () => {
-  it('initializes a map from a namespace-only MapLibre module', async () => {
+  it('initializes MapLibre when a card opens with a known stop coordinate', async () => {
     const { container } = render(MapPreview, {
       props: {
         segment,
         userLocation: null,
         locationRequestInFlight: false,
         walkingEtaEnabled: false,
-        t: {},
+        t: { showMap: 'Show map' },
       },
     });
 
@@ -74,6 +74,7 @@ describe('MapPreview MapLibre module loading', () => {
     expect(maplibre.Map).toHaveBeenCalledWith(expect.objectContaining({
       center: [18.12, 59.31],
       container: expect.any(HTMLDivElement),
+      fadeDuration: 0,
       dragPan: false,
       scrollZoom: false,
       touchZoomRotate: false,
@@ -84,13 +85,13 @@ describe('MapPreview MapLibre module loading', () => {
   });
 
   it('renders labeled stop and user markers at MapLibre longitude-latitude coordinates', async () => {
-    render(MapPreview, {
+    const { getByRole } = render(MapPreview, {
       props: {
         segment,
         userLocation: [59.33, 18.06],
         locationRequestInFlight: false,
         walkingEtaEnabled: false,
-        t: { youAreHere: 'You are here' },
+        t: { showMap: 'Show map', youAreHere: 'You are here' },
       },
     });
 
@@ -123,7 +124,7 @@ describe('MapPreview MapLibre module loading', () => {
         userLocation: null,
         locationRequestInFlight: false,
         walkingEtaEnabled: false,
-        t: { mapUnavailable: 'Map unavailable.', retry: 'Retry', navigateToStop: 'Navigate to stop' },
+        t: { showMap: 'Show map', mapUnavailable: 'Map unavailable.', retry: 'Retry', navigateToStop: 'Navigate to stop' },
       },
     });
 
@@ -135,13 +136,13 @@ describe('MapPreview MapLibre module loading', () => {
   });
 
   it('adds the current-location marker when a location arrives after the preview map', async () => {
-    const { rerender } = render(MapPreview, {
+    const { getByRole, rerender } = render(MapPreview, {
       props: {
         segment,
         userLocation: null,
         locationRequestInFlight: true,
         walkingEtaEnabled: false,
-        t: { youAreHere: 'You are here' },
+        t: { showMap: 'Show map', youAreHere: 'You are here' },
       },
     });
 
@@ -151,7 +152,7 @@ describe('MapPreview MapLibre module loading', () => {
       userLocation: [59.33, 18.06],
       locationRequestInFlight: false,
       walkingEtaEnabled: false,
-      t: { youAreHere: 'You are here' },
+      t: { showMap: 'Show map', youAreHere: 'You are here' },
     });
 
     await waitFor(() => expect(maplibre.Marker).toHaveBeenCalledTimes(3));
@@ -170,6 +171,7 @@ describe('MapPreview MapLibre module loading', () => {
         locationRequestInFlight: false,
         walkingEtaEnabled: false,
         t: {
+          showMap: 'Show map',
           expandMap: 'Expand map fullscreen',
           back: 'Back',
           stopLocation: 'Stop location',
@@ -205,6 +207,7 @@ describe('MapPreview MapLibre module loading', () => {
         locationRequestInFlight: false,
         walkingEtaEnabled: false,
         t: {
+          showMap: 'Show map',
           expandMap: 'Expand map fullscreen',
           minimizeMap: 'Minimize map',
           back: 'Back',

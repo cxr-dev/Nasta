@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "homepage": "https://cxr-dev.github.io/nasta",
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "predev": "node scripts/fetch-events-data.mjs",
     "dev": "vite",

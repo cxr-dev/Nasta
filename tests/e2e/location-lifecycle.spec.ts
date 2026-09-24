@@ -71,7 +71,7 @@ async function mockNearbyStops(page: Page, sites = [{ id: 100, name: 'T-Centrale
   }));
 }
 
-test('requests a prompt location on cold activation without showing Retry', async ({ page }) => {
+test('does not prompt for location on cold activation until the user asks', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'prompt' }) } });
     Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
@@ -92,11 +92,15 @@ test('requests a prompt location on cold activation without showing Retry', asyn
   await page.keyboard.press('ArrowRight');
 
   const surface = page.locator('.nearby-surface');
-  await expect(surface.locator('.map-skeleton.visible')).toBeVisible();
-  await expect(surface.locator('.location-prompt')).toContainText(/Finding your location|Hämtar plats/i);
+  await expect(surface.locator('.location-prompt')).toContainText(/Allow location|Tillåt plats/i);
   await expect(surface.locator('.map-location-status')).toHaveCount(0);
   await expect(surface.getByRole('button', { name: /Retry|Försök igen/i })).toHaveCount(0);
+  await surface.getByRole('button', { name: /Allow location|Tillåt plats/i }).click();
   await expect(surface.locator('.station-card').filter({ hasText: 'T-Centralen' })).toBeVisible({ timeout: 15_000 });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.nearby-surface').getByRole('button', { name: /Allow location|Tillåt plats/i })).toHaveCount(0);
+  await expect(page.locator('.nearby-surface').locator('.station-card').filter({ hasText: 'T-Centralen' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('restores an enabled, granted location after reload without the Permissions API', async ({ page, context }) => {
