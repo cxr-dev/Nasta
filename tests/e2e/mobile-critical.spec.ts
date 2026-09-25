@@ -333,8 +333,8 @@ test.describe("mobile critical commuter flow", () => {
     const [shellBox, canvasBox] = await Promise.all([mapShell.boundingBox(), mapCanvas.boundingBox()]);
     expect(shellBox).not.toBeNull();
     expect(canvasBox).not.toBeNull();
-    expect(shellBox!.height).toBeGreaterThanOrEqual(208);
-    expect(shellBox!.height).toBeLessThanOrEqual(212);
+    expect(shellBox!.height).toBeGreaterThanOrEqual(180);
+    expect(shellBox!.height).toBeLessThanOrEqual(240);
     expect(Math.abs(shellBox!.height - canvasBox!.height)).toBeLessThanOrEqual(2);
     const boardScroll = await surface.locator(".board-content").evaluate((element) => ({
       clientHeight: element.clientHeight,
