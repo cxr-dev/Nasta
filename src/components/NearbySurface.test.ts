@@ -292,7 +292,7 @@ describe("NearbySurface", () => {
     expect(document.documentElement.style.touchAction).toBe("");
   });
 
-  it("shows that the map is waiting for a location fix", () => {
+  it("does not create a map before a location fix", () => {
     subscribeToLocation.mockImplementationOnce(
       (listener: (snapshot: unknown) => void) => {
         listener({ position: null, isLoading: true, access: "prompt" });
@@ -303,7 +303,7 @@ describe("NearbySurface", () => {
 
     const { container } = render(NearbySurface, { props: { onBack: vi.fn() } });
 
-    expect(container.querySelector(".map-skeleton.visible")).toBeTruthy();
+    expect(container.querySelector(".map-wrap")).toBeNull();
     expect(container.querySelector(".location-prompt")?.textContent).toMatch(
       /Finding your location|Hämtar plats/i,
     );

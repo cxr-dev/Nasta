@@ -1,15 +1,14 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import type { Segment } from "../types/page";
   import type { TransitStopSearchResult } from '../providers/types';
   import { getMemoizedDistance, formatDistance, getWalkingTime } from "../services/geo";
   import type { LocationSnapshot } from '../services/geo';
   import { cleanStopName as stopLabel } from "../lib/stopName";
   import SurfaceControl from './SurfaceControl.svelte';
-  import { focusBoundary } from '../lib/focusBoundary';
-  import { createHistoryView } from '../lib/historyView';
   import { openWalkingDirections } from '../lib/openWalkingDirections';
   import NearbyMap from './NearbyMap.svelte';
+  import FullscreenMapSurface from './FullscreenMapSurface.svelte';
   import { resolveRoutePoints, type RoutePoint } from "../services/routeStops";
 
   let {
@@ -28,14 +27,10 @@
     t: Record<string, string>;
   } = $props();
 
-  let isFullscreen = $state(false);
-  let fullscreenVisible = $state(false);
-  let isClosing = $state(false);
   let resetViewToken = $state(0);
+  let expandButtonEl = $state<HTMLButtonElement | undefined>(undefined);
   let mapError = $state(false);
   let mapAttempt = $state(0);
-  let expandButtonEl = $state<HTMLButtonElement | undefined>(undefined);
-  let historyView: ReturnType<typeof createHistoryView> | null = null;
 
   let mapStop = $derived.by<TransitStopSearchResult | null>(() => {
     const coord = segment.fromStop.coord;
@@ -55,76 +50,6 @@
     isLoading: locationRequestInFlight,
     access: userLocation ? 'granted' : 'unknown',
   }));
-
-  function lockBodyScroll(lock: boolean) {
-    document.documentElement.style.overscrollBehavior = lock ? 'none' : '';
-    document.documentElement.style.touchAction = lock ? 'none' : '';
-  }
-
-  function stopTouchPropagation(e: TouchEvent) {
-    e.stopPropagation();
-  }
-
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && isFullscreen) requestBack();
-  }
-
-  $effect(() => {
-    if (isFullscreen) {
-      lockBodyScroll(true);
-    }
-    return () => {
-      lockBodyScroll(false);
-    };
-  });
-
-  onMount(() => {
-    historyView = createHistoryView(`stop-map:${segment.id}`, {
-      onEnter: openFullscreen,
-      onExit: closeFullscreen,
-    });
-    return () => historyView?.destroy();
-  });
-
-  function toggleFullscreen() {
-    if (isFullscreen) requestBack();
-    else {
-      openFullscreen();
-      historyView?.enter();
-    }
-  }
-
-  function openFullscreen() {
-    if (isFullscreen) return;
-    isFullscreen = true;
-    fullscreenVisible = false;
-    requestAnimationFrame(() => {
-      if (isFullscreen) fullscreenVisible = true;
-    });
-  }
-
-  function requestBack() {
-    if (isClosing) return;
-    if (historyView) historyView.back();
-    else closeFullscreen();
-  }
-
-  function closeFullscreen() {
-    if (!isFullscreen || isClosing) return;
-    isClosing = true;
-    lockBodyScroll(false);
-    setTimeout(() => {
-      isFullscreen = false;
-      fullscreenVisible = false;
-      isClosing = false;
-      resetViewToken += 1;
-      tick().then(() => expandButtonEl?.focus());
-    }, prefersReducedMotion() ? 0 : 150);
-  }
-
-  function prefersReducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
 
   function retryMap() {
     mapError = false;
@@ -150,21 +75,20 @@
         {/if}
       </div>
 
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <FullscreenMapSurface
+        id={`stop-map:${segment.id}`}
+        label={t.stopLocation ?? 'Stop location'}
+        onClosed={() => {
+          resetViewToken += 1;
+          tick().then(() => expandButtonEl?.focus());
+        }}
+      >
+      {#snippet content(state)}
       <div
         class="map-container"
-        class:fullscreen={isFullscreen}
-        class:visible={fullscreenVisible}
-        class:closing={isClosing}
-        role={isFullscreen ? 'dialog' : undefined}
-        aria-modal={isFullscreen ? 'true' : undefined}
-        aria-label={isFullscreen ? (t.stopLocation ?? 'Stop location') : undefined}
-        tabindex={isFullscreen ? -1 : undefined}
-        onkeydown={handleKeyDown}
-        use:focusBoundary={{ active: isFullscreen, initialFocus: '[data-surface-control]' }}
-        ontouchstart={isFullscreen ? stopTouchPropagation : undefined}
-        ontouchmove={isFullscreen ? stopTouchPropagation : undefined}
-        ontouchend={isFullscreen ? stopTouchPropagation : undefined}
+        class:fullscreen={state.fullscreen}
+        class:visible={state.visible}
+        class:closing={state.closing}
         >
         <div class="mini-map">
           {#if mapError}
@@ -180,7 +104,7 @@
                   location={mapLocation}
                   boardStop={mapStop}
                   includeLocationWithBoardStop={true}
-                  interactionMode={isFullscreen ? 'fullscreen' : 'embedded'}
+                  interactionMode={state.fullscreen ? 'fullscreen' : 'embedded'}
                   {resetViewToken}
                   label={t.stopLocation ?? 'Stop location'}
                   locationLabel={t.youAreHere ?? 'You are here'}
@@ -196,16 +120,16 @@
             </svelte:boundary>
           {/if}
         </div>
-        {#if isFullscreen}
+        {#if state.fullscreen}
           <div class="map-back-control">
-            <SurfaceControl kind="back" tone="overlay" label={t.back ?? 'Back'} onclick={requestBack} />
+            <SurfaceControl kind="back" tone="overlay" label={t.back ?? 'Back'} onclick={state.close} />
           </div>
         {:else}
           <button
             bind:this={expandButtonEl}
             type="button"
             class="map-expand-btn no-scale"
-            onclick={toggleFullscreen}
+            onclick={state.open}
             aria-label={t.expandMap}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -214,6 +138,8 @@
           </button>
         {/if}
       </div>
+      {/snippet}
+      </FullscreenMapSurface>
     </div>
 
     <div class="journey-actions">

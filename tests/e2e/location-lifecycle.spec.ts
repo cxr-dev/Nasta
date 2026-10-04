@@ -429,13 +429,17 @@ test('ranks a nearby Rökubbsgatan ahead of distant Röksta despite SL relevance
   await expect(cards).toHaveText([/Rökubbsgatan/, /Röksta/]);
 });
 
-test('opens the Nearby map fullscreen with a history-backed close action', async ({ page }) => {
+test('opens the Nearby map fullscreen with a history-backed close action', async ({ page, context }) => {
   const app = new CommuterApp(page);
   await app.mockDepartures();
+  await context.grantPermissions(['geolocation'], { origin: 'http://localhost:4173' });
+  await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
   await app.open();
   await page.keyboard.press('ArrowRight');
 
   const nearby = page.locator('.nearby-surface');
+  await nearby.getByRole('button', { name: /enable location/i }).click();
+  await expect(nearby.locator('.map-wrap')).toBeVisible({ timeout: 15_000 });
   const expand = nearby.getByRole('button', { name: /expand map fullscreen/i });
   const historyBefore = await page.evaluate(() => history.length);
   await expand.click();
@@ -449,13 +453,17 @@ test('opens the Nearby map fullscreen with a history-backed close action', async
   expect(await page.evaluate(() => history.state?.nastaFullscreenView ?? null)).toBeNull();
 });
 
-test('keeps the Nearby expand control at the preview edge with a standalone safe area', async ({ page }) => {
+test('keeps the Nearby expand control at the preview edge with a standalone safe area', async ({ page, context }) => {
   const app = new CommuterApp(page);
   await app.mockDepartures();
+  await context.grantPermissions(['geolocation'], { origin: 'http://localhost:4173' });
+  await context.setGeolocation({ latitude: 59.33, longitude: 18.06 });
   await app.open();
   await page.keyboard.press('ArrowRight');
 
   const nearby = page.locator('.nearby-surface');
+  await nearby.getByRole('button', { name: /enable location/i }).click();
+  await expect(nearby.locator('.map-wrap')).toBeVisible({ timeout: 15_000 });
   const map = nearby.locator('.map-wrap');
   const expand = nearby.getByRole('button', { name: /expand map fullscreen/i });
   await map.evaluate((element) => element.style.setProperty('--map-control-safe-top', '47px'));

@@ -264,7 +264,7 @@ test.describe("Segment search", () => {
     await expect(addDialog).toBeHidden();
     await page.locator(".empty-cta").click();
     await expect(addDialog).toBeVisible();
-    await page.locator(".quick-add-backdrop").click();
+    await page.locator(".quick-add-backdrop").click({ position: { x: 5, y: 5 } });
     await expect(addDialog).toBeHidden();
   });
 

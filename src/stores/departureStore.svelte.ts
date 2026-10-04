@@ -155,6 +155,8 @@ const fetchAllHybrid = async (
       return;
     }
   }
+  const controller = currentAbortController;
+  const ownsRequest = () => (!requestId || requestId === currentRequestId) && controller === currentAbortController;
   activeFetchCount += 1;
 
   if (clearFirst) {
@@ -193,13 +195,15 @@ const fetchAllHybrid = async (
     // Publish the cache snapshot before network requests finish. This keeps
     // the list populated during refresh and gives the API response a stable
     // snapshot to replace, instead of rendering an empty intermediate state.
-    _data = results;
-    if (cachedUpdatedAt.size > 0) {
-      _isLoading = false;
-      _isUpdating = true;
+    if (ownsRequest()) {
+      _data = results;
+      if (cachedUpdatedAt.size > 0) {
+        _isLoading = false;
+        _isUpdating = true;
+      }
+      notifyData();
+      notifyMeta();
     }
-    notifyData();
-    notifyMeta();
 
     if (siteIdsNeedingApi.length > 0) {
       await Promise.all(
@@ -207,11 +211,11 @@ const fetchAllHybrid = async (
           try {
             const { departures: transitDeps, stopDeviations } = await getDeparturesWithRetry(
               seg,
-              currentAbortController?.signal,
+              controller?.signal,
             );
             const apiDepartures = transitDeps.map(toLegacyDeparture);
 
-            if (requestId && requestId !== currentRequestId) {
+            if (!ownsRequest()) {
               if (import.meta.env.DEV) {
                 console.log(
                   `[departureStore] Ignoring stale response for ${seg.siteId} (requestId: ${requestId}, current: ${currentRequestId})`,
@@ -238,7 +242,7 @@ const fetchAllHybrid = async (
                 e,
               );
 
-            if (requestId && requestId !== currentRequestId) {
+            if (!ownsRequest()) {
               if (import.meta.env.DEV) {
                 console.log(
                   `[departureStore] Ignoring stale error for ${seg.siteId} (requestId: ${requestId}, current: ${currentRequestId})`,
@@ -265,6 +269,7 @@ const fetchAllHybrid = async (
         }),
       );
 
+      if (!ownsRequest()) return;
       _data = new Map(results);
       notifyData();
       notifyMeta();
@@ -275,6 +280,7 @@ const fetchAllHybrid = async (
     notifyMeta();
   } finally {
     activeFetchCount = Math.max(0, activeFetchCount - 1);
+    if (!ownsRequest()) return;
     if (activeFetchCount === 0) {
       _isLoading = false;
       _isUpdating = false;

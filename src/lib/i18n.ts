@@ -231,6 +231,7 @@ const sv = {
   recentStops: "Senast använda",
   nearby: "Nära dig",
   nearbyTitle: "Nära dig",
+  nearestStops: "Närmaste hållplatser",
   nearbyMap: "Karta över hållplatser i närheten",
   mapUnavailable:
     "Kartan är inte tillgänglig. Listan med hållplatser fungerar fortfarande.",
@@ -775,6 +776,7 @@ const en: typeof sv = {
   recentStops: "Recent stops",
   nearby: "Nearby",
   nearbyTitle: "Nearby",
+  nearestStops: "Nearest stops",
   nearbyMap: "Map of nearby stops",
   mapUnavailable: "Map unavailable. The stop list is still available.",
   nearbyOffline: "No connection. Try again when you’re online.",

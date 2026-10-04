@@ -4,10 +4,10 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import gsap from 'gsap';
   import SurfaceControl from './SurfaceControl.svelte';
   import { focusBoundary } from '../lib/focusBoundary';
   import { portal } from '../lib/portal';
+  import { createMotionSpring } from '../lib/motionSpring';
 
   interface Props {
     isOpen: boolean;
@@ -22,6 +22,8 @@
     onSheetTouchStart?: (e: TouchEvent) => void;
     onSheetTouchEnd?: (e: TouchEvent) => void;
     restoreFocusOnClose?: boolean;
+    onExitComplete?: () => void;
+    showHeader?: boolean;
     children: Snippet;
   }
 
@@ -38,6 +40,8 @@
     onSheetTouchStart,
     onSheetTouchEnd,
     restoreFocusOnClose = true,
+    onExitComplete,
+    showHeader = true,
     children,
   }: Props = $props();
 
@@ -45,11 +49,53 @@
   let sheetEl = $state<HTMLDivElement | undefined>();
   let dragging = $state(false);
   let dragStartY = $state(0);
+  let dragStartOffset = $state(0);
+  let dragLastY = $state(0);
+  let dragLastTime = $state(0);
+  let sheetY = $state(0);
+  let closing = false;
   let popoverStyle = $state('');
   const titleId = `sheet-title-${++nextSheetId}`;
   let portalEnabled = $derived(mode === 'popover');
 
-  const SWIPE_THRESHOLD = 48;
+  function travel(): number {
+    return Math.max(1, sheetEl?.getBoundingClientRect().height ?? window.innerHeight);
+  }
+
+  const runner = createMotionSpring({
+    clock: {
+      now: () => performance.now(),
+      request: (callback) => requestAnimationFrame(callback),
+      cancel: (id) => cancelAnimationFrame(id),
+    },
+    initial: 0,
+    onFrame: (sample) => { sheetY = sample.position; },
+    onRest: () => {
+      if (!closing) return;
+      closing = false;
+      onExitComplete?.();
+    },
+  });
+
+  function settleOpen(): void {
+    closing = false;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      runner.jump(0);
+      return;
+    }
+    runner.retarget(0);
+  }
+
+  function settleClosed(): void {
+    closing = true;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      runner.jump(travel());
+      closing = false;
+      onExitComplete?.();
+      return;
+    }
+    runner.retarget(travel());
+  }
 
   function updatePopoverPosition() {
     if (mode !== 'popover' || !anchor || typeof window === 'undefined') return;
@@ -101,13 +147,18 @@
     if (e.touches.length !== 1) return;
     dragging = true;
     dragStartY = e.touches[0].clientY;
+    dragStartOffset = runner.pause().position;
+    dragLastY = dragStartY;
+    dragLastTime = performance.now();
   }
 
   function handleHandleTouchMove(e: TouchEvent) {
     if (!dragging || !sheetEl) return;
     const dy = e.touches[0].clientY - dragStartY;
-    if (dy < 0) return;
-    gsap.set(sheetEl, { y: dy, overwrite: 'auto' });
+    const resisted = dy < 0 ? dy * 0.25 : dy;
+    runner.jump(Math.max(0, dragStartOffset + resisted));
+    dragLastY = e.touches[0].clientY;
+    dragLastTime = performance.now();
   }
 
   function handleHandleTouchEnd(e: TouchEvent) {
@@ -117,43 +168,25 @@
       return;
     }
 
+    const now = performance.now();
     const dy = e.changedTouches[0].clientY - dragStartY;
-
-    if (dy > SWIPE_THRESHOLD) {
-      gsap.to(sheetEl, {
-        y: '100%',
-        duration: 0.2,
-        ease: 'power2.out',
-        onComplete: () => {
-          onClose();
-          dragging = false;
-          dragStartY = 0;
-        },
-      });
-    } else {
-      gsap.to(sheetEl, {
-        y: 0,
-        duration: 0.25,
-        ease: 'power2.out',
-        onComplete: () => {
-          if (sheetEl) sheetEl.style.transform = '';
-          dragging = false;
-          dragStartY = 0;
-        },
-      });
-    }
+    const velocity = Math.max(-2.5, Math.min(2.5, (e.changedTouches[0].clientY - dragLastY) / Math.max(1, now - dragLastTime)));
+    const shouldClose = sheetY + velocity * 180 > travel() * 0.25;
+    dragging = false;
+    dragStartY = 0;
+    if (shouldClose) onClose();
+    else settleOpen();
   }
 
-  // Clear inline transform after a non-drag close so CSS base state matches.
   $effect(() => {
-    if (!isOpen && sheetEl && !dragging) {
-      sheetEl.style.transform = '';
-    }
+    if (mode === 'popover') return;
+    if (isOpen) settleOpen();
+    else if (!dragging) settleClosed();
   });
 
   $effect(() => {
     return () => {
-      if (sheetEl) gsap.killTweensOf(sheetEl);
+      runner.destroy();
     };
   });
 </script>
@@ -179,7 +212,7 @@
     class="sheet {sheetClass}"
     class:popover={mode === 'popover'}
     class:touch-sheet={mode === 'sheet'}
-    style={mode === 'popover' ? popoverStyle : undefined}
+    style={mode === 'popover' ? popoverStyle : `transform:translate3d(0, ${sheetY}px, 0);`}
     class:dragging
     use:focusBoundary={{ active: isOpen, initialFocus: initialFocusSelector, restore: restoreFocusOnClose }}
     ontouchstart={handleSheetTouchStart}
@@ -193,10 +226,13 @@
       ontouchend={handleHandleTouchEnd}
     ></div>
 
-    <div class="sheet-header">
-      <span id={titleId} class="sheet-title">{title}</span>
-      <SurfaceControl kind="close" label={closeAriaLabel} onclick={onClose} />
-    </div>
+    {#if showHeader}
+      <div class="sheet-header">
+        <span id={titleId} class="sheet-title">{title}</span>
+        <SurfaceControl kind="close" label={closeAriaLabel} onclick={onClose} />
+      </div>
+    {/if}
+    {#if !showHeader}<span id={titleId} class="sr-only">{title}</span>{/if}
 
     {@render children()}
   </div>
@@ -226,8 +262,6 @@
     max-width: 480px;
     margin: 0 auto;
     background: var(--bg);
-    transform: translateY(100%);
-    transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -238,13 +272,6 @@
     display: none;
   }
 
-  .sheet-overlay.open .sheet {
-    transform: translateY(0);
-  }
-
-  .sheet.dragging {
-    transition: none !important;
-  }
 
   .sheet-handle {
     width: 40px;
@@ -277,18 +304,15 @@
     text-overflow: ellipsis;
   }
 
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
   @media (prefers-reduced-motion: reduce) {
     .sheet-overlay,
     .sheet-overlay.open {
       transition: opacity 160ms ease, background-color 160ms ease, visibility 0s linear 0s !important;
     }
 
-    .sheet,
-    .sheet-overlay.open .sheet,
-    .sheet.dragging {
-      transition: none !important;
-      transform: none !important;
-    }
+    .sheet { transition: none !important; }
   }
 
   @media (min-width: 768px) {
@@ -316,7 +340,6 @@
       box-shadow:
         0 24px 80px rgba(0, 0, 0, 0.18),
         inset 0 1px 0 rgba(255, 255, 255, 0.32);
-      transform: translateY(20px) scale(0.985);
       opacity: 0;
     }
 
@@ -327,7 +350,6 @@
     }
 
     .sheet-overlay.open .sheet {
-      transform: translateY(0) scale(1);
       opacity: 1;
     }
 

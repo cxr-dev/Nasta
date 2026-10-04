@@ -6,10 +6,20 @@
   import { resolveTheme } from '../themes';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
-  const maplibreLoad = Promise.all([
-    import('maplibre-gl'),
-    import('maplibre-gl/dist/maplibre-gl.css'),
-  ]).then(([module]) => module);
+  let mapModulePromise: Promise<typeof import('maplibre-gl')> | null = null;
+
+  function loadMapModule(): Promise<typeof import('maplibre-gl')> {
+    if (!mapModulePromise) {
+      mapModulePromise = Promise.all([
+        import('maplibre-gl'),
+        import('maplibre-gl/dist/maplibre-gl.css'),
+      ]).then(([module]) => module).catch((error) => {
+        mapModulePromise = null;
+        throw error;
+      });
+    }
+    return mapModulePromise;
+  }
 
   const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
   const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
@@ -31,12 +41,14 @@
   let systemDark = $state(false);
   let currentStyle = '';
   let handledResetViewToken = 0;
+  let setupGeneration = 0;
 
   function styleUrl() {
     return resolveTheme(getSettings().theme ?? 'system', systemDark) === 'dark' ? DARK_STYLE : LIGHT_STYLE;
   }
   function reportFatalError() { onFatalError?.(); }
   function teardown() {
+    setupGeneration += 1;
     ready = false;
     resizeObserver?.disconnect();
     resizeObserver = null;
@@ -190,12 +202,13 @@
   async function setup() {
     if (!active || loading || map || !host) return;
     const center = boardStop?.coord ?? location.position;
-    if (!center) return;
+    if (!center || !center.every(Number.isFinite) || !host.isConnected) return;
+    const generation = ++setupGeneration;
     loading = true;
     onLoading?.();
     try {
-      const module = await maplibreLoad;
-      if (!active || map || !host) return;
+      const module = await loadMapModule();
+      if (generation !== setupGeneration || !active || map || !host?.isConnected) return;
       module.setWorkerUrl(workerUrl);
       maplibregl = module;
       currentStyle = styleUrl();

@@ -6,7 +6,7 @@
   import { parseShareHash, type ShareIntent } from './lib/shareModel';
   import { departureStore } from './stores/departureStore.svelte';
   import { deviationStore } from './stores/deviationStore.svelte';
-  import { getSettings, markSwiped } from './stores/settingsStore.svelte';
+  import { getSettings } from './stores/settingsStore.svelte';
   import { start as timeOfDayStart, stop as timeOfDayStop, getTimeOfDay } from './lib/stores/timeOfDay.svelte';
   import { applyTheme, resolveTheme } from './themes';
   import { initializeCacheLifecycle, stopCacheLifecycle } from './lib/cacheLifecycle';
@@ -16,7 +16,7 @@
   let t = $derived(getT());
   let locale = $derived(getLocale());
   import { transitService } from './providers/init';
-  import type { Segment, Stop, TransportType, SegmentDirection } from './types/page';
+  import type { Page, Segment, Stop, TransportType, SegmentDirection } from './types/page';
   import type { TransitStopSearchResult } from './providers/types';
   import { DEFAULT_JOURNEY_ROUTE_TYPE } from './services/journeyService';
   
@@ -30,7 +30,7 @@
   import AddExperience from './components/AddExperience.svelte';
   import Snackbar from './components/Snackbar.svelte';
   import SurfaceControl from './components/SurfaceControl.svelte';
-  import { focusBoundary } from './lib/focusBoundary';
+  import Sheet from './components/Sheet.svelte';
   import type { SavedCardActionId } from './lib/savedCardActions';
   import type { Journey } from './types/journey';
   import {
@@ -44,13 +44,7 @@
   import { plusIcon, settingsGear } from './icons/departureIcons';
   import {
     pageSwipeIntent,
-    pageSwipeOffset,
-    recentVelocity,
-    boundedSpringStep,
-    springSettled,
-    shouldCompletePageSwipe,
     type PageSwipeIntent,
-    type PageSwipeSample,
   } from './lib/pageSwipe';
   import {
     buildDeckDestinations,
@@ -59,20 +53,22 @@
     serializeDeckHistory,
     type DeckDestination,
   } from './lib/deckNavigation';
+  import { createNavigationDeck, type DeckCommit } from './lib/navigationDeck';
+  import { createNearbySession } from './services/nearbySession';
+  import { createPageActivation } from './services/pageActivation';
 
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
   let editing = $state(false);
   let showSettings = $state(false);
   let showQuickAdd = $state(false);
+  let quickAddPresenting = $state(false);
   let editingSegment = $state<Segment | null>(null);
   let editingSegmentPageId = $state<string | null>(null);
   let snackbar = $state<{ message: string; snapshot?: RemovedSegmentSnapshot } | null>(null);
   let snackbarClosing = $state(false);
   let snackbarTimer: ReturnType<typeof setTimeout> | null = null;
   let snackbarCloseTimer: ReturnType<typeof setTimeout> | null = null;
-  let quickAddBackdropEl = $state<HTMLButtonElement | undefined>();
-  let quickAddDrawerEl = $state<HTMLDivElement | undefined>();
   let quickAddHandleDragging = $state(false);
   let quickAddHandleStartY = $state(0);
   let quickAddDragOffset = $state(0);
@@ -88,6 +84,8 @@
   let scrollContainer = $state<HTMLElement | null>(null);
   let currentRequestId = $state<string | null>(null);
   let previousPageId = $state<string | null>(null);
+  let appVisible = $state(true);
+  let appOnline = $state(true);
   let activeFeatureContext = $state<{
     lat: number;
     lon: number;
@@ -96,9 +94,29 @@
     availableModes: Array<'beer' | 'wineCocktail' | 'events'>;
     defaultMode: 'beer' | 'wineCocktail' | 'events';
   } | null>(null);
-  let backdropEl = $state<HTMLButtonElement | undefined>();
-  let drawerEl = $state<HTMLDivElement | undefined>();
+  let featureOpen = $state(false);
   let warningBannerEl = $state<HTMLDivElement | undefined>();
+  const pageActivation = createPageActivation({
+    async start(page: Page, generation: number) {
+      const clearFirst = previousPageId !== page.id;
+      const requestId = `page-${page.id}-${generation}-${Date.now()}`;
+      currentRequestId = requestId;
+      previousPageId = page.id;
+      await startDeparturesForPage(page.segments, clearFirst, requestId);
+      if (!pageActivation.isCurrent(generation)) return;
+      await startDisruptionsForPage(page.segments);
+    },
+    stop() {
+      departureStore.stopAutoRefresh();
+      deviationStore.stopAutoRefresh();
+    },
+    async refresh(page: Page, generation: number) {
+      await startDeparturesForPage(page.segments, false, currentRequestId);
+      if (!pageActivation.isCurrent(generation)) return;
+      await refreshDisruptions(page.segments, { force: true });
+    },
+    onError() {},
+  });
 
   // Pull-to-refresh state
   const PULL_THRESHOLD = 64;
@@ -119,20 +137,13 @@
   let pageSwipeDragging = $state(false);
   let pageSwipeSettling = $state(false);
   let deckWidth = 390;
-  let deckOffset = 0;
-  let deckVelocity = 0;
-  let deckFrame: number | null = null;
-  let deckLastFrameAt = 0;
-  let deckTargetPosition: number | null = null;
-  let deckCommitTarget: number | null = null;
+  let deckPresentation = $state(0);
+  let deckController: ReturnType<typeof createNavigationDeck> | null = null;
   let touchIdentifier: number | null = null;
   let touchIntent: PageSwipeIntent = 'pending';
   let touchEligible = false;
-  let touchSamples: PageSwipeSample[] = [];
   let suppressNextClick = false;
   let suppressClickTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingHistoryMode: 'auto' | 'none' | 'replace' = 'auto';
-  let navigationStartPosition = 0;
   const deckSlotElements = new Map<string, HTMLElement>();
 
   let page = $derived(getActivePage());
@@ -147,6 +158,16 @@
   let startupReady = $state(false);
   let utilityView = $state<'pages' | 'nearby' | 'board'>('pages');
   let retainedBoardStop = $state<TransitStopSearchResult | null>(null);
+  const nearbySession = createNearbySession({
+    transit: transitService,
+    clock: {
+      now: () => performance.now(),
+      setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimeout: (handle) => window.clearTimeout(handle),
+      setInterval: (callback, delay) => window.setInterval(callback, delay),
+      clearInterval: (handle) => window.clearInterval(handle),
+    },
+  });
   let nearbySurfaceModule: Promise<typeof import('./components/NearbySurface.svelte')> | null = null;
   let nearbySurfaceAttempt = $state(0);
   let showNearby = $derived(utilityView !== 'pages');
@@ -155,15 +176,25 @@
     retainedBoardStop?.id ?? null,
   ));
   let deckPageSlots = $derived.by(() => {
-    const current = activeDeckPosition();
-    return [current - 1, current, current + 1]
+    const committed = activeDeckPosition();
+    const positions = new Set([Math.floor(deckPresentation), Math.ceil(deckPresentation), committed]);
+    return [...positions]
       .filter((position) => position >= 0 && position < pages.length)
-      .map((position) => ({ page: pages[position], relative: position - current }));
+      .map((position) => ({
+        page: pages[position],
+        relative: position - deckPresentation,
+        active: utilityView === 'pages' && pages[position].id === activePageId,
+      }));
   });
   let nearbyMounted = $derived(showNearby || (
-    activeDeckPosition() === getPages().length - 1
+    Math.floor(deckPresentation) === getPages().length - 1
     && (pageSwipeDragging || pageSwipeSettling)
   ));
+
+  $effect(() => {
+    const destinations = deckDestinations;
+    deckController?.update(destinations, measureDeckWidth());
+  });
 
   function loadNearbySurface() {
     if (!nearbySurfaceModule) {
@@ -309,28 +340,17 @@
     }
   });
 
-  // Start the data pipeline only when the active page changes. Reading the
-  // whole page here would make every segment/journey persistence update look
-  // like a navigation and clear the visible departures mid-refresh.
   $effect(() => {
     if (!startupReady) return;
-    const pageId = getActivePageId();
-    if (!pageId || pageId === previousPageId) return;
     const currentPage = getActivePage();
-    if (!currentPage) return;
-    
-    // Only generate new request ID if page ACTUALLY changed
-    // This prevents rejecting in-flight responses from settings/other reactive updates
-    previousPageId = pageId;
-    const newRequestId = `page-${pageId}-${Date.now()}`;
-    currentRequestId = newRequestId;
-    if (import.meta.env.DEV) console.log(`[App] Page switched to ${pageId}, requestId: ${newRequestId}`);
-    
-    if (journeyRefreshPageId !== pageId) {
-      journeyRefreshPageId = pageId;
+    const destination = activeDeckDestination();
+    const paused = !appVisible || !appOnline || editing || showSettings || showQuickAdd || Boolean(activeFeatureContext);
+    pageActivation.setPaused(paused);
+    pageActivation.setDestination(destination, destination.kind === 'page' ? currentPage : null);
+    if (destination.kind === 'page' && currentPage && journeyRefreshPageId !== currentPage.id) {
+      journeyRefreshPageId = currentPage.id;
       void refreshSavedJourneys(currentPage, true);
     }
-    void startDeparturesForPage(currentPage.segments, true, currentRequestId);
   });
 
   async function loadDepartures(clearFirst = false) {
@@ -455,6 +475,7 @@
     editingSegment = segment;
     editingSegmentPageId = pages.find((candidate) => candidate.segments.some((item) => item.id === segment.id))?.id ?? activePageId;
     showQuickAdd = true;
+    quickAddPresenting = true;
     departureStore.stopAutoRefresh();
     deviationStore.stopAutoRefresh();
   }
@@ -576,10 +597,6 @@
     return getPages().findIndex((candidate) => candidate.id === pageId);
   }
 
-  function deckSlotStyle(relative: number) {
-    return relative === 0 ? 'transform: none;' : `transform: translate3d(${relative * deckWidth}px, 0, 0);`;
-  }
-
   function measureDeckWidth() {
     return mainEl?.clientWidth || scrollContainer?.clientWidth || deckWidth || 390;
   }
@@ -591,6 +608,7 @@
 
   function deckSlot(element: HTMLElement, pageId: string) {
     setDeckSlot(pageId, element);
+    applyDeckTransforms();
     return {
       update(nextPageId: string) {
         if (nextPageId === pageId) return;
@@ -604,26 +622,69 @@
     };
   }
 
+  function nearbySlot(element: HTMLElement) {
+    nearbyViewportEl = element;
+    applyDeckTransforms();
+    return {
+      destroy() {
+        if (nearbyViewportEl === element) nearbyViewportEl = null;
+      },
+    };
+  }
+
   function applyDeckTransforms() {
-    const current = activeDeckPosition();
     for (const [pageId, element] of deckSlotElements) {
       const position = pagePosition(pageId);
-      const offset = (position - current) * deckWidth + deckOffset;
+      const offset = (position - deckPresentation) * deckWidth;
       element.style.transform = offset === 0 ? 'none' : `translate3d(${offset}px, 0, 0)`;
     }
     if (nearbyViewportEl) {
-      const offset = (getPages().length - current) * deckWidth + deckOffset;
+      const offset = (getPages().length - deckPresentation) * deckWidth;
       nearbyViewportEl.style.transform = offset === 0 ? 'none' : `translate3d(${offset}px, 0, 0)`;
     }
   }
 
-  function renderDeckOffset(offset: number) {
-    deckOffset = offset;
-    if (deckFrame !== null) return;
-    deckFrame = requestAnimationFrame(() => {
-      deckFrame = null;
-      applyDeckTransforms();
+  function syncDeckHistory(commit: DeckCommit) {
+    if (commit.historyMode === 'none') return;
+    const sourcePosition = deckDestinationIndex(deckDestinations, commit.from);
+    const targetPosition = deckDestinationIndex(deckDestinations, commit.to);
+    if (targetPosition < 0) return;
+    if (commit.historyMode === 'replace' || commit.to.kind === 'page') {
+      history.replaceState(serializeDeckHistory(history.state, commit.to), '', window.location.href);
+      return;
+    }
+    if (targetPosition > sourcePosition) {
+      history.pushState(serializeDeckHistory(history.state, commit.to), '', window.location.href);
+    } else if (commit.from.kind !== 'page') {
+      history.back();
+    }
+  }
+
+  function createDeckController() {
+    deckWidth = measureDeckWidth();
+    deckController = createNavigationDeck({
+      destinations: deckDestinations,
+      initial: activeDeckDestination(),
+      width: deckWidth,
+      clock: {
+        now: () => performance.now(),
+        request: (callback) => requestAnimationFrame(callback),
+        cancel: (id) => cancelAnimationFrame(id),
+      },
+      onFrame: (frame) => {
+        deckPresentation = frame.position;
+        isTransitioning = frame.moving;
+        pageSwipeSettling = frame.moving && !pageSwipeDragging;
+        applyDeckTransforms();
+      },
+      onCommit: (commit) => {
+        applyDestination(commit.to);
+        syncDeckHistory(commit);
+        showPageIndicator();
+      },
     });
+    deckPresentation = deckController.read().position;
+    applyDeckTransforms();
   }
 
   function releaseFocusBeforeDestination(destination: DeckDestination) {
@@ -641,13 +702,19 @@
 
   function focusUtilityDestination(destination: DeckDestination) {
     if (destination.kind !== 'nearby' && destination.kind !== 'board') return;
-    void tick().then(() => {
+    const selector = destination.kind === 'board'
+      ? '.board-panel:not([aria-hidden="true"]) .nearby-topbar > .icon-button'
+      : '.nearby-panel:not([aria-hidden="true"]) .station-card.selected';
+    const focus = () => {
       if (utilityView !== destination.kind) return;
-      const selector = destination.kind === 'board'
-        ? '.board-panel:not([aria-hidden="true"]) .nearby-topbar > .icon-button'
-        : '.nearby-panel:not([aria-hidden="true"]) .station-card.selected';
       nearbyViewportEl?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
-    });
+    };
+    void tick().then(() => requestAnimationFrame(focus));
+    setTimeout(focus, 80);
+  }
+
+  function focusSelectedNearbyStation() {
+    focusUtilityDestination({ kind: 'nearby' });
   }
 
   function applyDestination(destination: DeckDestination) {
@@ -655,7 +722,6 @@
     if (destination.kind === 'page') {
       utilityView = 'pages';
       pageSetActivePage(destination.pageId);
-      void loadDepartures();
       return;
     }
     utilityView = destination.kind;
@@ -664,110 +730,12 @@
     focusUtilityDestination(destination);
   }
 
-  function syncDeckHistory(sourcePosition: number, targetPosition: number) {
-    if (pendingHistoryMode === 'none') return;
-    const destination = deckDestinations[targetPosition];
-    const source = deckDestinations[sourcePosition];
-    if (!destination) return;
-    if (pendingHistoryMode === 'replace' || destination.kind === 'page') {
-      history.replaceState(serializeDeckHistory(history.state, destination), '', window.location.href);
-      return;
-    }
-    if (targetPosition > sourcePosition) {
-      history.pushState(serializeDeckHistory(history.state, destination), '', window.location.href);
-    } else if (source?.kind !== 'page') {
-      history.back();
-    }
-  }
-
-  function completeDeckSettle() {
-    const commitTarget = deckCommitTarget;
-    const sourcePosition = navigationStartPosition;
-    deckFrame = null;
-    deckOffset = 0;
-    deckVelocity = 0;
-    deckTargetPosition = null;
-    deckCommitTarget = null;
-    pageSwipeDragging = false;
-    pageSwipeSettling = false;
-    isTransitioning = false;
-    clearClickSuppression();
-
-    if (commitTarget !== null) {
-      const destination = deckDestinations[commitTarget];
-      if (destination) {
-        applyDestination(destination);
-        syncDeckHistory(sourcePosition, commitTarget);
-      }
-    }
-    pendingHistoryMode = 'auto';
-    requestAnimationFrame(() => applyDeckTransforms());
-    showPageIndicator();
-  }
-
-  function runDeckSpring(now: number) {
-    const elapsed = Math.min(32, Math.max(1, now - deckLastFrameAt));
-    deckLastFrameAt = now;
-    const target = deckTargetPosition === null ? 0 : -Math.sign(deckTargetPosition - activeDeckPosition()) * deckWidth;
-    ({ position: deckOffset, velocity: deckVelocity } = boundedSpringStep(deckOffset, deckVelocity, target, elapsed, deckWidth));
-    applyDeckTransforms();
-    if (springSettled(deckOffset, deckVelocity, target)) {
-      deckOffset = target;
-      applyDeckTransforms();
-      completeDeckSettle();
-      return;
-    }
-    deckFrame = requestAnimationFrame(runDeckSpring);
-  }
-
-  function settleDeck(commit: boolean, targetPosition: number | null, velocity = 0) {
-    const reducedMotion = typeof window !== 'undefined'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const validCommit = commit && targetPosition !== null;
-    if (reducedMotion) {
-      deckCommitTarget = validCommit ? targetPosition : null;
-      completeDeckSettle();
-      return;
-    }
-    isTransitioning = true;
-    pageSwipeDragging = false;
-    pageSwipeSettling = true;
-    deckCommitTarget = validCommit ? targetPosition : null;
-    deckTargetPosition = validCommit ? targetPosition : null;
-    deckVelocity = velocity;
-    deckLastFrameAt = performance.now();
-    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
-    deckFrame = requestAnimationFrame(runDeckSpring);
-  }
-
-  function cancelDeckSettle() {
-    if (!pageSwipeSettling) return;
-    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
-    deckFrame = null;
-    deckTargetPosition = null;
-    deckCommitTarget = null;
-    pageSwipeSettling = false;
-    isTransitioning = false;
-  }
-
   function navigateDeckTo(position: number, historyMode: 'auto' | 'none' | 'replace' = 'auto') {
-    const current = activeDeckPosition();
-    if (position < 0 || position >= deckDestinations.length || position === current) return;
-    deckWidth = measureDeckWidth();
-    navigationStartPosition = current;
-    pendingHistoryMode = historyMode;
-    if (Math.abs(position - current) > 1) {
-      const destination = deckDestinations[position];
-      if (destination) {
-        applyDestination(destination);
-        syncDeckHistory(current, position);
-      }
-      pendingHistoryMode = 'auto';
-      requestAnimationFrame(() => applyDeckTransforms());
-      showPageIndicator();
-      return;
-    }
-    settleDeck(true, position);
+    const destination = deckDestinations[position];
+    if (!destination) return;
+    deckController?.update(deckDestinations, measureDeckWidth());
+    deckController?.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    deckController?.goTo(destination, historyMode);
   }
 
   function handlePageSwitch(pageId: string) {
@@ -776,7 +744,9 @@
   }
 
   function navigateDeckBy(direction: -1 | 1) {
-    navigateDeckTo(activeDeckPosition() + direction);
+    deckController?.update(deckDestinations, measureDeckWidth());
+    deckController?.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    deckController?.by(direction);
   }
 
   function closeNearby() {
@@ -784,14 +754,23 @@
   }
 
   function closeBoard() {
-    if (utilityView === 'board') navigateDeckBy(-1);
+    if (utilityView !== 'board') return;
+    applyDestination({ kind: 'nearby' });
+    deckController?.update(deckDestinations, measureDeckWidth());
+    deckController?.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    deckController?.goTo({ kind: 'nearby' });
+    focusSelectedNearbyStation();
   }
 
   async function handleStationSelection(stop: TransitStopSearchResult) {
     retainedBoardStop = stop;
     await tick();
-    const target = deckDestinationIndex(deckDestinations, { kind: 'board', stopId: stop.id });
-    if (target >= 0) navigateDeckTo(target);
+    const destination: DeckDestination = { kind: 'board', stopId: stop.id };
+    const destinations = buildDeckDestinations(pages.map((candidate) => candidate.id), stop.id);
+    applyDestination(destination);
+    deckController?.update(destinations, measureDeckWidth());
+    deckController?.setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    deckController?.goTo(destination);
   }
 
   function handleDeckPopState(event: PopStateEvent) {
@@ -843,37 +822,16 @@
       availableModes,
       defaultMode: availableModes.includes('beer') ? 'beer' : 'events'
     };
+    featureOpen = true;
   }
 
   function closeFeatureSheet() {
-    if (!backdropEl || !drawerEl) { activeFeatureContext = null; return; }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      activeFeatureContext = null;
-      return;
-    }
-    gsap.to(backdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
-    gsap.to(drawerEl, {
-      xPercent: -50, y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
-      onComplete: () => { activeFeatureContext = null; }
-    });
+    featureOpen = false;
   }
 
   function closeQuickAdd() {
     const activeElement = document.activeElement;
-    if (activeElement instanceof HTMLElement && quickAddDrawerEl?.contains(activeElement)) {
-      activeElement.blur();
-    }
-    const finish = () => {
-      showQuickAdd = false;
-      editingSegment = null;
-      editingSegmentPageId = null;
-    };
-    if (!quickAddBackdropEl || !quickAddDrawerEl) { finish(); return; }
-    gsap.to(quickAddBackdropEl, { opacity: 0, duration: 0.18, ease: 'power2.out' });
-    gsap.to(quickAddDrawerEl, {
-      y: '100%', opacity: 0, duration: 0.3, ease: 'power2.in',
-      onComplete: finish
-    });
+    showQuickAdd = false;
   }
 
   function dismissWarning() {
@@ -891,34 +849,6 @@
   }
 
   $effect(() => {
-    if (activeFeatureContext && backdropEl && drawerEl) {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      gsap.fromTo(backdropEl,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.18, ease: 'power2.out' }
-      );
-      gsap.set(drawerEl, { xPercent: -50, y: '100%', opacity: 0 });
-      gsap.fromTo(drawerEl,
-        { opacity: 0, xPercent: -50, y: '100%' },
-        { opacity: 1, xPercent: -50, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
-      );
-    }
-  });
-
-  $effect(() => {
-    if (showQuickAdd && quickAddBackdropEl && quickAddDrawerEl) {
-      gsap.fromTo(quickAddBackdropEl,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.18, ease: 'power2.out' }
-      );
-      gsap.fromTo(quickAddDrawerEl,
-        { opacity: 0, y: '100%' },
-        { opacity: 1, y: '0%', duration: 0.4, ease: 'cubic-bezier(0.32, 0.72, 0, 1)' }
-      );
-    }
-  });
-
-  $effect(() => {
     if (siteLookupError && warningBannerEl) {
       gsap.fromTo(warningBannerEl,
         { opacity: 0, y: -10 },
@@ -934,6 +864,7 @@ function toggleEdit() {
     const newPageId = createPage(t.defaultPageName);
     pageSetActivePage(newPageId);
     showQuickAdd = true;
+    quickAddPresenting = true;
     return;
   }
   editing = !editing;
@@ -976,14 +907,15 @@ function closeSettingsPanel() {
     }
     const touch = event.touches[0];
     clearClickSuppression();
-    cancelDeckSettle();
     touchIdentifier = touch.identifier;
     swipeStartX = touch.clientX;
     swipeStartY = touch.clientY;
     deckWidth = measureDeckWidth();
     touchIntent = 'pending';
     touchEligible = !pageSwipeIsExcludedTarget(event.target);
-    touchSamples = [{ x: 0, time: performance.now() }];
+    // A down event freezes a live settle before intent is known. Excluded
+    // controls resume it on end, so their own gestures remain untouched.
+    deckController?.beginDrag(touch.clientX);
     pullTriggered = false;
   }
 
@@ -1012,17 +944,14 @@ function closeSettingsPanel() {
       if (touchIntent === 'horizontal') {
         pageSwipeDragging = true;
         armClickSuppression();
+      } else if (touchIntent === 'vertical') {
+        deckController?.resumeInterrupted();
       }
     }
 
     if (touchIntent === 'horizontal') {
       event.preventDefault();
-      touchSamples.push({ x: dx, time: performance.now() });
-      if (touchSamples.length > 8) touchSamples.shift();
-      const direction = dx < 0 ? 1 : -1;
-      const target = activeDeckPosition() + direction;
-      const hasTarget = target >= 0 && target < deckDestinations.length;
-      renderDeckOffset(pageSwipeOffset(dx, hasTarget, deckWidth));
+      deckController?.drag(touch.clientX, performance.now());
       return;
     }
 
@@ -1046,14 +975,15 @@ function closeSettingsPanel() {
     touchIdentifier = null;
     touchEligible = false;
     touchIntent = 'pending';
-    touchSamples = [];
     swipeStartX = 0;
     swipeStartY = 0;
   }
 
   function cancelTouchGesture() {
     if (touchIdentifier === null) return;
-    if (pageSwipeDragging) settleDeck(false, null, 0);
+    if (pageSwipeDragging) deckController?.cancelDrag();
+    else deckController?.resumeInterrupted();
+    pageSwipeDragging = false;
     pullDistance = 0;
     pullTriggered = false;
     clearClickSuppression();
@@ -1066,16 +996,8 @@ function closeSettingsPanel() {
     const dx = touch.clientX - swipeStartX;
     const dy = touch.clientY - swipeStartY;
     if (touchIntent === 'horizontal') {
-      touchSamples.push({ x: dx, time: performance.now() });
-      const velocity = recentVelocity(touchSamples);
-      const direction = dx < 0 ? 1 : -1;
-      const target = activeDeckPosition() + direction;
-      const hasTarget = target >= 0 && target < deckDestinations.length;
-      const shouldCommit = hasTarget && shouldCompletePageSwipe(deckOffset, velocity, deckWidth);
-      if (shouldCommit) markSwiped();
-      navigationStartPosition = activeDeckPosition();
-      pendingHistoryMode = 'auto';
-      settleDeck(shouldCommit, hasTarget ? target : null, velocity);
+      deckController?.release(performance.now());
+      pageSwipeDragging = false;
       resetTouch();
       return;
     }
@@ -1087,6 +1009,7 @@ function closeSettingsPanel() {
       await triggerManualRefresh();
       return;
     }
+    deckController?.resumeInterrupted();
     pullDistance = 0;
     resetTouch();
   }
@@ -1177,13 +1100,14 @@ function closeSettingsPanel() {
   }
 
   onMount(() => {
-    deckWidth = measureDeckWidth();
-    applyDeckTransforms();
+    createDeckController();
     timeOfDayStart();
     initializeCacheLifecycle();
     consumeShareHash();
     const handleHashChange = () => consumeShareHash();
+    const handleResize = () => deckController?.update(deckDestinations, measureDeckWidth());
     window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('resize', handleResize);
     window.addEventListener('popstate', handleDeckPopState);
     const initialDestination = activeDeckDestination();
     history.replaceState(
@@ -1214,22 +1138,19 @@ function closeSettingsPanel() {
 
     const unsubscribeLifecycle = subscribeToPlatformLifecycle(({ isVisible, isOnline: online }) => {
       departureStore.setConnectivity(online);
-      if (!isVisible || !online || editing || showSettings || showQuickAdd) {
-        departureStore.stopAutoRefresh();
-        deviationStore.stopAutoRefresh();
-        return;
-      }
+      appVisible = isVisible;
+      appOnline = online;
+      if (!isVisible || !online) return;
 
       const currentPage = getActivePage();
       if (currentPage?.segments) {
-        void startDeparturesForPage(currentPage.segments, false, currentRequestId);
-        void startDisruptionsForPage(currentPage.segments);
         void refreshSavedJourneys(currentPage, true);
       }
     });
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('resize', handleResize);
       window.removeEventListener('popstate', handleDeckPopState);
       unsub();
       unsubDeviations();
@@ -1239,7 +1160,7 @@ function closeSettingsPanel() {
   });
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (editing) return;
+    if (editing || showSettings || showQuickAdd || activeFeatureContext) return;
 
     // Ignore if typing in an input, textarea, or contenteditable
     const activeEl = document.activeElement;
@@ -1271,7 +1192,9 @@ function closeSettingsPanel() {
     if (snackbarCloseTimer) clearTimeout(snackbarCloseTimer);
     if (pageIndicatorTimer) clearTimeout(pageIndicatorTimer);
     if (suppressClickTimer) clearTimeout(suppressClickTimer);
-    if (deckFrame !== null) cancelAnimationFrame(deckFrame);
+    deckController?.destroy();
+    nearbySession.destroy();
+    pageActivation.destroy();
     window.removeEventListener('popstate', handleDeckPopState);
   });
 </script>
@@ -1349,23 +1272,22 @@ function closeSettingsPanel() {
           {#each deckPageSlots as slot (slot.page.id)}
             <div
               class="page-transition-inner page-slot"
-              class:page-slot-preview={slot.relative !== 0 || showNearby}
+              class:page-slot-preview={!slot.active}
               class:deck-moving={pageSwipeDragging || pageSwipeSettling}
-              style={deckSlotStyle(slot.relative)}
-              aria-hidden={slot.relative !== 0 || showNearby ? 'true' : undefined}
-              inert={slot.relative !== 0 || showNearby}
+              aria-hidden={!slot.active ? 'true' : undefined}
+              inert={!slot.active}
               use:deckSlot={slot.page.id}
             >
             <SegmentDepartures
               page={slot.page}
-              preview={slot.relative !== 0 || showNearby}
+              preview={!slot.active}
               deviationHealthBySegment={deviationHealthBySegment}
               deviationStationAlerts={deviationStationAlerts}
               openFeatureSheet={hasFeatureModes ? openSegmentPanels : null}
               onSwitchPage={handlePageSwitch}
               onEditToggle={toggleEdit}
               onOpenSettings={openSettingsPanel}
-              onQuickAdd={() => showQuickAdd = true}
+              onQuickAdd={() => { showQuickAdd = true; quickAddPresenting = true; }}
               onScroll={hidePageIndicator}
               onJourneyAction={handleJourneyAction}
               onSavedCardAction={handleSavedCardAction}
@@ -1383,7 +1305,7 @@ function closeSettingsPanel() {
         class="nearby-viewport"
         class:deck-moving={pageSwipeDragging || pageSwipeSettling}
         bind:this={nearbyViewportEl}
-        style={deckSlotStyle(getPages().length - activeDeckPosition())}
+        use:nearbySlot
         aria-hidden={showNearby ? undefined : 'true'}
         inert={!showNearby}
       >
@@ -1406,6 +1328,7 @@ function closeSettingsPanel() {
                 onOpenSettings={openSettingsPanel}
                 boardStop={retainedBoardStop}
                 view={utilityView === 'board' ? 'board' : 'nearby'}
+                session={nearbySession}
               />
             {:catch}
               <div class="nearby-preview-shell nearby-load-fallback">
@@ -1458,24 +1381,18 @@ function closeSettingsPanel() {
       />
     {/if}
 
-    {#if showQuickAdd && page}
-      <button
-        type="button"
-        class="quick-add-backdrop"
-        aria-label={t.closePanel}
-        onclick={closeQuickAdd}
-        bind:this={quickAddBackdropEl}
-      ></button>
-      <div
-        class="quick-add-drawer"
-        bind:this={quickAddDrawerEl}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t.addSegment}
-        tabindex="0"
-        onkeydown={(e) => { if (e.key === 'Escape') closeQuickAdd(); }}
-        use:focusBoundary={{ active: true, initialFocus: '[data-surface-control]' }}
+    {#if quickAddPresenting && page}
+      <Sheet
+        isOpen={showQuickAdd}
+        onClose={closeQuickAdd}
+        onExitComplete={() => { quickAddPresenting = false; editingSegment = null; editingSegmentPageId = null; }}
+        title={t.addSegment}
+        closeAriaLabel={t.closeAdd}
+        showHeader={false}
+        overlayClass="quick-add-backdrop"
+        sheetClass="quick-add-sheet quick-add-drawer"
       >
+        {#snippet children()}
           <AddExperience
             idPrefix="quick-add"
             variant="drawer"
@@ -1487,7 +1404,8 @@ function closeSettingsPanel() {
             onStopSelect={handleQuickAdd}
             onJourneySelect={handleJourneySelect}
           />
-      </div>
+        {/snippet}
+      </Sheet>
     {/if}
 
     {#if snackbar}
@@ -1502,35 +1420,28 @@ function closeSettingsPanel() {
     {/if}
 
     {#if activeFeatureContext}
-      <button
-        type="button"
-        class="feature-backdrop"
-        aria-label={t.closePanel}
-        onclick={closeFeatureSheet}
-        bind:this={backdropEl}
-      ></button>
-      <div
-        class="feature-drawer"
-        bind:this={drawerEl}
-        role="dialog"
-        aria-modal="true"
-        aria-label={activeFeatureContext.availableModes.includes('beer') ? t.afterwork : t.events}
-        tabindex="0"
-        onkeydown={(e) => {
-          if (e.key === 'Escape') closeFeatureSheet();
-        }}
-        use:focusBoundary={{ active: true, initialFocus: '[data-surface-control]' }}
+      {@const featureContext = activeFeatureContext}
+      <Sheet
+        isOpen={featureOpen}
+        onClose={closeFeatureSheet}
+        onExitComplete={() => { activeFeatureContext = null; }}
+        title={featureContext.availableModes.includes('beer') ? t.afterwork : t.events}
+        closeAriaLabel={t.closePanel}
+        showHeader={false}
+        sheetClass="feature-sheet"
       >
+        {#snippet children()}
         <FeatureDiscoverySheet
-          lat={activeFeatureContext.lat}
-          lon={activeFeatureContext.lon}
-          label={activeFeatureContext.label}
-          destination={activeFeatureContext.destination}
-          availableModes={activeFeatureContext.availableModes}
-          defaultMode={activeFeatureContext.defaultMode}
+          lat={featureContext.lat}
+          lon={featureContext.lon}
+          label={featureContext.label}
+          destination={featureContext.destination}
+          availableModes={featureContext.availableModes}
+          defaultMode={featureContext.defaultMode}
           onClose={closeFeatureSheet}
         />
-      </div>
+        {/snippet}
+      </Sheet>
     {/if}
   </main>
 </ErrorBoundary>
@@ -1800,39 +1711,6 @@ function closeSettingsPanel() {
     transform: scale(1.3);
   }
 
-  .feature-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-overlay);
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: var(--layout-max-width, 480px);
-    width: 100%;
-    border: 0;
-    padding: 0;
-    background: rgba(0, 0, 0, 0.38);
-    backdrop-filter: blur(2px);
-    cursor: pointer;
-  }
-
-  .feature-drawer {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: var(--z-dialog);
-    width: min(calc(100% - 24px), 456px);
-    max-height: min(72dvh, 620px);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
-    padding: 14px var(--sheet-padding-inline) var(--sheet-padding-inline);
-    bottom: calc(76px + env(safe-area-inset-bottom));
-  }
-
   /* Normalize scrollbars across browsers and prevent double scrollbars */
   :global(*)::-webkit-scrollbar {
     width: 12px;
@@ -2043,34 +1921,6 @@ function closeSettingsPanel() {
     }
   }
 
-  .quick-add-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-overlay);
-    background: rgba(0,0,0,0.38);
-    backdrop-filter: blur(2px);
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    display: block;
-  }
-
-  .quick-add-drawer {
-    position: fixed;
-    left: 0;
-    right: 0;
-    z-index: var(--z-dialog);
-    background: var(--surface);
-    border-top-left-radius: var(--radius-lg);
-    border-top-right-radius: var(--radius-lg);
-    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    max-height: 70dvh;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-  }
-
   /* ── Tablet breakpoint ── */
   @media (min-width: 768px) {
     :global(:root) {
@@ -2078,15 +1928,6 @@ function closeSettingsPanel() {
       --page-gutter: 24px;
     }
 
-    .quick-add-drawer {
-      left: 50%;
-      right: auto;
-    transform: translateX(-50%);
-      max-width: var(--layout-max-width, 480px);
-      width: 100%;
-      max-height: 85dvh;
-      bottom: calc(76px + env(safe-area-inset-bottom));
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

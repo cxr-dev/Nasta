@@ -29,12 +29,12 @@ export default defineConfig({
     },
     {
       name: "mobile-safari",
-      testMatch: /(?:mobile-(?:compat|critical)|location-lifecycle)\.spec\.ts/,
+      testMatch: /(?:mobile-(?:compat|critical)|location-lifecycle|native-motion)\.spec\.ts/,
       use: { ...devices["iPhone 17"], browserName: "webkit" },
     },
     {
       name: "mobile-chromium",
-      testMatch: /location-lifecycle\.spec\.ts/,
+      testMatch: /(?:location-lifecycle|native-motion)\.spec\.ts/,
       use: { ...devices["Pixel 7"] },
     },
     {

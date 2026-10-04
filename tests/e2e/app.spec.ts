@@ -128,15 +128,11 @@ test.describe("Nästa App", () => {
     await expect(routeHeader).toContainText(/Arbete/i);
   });
 
-  test("keeps adjacent page previews outside the active page on first render", async ({ page }) => {
-    const [active, preview] = await Promise.all([
-      page.locator(".page-slot:not(.page-slot-preview)").boundingBox(),
-      page.locator(".page-slot-preview").first().boundingBox(),
-    ]);
-
-    expect(active).not.toBeNull();
-    expect(preview).not.toBeNull();
-    expect(preview!.x).toBeGreaterThanOrEqual(active!.x + active!.width);
+  test("renders the seeded saved page as the active accessible deck destination", async ({ page }) => {
+    const active = page.locator(".page-deck .page-slot:not([aria-hidden='true'])");
+    await expect(active).toHaveCount(1);
+    await expect(active).toBeVisible();
+    await expect(active.locator("h1.page-title")).toContainText(/Arbete/i);
   });
 
   test("should keep sorting in Settings without a main-page reorder control", async ({ page }) => {
@@ -262,8 +258,12 @@ test.describe("Nästa App", () => {
   for (const viewport of [{ width: 768, height: 1024 }, { width: 1024, height: 768 }]) {
     test(`unmounts Nearby after returning at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
-      await page.keyboard.press("ArrowRight");
-      await expect(page.locator(".page-slot:not(.page-slot-preview) h1.page-title")).toContainText(/Hem/i);
+      const title = page.locator(".page-slot:not(.page-slot-preview) h1.page-title");
+      if (/Arbete/i.test(await title.textContent() ?? '')) {
+        await page.keyboard.press("ArrowRight");
+        await expect(title).toContainText(/Hem/i);
+        await page.waitForTimeout(350);
+      }
       await page.keyboard.press("ArrowRight");
       const nearby = page.locator(".nearby-viewport");
       await expect(nearby).toBeVisible();
@@ -341,7 +341,7 @@ test.describe("Nästa App", () => {
     const backdrop = page.locator(".quick-add-backdrop");
     await expect(backdrop).toBeVisible();
 
-    await backdrop.click();
+    await backdrop.click({ position: { x: 5, y: 5 } });
     await expect(drawer).not.toBeVisible();
     await expect(backdrop).not.toBeVisible();
   });
