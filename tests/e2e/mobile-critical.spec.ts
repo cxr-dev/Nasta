@@ -271,8 +271,10 @@ test.describe("mobile critical commuter flow", () => {
     await page.keyboard.press("ArrowRight");
     const surface = page.locator(".nearby-surface");
     await expect(surface).toBeVisible();
-    await surface.getByRole("button", { name: /enable location|allow location|try location again/i }).click();
     const station = surface.locator(".station-card").filter({ hasText: "T-Centralen" });
+    if (!await station.isVisible()) {
+      await surface.getByRole("button", { name: /enable location|allow location|try location again/i }).click();
+    }
     await expect(station).toBeVisible({ timeout: 15_000 });
     await expect(station).toHaveCSS("touch-action", "pan-y pinch-zoom");
 

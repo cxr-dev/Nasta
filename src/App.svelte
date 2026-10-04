@@ -702,12 +702,14 @@
 
   function focusUtilityDestination(destination: DeckDestination) {
     if (destination.kind !== 'nearby' && destination.kind !== 'board') return;
-    const selector = destination.kind === 'board'
-      ? '.board-panel:not([aria-hidden="true"]) .nearby-topbar > .icon-button'
-      : '.nearby-panel:not([aria-hidden="true"]) .station-card.selected';
     const focus = () => {
       if (utilityView !== destination.kind) return;
-      nearbyViewportEl?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+      const target = destination.kind === 'board'
+        ? document.querySelector<HTMLElement>('.board-panel:not([aria-hidden="true"]) .nearby-topbar > .icon-button')
+        : [...document.querySelectorAll<HTMLElement>('.nearby-panel:not([aria-hidden="true"]) .station-card')]
+          .find((card) => card.dataset.stopId === retainedBoardStop?.id)
+          ?? document.querySelector<HTMLElement>('.nearby-panel:not([aria-hidden="true"]) .station-card.selected');
+      target?.focus({ preventScroll: true });
     };
     void tick().then(() => requestAnimationFrame(focus));
     setTimeout(focus, 80);

@@ -108,6 +108,7 @@
   let mounted = $state(false);
   let utilityActive = $state(false);
   let nearbyMapFullscreen = $state(false);
+  let surfaceEl = $state<HTMLElement | null>(null);
 
   let displayedStops = $derived(query.trim().length >= 2 ? searchResults : nearbyStops);
   let hasLocation = $derived(Boolean(location.position));
@@ -261,6 +262,15 @@
     onSelectStation?.(stop);
   }
 
+  function returnToNearby() {
+    onBoardBack?.();
+    setTimeout(() => {
+      [...(surfaceEl?.querySelectorAll<HTMLElement>('.station-card') ?? [])]
+        .find((card) => card.dataset.stopId === boardStop?.id)
+        ?.focus({ preventScroll: true });
+    }, 100);
+  }
+
   function departureUrgencyLabel(departure: TransitDeparture): string {
     return departure.minutes > 0 && departure.minutes <= 3 ? (t.departureSoon ?? 'Snart') : '';
   }
@@ -394,6 +404,7 @@
 
 <section
   class="nearby-surface"
+  bind:this={surfaceEl}
   aria-label={t.nearby ?? 'Nära dig'}
   aria-hidden={preview ? 'true' : undefined}
   inert={preview}
@@ -401,7 +412,7 @@
   {#if boardStop}
     <div class="utility-panel board-panel" aria-hidden={preview || view !== 'board' ? 'true' : undefined} inert={preview || view !== 'board'}>
     <header class="nearby-topbar">
-      <button type="button" class="icon-button" onclick={onBoardBack} aria-label={t.back ?? 'Tillbaka'}>
+      <button type="button" class="icon-button" onclick={returnToNearby} aria-label={t.back ?? 'Tillbaka'}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="topbar-copy"><h1>{boardStop.name}</h1></div>
@@ -582,7 +593,7 @@
         <div class="station-list">
           {#each displayedStops as stop (stop.id)}
             {@const previewState = previews.get(stop.id) ?? { state: 'loading' }}
-            <button type="button" class="station-card" data-stop-id={stop.id} onclick={() => selectStop(stop)}>
+            <button type="button" class="station-card" class:selected={selectedId === stop.id} data-stop-id={stop.id} onclick={() => selectStop(stop)}>
               <span class="station-mode" aria-hidden="true">
                 <TransportIcon type={getTransportType(stop.modes[0])} size={20} />
               </span>
