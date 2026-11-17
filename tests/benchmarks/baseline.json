@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "revision": "a80c7c84a767927fe1b8caaa3d30eedd2aafe2a6",
+    "dirty": true,
+    "buildFingerprint": "75943ebc7f01dad9dda059a247e472059204b97107d811e7e75cad803fff9d9b",
+    "environment": {
+      "runner": "local",
+      "os": "win32 10.0.26300 x64",
+      "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor           ",
+      "cores": 16,
+      "memoryGiB": 31,
+      "node": "v27.0.0-alpha.0.0.0",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "deviceProfile": "iPhone 17",
+      "scenarioVersion": 1,
+      "conditions": "production preview; SW blocked; normal motion; mocked APIs; external fonts blocked; API delay 100ms",
+      "injectedDelayMs": 0
+    },
+    "actualWorkers": 1
+  },
+  "samples": [
+    {
+      "scenario": "first useful departure",
+      "status": "passed",
+      "ms": 495,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "cached-data reopen",
+      "status": "passed",
+      "ms": 343,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Settings",
+      "status": "passed",
+      "ms": 31,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Add",
+      "status": "passed",
+      "ms": 187,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first useful departure",
+      "status": "passed",
+      "ms": 484,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "cached-data reopen",
+      "status": "passed",
+      "ms": 341,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Settings",
+      "status": "passed",
+      "ms": 33,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Add",
+      "status": "passed",
+      "ms": 186,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first useful departure",
+      "status": "passed",
+      "ms": 517,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "cached-data reopen",
+      "status": "passed",
+      "ms": 350,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Settings",
+      "status": "passed",
+      "ms": 35,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Add",
+      "status": "passed",
+      "ms": 184,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first useful departure",
+      "status": "passed",
+      "ms": 490,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "cached-data reopen",
+      "status": "passed",
+      "ms": 346,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Settings",
+      "status": "passed",
+      "ms": 33,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Add",
+      "status": "passed",
+      "ms": 186,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first useful departure",
+      "status": "passed",
+      "ms": 483,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "cached-data reopen",
+      "status": "passed",
+      "ms": 338,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Settings",
+      "status": "passed",
+      "ms": 33,
+      "browser": "26.5"
+    },
+    {
+      "scenario": "first panel opening: Add",
+      "status": "passed",
+      "ms": 192,
+      "browser": "26.5"
+    }
+  ],
+  "errors": [],
+  "status": "passed"
+}

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from "./support/mobileTest";
+import { type Page } from "@playwright/test";
 import { emitTouch, readOffset } from './support/motion';
 import type { TestPage } from './support/commuterApp';
 

@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "./support/mobileTest";
+import { type Page } from "@playwright/test";
 
 const now = Date.now();
 const journeyMeta = {
@@ -152,7 +153,7 @@ test.describe("saved card contextual actions", () => {
     });
   }
 
-  test("keeps the collapsed journey compact and expands into a route overview", async ({
+  test("keeps the collapsed journey compact and expands into a route overview", { tag: "@mobile-core" }, async ({
     page,
   }) => {
     await prepare(page, { width: 390, height: 844 });
@@ -169,7 +170,7 @@ test.describe("saved card contextual actions", () => {
     await expect(card.locator(".journey-next-step")).toBeVisible();
   });
 
-  test("uses a content-height mobile surface and clear departure identity", async ({
+  test("uses a content-height mobile surface and clear departure identity", { tag: "@mobile-core" }, async ({
     page,
   }) => {
     await prepare(page, { width: 390, height: 844 });

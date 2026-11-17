@@ -74,37 +74,45 @@ export async function cacheScheduleTime(
   direction_code: number,
   scheduledTime: Date,
 ): Promise<void> {
-  if (!siteId || !line) return;
+  return cacheScheduleTimes(siteId, [{ line, direction_code, scheduledTime }]);
+}
 
+export async function cacheScheduleTimes(siteId: string, times: Array<{
+  line: string; direction_code: number; scheduledTime: Date;
+}>): Promise<void> {
+  if (!siteId || times.length === 0) return;
   await ensureCacheLoaded();
-  const key = getCacheKey(siteId, line, direction_code);
+  for (const { line, direction_code, scheduledTime } of times) {
+    if (!line) continue;
+    const key = getCacheKey(siteId, line, direction_code);
 
-  if (!inMemoryCache[key]) {
-    inMemoryCache[key] = {
-      line,
-      direction_code,
-      scheduledTimes: [],
-      updatedAt: Date.now(),
-      validDate: new Date().toISOString().split("T")[0],
-    };
+    if (!inMemoryCache[key]) {
+      inMemoryCache[key] = {
+        line,
+        direction_code,
+        scheduledTimes: [],
+        updatedAt: Date.now(),
+        validDate: new Date().toISOString().split("T")[0],
+      };
+    }
+
+    const isoTime = scheduledTime.toISOString();
+    const entry = inMemoryCache[key];
+
+    // Avoid duplicates (within DUPLICATE_WINDOW_MS)
+    const isDuplicate = entry.scheduledTimes.some((t) => {
+      const diff = Math.abs(new Date(t).getTime() - scheduledTime.getTime());
+      return diff < DUPLICATE_WINDOW_MS;
+    });
+
+    if (!isDuplicate) {
+      entry.scheduledTimes.push(isoTime);
+      // Keep times sorted
+      entry.scheduledTimes.sort();
+      entry.updatedAt = Date.now();
+    }
+
   }
-
-  const isoTime = scheduledTime.toISOString();
-  const entry = inMemoryCache[key];
-
-  // Avoid duplicates (within DUPLICATE_WINDOW_MS)
-  const isDuplicate = entry.scheduledTimes.some((t) => {
-    const diff = Math.abs(new Date(t).getTime() - scheduledTime.getTime());
-    return diff < DUPLICATE_WINDOW_MS;
-  });
-
-  if (!isDuplicate) {
-    entry.scheduledTimes.push(isoTime);
-    // Keep times sorted
-    entry.scheduledTimes.sort();
-    entry.updatedAt = Date.now();
-  }
-
   await saveCache();
 }
 

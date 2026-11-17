@@ -7,7 +7,27 @@ import {
   prioritizeJourneys,
   searchJourneys,
   selectNextJourney,
+  searchStopSuggestions,
 } from './journeyService';
+
+describe('concurrent stop searches', () => {
+  it('shares identical lookups and releases them after completion', async () => {
+    let finish!: (value: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const first = searchStopSuggestions('Shared stop');
+      const second = searchStopSuggestions('Shared stop');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      finish(new Response(JSON.stringify({ locations: [] })));
+      await Promise.all([first, second]);
+      const third = searchStopSuggestions('Shared stop');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      finish(new Response(JSON.stringify({ locations: [] })));
+      await third;
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
 
 function makeJourney(
   id: string,

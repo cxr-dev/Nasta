@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./support/mobileTest";
 
 test.describe("locale switching", () => {
   test.beforeEach(async ({ page }) => {
@@ -79,7 +79,7 @@ test("should start in English and switch between languages", async ({ page }) =>
     await expect(page.locator('button[aria-label="Inställningar"]')).toBeVisible({ timeout: 10000 });
   });
 
-  test("should persist language preference after reload", async ({ page }) => {
+  test("should persist language preference after reload", { tag: "@mobile-core" }, async ({ page }) => {
     await page.locator('button[aria-label="Settings"]').click();
     await page.getByRole("tab", { name: /features|funktioner/i }).click();
     await langGroup(page).getByRole("button").nth(1).click();

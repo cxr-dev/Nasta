@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/mobileTest";
 import { CommuterApp, type TestPage } from "./support/commuterApp";
 
 const emptyPage: TestPage = {

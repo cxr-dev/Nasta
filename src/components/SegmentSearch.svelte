@@ -1,5 +1,6 @@
 <script lang="ts">
   import { transitService } from '../providers/init';
+  import { toEntityId } from '../lib/departureConverter';
   import { loadGrantedLocation, requestLocation, subscribeToLocation, getMemoizedDistance, formatDistance, isDistanceReliable, type LocationAccessState } from '../services/geo';
 import type { TransitStopSearchResult, TransitDeparture } from '../providers/types';
 import type { TransportType, Stop, SegmentDirection, Segment } from '../types/page';
@@ -295,6 +296,7 @@ function getPrimaryType(station: TransitStopSearchResult): TransportType {
   }
   
   async function loadDeparturesForStation(stationId: string, stationName: string): Promise<TransitDeparture[]> {
+    stationId = toEntityId(stationId);
     const { departures: rawDeps } = await transitService.getDepartures(stationId, stationName);
     // Supplement with routes known from timetable cache (covers overnight / off-peak)
     const cachedRoutes = await transitService.getKnownRoutes(stationId, stationName);

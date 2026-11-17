@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Segment } from "../types/page";
-  import type { Departure } from "../stores/departureStore.svelte";
+  import type { Departure, DepartureStatus } from "../stores/departureStore.svelte";
   import { alertTriangle, handStop, tool, cloudRain, cloudSnow, cloudLightning, windIcon, snowflake, infoCircle, moonIcon, shareGlyph } from "../icons/departureIcons";
   import { tick } from 'svelte';
   import gsap from 'gsap';
@@ -45,12 +45,16 @@
     onMoreActions,
     moreActionsLabel,
     onShare,
+    status,
+    onRetry,
   }: {
     segment: Segment;
     segmentId?: string;
     departure: Departure | undefined;
     subsequent: string | null;
     hasDeparture: boolean;
+    status?: DepartureStatus;
+    onRetry?: () => void;
     primaryDepartureText: string;
     siteDevs: { message: string }[];
     isExpanded: boolean;
@@ -313,6 +317,15 @@
   </button>
   {/if}
 
+  {#if status && (status.pending && !hasDeparture || ['stale', 'recent', 'unavailable', 'timetable'].includes(status.freshness))}
+    <div class="departure-status" aria-live="polite" aria-busy={status.pending ?? false}>
+      <span>{status.pending && !hasDeparture ? t.loading : status.freshness === 'unavailable' ? t.departuresUnavailable : status.freshness === 'timetable' ? t.timetable : t.timesMayHaveChanged}</span>
+      {#if status.canRetry && !status.pending}
+        <button class="retry-departure" onclick={onRetry}>{t.retry}</button>
+      {/if}
+    </div>
+  {/if}
+
   {#if isExpanded}
     <div class="card-controls" role="group" aria-label={t.cardControls ?? 'Card actions'}>
       <button
@@ -413,6 +426,26 @@
 </div>
 
 <style>
+  .departure-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .retry-departure {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-emphasis);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
   .departure-card {
     display: flex;
     flex-direction: column;

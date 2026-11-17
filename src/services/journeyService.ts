@@ -76,7 +76,19 @@ async function resolveLocation(
 }
 
 /** Raw stop-finder search returning all matches (for autocomplete). */
-async function searchStopLocation(query: string, signal?: AbortSignal): Promise<StopFinderLocation[]> {
+const pendingStopSearches = new Map<string, { signal?: AbortSignal; promise: Promise<StopFinderLocation[]> }>();
+
+function searchStopLocation(query: string, signal?: AbortSignal): Promise<StopFinderLocation[]> {
+  const existing = pendingStopSearches.get(query);
+  if (existing && existing.signal === signal) return existing.promise;
+  const promise = fetchStopLocation(query, signal).finally(() => {
+    if (pendingStopSearches.get(query)?.promise === promise) pendingStopSearches.delete(query);
+  });
+  pendingStopSearches.set(query, { signal, promise });
+  return promise;
+}
+
+async function fetchStopLocation(query: string, signal?: AbortSignal): Promise<StopFinderLocation[]> {
   const url = `${STOP_FINDER_URL}?name_sf=${encodeURIComponent(query)}&any_obj_filter_sf=2&type_sf=any`;
   try {
     const res = await fetch(url, { signal });

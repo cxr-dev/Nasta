@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from "./support/mobileTest";
 
-test('keeps empty-state header actions available after resetting local data', async ({ page }) => {
+test('keeps empty-state header actions available after resetting local data', { tag: "@mobile-core" }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => {

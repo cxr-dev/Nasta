@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "./support/mobileTest";
+import { type Page } from "@playwright/test";
 
 /**
  * E2E tests for the three features added to departure cards:
@@ -217,8 +218,8 @@ test.describe("Weather badge in departure cards", () => {
   });
 });
 
-test.describe("Departure skeleton loader", () => {
-  test("spans the tablet list width and keeps three compact cards", async ({ page }) => {
+test.describe("Departure loading identity", () => {
+  test("shows the saved stop while its departure is loading", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.route("**/*.integration.sl.se/**", async (route) => {
       if (route.request().url().includes("departures")) {
@@ -247,20 +248,16 @@ test.describe("Departure skeleton loader", () => {
 
     await page.goto("/Nasta/", { waitUntil: "domcontentloaded" });
 
-    const skeleton = page.locator(".loading-skeleton");
-    await expect(skeleton).toBeVisible({ timeout: 5000 });
-    await expect(skeleton.locator(".skeleton-card")).toHaveCount(3);
-
-    const listBox = await page.locator(".card-list").boundingBox();
-    const skeletonBox = await skeleton.boundingBox();
-    expect(listBox).not.toBeNull();
-    expect(skeletonBox).not.toBeNull();
-    expect(skeletonBox!.width).toBeGreaterThan(listBox!.width * 0.9);
+    const card = page.getByTestId("segment-row");
+    await expect(card).toContainText("T-Centralen");
+    await expect(card.locator('.departure-status')).toContainText(/Loading|Laddar/);
+    await expect(card.getByTestId('countdown-minutes')).toBeVisible();
+    await expect(card.locator('.departure-status')).toHaveCount(0);
   });
 });
 
 test.describe("Station notice width", () => {
-  test("matches the page header width when collapsed and expanded", async ({ page }) => {
+  test("matches the page header width when collapsed and expanded", { tag: "@mobile-core" }, async ({ page }) => {
     await page.route("**/*.integration.sl.se/**", mockSlApi);
     await page.route("**/deviations.integration.sl.se/**", async (route) => {
       await route.fulfill({
@@ -984,7 +981,7 @@ test.describe("Route stops preview", () => {
     expect(requestInfo.tripCalls).toBe(1);
   });
 
-  test("shows all route stops on request and keeps them visible through a clock refresh", async ({ page }) => {
+  test("shows all route stops on request and keeps them visible through a clock refresh", { tag: "@mobile-core" }, async ({ page }) => {
     const requestInfo = await installRoutes(page);
     await page.clock.install();
     await seedPage(page);

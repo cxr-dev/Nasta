@@ -21,16 +21,13 @@
   import { DEFAULT_JOURNEY_ROUTE_TYPE } from './services/journeyService';
   
 
-  import PageEditor from './components/PageEditor.svelte';
-  import SettingsPanel from './components/SettingsPanel.svelte';
   import SegmentDepartures from './components/SegmentDepartures.svelte';
-  import FeatureDiscoverySheet from './components/FeatureDiscoverySheet.svelte';
   import ErrorBoundary from './components/ErrorBoundary.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
-  import AddExperience from './components/AddExperience.svelte';
   import Snackbar from './components/Snackbar.svelte';
   import SurfaceControl from './components/SurfaceControl.svelte';
   import Sheet from './components/Sheet.svelte';
+  import DeferredSurface from './components/DeferredSurface.svelte';
   import type { SavedCardActionId } from './lib/savedCardActions';
   import type { Journey } from './types/journey';
   import {
@@ -60,6 +57,8 @@
   const logoPath = import.meta.env.BASE_URL + 'logosvg.svg';
 
   let editing = $state(false);
+  let editorRequested = $state(false);
+  let settingsRequested = $state(false);
   let showSettings = $state(false);
   let showQuickAdd = $state(false);
   let quickAddPresenting = $state(false);
@@ -86,6 +85,7 @@
   let previousPageId = $state<string | null>(null);
   let appVisible = $state(true);
   let appOnline = $state(true);
+  let offlinePage: Page | null = null;
   let activeFeatureContext = $state<{
     lat: number;
     lon: number;
@@ -347,6 +347,18 @@
     const paused = !appVisible || !appOnline || editing || showSettings || showQuickAdd || Boolean(activeFeatureContext);
     pageActivation.setPaused(paused);
     pageActivation.setDestination(destination, destination.kind === 'page' ? currentPage : null);
+    // Offline activation still needs one cache read; polling remains paused.
+    if (!appOnline && appVisible && destination.kind === 'page' && currentPage && offlinePage !== currentPage) {
+      offlinePage = currentPage;
+      const clearFirst = previousPageId !== currentPage.id;
+      previousPageId = currentPage.id;
+      const requestId = `offline-${currentPage.id}-${Date.now()}`;
+      currentRequestId = requestId;
+      const { requests } = toDepartureStoreArgs(buildDepartureInputs(currentPage.segments));
+      void departureStore.refresh(requests, clearFirst, requestId);
+    } else if (appOnline) {
+      offlinePage = null;
+    }
     if (destination.kind === 'page' && currentPage && journeyRefreshPageId !== currentPage.id) {
       journeyRefreshPageId = currentPage.id;
       void refreshSavedJourneys(currentPage, true);
@@ -869,6 +881,7 @@ function toggleEdit() {
     quickAddPresenting = true;
     return;
   }
+  editorRequested = true;
   editing = !editing;
   if (editing) {
     departureStore.stopAutoRefresh();
@@ -879,6 +892,7 @@ function toggleEdit() {
 }
 
 function openSettingsPanel() {
+  settingsRequested = true;
   showSettings = true;
   departureStore.stopAutoRefresh();
   deviationStore.stopAutoRefresh();
@@ -1129,6 +1143,8 @@ function closeSettingsPanel() {
       deviationStationAlerts = state.stationAlerts;
     });
 
+    appVisible = !document.hidden;
+    appOnline = navigator.onLine;
     startupReady = true;
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('nasta-app-ready'));
@@ -1368,19 +1384,30 @@ function closeSettingsPanel() {
             </div>
     {/if}
 
-    <SettingsPanel
+    {#if settingsRequested}
+    <DeferredSurface load={() => import('./components/SettingsPanel.svelte')} onClose={() => { settingsRequested = false; closeSettingsPanel(); }}>
+      {#snippet children(SettingsPanel)}
+        <SettingsPanel
       isOpen={showSettings}
       onClose={closeSettingsPanel}
     />
+      {/snippet}
+    </DeferredSurface>
 
-    {#if !hasNoRoutes && page}
-      <PageEditor
+    {/if}
+
+    {#if editorRequested && !hasNoRoutes && page}
+      <DeferredSurface load={() => import('./components/PageEditor.svelte')} onClose={() => { editorRequested = false; toggleEdit(); }}>
+      {#snippet children(PageEditor)}
+        <PageEditor
         pages={pages}
         activePageId={activePageId ?? ''}
         isOpen={editing}
         onClose={toggleEdit}
         onSwitchPage={handlePageSwitch}
       />
+      {/snippet}
+    </DeferredSurface>
     {/if}
 
     {#if quickAddPresenting && page}
@@ -1395,7 +1422,9 @@ function closeSettingsPanel() {
         sheetClass="quick-add-sheet quick-add-drawer"
       >
         {#snippet children()}
-          <AddExperience
+          <DeferredSurface contained load={() => import('./components/AddExperience.svelte')} onClose={closeQuickAdd}>
+      {#snippet children(AddExperience)}
+        <AddExperience
             idPrefix="quick-add"
             variant="drawer"
             closeAriaLabel={t.closeAdd}
@@ -1406,6 +1435,8 @@ function closeSettingsPanel() {
             onStopSelect={handleQuickAdd}
             onJourneySelect={handleJourneySelect}
           />
+      {/snippet}
+    </DeferredSurface>
         {/snippet}
       </Sheet>
     {/if}
@@ -1433,6 +1464,8 @@ function closeSettingsPanel() {
         sheetClass="feature-sheet"
       >
         {#snippet children()}
+        <DeferredSurface contained load={() => import('./components/FeatureDiscoverySheet.svelte')} onClose={closeFeatureSheet}>
+      {#snippet children(FeatureDiscoverySheet)}
         <FeatureDiscoverySheet
           lat={featureContext.lat}
           lon={featureContext.lon}
@@ -1442,6 +1475,8 @@ function closeSettingsPanel() {
           defaultMode={featureContext.defaultMode}
           onClose={closeFeatureSheet}
         />
+      {/snippet}
+    </DeferredSurface>
         {/snippet}
       </Sheet>
     {/if}

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   cacheScheduleTime,
+  cacheScheduleTimes,
   getCachedSchedule,
   clearExpiredCache,
   getCacheStats,
@@ -26,6 +27,15 @@ vi.mock("../services/persistentCache", () => ({
 }));
 
 describe("scheduleCache service", () => {
+  it('persists a response batch in one write', async () => {
+    const { persistentCache } = await import('./persistentCache');
+    vi.mocked(persistentCache.set).mockClear();
+    await cacheScheduleTimes('100', [1, 2, 3].map((n) => ({
+      line: '14', direction_code: 1, scheduledTime: new Date(TEST_NOW + n * 300_000),
+    })));
+    expect(persistentCache.set).toHaveBeenCalledTimes(1);
+    expect((await getCacheStats()).routes[0].timeCount).toBe(3);
+  });
   beforeEach(async () => {
     store.clear();
     await clearAllCache();

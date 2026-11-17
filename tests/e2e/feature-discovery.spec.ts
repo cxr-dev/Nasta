@@ -1,4 +1,5 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect } from "./support/mobileTest";
+import { type Locator, type Page } from "@playwright/test";
 
 let venueRequestCount = 0;
 let eventRequestCount = 0;
@@ -248,7 +249,7 @@ test.describe("feature discovery sheet", () => {
     });
   });
 
-  test("switches discovery tabs and displays their content", async ({
+  test("switches discovery tabs and displays their content", { tag: "@mobile-core" }, async ({
     page,
   }) => {
     const sheet = await openFeatureDiscovery(page);

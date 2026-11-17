@@ -24,24 +24,26 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /(?:pwa|mobile-(?:compat|critical))\.spec\.ts/,
+      testIgnore: /(?:pwa|mobile-(?:compat|critical|core))\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "mobile-safari",
-      testMatch: /(?:mobile-(?:compat|critical)|location-lifecycle|native-motion)\.spec\.ts/,
+      testMatch: /.*\.spec\.ts/,
+      grep: /mobile-(?:compat|critical)\.spec|location-lifecycle\.spec|native-motion\.spec|@mobile-core/,
       use: { ...devices["iPhone 17"], browserName: "webkit" },
     },
     {
       name: "mobile-chromium",
-      testMatch: /(?:location-lifecycle|native-motion)\.spec\.ts/,
+      testMatch: /.*\.spec\.ts/,
+      grep: /location-lifecycle\.spec|native-motion\.spec|@mobile-smoke/,
       use: { ...devices["Pixel 7"] },
     },
     {
       name: "pwa-chromium",
       testMatch: /pwa\.spec\.ts/,
       use: {
-        ...devices["Desktop Chrome"],
+        ...devices["Pixel 7"],
         serviceWorkers: "allow",
       },
     },

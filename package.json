@@ -12,10 +12,12 @@
     "build": "vite build",
     "verify:build": "node scripts/verify-build.mjs",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc --project tsconfig.tests.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "pnpm run build && playwright test"
+    "test:e2e": "pnpm run build && playwright test",
+    "test:mobile": "pnpm run build && playwright test --project=mobile-safari --project=mobile-chromium --project=pwa-chromium",
+    "bench:mobile": "pnpm run build && playwright test --config=playwright.benchmark.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

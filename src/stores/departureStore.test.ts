@@ -21,6 +21,55 @@ const request = (siteId: string, stopName: string, line: string, direction_code:
 });
 
 describe("departureStore cache key wiring", () => {
+  it('retries a failed stop while another remains pending without overwriting the retry', async () => {
+    let finishSlow!: (value: { departures: []; stopDeviations: [] }) => void;
+    vi.mocked(getCachedScheduleSnapshot).mockImplementation(async (id) => id === '100'
+      ? { departures: [{ id: 'cached' }] as any, updatedAt: Date.now() } : null);
+    let failed = true;
+    vi.mocked(transitService.getDepartures).mockImplementation((id) => {
+      if (id === 'sl:200') return new Promise((resolve) => { finishSlow = resolve; });
+      return failed ? Promise.reject(new Error('unavailable')) : Promise.resolve({ departures: [], stopDeviations: [] });
+    });
+    let data = new Map();
+    let statuses = new Map();
+    const unsubscribe = departureStore.subscribe((value) => { data = new Map(value); });
+    const unsubscribeStatus = departureStore.status.subscribe((value) => { statuses = new Map(value); });
+    const refresh = departureStore.refresh([request('100', 'Fast', '1', 1), request('200', 'Slow', '2', 1)], true);
+    try {
+      await vi.waitFor(() => expect(statuses.get('100|1|1')?.canRetry).toBe(true));
+      failed = false;
+      departureStore.retrySegment(request('100', 'Fast', '1', 1));
+      await vi.waitFor(() => expect(statuses.get('100|1|1')?.freshness).toBe('live'));
+      expect(data.get('100|1|1')).toEqual([]);
+      finishSlow({ departures: [], stopDeviations: [] });
+      await refresh;
+      expect(data.get('100|1|1')).toEqual([]);
+    } finally {
+      finishSlow?.({ departures: [], stopDeviations: [] });
+      await refresh;
+      unsubscribe();
+      unsubscribeStatus();
+    }
+  });
+  it("publishes a finished segment while another is pending", async () => {
+    let finishSlow!: (value: { departures: []; stopDeviations: [] }) => void;
+    vi.mocked(getCachedScheduleSnapshot).mockResolvedValue(null);
+    vi.mocked(transitService.getDepartures).mockImplementation((id) => id === 'sl:200'
+      ? new Promise((resolve) => { finishSlow = resolve; })
+      : Promise.resolve({ departures: [], stopDeviations: [] }));
+    let data = new Map();
+    const unsubscribe = departureStore.subscribe((value) => { data = new Map(value); });
+    const refresh = departureStore.refresh([request('100', 'Fast', '1', 1), request('200', 'Slow', '2', 1)], true);
+    try {
+      await vi.waitFor(() => expect(finishSlow).toBeTypeOf('function'));
+      expect(data.has('100|1|1')).toBe(true);
+      expect(data.has('200|2|1')).toBe(false);
+    } finally {
+      finishSlow({ departures: [], stopDeviations: [] });
+      await refresh;
+      unsubscribe();
+    }
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCachedScheduleSnapshot).mockReset().mockResolvedValue(null);
@@ -261,6 +310,8 @@ describe("departureStore - request identity and stale response filtering", () =>
       true,
       "page-a",
     );
+
+    await vi.waitFor(() => expect(mockedGetDepartures).toHaveBeenCalledTimes(1));
 
     const secondRequest = departureStore.refresh(
       [request("1002", "City", "3", 2)],

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "./support/mobileTest";
 
 const routes = [
   {
@@ -29,7 +29,7 @@ test.describe('theme preferences', () => {
     await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
   });
 
-  test('applies explicit Light and Dark preferences', async ({ page }) => {
+  test('applies explicit Light and Dark preferences', { tag: "@mobile-core" }, async ({ page }) => {
     await page.evaluate(() => localStorage.setItem('nasta_settings', JSON.stringify({ theme: 'light', language: 'en' })));
     await page.reload();
     await expect.poll(() => page.locator('html').getAttribute('data-theme')).toBe('light');
@@ -39,7 +39,7 @@ test.describe('theme preferences', () => {
     await expect.poll(() => page.locator('html').getAttribute('data-theme')).toBe('dark');
   });
 
-  test('follows the operating system in System mode', async ({ page }) => {
+  test('follows the operating system in System mode', { tag: "@mobile-core" }, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.reload();
     await expect.poll(() => page.locator('html').getAttribute('data-theme')).toBe('dark');

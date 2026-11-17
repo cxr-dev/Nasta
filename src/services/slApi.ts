@@ -4,7 +4,7 @@ import type { TransportType } from "../types/page";
 import { getTransportType } from "../lib/getTransportType";
 import type { DepartureFetchDiagnostics } from "../types/transit";
 import { learnFromApiResponse } from "./timetableCache";
-import { cacheScheduleTime } from "./scheduleCache";
+import { cacheScheduleTimes } from "./scheduleCache";
 import { stopAreaStore } from "../stores/stopAreaStore.svelte";
 
 const TRANSPORT_URL = "https://transport.integration.sl.se/v1";
@@ -308,6 +308,7 @@ export async function getDepartures(
     }
   }
 
+  const scheduleTimes: Array<{ line: string; direction_code: number; scheduledTime: Date }> = [];
   const departures = validDeps.flatMap((dep: any) => {
     const timestampCandidate = [dep.expected, dep.scheduled].find(
       (value) =>
@@ -368,9 +369,7 @@ export async function getDepartures(
       const scheduledDate = new Date(scheduledTime);
       const line = dep.line?.designation || dep.line?.name || "";
       const direction_code = dep.direction_code ?? 0;
-      cacheScheduleTime(siteId, line, direction_code, scheduledDate).catch(
-        () => {},
-      );
+      scheduleTimes.push({ line, direction_code, scheduledTime: scheduledDate });
     }
 
     // Extract departure-level deviations (plural "deviations" field from SL API)
@@ -405,6 +404,8 @@ export async function getDepartures(
       },
     ];
   });
+
+  void cacheScheduleTimes(siteId, scheduleTimes).catch(() => {});
 
   const diagnostics: DepartureFetchDiagnostics = {
     requestedAt,

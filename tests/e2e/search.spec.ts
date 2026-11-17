@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./support/mobileTest";
 
 const MOCK_STOP_FINDER_RESPONSE = {
   locations: [
@@ -71,7 +71,7 @@ test.describe("Segment search", () => {
     });
   });
 
-  test("should search for Lindarängsvägen and allow adding a segment", async ({
+  test("should search for Lindarängsvägen and allow adding a segment", { tag: ["@mobile-core", "@mobile-smoke"] }, async ({
     page,
   }) => {
     await page.route(

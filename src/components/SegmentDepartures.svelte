@@ -399,7 +399,7 @@ let pages = $derived(getPages());
   }
 
   $effect(() => {
-    if (preview) return;
+    if (preview || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const count = [...segmentDeps.values()].reduce((a, b) => a + b.length, 0);
     if (!depListEl || count === 0 || hasAnimatedStagger) return;
     const cards = depListEl.querySelectorAll('.departure-card, .journey-card');
@@ -574,29 +574,13 @@ let pages = $derived(getPages());
     <!-- Station facility notices: collapsed ambient bar, expands inline -->
     <StationNoticeBar alerts={deviationStationAlerts} {t} />
 
-    <!-- Departure list -->
-    <div class="card-list" bind:this={depListEl} onscroll={onScroll} aria-busy={isLoading}>
-    {#if isLoading}
-      <div class="loading-skeleton" aria-hidden="true">
-        {#each Array(3) as _, i (i)}
-          <div class="skeleton-card">
-            <div class="skeleton-body">
-              <div class="skeleton-icon"></div>
-              <div class="skeleton-meta">
-                <div class="sk-line sk-route"></div>
-                <div class="sk-line sk-stop"></div>
-                <div class="sk-line sk-dest"></div>
-              </div>
-              <div class="sk-countdown"></div>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {:else}
       {@const sections = [
         { key: 'departures', title: t.departuresSection ?? 'Avgångar', description: '', groups: boardGroups.departures.groups },
         { key: 'journeys', title: t.journeysSection ?? 'Resor', description: t.journeysSectionDesc ?? 'Visar nästa bästa resa till din destination.', groups: boardGroups.journeys.groups },
       ]}
+
+    <!-- Departure list -->
+    <div class="card-list" bind:this={depListEl} onscroll={onScroll} aria-busy={isLoading}>
       {#each sections as section (section.key)}
         {#if section.groups.length > 0}
           <section class="content-section" class:journey-section={section.key === 'journeys'} data-testid="content-section" aria-labelledby="section-{section.key}">
@@ -659,6 +643,11 @@ let pages = $derived(getPages());
               segment={item.segment}
               segmentId={item.segment.id}
               {departure}
+              status={departureStatuses.get(makeDepartureStatusKey(item.segment.fromStop.siteId, item.segment.line, item.segment.direction.code))}
+              onRetry={() => departureStore.retrySegment({
+                siteId: item.segment.fromStop.siteId, stopName: item.segment.fromStop.name,
+                line: item.segment.line, direction_code: item.segment.direction.code,
+              })}
               {subsequent}
               {hasDeparture}
               {primaryDepartureText}
@@ -697,14 +686,10 @@ let pages = $derived(getPages());
         {/if}
       {/each}
 
-      {#if (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
+      {#if !allDeparturesUnavailable && (page.segments ?? []).length > 0 && !isLoading && [...segmentDeps.values()].every((d) => d.length === 0) && [...segmentSleeping.values()].every(s => !s.isSleeping)}
         <div class="empty-state">
           <div class="no-departure">—</div>
-          {#if allDeparturesUnavailable}
-            <p class="empty-text">{t.departuresUnavailable ?? 'Departures unavailable'}</p>
-          {:else}
             <p class="empty-text">{t.noDeparturesAvailable}</p>
-          {/if}
         </div>
       {/if}
       {#if onQuickAdd}
@@ -712,7 +697,6 @@ let pages = $derived(getPages());
           + {t.add}
         </button>
       {/if}
-    {/if}
   </div>
   {/if}
 
@@ -902,78 +886,6 @@ let pages = $derived(getPages());
     background: color-mix(in oklch, var(--accent) 10%, transparent);
   }
 
-  .loading-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .skeleton-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border);
-  }
-  .skeleton-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(
-      110deg,
-      transparent 22%,
-      color-mix(in oklch, var(--surface) 68%, var(--text) 32%) 50%,
-      transparent 78%
-    );
-    transform: translateX(-100%);
-    animation: skeleton-shimmer 1.7s ease-in-out infinite;
-  }
-  .skeleton-body {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    min-height: 64px;
-  }
-  .skeleton-icon {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    border-radius: 8px;
-    background: var(--border);
-  }
-  .skeleton-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    flex: 1;
-    min-width: 0;
-  }
-  .sk-line {
-    border-radius: 4px;
-    background: var(--border);
-  }
-  .sk-route { width: 60px; height: 16px; }
-  .sk-stop { width: 130px; height: 10px; }
-  .sk-dest { width: 100px; height: 10px; }
-  .sk-countdown {
-    width: 60px;
-    height: 28px;
-    border-radius: 4px;
-    flex-shrink: 0;
-    background: var(--border);
-  }
-  @keyframes skeleton-shimmer {
-    to { transform: translateX(100%); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .skeleton-card::after { display: none; }
-  }
-
   .empty-state {
     text-align: center;
     padding: 48px 24px;
@@ -1101,16 +1013,7 @@ let pages = $derived(getPages());
       grid-column: 1 / -1;
     }
 
-    .loading-skeleton {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
 
-    .card-list > .loading-skeleton {
-      grid-column: 1 / -1;
-      width: 100%;
-    }
 
     .page-title {
       font-size: clamp(30px, 4vw, 38px);

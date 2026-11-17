@@ -9,6 +9,11 @@ on:
     - cron: '17 6 * * *'
     - cron: '47 10 * * *'
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: 'Validate and run mobile benchmarks without deploying'
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -62,6 +67,26 @@ jobs:
       - name: Run E2E tests
         run: pnpm exec playwright test
 
+      - name: Run mobile benchmarks (report only)
+        if: inputs.benchmark == true
+        run: pnpm exec playwright test --config=playwright.benchmark.config.ts
+
+      - name: Upload mobile benchmark results
+        if: always() && inputs.benchmark == true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-benchmarks
+          path: test-results/benchmarks/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize mobile benchmarks
+        if: always() && inputs.benchmark == true
+        run: |
+          if test -f test-results/benchmarks/summary.md; then
+            cat test-results/benchmarks/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload Playwright diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -74,6 +99,7 @@ jobs:
           retention-days: 7
 
   build:
+    if: inputs.benchmark != true
     permissions:
       contents: read
     runs-on: ubuntu-24.04

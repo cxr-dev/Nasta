@@ -9,6 +9,7 @@ export interface DepartureStatus {
   freshness: DepartureFreshness;
   sourceUpdatedAt?: number;
   canRetry: boolean;
+  pending?: boolean;
 }
 
 export interface DepartureRequest {
@@ -133,6 +134,7 @@ const fetchAllHybrid = async (
   segmentData: DepartureRequest[],
   clearFirst = false,
   requestId: string | null = null,
+  allowConcurrent = false,
 ) => {
   const previousRequestId = currentRequestId;
 
@@ -149,7 +151,7 @@ const fetchAllHybrid = async (
 
   if (activeFetchCount > 0) {
     const sameRequest = !requestId || requestId === previousRequestId;
-    if (sameRequest) {
+    if (sameRequest && !allowConcurrent) {
       if (import.meta.env.DEV)
         console.log("[departureStore] Fetch skipped - already fetching");
       return;
@@ -170,6 +172,24 @@ const fetchAllHybrid = async (
     ? new Map<string, Departure[]>()
     : new Map(_data);
 
+  function publishResults(segments = segmentData) {
+    const next = new Map(_data);
+    for (const seg of segments) {
+      const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
+      if (results.has(key)) next.set(key, results.get(key)!);
+    }
+    _data = next;
+    notifyData();
+    notifyMeta();
+  }
+  if (clearFirst) _data = new Map();
+
+  for (const seg of segmentData) {
+    const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
+    _statuses.set(key, { ...(_statuses.get(key) ?? { freshness: 'unavailable' }), canRetry: false, pending: true });
+  }
+  notifyMeta();
+
   try {
     const siteIdsNeedingApi: typeof segmentData = [];
     const cachedUpdatedAt = new Map<string, number>();
@@ -181,10 +201,12 @@ const fetchAllHybrid = async (
         seg.direction_code,
         24,
       );
-      if (cached) {
+      if (!ownsRequest()) return;
+      if (cached && !results.has(makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code))) {
         const key = makeDepartureStatusKey(seg.siteId, seg.line, seg.direction_code);
         results.set(key, cached.departures);
         cachedUpdatedAt.set(key, cached.updatedAt);
+        _statuses.set(key, { freshness: 'stale', sourceUpdatedAt: cached.updatedAt, canRetry: false, pending: true });
       }
 
       // Cached schedules are an immediate snapshot, not a reason to skip the
@@ -196,13 +218,11 @@ const fetchAllHybrid = async (
     // the list populated during refresh and gives the API response a stable
     // snapshot to replace, instead of rendering an empty intermediate state.
     if (ownsRequest()) {
-      _data = results;
       if (cachedUpdatedAt.size > 0) {
         _isLoading = false;
         _isUpdating = true;
       }
-      notifyData();
-      notifyMeta();
+      publishResults();
     }
 
     if (siteIdsNeedingApi.length > 0) {
@@ -265,14 +285,15 @@ const fetchAllHybrid = async (
               sourceUpdatedAt: fallbackUpdatedAt,
               canRetry: typeof navigator === "undefined" || navigator.onLine,
             });
+          } finally {
+            if (ownsRequest()) {
+              publishResults([seg]);
+            }
           }
         }),
       );
 
       if (!ownsRequest()) return;
-      _data = new Map(results);
-      notifyData();
-      notifyMeta();
     }
   } catch (error) {
     if (import.meta.env.DEV)
@@ -355,7 +376,9 @@ function retrySegment(segment: {
   destId?: string;
 }) {
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
-  void fetchAllHybrid([segment], false, currentRequestId);
+  const key = makeDepartureStatusKey(segment.siteId, segment.line, segment.direction_code);
+  if (_statuses.get(key)?.pending) return;
+  void fetchAllHybrid([segment], false, currentRequestId, true);
 }
 
 export const departureStore = {
